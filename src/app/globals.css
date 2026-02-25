@@ -1,0 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100vh;
+  background: #F5F0E8;
+  font-family: 'Source Sans 3', 'Source Sans Pro', -apple-system, sans-serif;
+  color: #1B3D2F;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgba(139, 35, 50, 0.15);
+  color: #1B3D2F;
+}
+
+input:focus {
+  outline: none;
+}
+
+a {
+  color: #8B2332;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
