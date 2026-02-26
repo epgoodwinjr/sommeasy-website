@@ -291,14 +291,15 @@ function DNAProfileCard({ profile, onStartOver, onSave, saving, user }) {
 }
 
 // ─── Main Quiz Component ───
-export default function Quiz({ user, onProfileGenerated }) {
+export default function Quiz({ user, onProfileGenerated, initialAnswers, onCancel }) {
   const [step, setStep] = useState(0);
-  const [answers, setAnswers] = useState({ countries: [], regions: {}, estates: {}, varietals: [], specificWines: [] });
+  const [answers, setAnswers] = useState(initialAnswers || { countries: [], regions: {}, estates: {}, varietals: [], specificWines: [] });
   const [profile, setProfile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [anim, setAnim] = useState(false);
   const scrollRef = useRef(null);
   const totalSteps = 5;
+  const isRefineMode = !!initialAnswers;
 
   const go = (n) => { setAnim(true); setTimeout(() => { setStep(n); setAnim(false); window.scrollTo({ top: 0, behavior: "smooth" }); }, 200); };
   const toggle = (arr, item) => arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
@@ -330,7 +331,14 @@ export default function Quiz({ user, onProfileGenerated }) {
       {step >= 0 && step < 99 && (
         <div style={{ padding: "16px 20px 12px", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600 }}>Sommeasy</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {onCancel && (
+                <button onClick={onCancel} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.5, padding: "4px 0" }}>← Back</button>
+              )}
+              <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600 }}>
+                {isRefineMode ? "Refine Profile" : "Sommeasy"}
+              </span>
+            </div>
             <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.5 }}>Step {step + 1} of {totalSteps}</span>
           </div>
           <ProgressBar current={step} total={totalSteps} />
@@ -357,7 +365,7 @@ export default function Quiz({ user, onProfileGenerated }) {
               background: canProceed ? "#8B2332" : "rgba(27,61,47,0.1)", color: canProceed ? "#F5F0E8" : "rgba(27,61,47,0.3)",
               fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, cursor: canProceed ? "pointer" : "default",
               boxShadow: canProceed ? "0 4px 16px rgba(139,35,50,0.25)" : "none",
-            }}>{step === totalSteps - 1 ? "See My Wine DNA" : "Continue"}</button>
+            }}>{step === totalSteps - 1 ? (isRefineMode ? "Update My Wine DNA" : "See My Wine DNA") : "Continue"}</button>
           </div>
         </div>
       )}
