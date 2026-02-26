@@ -1,7 +1,60 @@
 import { NextResponse } from "next/server";
-import { extractText } from "unpdf";
+import { getDocumentProxy } from "unpdf";
 
 export const maxDuration = 45;
+
+// ─── Extract text from PDF with line-break awareness ───
+// Uses Y-coordinate changes to detect new lines in the PDF layout
+async function extractPdfText(buffer) {
+  const uint8 = new Uint8Array(buffer);
+  const doc = await getDocumentProxy(uint8);
+  const allLines = [];
+
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+
+    if (!content.items.length) continue;
+
+    // Group text items into lines by Y-coordinate
+    let currentLine = "";
+    let lastY = null;
+
+    for (const item of content.items) {
+      if (!item.str && item.str !== "") continue;
+
+      // transform[5] is the Y position on the page
+      const y = item.transform ? item.transform[5] : null;
+
+      if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) {
+        // Y changed significantly — this is a new line
+        if (currentLine.trim()) {
+          allLines.push(currentLine.trim());
+        }
+        currentLine = item.str;
+      } else {
+        // Same line — append with space if needed
+        if (currentLine && item.str && !currentLine.endsWith(" ") && !item.str.startsWith(" ")) {
+          currentLine += " " + item.str;
+        } else {
+          currentLine += item.str;
+        }
+      }
+
+      if (y !== null) lastY = y;
+    }
+
+    // Don't forget the last line on the page
+    if (currentLine.trim()) {
+      allLines.push(currentLine.trim());
+    }
+
+    page.cleanup();
+  }
+
+  await doc.destroy();
+  return allLines.join("\n");
+}
 
 export async function POST(request) {
   try {
@@ -69,9 +122,7 @@ export async function POST(request) {
 
       let pdfText = "";
       try {
-        const uint8 = new Uint8Array(pdfBuffer);
-        const result = await extractText(uint8, { mergePages: true });
-        pdfText = result.text || "";
+        pdfText = await extractPdfText(pdfBuffer);
       } catch (pdfErr) {
         console.error("PDF parse error:", pdfErr.message);
         return NextResponse.json(
