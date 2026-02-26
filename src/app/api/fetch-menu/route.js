@@ -3,6 +3,67 @@ import { getDocumentProxy } from "unpdf";
 
 export const maxDuration = 45;
 
+// ─── Clean up extracted text for the wine parser ───
+function cleanExtractedText(text) {
+  let lines = text.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+
+  // PASS 1: Per-line cleanup
+  lines = lines.map((line) => {
+    let l = line;
+
+    // Strip bin/item numbers at start: "1011}" or "1056}"
+    l = l.replace(/^\d{2,5}\}\s*/, "");
+    // Strip leading ref codes like "R15 " or "B11 "
+    l = l.replace(/^[A-Z]\d{1,3}\s+/, "");
+    // Clean stray curly braces
+    l = l.replace(/[{}]/g, "");
+
+    // Replace dot leaders (". . . . ." or ".......") with single space
+    l = l.replace(/(?:\.\s*){3,}/g, " ");
+
+    // Fix broken accents from PDF text extraction
+    // PDF extractors sometimes insert a space before accented chars
+    l = l.replace(/Ros\s+é/gi, "Rosé");
+    l = l.replace(/Cr\s+émant/g, "Crémant");
+    l = l.replace(/Ch\s+âteau/gi, "Château");
+    l = l.replace(/C\s+ôte/g, "Côte");
+    l = l.replace(/Rh\s+ône/gi, "Rhône");
+    l = l.replace(/M\s+édoc/g, "Médoc");
+    l = l.replace(/B\s+eaune/g, "Beaune");
+    l = l.replace(/St[\s.-]+Émilion/gi, "St-Émilion");
+    l = l.replace(/Ép\s+ernay/g, "Épernay");
+    l = l.replace(/Cru\s+s/g, "Crus");
+    l = l.replace(/Cuv\s+ée/g, "Cuvée");
+    l = l.replace(/Premi\s+ère/g, "Première");
+    l = l.replace(/Réserv\s+e/g, "Réserve");
+
+    // Collapse multiple spaces
+    l = l.replace(/\s{2,}/g, " ");
+
+    return l.trim();
+  });
+
+  // PASS 2: Merge orphan lines (prices split across lines by dot leaders)
+  const merged = [];
+  for (const line of lines) {
+    if (!line || line.length < 2) continue;
+
+    // Line is just a number (orphan price from dot-leader line wrap): merge with previous
+    if (/^\d{1,4}\.?\s*$/.test(line) && merged.length > 0) {
+      const price = line.replace(/\.$/, "").trim();
+      merged[merged.length - 1] += " " + price;
+      continue;
+    }
+
+    // Line is only dots/spaces — discard
+    if (/^[.\s]+$/.test(line)) continue;
+
+    merged.push(line);
+  }
+
+  return merged.join("\n");
+}
+
 // ─── Extract text from PDF with line-break awareness ───
 // Uses Y-coordinate changes to detect new lines in the PDF layout
 async function extractPdfText(buffer) {
@@ -109,7 +170,7 @@ export async function POST(request) {
       (contentType.includes("application/octet-stream") && urlPath.endsWith(".pdf")) ||
       urlPath.endsWith(".pdf");
 
-    // ─── PDF HANDLING: extract text with unpdf, pass to paste box ───
+    // ─── PDF HANDLING: extract text with unpdf, clean up, pass to paste box ───
     if (isPdf) {
       const pdfBuffer = await pageResponse.arrayBuffer();
 
@@ -143,8 +204,9 @@ export async function POST(request) {
         pdfText = pdfText.substring(0, 12000);
       }
 
-      // PDF text is already structured enough for the match engine.
-      // Skip the Claude API call — user can review/edit in the paste box.
+      // Clean up PDF artifacts
+      pdfText = cleanExtractedText(pdfText);
+
       return NextResponse.json({ text: pdfText, source: "pdf" });
     }
 
@@ -177,8 +239,9 @@ export async function POST(request) {
       );
     }
 
-    // HTML text is already cleaned — pass directly to paste box for review.
-    // The match engine handles parsing from here.
+    // Clean up HTML artifacts
+    pageText = cleanExtractedText(pageText);
+
     return NextResponse.json({ text: pageText, source: "html" });
   } catch (err) {
     console.error("Fetch-menu route error:", err);
