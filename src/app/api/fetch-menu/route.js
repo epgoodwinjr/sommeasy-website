@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { extractText } from "unpdf";
 
 export const maxDuration = 45;
 
@@ -75,7 +76,7 @@ export async function POST(request) {
       (contentType.includes("application/octet-stream") && urlPath.endsWith(".pdf")) ||
       urlPath.endsWith(".pdf");
 
-    // ─── PDF HANDLING: extract text with pdf-parse, then send text to Claude ───
+    // ─── PDF HANDLING: extract text with unpdf, then send to Claude ───
     if (isPdf) {
       const pdfBuffer = await pageResponse.arrayBuffer();
 
@@ -86,19 +87,15 @@ export async function POST(request) {
         return NextResponse.json({ error: "PDF appears to be empty or corrupted." }, { status: 422 });
       }
 
-      // Extract text from PDF
       let pdfText = "";
       try {
-        const { PDFParse } = await import("pdf-parse");
-        const dataBuffer = Buffer.from(pdfBuffer);
-        const parser = new PDFParse({ data: dataBuffer });
-        const result = await parser.getText();
+        const uint8 = new Uint8Array(pdfBuffer);
+        const result = await extractText(uint8, { mergePages: true });
         pdfText = result.text || "";
-        await parser.destroy();
       } catch (pdfErr) {
-        console.error("pdf-parse error:", pdfErr.message);
+        console.error("PDF parse error:", pdfErr.message);
         return NextResponse.json(
-          { error: "Could not read this PDF. It may be password-protected or corrupted." },
+          { error: "Could not read this PDF. It may be password-protected or image-based. Try the Snap Photo tab instead." },
           { status: 422 }
         );
       }
