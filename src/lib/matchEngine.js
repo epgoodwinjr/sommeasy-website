@@ -186,6 +186,25 @@ function getCountryForRegion(regionId) {
 
 // ─── Parse wine list text into entries ───
 
+function smartTitleCase(name) {
+  // If mostly uppercase, convert to title case for readability
+  const letters = name.replace(/[^a-zA-Z]/g, "");
+  const upperRatio = letters.length > 0 ? (letters.replace(/[^A-Z]/g, "").length / letters.length) : 0;
+  if (upperRatio < 0.7) return name; // Already mixed case, leave it
+
+  // French/wine words that should stay lowercase (except at start)
+  const lowerWords = new Set(["de", "du", "des", "le", "la", "les", "et", "en", "au", "aux", "di", "del", "della", "delle", "dei", "degli", "von", "van", "der", "das"]);
+
+  return name.toLowerCase().replace(/(?:^|\s)(\S)/g, (match, char, offset) => {
+    // Check if this word should stay lowercase
+    const wordMatch = name.toLowerCase().slice(offset).match(/^\s*(\S+)/);
+    if (wordMatch && lowerWords.has(wordMatch[1]) && offset > 0) {
+      return match;
+    }
+    return match.slice(0, -1) + char.toUpperCase();
+  }).replace(/^./, c => c.toUpperCase()); // Ensure first char is always upper
+}
+
 export function parseWineList(text) {
   if (!text || !text.trim()) return [];
 
@@ -194,37 +213,61 @@ export function parseWineList(text) {
   const seenNorm = new Set();
 
   // Category headers to skip
-  const skipPatterns = /^(reds?|whites?|rosés?|roses?|sparkling|dessert|beer|cocktails?|spirits?|by the glass|by the bottle|wine list|beverages?|drinks?|half bottles?|magnums?|reserve list)\s*$/i;
+  const skipPatterns = /^(reds?|whites?|rosés?|roses?|sparkling|dessert|beer|cocktails?|spirits?|by the glass|by the bottle|wine list|beverages?|drinks?|half bottles?|magnums?|reserve list|champagne|bordeaux|burgundy|rhône|rhone|alsace|loire|tuscany|piedmont|rioja|south\s*africa|napa|sonoma)\s*$/i;
 
   for (const line of lines) {
-    if (skipPatterns.test(line)) continue;
+    if (skipPatterns.test(line.replace(/[^a-zA-Z\s]/g, "").trim())) continue;
     if (/^\d+\s*$/.test(line)) continue;
     if (line.length > 200) continue;
 
-    // Extract price
+    // Extract price - look for $ or number at end
     const priceMatch = line.match(/\$?\s*(\d{1,4}(?:\.\d{2})?)\s*$/);
     const price = priceMatch ? parseFloat(priceMatch[1]) : null;
+    // Skip if price looks like a year (1900-2030)
+    const priceVal = priceMatch ? parseFloat(priceMatch[1]) : null;
+    const isYear = priceVal && priceVal >= 1900 && priceVal <= 2030;
+    const finalPrice = (priceVal && !isYear) ? priceVal : null;
+
     let name = priceMatch ? line.slice(0, priceMatch.index).trim() : line;
 
     // Clean up formatting artifacts
     name = name
-      .replace(/\.\.\.*\s*$/, "")
-      .replace(/_{2,}/, "")
-      .replace(/\s{3,}/g, " ")
-      .replace(/^\d+\.\s*/, "")
+      .replace(/[.\s]*\.{2,}[.\s]*$/g, "")  // trailing dots (including ". . . . .")
+      .replace(/[\s.]+$/g, "")                // trailing spaces/dots
+      .replace(/_{2,}/g, "")                  // underscores
+      .replace(/\s{3,}/g, " ")               // excessive whitespace
+      .replace(/^\d+\.\s*/, "")              // leading "1. "
+      .replace(/['']/g, "'")                  // smart quotes → straight
       .trim();
 
-    // Strip leading bin numbers like "B44", "747A", "B60" (common in wine lists)
+    // Strip leading bin numbers like "B44", "747A", "B60"
     name = name.replace(/^[A-Z]?\d{1,4}[A-Z]?\s+/i, "").trim();
+
+    // Strip trailing vintage years if they're the last thing
+    // (we keep the year info but don't include it in the display name if it's just "2019")
+    name = name.replace(/,?\s*\d{4}\s*$/, "").trim();
 
     if (name.length < 4) continue;
 
-    // Normalize for dedup
-    const normKey = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    // Skip lines that are just a region/appellation name with "France"/"Italy" etc (section headers)
+    if (/^[A-Za-zÀ-ÿ\s-]+,\s*(France|Italy|Spain|Germany|Austria|Portugal)\s*$/i.test(name)) {
+      // Check if it's JUST a region + country (like "Bordeaux, France" or "Saint-Julien, France")
+      // Only skip if there's no producer/wine name component
+      const parts = name.split(",").map(p => p.trim());
+      if (parts.length === 2 && parts[0].split(/\s+/).length <= 3) continue;
+    }
+
+    // Title case for display
+    const displayName = smartTitleCase(name);
+
+    // Normalize for dedup (strip accents, lowercase, alphanum only)
+    const normKey = displayName.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
     if (seenNorm.has(normKey)) continue;
     seenNorm.add(normKey);
 
-    entries.push({ name, price, originalLine: line });
+    entries.push({ name: displayName, price: finalPrice, originalLine: line });
   }
 
   return entries;
