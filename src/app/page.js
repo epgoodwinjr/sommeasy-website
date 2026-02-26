@@ -43,6 +43,16 @@ function WelcomeScreen({ onStart, user, onSignOut }) {
         onMouseLeave={e => { e.target.style.transform = "translateY(0)"; e.target.style.boxShadow = "0 4px 20px rgba(139,35,50,0.3)"; }}
       >Build My Profile</button>
 
+      {/* Restaurant recommendation CTA */}
+      {user && (
+        <a href="/recommend" style={{
+          display: "inline-block", marginTop: 16, padding: "12px 32px", borderRadius: "100px",
+          border: "2px solid rgba(27,61,47,0.2)", background: "rgba(255,255,255,0.6)",
+          fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600,
+          color: "#1B3D2F", textDecoration: "none", transition: "all 0.2s ease",
+        }}>📋 I'm at a Restaurant</a>
+      )}
+
       {!user && (
         <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.5, marginTop: 20 }}>
           Already have an account? <a href="/login" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in</a>

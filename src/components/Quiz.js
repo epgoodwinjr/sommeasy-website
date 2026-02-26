@@ -274,7 +274,17 @@ function DNAProfileCard({ profile, onStartOver, onSave, saving, user }) {
       )}
 
       <div style={{ textAlign: "center", marginTop: 28, paddingBottom: 20 }}>
-        <button onClick={onStartOver} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#8B2332", background: "none", border: "1px solid rgba(139,35,50,0.3)", borderRadius: "100px", padding: "10px 28px", cursor: "pointer" }}>Retake Quiz</button>
+        {user && (
+          <a href="/recommend" style={{
+            display: "inline-block", padding: "14px 32px", borderRadius: "100px",
+            background: "#1B3D2F", color: "#F5F0E8",
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600,
+            textDecoration: "none", boxShadow: "0 4px 16px rgba(27,61,47,0.25)",
+            marginBottom: 12,
+          }}>📋 I'm at a Restaurant</a>
+        )}
+        <br />
+        <button onClick={onStartOver} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#8B2332", background: "none", border: "1px solid rgba(139,35,50,0.3)", borderRadius: "100px", padding: "10px 28px", cursor: "pointer", marginTop: 8 }}>Retake Quiz</button>
       </div>
     </div>
   );
