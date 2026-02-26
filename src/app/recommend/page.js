@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName } from "@/lib/matchEngine";
 
 export default function RecommendPage() {
   const [user, setUser] = useState(null);
@@ -37,11 +37,11 @@ export default function RecommendPage() {
     const entries = parseWineList(wineListText);
     setTotalParsed(entries.length);
 
-    // Build DNA object from profile
+    // Build DNA object from profile — pass raw structure so matchEngine can use IDs
     const dna = {
       countries: profile.countries || [],
-      regions: Object.values(profile.regions || {}).flat(),
-      estates: Object.values(profile.estates || {}).flat(),
+      regions: profile.regions || {},
+      estates: profile.estates || {},
       varietals: profile.varietals || [],
       specificWines: profile.specific_wines || [],
     };
@@ -184,21 +184,44 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                     color: "#1B3D2F", margin: "0 0 10px", lineHeight: 1.3, fontWeight: 600,
                   }}>{pick.name}</h3>
 
-                  {/* Match reasons */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {/* Match reasons + country flag */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                    {/* Country flag — always show when detected */}
+                    {pick.detectedCountry && (
+                      <span style={{
+                        fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+                        color: "#1B3D2F", opacity: 0.6, background: "rgba(27,61,47,0.04)",
+                        padding: "3px 10px", borderRadius: "100px",
+                      }}>
+                        {getCountryFlag(pick.detectedCountry)} {getCountryName(pick.detectedCountry)}
+                      </span>
+                    )}
                     {pick.matchReasons.map((reason, j) => {
-                      const icons = { estate: "🏛️", region: "📍", varietal: "🍇", country: "🌍", country_region: "🌍", favorite: "❤️" };
+                      const icons = { estate: "\u{1F3DB}\uFE0F", region: "\u{1F4CD}", varietal: "\u{1F347}", country: "\u{1F30D}", country_region: "\u{1F30D}", favorite: "\u2764\uFE0F" };
+                      // Skip country-type reasons since we show flag separately
+                      if (reason.type === "country") return null;
                       return (
                         <span key={j} style={{
                           fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
                           color: "#1B3D2F", opacity: 0.6, background: "rgba(27,61,47,0.04)",
                           padding: "3px 10px", borderRadius: "100px",
                         }}>
-                          {icons[reason.type] || "🍷"} {reason.label}
+                          {icons[reason.type] || "\u{1F377}"} {reason.label}
                         </span>
                       );
                     })}
                   </div>
+
+                  {/* Producer identification — show enriched metadata */}
+                  {pick.producerMatch && (
+                    <div style={{
+                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F",
+                      opacity: 0.45, marginTop: 8, lineHeight: 1.5,
+                    }}>
+                      {pick.producerMatch.name} · {pick.producerMatch.subregion || pick.producerMatch.region}, {pick.producerMatch.country}
+                      {pick.producerMatch.varieties?.length > 0 && ` · ${pick.producerMatch.varieties.slice(0, 2).join(", ")}`}
+                    </div>
+                  )}
 
                   {/* Pick type context */}
                   {pick.pickType === "adventure" && (

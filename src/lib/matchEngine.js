@@ -21,6 +21,7 @@ const PROVINCE_TO_DNA_REGION = {
   "Alsace": "alsace", "Provence": "provence",
   "Languedoc-Roussillon": "languedoc", "South of France": "languedoc",
   "Loire Valley": "loire", "Rhône Valley": "rhone",
+  "Beaujolais": "beaujolais", "Southwest France": "southwest_france",
   "Tuscany": "tuscany", "Piedmont": "piedmont", "Veneto": "veneto",
   "Sicily & Sardinia": "sicily", "Southern Italy": "puglia", "Puglia": "puglia",
   "Northeastern Italy": "trentino", "Campania": "campania",
@@ -34,7 +35,8 @@ const PROVINCE_TO_DNA_REGION = {
   "South Australia": "barossa", "Western Australia": "margaret_river", "New South Wales": "hunter",
   "Marlborough": "marlborough", "Central Otago": "central_otago", "Hawke's Bay": "hawkes_bay",
   "Douro": "douro", "Alentejo": "alentejo", "Dão": "dao", "Vinho Verde": "vinho_verde",
-  "Mosel": "mosel", "Rheingau": "rheingau", "Pfalz": "pfalz",
+  "Mosel": "mosel", "Rheingau": "rheingau", "Pfalz": "pfalz", "Rheinhessen": "rheinhessen",
+  "Baden": "baden",
   "Niederösterreich": "kamptal", "Burgenland": "burgenland",
 };
 
@@ -51,6 +53,13 @@ const SUBREGION_TO_DNA_REGION = {
   "sta. rita hills": "santa_barbara", "santa rita hills": "santa_barbara",
   "santa maria valley": "santa_barbara", "happy canyon of santa barbara": "santa_barbara",
   "finger lakes": "finger_lakes", "walla walla valley": "walla_walla",
+  "columbia valley": "walla_walla",
+  "morgon": "beaujolais", "fleurie": "beaujolais", "moulin-à-vent": "beaujolais",
+  "brouilly": "beaujolais", "juliénas": "beaujolais", "chiroubles": "beaujolais",
+  "beaujolais-villages": "beaujolais", "saint-amour": "beaujolais",
+  "côte de brouilly": "beaujolais", "régnié": "beaujolais", "chénas": "beaujolais",
+  "cahors": "southwest_france", "madiran": "southwest_france", "gaillac": "southwest_france",
+  "jurançon": "southwest_france", "bergerac": "southwest_france", "irouléguy": "southwest_france",
   "côte-rôtie": "rhone", "hermitage": "rhone", "châteauneuf-du-pape": "rhone",
   "chateauneuf-du-pape": "rhone", "gigondas": "rhone", "cornas": "rhone",
   "saint-joseph": "rhone", "crozes-hermitage": "rhone", "condrieu": "rhone",
@@ -172,6 +181,20 @@ function buildSearchIndex() {
 
 const SEARCH_INDEX = buildSearchIndex();
 
+// Grape variety names that should never be treated as wine entries on their own
+const GRAPE_SKIP_LIST = new Set([
+  "pinot noir", "pinot grigio", "pinot gris", "cabernet sauvignon", "merlot",
+  "malbec", "chardonnay", "sauvignon blanc", "riesling", "moscato", "tempranillo",
+  "sangiovese", "nebbiolo", "syrah", "shiraz", "zinfandel", "grenache", "garnacha",
+  "mourvedre", "viognier", "gewurztraminer", "chenin blanc", "albarino",
+  "gruner veltliner", "vermentino", "semillon", "muscadet", "barbera", "dolcetto",
+  "cabernet franc", "petit verdot", "pinotage", "carmenere", "gamay", "mencia",
+  "primitivo", "nero davola", "aglianico", "touriga nacional", "torrontes",
+  "verdejo", "godello", "treixadura", "alvarinho", "glera", "prosecco",
+  "red blend", "white blend", "rose", "ros\u00e9", "sparkling",
+  "red wine", "white wine", "sparkling wine", "rose wine", "dessert wine",
+]);
+
 
 // ═══════════════════════════════════════════════════════
 // MATCHING HELPERS
@@ -194,50 +217,234 @@ function smartTitleCase(name) {
   const letters = name.replace(/[^a-zA-Z]/g, "");
   const upperRatio = letters.length > 0 ? (letters.replace(/[^A-Z]/g, "").length / letters.length) : 0;
   if (upperRatio < 0.7) return name;
-  const lowerWords = new Set(["de", "du", "des", "le", "la", "les", "et", "en", "au", "aux", "di", "del", "della", "delle", "dei", "degli", "von", "van", "der", "das", "d"]);
-  return name.toLowerCase().split(/(\s+)/).map((word, i) => {
-    if (word.match(/^\s+$/)) return word;
+  const lowerWords = new Set(["de", "du", "des", "le", "la", "les", "et", "en", "au", "aux", "di", "del", "della", "delle", "dei", "degli", "von", "van", "der", "das", "d", "e", "y"]);
+  return name.toLowerCase().split(/([\s\-]+)/).map((word, i) => {
+    if (word.match(/^[\s\-]+$/)) return word;
     if (i > 0 && lowerWords.has(word)) return word;
+    // Handle L' D' prefix
+    if (word.startsWith("l'") || word.startsWith("d'")) return word.charAt(0).toUpperCase() + "'" + word.charAt(2).toUpperCase() + word.slice(3);
     return word.charAt(0).toUpperCase() + word.slice(1);
   }).join("");
 }
 
+// Detect tasting note / description lines (should not be parsed as wine entries)
+function isTastingNote(text) {
+  var lower = text.toLowerCase();
+  // High-signal tasting note phrases
+  var tastingPhrases = [
+    "aroma of", "aromas of", "aroma and", "aromas and",
+    "palate", "nose", "finish", "tannin", "acidity", "body",
+    "notes of", "flavors of", "hints of", "layers of", "touch of",
+    "on the palate", "on the nose", "bright and", "rich and", "fresh and",
+    "crisp and", "smooth and", "elegant and", "balanced with", "pairs with",
+    "medium-bodied", "full-bodied", "light-bodied",
+    "ferment", "stainless steel", "oak aged", "barrel aged", "lees",
+    "cherry and", "berry and", "citrus and", "apple and", "peach and",
+    "tropical fruit", "red fruit", "dark fruit", "stone fruit",
+    "this wine", "this red", "this white", "this blend",
+    "deep red", "ruby", "golden", "straw", "purple color",
+    "concentrated", "mineral", "minerality",
+    "grapefruit", "blackberry", "raspberry", "strawberry",
+    "vanilla spice", "toasty oak", "oak finish",
+    "mouth feel", "mouthfeel", "lightly sparkling",
+  ];
+  var matchCount = 0;
+  for (var i = 0; i < tastingPhrases.length; i++) {
+    if (lower.includes(tastingPhrases[i])) matchCount++;
+  }
+  // If 2+ tasting phrases, it's a description
+  if (matchCount >= 2) return true;
+  // If even 1 match and the line is long, likely a note
+  if (matchCount >= 1 && text.length > 50) return true;
+  // If starts with descriptive adjective and is long, likely a note
+  if (text.length > 40 && /^(a |an |the |this |has |deep |bright |rich |fresh |crisp |smooth |elegant |complex |balanced|fragrant|aromatic|attractive|sweet and|dry,)/i.test(text)) return true;
+  return false;
+}
+
 export function parseWineList(text) {
   if (!text || !text.trim()) return [];
-  const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 3);
-  const entries = [];
-  const seenNorm = new Set();
-  const skipPatterns = /^(reds?|whites?|ros\u00e9s?|roses?|sparkling|dessert|beer|cocktails?|spirits?|by the glass|by the bottle|wine list|beverages?|drinks?|half bottles?|magnums?|reserve list|champagne|bordeaux|burgundy|rh\u00f4ne|rhone|alsace|loire|tuscany|piedmont|rioja|south\s*africa|napa|sonoma|california|italy|france|spain|australia|argentina|chile|germany|austria|portugal|new\s*zealand)\s*$/i;
+  var lines = text.split(/\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 3; });
+  var entries = [];
+  var seenNorm = new Set();
 
-  for (const line of lines) {
-    const stripped = line.replace(/[^a-zA-Z\u00C0-\u00FF\s]/g, "").trim();
-    if (skipPatterns.test(stripped)) continue;
+  // Category headers / section labels to skip (but track for context)
+  var skipPatterns = /^(reds?|whites?|ros[eé]s?|sparkling|dessert|beer|cocktails?|spirits?|by the glass|by the bottle|wine list|beverages?|drinks?|half bottles?|magnums?|reserve list|champagne|bordeaux|burgundy|rh[oô]ne|rhone|alsace|loire|tuscany|piedmont|rioja|south\s*africa|napa|sonoma|california|italy|france|spain|australia|argentina|chile|germany|austria|portugal|new\s*zealand|red wine|white wine|sparkling wine|ros[eé] wine|pinot noir|pinot grigio|cabernet sauvignon|merlot|malbec|chardonnay|sauvignon blanc|riesling|moscato|tempranillo|sangiovese|nebbiolo|syrah|shiraz|zinfandel|grenache|mourv[eè]dre|viognier|gew[uü]rztraminer|chenin blanc|red blend|white blend)\s*$/i;
+
+  // Varietal names we can use as section context
+  var varietalHeaders = {
+    "pinot noir": "Pinot Noir", "pinot grigio": "Pinot Grigio", "pinot gris": "Pinot Gris",
+    "cabernet sauvignon": "Cabernet Sauvignon", "cabernet": "Cabernet Sauvignon",
+    "merlot": "Merlot", "malbec": "Malbec", "chardonnay": "Chardonnay",
+    "sauvignon blanc": "Sauvignon Blanc", "riesling": "Riesling",
+    "moscato": "Moscato", "tempranillo": "Tempranillo", "sangiovese": "Sangiovese",
+    "nebbiolo": "Nebbiolo", "syrah": "Syrah", "shiraz": "Shiraz",
+    "zinfandel": "Zinfandel", "grenache": "Grenache", "garnacha": "Grenache",
+    "mourvedre": "Mourvèdre", "mourvèdre": "Mourvèdre", "viognier": "Viognier",
+    "gewurztraminer": "Gewürztraminer", "gewürztraminer": "Gewürztraminer",
+    "chenin blanc": "Chenin Blanc", "rosé": "Rosé", "rose": "Rosé",
+    "prosecco": "Prosecco", "red blend": "Red Blend", "white blend": "White Blend",
+    "pinotage": "Pinotage", "cabernet franc": "Cabernet Franc",
+    "petit verdot": "Petit Verdot", "albarino": "Albariño", "albariño": "Albariño",
+    "gruner veltliner": "Grüner Veltliner", "grüner veltliner": "Grüner Veltliner",
+    "vermentino": "Vermentino", "semillon": "Sémillon", "sémillon": "Sémillon",
+    "muscadet": "Muscadet", "barbera": "Barbera", "dolcetto": "Dolcetto",
+    "gamay": "Gamay", "carmenere": "Carmenère", "carménère": "Carmenère",
+    "glera": "Glera", "trebbiano": "Trebbiano", "corvina": "Corvina",
+    "nero d'avola": "Nero d'Avola", "aglianico": "Aglianico",
+    "torrontes": "Torrontés", "torrontés": "Torrontés",
+    "touriga nacional": "Touriga Nacional", "primitivo": "Primitivo",
+    "verdejo": "Verdejo", "godello": "Godello",
+  };
+
+  // Section-type headers that indicate color context (not varietal)
+  var colorHeaders = {
+    "red": "red", "reds": "red", "red wine": "red", "red wines": "red",
+    "white": "white", "whites": "white", "white wine": "white", "white wines": "white",
+    "rosé": "rosé", "rose": "rosé", "rosés": "rosé", "rosé wine": "rosé",
+    "sparkling": "sparkling", "sparkling wine": "sparkling", "sparkling wines": "sparkling",
+  };
+
+  // Track current section context
+  var currentVarietal = null;
+  var currentColor = null;
+
+  for (var li = 0; li < lines.length; li++) {
+    var line = lines[li];
+    var stripped = line.replace(/[^a-zA-Z\u00C0-\u00FF\s]/g, "").trim();
+    var strippedLower = stripped.toLowerCase();
+
+    // Check if this line is a section header
+    if (skipPatterns.test(stripped)) {
+      // Update context based on header type
+      if (varietalHeaders[strippedLower]) {
+        currentVarietal = varietalHeaders[strippedLower];
+        // Also set color context from varietal
+        var vMatch = SEARCH_INDEX.varietyTerms.find(function(v) { return v.name === currentVarietal; });
+        if (vMatch && vMatch.color) currentColor = vMatch.color;
+      } else if (colorHeaders[strippedLower]) {
+        currentColor = colorHeaders[strippedLower];
+        currentVarietal = null; // Reset varietal when we hit a broad color header
+      }
+      continue;
+    }
+
+    // Also check ALL CAPS version
+    if (stripped === stripped.toUpperCase() && stripped.length > 2) {
+      var upperLower = stripped.toLowerCase().trim();
+      if (varietalHeaders[upperLower]) {
+        currentVarietal = varietalHeaders[upperLower];
+        var vMatch2 = SEARCH_INDEX.varietyTerms.find(function(v) { return v.name === currentVarietal; });
+        if (vMatch2 && vMatch2.color) currentColor = vMatch2.color;
+        continue;
+      }
+      if (colorHeaders[upperLower]) {
+        currentColor = colorHeaders[upperLower];
+        currentVarietal = null;
+        continue;
+      }
+      // Skip other ALL CAPS headers like "BEVERAGE", "OOKA DOYLESTOWN" etc.
+      if (skipPatterns.test(upperLower)) continue;
+    }
+
     if (/^\d+\s*$/.test(line)) continue;
     if (line.length > 200) continue;
 
-    const priceMatch = line.match(/\$?\s*(\d{1,4}(?:\.\d{2})?)\s*$/);
-    const priceVal = priceMatch ? parseFloat(priceMatch[1]) : null;
-    const isYear = priceVal && priceVal >= 1900 && priceVal <= 2030;
-    const price = (priceVal && !isYear) ? priceVal : null;
-    let name = priceMatch ? line.slice(0, priceMatch.index).trim() : line;
+    // Skip tasting note lines
+    if (isTastingNote(line)) continue;
 
-    name = name.replace(/[.\s]*\.{2,}[.\s]*$/g, "").replace(/[\s.]+$/g, "")
-      .replace(/_{2,}/g, "").replace(/\s{3,}/g, " ").replace(/^\d+\.\s*/, "")
-      .replace(/[\u2018\u2019]/g, "'").trim();
+    // Skip blend composition lines like "90% Glera 10% Pinot Noir"
+    if (/^\d{1,3}%\s+\w+/.test(line.trim())) continue;
+
+    // Skip pure description lines (no producer/winery info)
+    if (/^(a |an |the |this |has |deep |bright |rich |fresh |crisp |smooth |elegant |complex |balanced|fragrant|aromatic|attractive|sweet|dry |pairs|serve|enjoy|california coastline)/i.test(line.trim()) && line.length > 30) continue;
+
+    // Also skip lines that are just "Page | N" style page numbers
+    if (/^page\s*\|\s*\d+$/i.test(line.trim())) continue;
+
+    // Price extraction — handle multiple formats:
+    // "$95", "95", "10/40" (glass/bottle), "$10/$40"
+    var price = null;
+    var name = line;
+
+    // Format: "10/40" or "$10/$40" (glass/bottle) — take bottle price
+    var glassBottle = line.match(/\$?\s*(\d{1,3})\s*\/\s*\$?\s*(\d{1,4})\s*$/);
+    if (glassBottle) {
+      price = parseFloat(glassBottle[2]);
+      name = line.slice(0, glassBottle.index).trim();
+    } else {
+      // Standard: "$95" or "95" at end
+      var priceMatch = line.match(/\$?\s*(\d{1,4}(?:\.\d{2})?)\s*$/);
+      if (priceMatch) {
+        var priceVal = parseFloat(priceMatch[1]);
+        var isYear = priceVal >= 1900 && priceVal <= 2030;
+        price = (!isYear) ? priceVal : null;
+        name = priceMatch ? line.slice(0, priceMatch.index).trim() : line;
+      }
+    }
+
+    // Clean formatting artifacts
+    name = name
+      .replace(/[.\s]*\.{2,}[.\s]*/g, " ")   // dots anywhere (". . . .")
+      .replace(/[\s.]+$/g, "")                 // trailing dots/spaces
+      .replace(/_{2,}/g, "")                   // underscores
+      .replace(/\s{3,}/g, " ")                // excess whitespace
+      .replace(/^\d+\.\s*/, "")               // leading "1. "
+      .replace(/[\u2018\u2019]/g, "'")         // smart quotes
+      .trim();
+
+    // Strip leading bin/ID numbers: "1454}", "1454)", "B44", "747A", "1320}"
+    name = name.replace(/^\d{1,5}[}\])\u007D\u007B\u2774\u2775]\s*/i, "").trim();
     name = name.replace(/^[A-Z]?\d{1,4}[A-Z]?\s+/i, "").trim();
+    // Also strip "Bin 44" style prefixes
+    name = name.replace(/^Bin\s+\d+\s*/i, "").trim();
 
     if (name.length < 4) continue;
 
+    // After cleaning, skip if name matches a known grape variety
+    var nameLC = name.toLowerCase().replace(/[^a-z\s]/g, "").trim();
+    if (GRAPE_SKIP_LIST.has(nameLC)) continue;
+
+    // Skip bare "Region, Country" headers
     if (/^[A-Za-z\u00C0-\u00FF\s\-']+,\s*(France|Italy|Spain|Germany|Austria|Portugal|Chile|Argentina|Australia|South Africa|New Zealand|United States)\s*$/i.test(name)) {
-      const parts = name.split(",").map(p => p.trim());
+      var parts = name.split(",").map(function(p) { return p.trim(); });
       if (parts.length === 2 && parts[0].split(/\s+/).length <= 4) continue;
     }
 
-    const displayName = smartTitleCase(name);
-    const normKey = displayName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    var displayName = smartTitleCase(name);
+
+    // Context injection: if entry has no varietal/region info and we have section context,
+    // append the varietal to help the match engine
+    var hasVarietal = false;
+    var hasRegionOrCountry = false;
+    var textLower = displayName.toLowerCase();
+    
+    for (var vi = 0; vi < SEARCH_INDEX.varietyTerms.length; vi++) {
+      if (textLower.includes(SEARCH_INDEX.varietyTerms[vi].term)) { hasVarietal = true; break; }
+    }
+    for (var ri = 0; ri < Math.min(SEARCH_INDEX.regionTerms.length, 200); ri++) {
+      if (SEARCH_INDEX.regionTerms[ri].term.length >= 4 && textLower.includes(SEARCH_INDEX.regionTerms[ri].term)) { hasRegionOrCountry = true; break; }
+    }
+    if (!hasRegionOrCountry) {
+      for (var ci = 0; ci < SEARCH_INDEX.countryTerms.length; ci++) {
+        if (SEARCH_INDEX.countryTerms[ci].term.length >= 4 && textLower.includes(SEARCH_INDEX.countryTerms[ci].term)) { hasRegionOrCountry = true; break; }
+      }
+    }
+
+    // If entry looks sparse (no varietal and no region), inject section context
+    if (!hasVarietal && currentVarietal) {
+      displayName = displayName + ", " + currentVarietal;
+    }
+
+    var normKey = displayName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
     if (normKey.length < 3 || seenNorm.has(normKey)) continue;
     seenNorm.add(normKey);
-    entries.push({ name: displayName, price, originalLine: line });
+    entries.push({ 
+      name: displayName, 
+      price: price, 
+      originalLine: line,
+      sectionVarietal: currentVarietal || null,
+      sectionColor: currentColor || null,
+    });
   }
   return entries;
 }
@@ -337,9 +544,10 @@ function scoreEntry(entry, userDNA) {
     originalLine: entry.originalLine,
     score: score,
     matchReasons: matchReasons.sort(function(a, b) { return b.weight - a.weight; }),
-    detectedColor: detectedColor,
+    detectedColor: detectedColor || entry.sectionColor || null,
     detectedRegionIds: Array.from(detectedRegionIds),
     detectedCountryIds: Array.from(detectedCountryIds),
+    detectedCountry: detectedCountryIds.size > 0 ? Array.from(detectedCountryIds)[0] : null,
   };
 }
 
@@ -454,4 +662,20 @@ export function getIndexStats() {
     varieties: SEARCH_INDEX.varietyTerms.length,
     countries: SEARCH_INDEX.countryTerms.length,
   };
+}
+
+var COUNTRY_FLAGS = {};
+for (var ci = 0; ci < DNA_COUNTRIES.length; ci++) {
+  COUNTRY_FLAGS[DNA_COUNTRIES[ci].id] = DNA_COUNTRIES[ci].emoji;
+}
+
+export function getCountryFlag(dnaCountryId) {
+  return COUNTRY_FLAGS[dnaCountryId] || "";
+}
+
+export function getCountryName(dnaCountryId) {
+  for (var i = 0; i < DNA_COUNTRIES.length; i++) {
+    if (DNA_COUNTRIES[i].id === dnaCountryId) return DNA_COUNTRIES[i].name;
+  }
+  return "";
 }

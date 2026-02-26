@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { COUNTRIES, REGIONS, ESTATES, VARIETALS } from "@/lib/wineData";
 import { generateDNAProfile } from "@/lib/profileEngine";
 
@@ -154,17 +154,86 @@ function VarietalStep({ selected, onToggle }) {
 
 function SpecificWineStep({ wines, onAdd, onRemove }) {
   const [val, setVal] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const ref = useRef(null);
-  const add = () => { const t = val.trim(); if (t && !wines.includes(t)) { onAdd(t); setVal(""); ref.current?.focus(); } };
+  const suggestRef = useRef(null);
+  const [acData, setAcData] = useState(null);
+
+  // Lazy-load autocomplete data
+  useEffect(() => {
+    import("@/lib/wineAutocomplete.json").then(mod => setAcData(mod.default || mod));
+  }, []);
+
+  const handleChange = (text) => {
+    setVal(text);
+    if (!acData || text.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const q = text.toLowerCase().trim();
+    const matches = acData.filter(item => {
+      return item.w.toLowerCase().includes(q) || (item.v && item.v.toLowerCase().includes(q));
+    }).slice(0, 6);
+    setSuggestions(matches);
+    setShowSuggestions(matches.length > 0);
+  };
+
+  const selectSuggestion = (item) => {
+    const label = item.w + (item.r ? ", " + item.r : "");
+    if (!wines.includes(label)) {
+      onAdd(label);
+    }
+    setVal("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    ref.current?.focus();
+  };
+
+  const add = () => { const t = val.trim(); if (t && !wines.includes(t)) { onAdd(t); setVal(""); setSuggestions([]); setShowSuggestions(false); ref.current?.focus(); } };
+
   return (
     <div>
       <StepHeader number="05" title="Any specific favorites?" subtitle="Got a wine you would order again in a heartbeat? Type it here — name, vintage, whatever you remember. Totally optional." />
-      <div style={{ display: "flex", gap: "8px", marginBottom: 16 }}>
-        <input ref={ref} type="text" value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
-          placeholder='e.g. "Constantia Glen Five 2018"'
-          style={{ flex: 1, padding: "12px 16px", borderRadius: "12px", border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", outline: "none", transition: "border-color 0.2s ease" }}
-          onFocus={e => e.target.style.borderColor = "#8B2332"} onBlur={e => e.target.style.borderColor = "rgba(27,61,47,0.15)"} />
-        <button onClick={add} disabled={!val.trim()} style={{ padding: "12px 20px", borderRadius: "12px", border: "none", background: val.trim() ? "#8B2332" : "rgba(27,61,47,0.1)", color: val.trim() ? "#F5F0E8" : "rgba(27,61,47,0.3)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, cursor: val.trim() ? "pointer" : "default", transition: "all 0.2s ease" }}>Add</button>
+      <div style={{ position: "relative" }}>
+        <div style={{ display: "flex", gap: "8px", marginBottom: showSuggestions ? 0 : 16 }}>
+          <input ref={ref} type="text" value={val} onChange={e => handleChange(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); if (e.key === "Escape") { setSuggestions([]); setShowSuggestions(false); } }}
+            onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+            placeholder='e.g. "Kanonkop" or "Chablis"'
+            autoComplete="off"
+            style={{ flex: 1, padding: "12px 16px", borderRadius: "12px", border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", outline: "none", transition: "border-color 0.2s ease" }}
+          />
+          <button onClick={add} disabled={!val.trim()} style={{ padding: "12px 20px", borderRadius: "12px", border: "none", background: val.trim() ? "#8B2332" : "rgba(27,61,47,0.1)", color: val.trim() ? "#F5F0E8" : "rgba(27,61,47,0.3)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, cursor: val.trim() ? "pointer" : "default", transition: "all 0.2s ease" }}>Add</button>
+        </div>
+
+        {/* Autocomplete dropdown */}
+        {showSuggestions && (
+          <div ref={suggestRef} style={{
+            background: "rgba(255,255,255,0.97)", borderRadius: "0 0 12px 12px", border: "2px solid rgba(139,35,50,0.15)",
+            borderTop: "1px solid rgba(27,61,47,0.08)", marginBottom: 16, maxHeight: 220, overflowY: "auto",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+          }}>
+            {suggestions.map((item, i) => (
+              <button key={i} onClick={() => selectSuggestion(item)}
+                style={{
+                  width: "100%", display: "flex", flexDirection: "column", gap: "2px",
+                  padding: "10px 16px", background: "none", border: "none",
+                  borderBottom: i < suggestions.length - 1 ? "1px solid rgba(27,61,47,0.06)" : "none",
+                  cursor: "pointer", textAlign: "left",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(139,35,50,0.04)"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
+                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", fontWeight: 500 }}>{item.w}</span>
+                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#1B3D2F", opacity: 0.45 }}>
+                  {[item.v, item.r, item.c].filter(Boolean).join(" · ")}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {wines.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {wines.map((w, i) => (
