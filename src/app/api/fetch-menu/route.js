@@ -3,27 +3,7 @@ import { extractText } from "unpdf";
 
 export const maxDuration = 45;
 
-const EXTRACT_PROMPT = `Extract the wine list from this content. Output ONLY the wine list text, formatted as one wine per line.
-
-For each wine, include whatever information is available: wine name, producer/winery, grape variety, region, vintage year, and price.
-
-Preserve section headers like "RED WINE", "WHITE WINE", "SPARKLING", "PINOT NOIR", "CHARDONNAY" etc. on their own lines — these help identify the wine type.
-
-If you see glass/bottle pricing like "10/40" or "$10/$40", keep that format.
-If prices are listed separately (e.g. in a table column), put the price at the end of each line with a $ sign.
-
-Do NOT include beer, cocktails, spirits, or food items.
-Do NOT add any commentary, explanations, or markdown formatting.
-Just the raw wine list text, cleaned up for readability.
-
-If there is no wine list in this content, respond with exactly: NOT_A_WINE_LIST`;
-
 export async function POST(request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "Menu fetch service not configured" }, { status: 500 });
-  }
-
   try {
     const body = await request.json();
     const { url } = body;
@@ -76,7 +56,7 @@ export async function POST(request) {
       (contentType.includes("application/octet-stream") && urlPath.endsWith(".pdf")) ||
       urlPath.endsWith(".pdf");
 
-    // ─── PDF HANDLING: extract text with unpdf, then send to Claude ───
+    // ─── PDF HANDLING: extract text with unpdf, pass to paste box ───
     if (isPdf) {
       const pdfBuffer = await pageResponse.arrayBuffer();
 
@@ -112,11 +92,9 @@ export async function POST(request) {
         pdfText = pdfText.substring(0, 12000);
       }
 
-      return await callClaude(
-        apiKey,
-        `Here is text extracted from a restaurant wine list PDF:\n\n---\n${pdfText}\n---\n\n${EXTRACT_PROMPT}`,
-        "pdf"
-      );
+      // PDF text is already structured enough for the match engine.
+      // Skip the Claude API call — user can review/edit in the paste box.
+      return NextResponse.json({ text: pdfText, source: "pdf" });
     }
 
     // ─── HTML HANDLING ───
@@ -148,60 +126,11 @@ export async function POST(request) {
       );
     }
 
-    return await callClaude(
-      apiKey,
-      `Here is text extracted from a restaurant webpage at ${parsedUrl.hostname}:\n\n---\n${pageText}\n---\n\n${EXTRACT_PROMPT}`,
-      "html"
-    );
+    // HTML text is already cleaned — pass directly to paste box for review.
+    // The match engine handles parsing from here.
+    return NextResponse.json({ text: pageText, source: "html" });
   } catch (err) {
     console.error("Fetch-menu route error:", err);
     return NextResponse.json({ error: "Failed to process URL" }, { status: 500 });
   }
-}
-
-// ─── Shared: Call Claude to extract/structure wine list from text ───
-async function callClaude(apiKey, prompt, source) {
-  const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!claudeResponse.ok) {
-    const errBody = await claudeResponse.text();
-    console.error(`Claude API error (${source}):`, claudeResponse.status, errBody);
-    // Surface the actual error for debugging
-    let detail = "";
-    try {
-      const errJson = JSON.parse(errBody);
-      detail = errJson.error?.message || errBody.substring(0, 200);
-    } catch {
-      detail = errBody.substring(0, 200);
-    }
-    return NextResponse.json({ error: `Failed to analyze page content (${claudeResponse.status}: ${detail})` }, { status: 502 });
-  }
-
-  const claudeData = await claudeResponse.json();
-  const extractedText = claudeData.content
-    ?.filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
-
-  if (!extractedText || extractedText.includes("NOT_A_WINE_LIST")) {
-    const hint =
-      source === "pdf"
-        ? "Could not find a wine list in this PDF. It may be a food menu without wines."
-        : "Could not find a wine list on that page. Try a direct link to the wine/drinks menu.";
-    return NextResponse.json({ error: hint, text: "" });
-  }
-
-  return NextResponse.json({ text: extractedText, source, usage: claudeData.usage });
 }

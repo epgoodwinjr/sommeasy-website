@@ -60,9 +60,16 @@ If this is not a wine list or menu, respond with: NOT_A_WINE_LIST`,
     });
 
     if (!response.ok) {
-      const err = await response.text();
-      console.error("Claude API error:", err);
-      return NextResponse.json({ error: "OCR processing failed" }, { status: 502 });
+      const errBody = await response.text();
+      console.error("Claude API error:", errBody);
+      let detail = "";
+      try {
+        const errJson = JSON.parse(errBody);
+        detail = errJson.error?.message || errBody.substring(0, 200);
+      } catch {
+        detail = errBody.substring(0, 200);
+      }
+      return NextResponse.json({ error: `OCR processing failed (${response.status}: ${detail})` }, { status: 502 });
     }
 
     const data = await response.json();
