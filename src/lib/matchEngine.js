@@ -38,6 +38,8 @@ const PROVINCE_TO_DNA_REGION = {
   "Mosel": "mosel", "Rheingau": "rheingau", "Pfalz": "pfalz", "Rheinhessen": "rheinhessen",
   "Baden": "baden",
   "Niederösterreich": "kamptal", "Burgenland": "burgenland",
+  "California": "napa", "Oregon": "willamette", "Washington": "walla_walla",
+  "New York": "finger_lakes", "Virginia": "virginia",
 };
 
 const SUBREGION_TO_DNA_REGION = {
@@ -176,6 +178,20 @@ function buildSearchIndex() {
     idx.countryTerms.push({ term: name.toLowerCase(), name, dnaCountryId: COUNTRY_TO_DNA[name] || null, count });
   }
 
+  // Add US aliases (since "US" is only 2 chars and gets filtered)
+  idx.countryTerms.push({ term: "united states", name: "United States", dnaCountryId: "usa", count: 54504 });
+  idx.countryTerms.push({ term: "u.s.a.", name: "United States", dnaCountryId: "usa", count: 54504 });
+
+  // Add US state full names as country-level signals
+  var stateToUSA = ["california", "oregon", "washington", "new york", "virginia", "texas",
+    "colorado", "arizona", "new mexico", "idaho", "michigan", "pennsylvania",
+    "north carolina", "ohio", "missouri"];
+  for (var si = 0; si < stateToUSA.length; si++) {
+    if (!idx.regionTerms.some(function(r) { return r.term === stateToUSA[si]; })) {
+      idx.countryTerms.push({ term: stateToUSA[si], name: "United States", dnaCountryId: "usa", count: 1000 });
+    }
+  }
+
   return idx;
 }
 
@@ -267,8 +283,29 @@ export function parseWineList(text) {
   var entries = [];
   var seenNorm = new Set();
 
+  // US state abbreviation → full name (for wine-producing states)
+  var US_STATE_ABBREVS = {
+    "CA": "California", "OR": "Oregon", "WA": "Washington",
+    "NY": "New York", "VA": "Virginia", "TX": "Texas",
+    "CO": "Colorado", "AZ": "Arizona", "NM": "New Mexico",
+    "ID": "Idaho", "MI": "Michigan", "PA": "Pennsylvania",
+    "NC": "North Carolina", "OH": "Ohio", "MO": "Missouri",
+    "NJ": "New Jersey", "CT": "Connecticut", "MD": "Maryland",
+  };
+
+  // Pre-process: expand US state abbreviations in wine lines
+  // Matches patterns like ", OR 2023", ", CA 2024", "Valley CA 2023"
+  lines = lines.map(function(line) {
+    return line.replace(/,?\s+([A-Z]{2})\s+(\d{4})\b/g, function(match, abbr, year) {
+      if (US_STATE_ABBREVS[abbr]) {
+        return ", " + US_STATE_ABBREVS[abbr] + " " + year;
+      }
+      return match;
+    });
+  });
+
   // Category headers / section labels to skip (but track for context)
-  var skipPatterns = /^(reds?|whites?|ros[eé]s?|sparkling|dessert|beer|cocktails?|spirits?|by the glass|by the bottle|wine list|beverages?|drinks?|half bottles?|magnums?|reserve list|champagne|bordeaux|burgundy|rh[oô]ne|rhone|alsace|loire|tuscany|piedmont|rioja|south\s*africa|napa|sonoma|california|italy|france|spain|australia|argentina|chile|germany|austria|portugal|new\s*zealand|red wine|white wine|sparkling wine|ros[eé] wine|pinot noir|pinot grigio|cabernet sauvignon|merlot|malbec|chardonnay|sauvignon blanc|riesling|moscato|tempranillo|sangiovese|nebbiolo|syrah|shiraz|zinfandel|grenache|mourv[eè]dre|viognier|gew[uü]rztraminer|chenin blanc|red blend|white blend)\s*$/i;
+  var skipPatterns = /^(reds?|whites?|ros[eé]s?|sparkling|dessert|beer|cocktails?|spirits?|by the glass|by the bottle|wine list|beverages?|drinks?|half bottles?|magnums?|reserve list|champagne|bordeaux|burgundy|rh[oô]ne|rhone|alsace|loire|tuscany|piedmont|rioja|south\s*africa|napa|sonoma|california|italy|france|spain|australia|argentina|chile|germany|austria|portugal|new\s*zealand|red wine|white wine|sparkling wine|ros[eé] wine|pinot noir|pinot grigio|cabernet sauvignon|merlot|malbec|chardonnay|sauvignon blanc|riesling|moscato|tempranillo|sangiovese|nebbiolo|syrah|shiraz|zinfandel|grenache|mourv[eè]dre|viognier|gew[uü]rztraminer|chenin blanc|red blend|white blend|champagne\s+sparkling|sparkling\s+champagne|wines?\s*by\s*the\s*glass|wines?\s*by\s*the\s*bottle|aperitivi?|digestivi?|non[\s]*vintage|vintage|large\s*format|magnums?|half\s*bottles?|selection|our\s*picks?|house\s*wines?|premium|super\s*premium|featured?\s*wines?|sommeliers?\s*selection|zero\s*proof\s*cocktails?)\s*$/i;
 
   // Varietal names we can use as section context
   var varietalHeaders = {
@@ -302,6 +339,8 @@ export function parseWineList(text) {
     "white": "white", "whites": "white", "white wine": "white", "white wines": "white",
     "rosé": "rosé", "rose": "rosé", "rosés": "rosé", "rosé wine": "rosé",
     "sparkling": "sparkling", "sparkling wine": "sparkling", "sparkling wines": "sparkling",
+    "champagne": "sparkling", "champagne sparkling": "sparkling",
+    "sparkling champagne": "sparkling",
   };
 
   // Track current section context
@@ -362,18 +401,18 @@ export function parseWineList(text) {
     if (/^page\s*\|\s*\d+$/i.test(line.trim())) continue;
 
     // Price extraction — handle multiple formats:
-    // "$95", "95", "10/40" (glass/bottle), "$10/$40"
+    // "$95", "95", "25.", "10/40" (glass/bottle), "$10/$40"
     var price = null;
     var name = line;
 
     // Format: "10/40" or "$10/$40" (glass/bottle) — take bottle price
-    var glassBottle = line.match(/\$?\s*(\d{1,3})\s*\/\s*\$?\s*(\d{1,4})\s*$/);
+    var glassBottle = line.match(/\$?\s*(\d{1,3})\s*\/\s*\$?\s*(\d{1,4})\s*\.?\s*$/);
     if (glassBottle) {
       price = parseFloat(glassBottle[2]);
       name = line.slice(0, glassBottle.index).trim();
     } else {
-      // Standard: "$95" or "95" at end
-      var priceMatch = line.match(/\$?\s*(\d{1,4}(?:\.\d{2})?)\s*$/);
+      // Standard: "$95" or "95" or "95." at end
+      var priceMatch = line.match(/\$?\s*(\d{1,4}(?:\.\d{2})?)\s*\.?\s*$/);
       if (priceMatch) {
         var priceVal = parseFloat(priceMatch[1]);
         var isYear = priceVal >= 1900 && priceVal <= 2030;
@@ -566,8 +605,19 @@ export function curatePicks(scoredEntries, options) {
     const filtered = pool.filter(function(e) { return !e.detectedColor || e.detectedColor === colorPreference; });
     if (filtered.length >= 3) pool = filtered;
   }
-  const matched = pool.filter(function(e) { return e.score > 0; }).sort(function(a, b) { return b.score - a.score; });
+
+  // Only consider wines with scores AND prices for the 5 picks
+  const matched = pool.filter(function(e) { return e.score > 0 && e.price !== null; }).sort(function(a, b) { return b.score - a.score; });
   if (matched.length === 0) return [];
+
+  // Budget-aware pool: wines within the user's price range (for non-splurge picks)
+  const budgetPool = matched.filter(function(e) {
+    if (minPrice && e.price < minPrice) return false;
+    if (maxPrice && e.price > maxPrice) return false;
+    return true;
+  });
+  // Use budget pool if it has enough wines, otherwise fall back to all priced matches
+  const mainPool = budgetPool.length >= 3 ? budgetPool : matched;
 
   const picks = [];
   const used = new Set();
@@ -580,35 +630,52 @@ export function curatePicks(scoredEntries, options) {
     return false;
   }
 
-  // 1. TOP
-  pickFrom(matched, "top");
+  // 1. TOP — best scoring wine within budget
+  pickFrom(mainPool, "top");
 
-  // 2. SPLURGE
-  const priced = matched.filter(function(e) { return e.price !== null; });
-  if (priced.length >= 2) {
-    const prices = priced.map(function(e) { return e.price; }).sort(function(a, b) { return a - b; });
-    const floor = maxPrice || prices[Math.floor(prices.length * 0.65)];
-    pickFrom(priced.filter(function(e) { return e.price > floor; }).sort(function(a, b) { return b.score - a.score; }), "splurge");
+  // 2. SPLURGE — intentionally above the budget ceiling (worth the stretch)
+  var splurgePool = matched.filter(function(e) {
+    var floor = maxPrice || null;
+    if (!floor) {
+      // No max set: use 65th percentile of all prices
+      var prices = matched.map(function(e) { return e.price; }).sort(function(a, b) { return a - b; });
+      floor = prices[Math.floor(prices.length * 0.65)];
+    }
+    return e.price > floor;
+  }).sort(function(a, b) { return b.score - a.score; });
+  if (splurgePool.length > 0) {
+    pickFrom(splurgePool, "splurge");
   }
 
-  // 3. VALUE
-  if (priced.length >= 2) {
-    const prices = priced.map(function(e) { return e.price; }).sort(function(a, b) { return a - b; });
-    const ceil = minPrice || prices[Math.floor(prices.length * 0.35)];
-    pickFrom(priced.filter(function(e) { return e.price <= ceil; }).sort(function(a, b) { return b.score - a.score; }), "value");
+  // 3. VALUE — best match in the lower third of the budget range
+  var valueCeil;
+  if (minPrice && maxPrice) {
+    // Lower third of user's budget range
+    valueCeil = minPrice + (maxPrice - minPrice) * 0.35;
+  } else if (minPrice) {
+    valueCeil = minPrice * 1.3; // 30% above minimum
+  } else {
+    // No budget: use 35th percentile of all prices
+    var allPrices = matched.map(function(e) { return e.price; }).sort(function(a, b) { return a - b; });
+    valueCeil = allPrices[Math.floor(allPrices.length * 0.35)];
+  }
+  var valuePool = mainPool.filter(function(e) { return e.price <= valueCeil; }).sort(function(a, b) { return b.score - a.score; });
+  if (valuePool.length > 0) {
+    pickFrom(valuePool, "value");
   }
 
-  // 4. ADVENTURE
-  const adv = matched.filter(function(e) {
+  // 4. ADVENTURE — matches varietal but not direct region, within budget
+  const adv = mainPool.filter(function(e) {
     const hasVarietal = e.matchReasons.some(function(r) { return r.type === "varietal"; });
     const hasDirectRegion = e.matchReasons.some(function(r) { return r.type === "region"; });
     return e.score >= 1 && hasVarietal && !hasDirectRegion;
   }).sort(function(a, b) { return b.score - a.score; });
   pickFrom(adv, "adventure");
 
-  // 5. WILDCARD
-  for (var i = 0; i < matched.length && picks.length < 5; i++) {
-    if (!used.has(i)) { used.add(i); picks.push(Object.assign({}, matched[i], { pickType: "wildcard" })); }
+  // 5. WILDCARD — fill remaining slots from budget pool
+  for (var i = 0; i < mainPool.length && picks.length < 5; i++) {
+    var idx = matched.indexOf(mainPool[i]);
+    if (idx >= 0 && !used.has(idx)) { used.add(idx); picks.push(Object.assign({}, mainPool[i], { pickType: "wildcard" })); }
   }
 
   return picks.slice(0, 5);

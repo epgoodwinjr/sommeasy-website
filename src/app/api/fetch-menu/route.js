@@ -11,18 +11,26 @@ function cleanExtractedText(text) {
   lines = lines.map((line) => {
     let l = line;
 
-    // Strip bin/item numbers at start: "1011}" or "1056}"
+    // Strip bin/item numbers with braces: "1011}" or "1056}"
     l = l.replace(/^\d{2,5}\}\s*/, "");
     // Strip leading ref codes like "R15 " or "B11 "
     l = l.replace(/^[A-Z]\d{1,3}\s+/, "");
+    // Strip bare 4-digit bin numbers at start (not years 1900-2030)
+    l = l.replace(/^(0\d{3})\s+/, ""); // leading zero = always bin
+    l = l.replace(/^(\d{4})\s+/, (match, num) => {
+      const n = parseInt(num, 10);
+      return (n >= 1900 && n <= 2030) ? match : "";
+    });
     // Clean stray curly braces
     l = l.replace(/[{}]/g, "");
 
     // Replace dot leaders (". . . . ." or ".......") with single space
     l = l.replace(/(?:\.\s*){3,}/g, " ");
 
+    // Strip trailing dots after numbers: "25." -> "25", "180." -> "180"
+    l = l.replace(/(\d)\.\s*$/, "$1");
+
     // Fix broken accents from PDF text extraction
-    // PDF extractors sometimes insert a space before accented chars
     l = l.replace(/Ros\s+é/gi, "Rosé");
     l = l.replace(/Cr\s+émant/g, "Crémant");
     l = l.replace(/Ch\s+âteau/gi, "Château");
@@ -65,7 +73,6 @@ function cleanExtractedText(text) {
 }
 
 // ─── Extract text from PDF with line-break awareness ───
-// Uses Y-coordinate changes to detect new lines in the PDF layout
 async function extractPdfText(buffer) {
   const uint8 = new Uint8Array(buffer);
   const doc = await getDocumentProxy(uint8);
@@ -77,24 +84,20 @@ async function extractPdfText(buffer) {
 
     if (!content.items.length) continue;
 
-    // Group text items into lines by Y-coordinate
     let currentLine = "";
     let lastY = null;
 
     for (const item of content.items) {
       if (!item.str && item.str !== "") continue;
 
-      // transform[5] is the Y position on the page
       const y = item.transform ? item.transform[5] : null;
 
       if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) {
-        // Y changed significantly — this is a new line
         if (currentLine.trim()) {
           allLines.push(currentLine.trim());
         }
         currentLine = item.str;
       } else {
-        // Same line — append with space if needed
         if (currentLine && item.str && !currentLine.endsWith(" ") && !item.str.startsWith(" ")) {
           currentLine += " " + item.str;
         } else {
@@ -105,7 +108,6 @@ async function extractPdfText(buffer) {
       if (y !== null) lastY = y;
     }
 
-    // Don't forget the last line on the page
     if (currentLine.trim()) {
       allLines.push(currentLine.trim());
     }
@@ -170,7 +172,7 @@ export async function POST(request) {
       (contentType.includes("application/octet-stream") && urlPath.endsWith(".pdf")) ||
       urlPath.endsWith(".pdf");
 
-    // ─── PDF HANDLING: extract text with unpdf, clean up, pass to paste box ───
+    // ─── PDF HANDLING ───
     if (isPdf) {
       const pdfBuffer = await pageResponse.arrayBuffer();
 
@@ -192,7 +194,6 @@ export async function POST(request) {
         );
       }
 
-      // Image-based PDFs yield little/no text
       if (pdfText.trim().length < 30) {
         return NextResponse.json(
           { error: "This PDF appears to be image-based (scanned). Use the Snap Photo tab — take a screenshot or photo of the wine list." },
@@ -204,9 +205,7 @@ export async function POST(request) {
         pdfText = pdfText.substring(0, 12000);
       }
 
-      // Clean up PDF artifacts
       pdfText = cleanExtractedText(pdfText);
-
       return NextResponse.json({ text: pdfText, source: "pdf" });
     }
 
@@ -239,9 +238,7 @@ export async function POST(request) {
       );
     }
 
-    // Clean up HTML artifacts
     pageText = cleanExtractedText(pageText);
-
     return NextResponse.json({ text: pageText, source: "html" });
   } catch (err) {
     console.error("Fetch-menu route error:", err);
