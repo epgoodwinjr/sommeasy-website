@@ -1,32 +1,49 @@
-// matchEngine.js — Parses wine list text and matches against a user's DNA profile
+// matchEngine.js — v2: Identity-first matching with curated picks
+//
+// Architecture informed by the Sommeasy app's scoring model:
+// - Identity signals (estate > region > varietal > country) drive ranking
+// - Word-boundary matching prevents false positives ("sa" in "SAINT")
+// - Curated output: 5 distinct picks (Top, Splurge, Value, Adventure, +1)
+// - DNA boost is additive to score (not just metadata)
 
 import { COUNTRIES, REGIONS, ESTATES, VARIETALS } from "./wineData";
 
-// ─── Build lookup maps for fast matching ───
+// ─── Word-boundary-safe matching ───
+// Instead of text.includes(term), we check that the term appears
+// as a whole word (not inside another word). This prevents:
+// - "sa" matching inside "SAINT"
+// - "port" matching inside "PORTFOLIO"
+// - "asti" matching inside "FANTASTIC"
 
-// Flatten all data into searchable terms
+function termMatchesInText(term, text) {
+  if (term.length <= 2) return false; // Skip very short terms entirely
+  // Escape regex special chars in the term
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // For multi-word terms, just check includes (they're specific enough)
+  if (term.includes(" ")) return text.includes(term);
+  // For single words, require word boundary
+  const re = new RegExp(`(?:^|[\\s,;:()/\\-–—.])${escaped}(?:[\\s,;:()/\\-–—.]|$)`, "i");
+  return re.test(text);
+}
+
+// ─── Build search index ───
+
 function buildSearchIndex() {
-  const index = {
-    countries: [],
-    regions: [],
-    estates: [],
-    varietals: [],
-  };
+  const index = { countries: [], regions: [], estates: [], varietals: [] };
 
-  // Countries + common aliases
   const countryAliases = {
-    france: ["france", "french", "français"],
-    italy: ["italy", "italian", "italia", "italiano"],
-    spain: ["spain", "spanish", "españa", "espana"],
+    france: ["france", "french"],
+    italy: ["italy", "italian", "italia"],
+    spain: ["spain", "spanish"],
     portugal: ["portugal", "portuguese"],
-    germany: ["germany", "german", "deutschland"],
-    austria: ["austria", "austrian", "österreich"],
-    usa: ["usa", "united states", "american", "california", "oregon", "washington", "new york"],
-    argentina: ["argentina", "argentine", "argentinian"],
+    germany: ["germany", "german"],
+    austria: ["austria", "austrian"],
+    usa: ["united states", "american", "california", "oregon"],
+    argentina: ["argentina", "argentine"],
     chile: ["chile", "chilean"],
     australia: ["australia", "australian"],
-    new_zealand: ["new zealand", "new zealand", "nz", "kiwi"],
-    south_africa: ["south africa", "south african", "sa"],
+    new_zealand: ["new zealand"],
+    south_africa: ["south africa", "south african"],
   };
 
   for (const country of COUNTRIES) {
@@ -34,23 +51,23 @@ function buildSearchIndex() {
     index.countries.push({ id: country.id, name: country.name, terms: aliases });
   }
 
-  // Regions + aliases
+  // Region aliases — only terms that are specific enough for word-boundary matching
   const regionAliases = {
-    burgundy: ["burgundy", "bourgogne", "côte de nuits", "cote de nuits", "côte de beaune", "cote de beaune", "chablis", "meursault", "puligny", "chassagne", "pommard", "volnay", "gevrey", "chambertin", "vosne", "nuits-saint-georges", "nuits saint georges"],
-    bordeaux: ["bordeaux", "médoc", "medoc", "saint-émilion", "saint emilion", "pomerol", "pauillac", "margaux", "saint-julien", "saint julien", "pessac-léognan", "pessac leognan", "graves", "sauternes", "haut-médoc", "haut medoc"],
+    burgundy: ["burgundy", "bourgogne", "chablis", "meursault", "puligny", "chassagne", "pommard", "volnay", "gevrey", "chambertin", "nuits-saint-georges", "côte de nuits", "cote de nuits", "côte de beaune", "cote de beaune", "vosne-romanée", "vosne romanee"],
+    bordeaux: ["bordeaux", "médoc", "medoc", "saint-émilion", "saint emilion", "pomerol", "pauillac", "margaux", "saint-julien", "saint julien", "pessac-léognan", "pessac leognan", "graves", "sauternes", "haut-médoc", "haut medoc", "saint-estèphe", "saint estephe", "côtes de blaye", "cotes de blaye"],
     champagne: ["champagne"],
-    rhone: ["rhône", "rhone", "châteauneuf-du-pape", "chateauneuf du pape", "hermitage", "côte-rôtie", "cote rotie", "cornas", "gigondas", "vacqueyras", "crozes-hermitage", "crozes hermitage", "saint-joseph", "saint joseph", "condrieu"],
-    loire: ["loire", "sancerre", "pouilly-fumé", "pouilly fume", "vouvray", "muscadet", "chinon", "bourgueil", "savennières", "savenrieres", "anjou"],
+    rhone: ["rhône", "rhone", "châteauneuf-du-pape", "chateauneuf du pape", "hermitage", "côte-rôtie", "cote rotie", "cornas", "gigondas", "vacqueyras", "crozes-hermitage", "saint-joseph", "condrieu"],
+    loire: ["loire", "sancerre", "pouilly-fumé", "pouilly fume", "vouvray", "muscadet", "chinon", "bourgueil", "savennières", "anjou", "saumur champigny", "saumur"],
     alsace: ["alsace", "alsatian"],
-    provence: ["provence", "bandol", "cassis", "côtes de provence", "cotes de provence"],
-    languedoc: ["languedoc", "roussillon", "minervois", "corbières", "corbieres", "fitou", "pic saint-loup"],
-    tuscany: ["tuscany", "toscana", "chianti", "brunello", "montalcino", "bolgheri", "vino nobile", "montepulciano", "maremma"],
-    piedmont: ["piedmont", "piemonte", "barolo", "barbaresco", "barbera", "langhe", "roero", "gavi", "asti"],
-    veneto: ["veneto", "valpolicella", "amarone", "soave", "prosecco", "bardolino"],
+    provence: ["provence", "bandol", "côtes de provence", "cotes de provence"],
+    languedoc: ["languedoc", "roussillon", "minervois", "corbières", "fitou"],
+    tuscany: ["tuscany", "toscana", "chianti", "brunello", "montalcino", "bolgheri", "maremma"],
+    piedmont: ["piedmont", "piemonte", "barolo", "barbaresco", "langhe", "roero", "gavi"],
+    veneto: ["veneto", "valpolicella", "amarone", "soave", "prosecco"],
     sicily: ["sicily", "sicilia", "etna"],
     puglia: ["puglia", "primitivo", "salento"],
     trentino: ["trentino", "alto adige", "südtirol"],
-    campania: ["campania", "aglianico", "fiano", "greco", "taurasi", "irpinia"],
+    campania: ["campania", "taurasi", "irpinia", "fiano di avellino"],
     rioja: ["rioja"],
     ribera: ["ribera del duero"],
     priorat: ["priorat", "priorato"],
@@ -58,9 +75,9 @@ function buildSearchIndex() {
     jerez: ["jerez", "sherry"],
     penedes: ["penedès", "penedes", "cava"],
     rueda: ["rueda"],
-    napa: ["napa", "napa valley", "oakville", "rutherford", "stags leap", "howell mountain", "spring mountain", "atlas peak", "calistoga", "st. helena"],
-    sonoma: ["sonoma", "russian river", "dry creek", "alexander valley", "sonoma coast", "sonoma mountain"],
-    willamette: ["willamette", "eola-amity", "dundee hills", "ribbon ridge"],
+    napa: ["napa valley", "napa", "oakville", "rutherford", "stags leap", "howell mountain", "spring mountain", "calistoga"],
+    sonoma: ["sonoma", "russian river", "dry creek", "alexander valley", "sonoma coast"],
+    willamette: ["willamette", "eola-amity", "dundee hills"],
     paso_robles: ["paso robles"],
     santa_barbara: ["santa barbara", "santa ynez", "sta. rita hills", "santa rita hills"],
     finger_lakes: ["finger lakes"],
@@ -69,31 +86,31 @@ function buildSearchIndex() {
     constantia: ["constantia"],
     franschhoek: ["franschhoek"],
     swartland: ["swartland"],
-    walker_bay: ["walker bay", "hemel-en-aarde", "hemel en aarde"],
+    walker_bay: ["walker bay", "hemel-en-aarde"],
     paarl: ["paarl"],
     mendoza: ["mendoza", "uco valley", "luján de cuyo", "lujan de cuyo"],
     salta: ["salta", "cafayate"],
     patagonia_ar: ["patagonia"],
-    maipo: ["maipo"],
+    maipo: ["maipo valley", "maipo"],
     colchagua: ["colchagua"],
-    casablanca: ["casablanca"],
+    casablanca: ["casablanca valley", "casablanca"],
     aconcagua: ["aconcagua"],
-    barossa: ["barossa", "barossa valley"],
+    barossa: ["barossa valley", "barossa"],
     mclaren: ["mclaren vale"],
-    yarra: ["yarra", "yarra valley"],
+    yarra: ["yarra valley", "yarra"],
     margaret_river: ["margaret river"],
     hunter: ["hunter valley"],
     coonawarra: ["coonawarra"],
     marlborough: ["marlborough"],
     central_otago: ["central otago"],
     hawkes_bay: ["hawke's bay", "hawkes bay"],
-    douro: ["douro", "porto", "port"],
+    douro: ["douro"],
     alentejo: ["alentejo"],
-    dao: ["dão", "dao"],
+    dao: ["dão"],
     vinho_verde: ["vinho verde"],
-    mosel: ["mosel", "moselle"],
+    mosel: ["mosel"],
     rheingau: ["rheingau"],
-    pfalz: ["pfalz", "palatinate"],
+    pfalz: ["pfalz"],
     baden: ["baden"],
     wachau: ["wachau"],
     kamptal: ["kamptal"],
@@ -107,53 +124,51 @@ function buildSearchIndex() {
     }
   }
 
-  // Estates
   for (const [regionId, estateList] of Object.entries(ESTATES)) {
     for (const estate of estateList) {
-      // Build search terms from estate name + common abbreviations
       const terms = [estate.name.toLowerCase()];
-      // Add without common prefixes
       const stripped = estate.name.toLowerCase()
         .replace(/^(domaine|château|chateau|tenuta|bodega|quinta|weingut)\s+/i, "")
         .replace(/\s*\(.*\)\s*/g, "");
-      if (stripped !== estate.name.toLowerCase()) terms.push(stripped);
+      if (stripped !== estate.name.toLowerCase() && stripped.length > 3) terms.push(stripped);
       index.estates.push({ id: estate.id, regionId, name: estate.name, terms });
     }
   }
 
-  // Varietals + aliases
-  const varietalAliases = {
-    cabernet_sauvignon: ["cabernet sauvignon", "cab sauv", "cabernet"],
+  // Varietals — careful with overlapping terms
+  // "cabernet sauvignon" must NOT match "sauvignon blanc" and vice versa
+  const varietalTerms = {
+    cabernet_sauvignon: ["cabernet sauvignon"],
     merlot: ["merlot"],
-    pinot_noir: ["pinot noir", "pinot"],
+    pinot_noir: ["pinot noir"],
     syrah: ["syrah", "shiraz"],
     malbec: ["malbec"],
-    tempranillo: ["tempranillo", "tinto fino", "tinta de toro"],
-    sangiovese: ["sangiovese", "brunello", "morellino"],
-    nebbiolo: ["nebbiolo", "barolo", "barbaresco"],
+    tempranillo: ["tempranillo", "tinto fino"],
+    sangiovese: ["sangiovese"],
+    nebbiolo: ["nebbiolo"],
     grenache: ["grenache", "garnacha"],
-    zinfandel: ["zinfandel", "zin", "primitivo"],
+    zinfandel: ["zinfandel"],
     pinotage: ["pinotage"],
-    mourvedre: ["mourvèdre", "mourvedre", "monastrell", "mataro"],
-    cabernet_franc: ["cabernet franc", "cab franc"],
+    mourvedre: ["mourvèdre", "mourvedre", "monastrell"],
+    cabernet_franc: ["cabernet franc"],
     petit_verdot: ["petit verdot"],
     chardonnay: ["chardonnay"],
-    sauvignon_blanc: ["sauvignon blanc", "sauvignon", "fumé blanc", "fume blanc"],
+    sauvignon_blanc: ["sauvignon blanc"],
     riesling: ["riesling"],
     pinot_grigio: ["pinot grigio", "pinot gris"],
     chenin_blanc: ["chenin blanc", "chenin"],
     viognier: ["viognier"],
-    gruner_veltliner: ["grüner veltliner", "gruner veltliner", "grüner", "gruner"],
+    gruner_veltliner: ["grüner veltliner", "gruner veltliner"],
     albarino: ["albariño", "albarino"],
     gewurztraminer: ["gewürztraminer", "gewurztraminer"],
     semillon: ["sémillon", "semillon"],
-    muscadet: ["muscadet", "melon de bourgogne"],
-    vermentino: ["vermentino", "rolle"],
+    muscadet: ["muscadet"],
+    vermentino: ["vermentino"],
   };
 
   for (const varietal of VARIETALS) {
-    const aliases = varietalAliases[varietal.id] || [varietal.name.toLowerCase()];
-    index.varietals.push({ id: varietal.id, name: varietal.name, color: varietal.color, terms: aliases });
+    const terms = varietalTerms[varietal.id] || [varietal.name.toLowerCase()];
+    index.varietals.push({ id: varietal.id, name: varietal.name, color: varietal.color, terms });
   }
 
   return index;
@@ -161,45 +176,53 @@ function buildSearchIndex() {
 
 const SEARCH_INDEX = buildSearchIndex();
 
-// ─── Parse a wine list into individual entries ───
+// ─── Detect country from a region match (for "adventure" picks) ───
+function getCountryForRegion(regionId) {
+  for (const [countryId, regions] of Object.entries(REGIONS)) {
+    if (regions.some(r => r.id === regionId)) return countryId;
+  }
+  return null;
+}
+
+// ─── Parse wine list text into entries ───
 
 export function parseWineList(text) {
   if (!text || !text.trim()) return [];
 
-  const lines = text
-    .split(/\n/)
-    .map(l => l.trim())
-    .filter(l => l.length > 3); // Skip very short lines
-
+  const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length > 3);
   const entries = [];
-  const seenNames = new Set();
+  const seenNorm = new Set();
+
+  // Category headers to skip
+  const skipPatterns = /^(reds?|whites?|rosés?|roses?|sparkling|dessert|beer|cocktails?|spirits?|by the glass|by the bottle|wine list|beverages?|drinks?|half bottles?|magnums?|reserve list)\s*$/i;
 
   for (const line of lines) {
-    // Skip obvious non-wine lines
-    if (/^(red|white|rosé|rose|sparkling|dessert|beer|cocktail|spirit|by the glass|by the bottle|wine list|beverages|drinks)\s*$/i.test(line)) continue;
-    if (/^\d+\s*$/.test(line)) continue; // Just a number
-    if (line.length > 200) continue; // Too long to be a wine entry
+    if (skipPatterns.test(line)) continue;
+    if (/^\d+\s*$/.test(line)) continue;
+    if (line.length > 200) continue;
 
-    // Extract price if present (remove it from the name)
+    // Extract price
     const priceMatch = line.match(/\$?\s*(\d{1,4}(?:\.\d{2})?)\s*$/);
     const price = priceMatch ? parseFloat(priceMatch[1]) : null;
     let name = priceMatch ? line.slice(0, priceMatch.index).trim() : line;
 
-    // Clean up common artifacts
+    // Clean up formatting artifacts
     name = name
-      .replace(/\.\.\.*\s*$/, "") // Trailing dots
-      .replace(/_{2,}/, "") // Underscores used as spacers
-      .replace(/\s{3,}/g, " ") // Excessive whitespace
-      .replace(/^\d+\.\s*/, "") // Leading numbers like "1. "
-      .replace(/^\d+\s+/, "") // Bin numbers
+      .replace(/\.\.\.*\s*$/, "")
+      .replace(/_{2,}/, "")
+      .replace(/\s{3,}/g, " ")
+      .replace(/^\d+\.\s*/, "")
       .trim();
+
+    // Strip leading bin numbers like "B44", "747A", "B60" (common in wine lists)
+    name = name.replace(/^[A-Z]?\d{1,4}[A-Z]?\s+/i, "").trim();
 
     if (name.length < 4) continue;
 
-    // Deduplicate
-    const key = name.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (seenNames.has(key)) continue;
-    seenNames.add(key);
+    // Normalize for dedup
+    const normKey = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (seenNorm.has(normKey)) continue;
+    seenNorm.add(normKey);
 
     entries.push({ name, price, originalLine: line });
   }
@@ -207,125 +230,200 @@ export function parseWineList(text) {
   return entries;
 }
 
-// ─── Match wine entries against a DNA profile ───
+// ─── Score a single wine entry against DNA ───
+
+function scoreEntry(entry, userDNA) {
+  const text = ` ${entry.name.toLowerCase()} `; // pad for boundary matching
+  let score = 0;
+  const matchReasons = [];
+  const detectedRegions = [];
+  const detectedCountries = [];
+
+  // Estate match (strongest signal — weight: 5)
+  for (const estateData of SEARCH_INDEX.estates) {
+    if (estateData.terms.some(t => text.includes(t.toLowerCase()))) {
+      if (userDNA.estates.has(estateData.id)) {
+        score += 5;
+        matchReasons.push({ type: "estate", label: estateData.name, weight: 5 });
+      }
+    }
+  }
+
+  // Region match (strong signal — weight: 3)
+  for (const regionData of SEARCH_INDEX.regions) {
+    if (regionData.terms.some(t => termMatchesInText(t, text))) {
+      detectedRegions.push(regionData);
+      if (userDNA.regions.has(regionData.id)) {
+        score += 3;
+        matchReasons.push({ type: "region", label: regionData.name, weight: 3 });
+      } else if (userDNA.countries.has(regionData.countryId)) {
+        score += 1;
+        const countryName = COUNTRIES.find(c => c.id === regionData.countryId)?.name || "";
+        matchReasons.push({ type: "country_region", label: `${regionData.name} (you like ${countryName})`, weight: 1 });
+      }
+      detectedCountries.push(regionData.countryId);
+    }
+  }
+
+  // Varietal match (weight: 2) — use exact multi-word matching
+  let detectedColor = null;
+  for (const varietalData of SEARCH_INDEX.varietals) {
+    if (varietalData.terms.some(t => text.includes(t.toLowerCase()))) {
+      if (!detectedColor) detectedColor = varietalData.color;
+      if (userDNA.varietals.has(varietalData.id)) {
+        score += 2;
+        matchReasons.push({ type: "varietal", label: varietalData.name, weight: 2 });
+      }
+    }
+  }
+
+  // Country match (weakest standalone signal — weight: 1)
+  // Only if we didn't already score via region
+  for (const countryData of SEARCH_INDEX.countries) {
+    if (detectedCountries.includes(countryData.id)) continue; // Already counted via region
+    if (countryData.terms.some(t => termMatchesInText(t, text))) {
+      detectedCountries.push(countryData.id);
+      if (userDNA.countries.has(countryData.id)) {
+        score += 1;
+        matchReasons.push({ type: "country", label: countryData.name, weight: 1 });
+      }
+    }
+  }
+
+  // Specific wine match (strongest — weight: 10)
+  for (const fav of userDNA.specificWines) {
+    const favLower = fav.toLowerCase();
+    if (text.includes(favLower)) {
+      score += 10;
+      matchReasons.push({ type: "favorite", label: fav, weight: 10 });
+    }
+  }
+
+  return {
+    ...entry,
+    score,
+    matchReasons: matchReasons.sort((a, b) => b.weight - a.weight),
+    detectedColor,
+    detectedRegions: detectedRegions.map(r => r.id),
+    detectedCountries,
+  };
+}
+
+// ─── Curate 5 picks from scored results ───
+//
+// Pick types:
+// 1. TOP PICK — highest score overall
+// 2. SPLURGE — highest score among wines above budget max (or top 25% by price)
+// 3. VALUE — highest score among wines at or below budget min (or bottom 25% by price)
+// 4. ADVENTURE — highest score from a country/region the user did NOT select
+// 5. WILD CARD — next best that wasn't already picked
+
+export function curatePicks(scoredEntries, { minPrice, maxPrice, colorPreference }) {
+  // Filter by color preference
+  let pool = scoredEntries;
+  if (colorPreference && colorPreference !== "all") {
+    const colorFiltered = pool.filter(e => {
+      if (!e.detectedColor) return true; // Keep if we can't detect
+      return e.detectedColor === colorPreference;
+    });
+    // Only apply filter if it leaves us with enough results
+    if (colorFiltered.length >= 3) pool = colorFiltered;
+  }
+
+  // Only consider wines with score > 0
+  const matched = pool.filter(e => e.score > 0).sort((a, b) => b.score - a.score);
+  if (matched.length === 0) return [];
+
+  const picks = [];
+  const usedIndices = new Set();
+
+  // Helper: pick best from a subset
+  function pickBest(subset, pickType) {
+    for (const entry of subset) {
+      const idx = matched.indexOf(entry);
+      if (idx >= 0 && !usedIndices.has(idx)) {
+        usedIndices.add(idx);
+        picks.push({ ...entry, pickType });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // 1. TOP PICK — highest score
+  pickBest(matched, "top");
+
+  // 2. SPLURGE — highest score among pricier wines
+  const pricedWines = matched.filter(e => e.price !== null);
+  if (pricedWines.length > 0) {
+    const priceThreshold = maxPrice || Math.max(...pricedWines.map(e => e.price)) * 0.65;
+    const splurgePool = pricedWines.filter(e => e.price > priceThreshold).sort((a, b) => b.score - a.score);
+    pickBest(splurgePool, "splurge");
+  }
+
+  // 3. VALUE — highest score among cheaper wines
+  if (pricedWines.length > 0) {
+    const valueThreshold = minPrice || Math.min(...pricedWines.map(e => e.price)) * 1.5 || 50;
+    const valuePool = pricedWines.filter(e => e.price <= valueThreshold).sort((a, b) => b.score - a.score);
+    pickBest(valuePool, "value");
+  }
+
+  // 4. ADVENTURE — good score but from a country or region they didn't select
+  // This leverages the "discovery" concept from the DNA profile recs
+  const userCountrySet = new Set(); // rebuild from DNA - passed via scoredEntries metadata
+  const adventurePool = matched.filter(e => {
+    // Has some score (we like something about it) but at least one detected region/country is NOT in user's picks
+    if (e.score < 1) return false;
+    const hasUnknownRegion = e.detectedRegions?.some(rId => {
+      // Check if region is NOT in user's selected regions
+      for (const entry of SEARCH_INDEX.regions) {
+        if (entry.id === rId) return true; // It's a valid region
+      }
+      return false;
+    });
+    // Prefer wines where the match came from varietal, not region/country
+    const regionScore = e.matchReasons.filter(r => r.type === "region" || r.type === "country").reduce((s, r) => s + r.weight, 0);
+    const varietalScore = e.matchReasons.filter(r => r.type === "varietal").reduce((s, r) => s + r.weight, 0);
+    return varietalScore > 0 && varietalScore >= regionScore;
+  }).sort((a, b) => b.score - a.score);
+  pickBest(adventurePool, "adventure");
+
+  // 5. WILD CARD — next best match not yet picked
+  for (let i = 0; i < matched.length && picks.length < 5; i++) {
+    if (!usedIndices.has(i)) {
+      usedIndices.add(i);
+      picks.push({ ...matched[i], pickType: "wildcard" });
+    }
+  }
+
+  return picks.slice(0, 5);
+}
+
+// ─── Main entry point ───
 
 export function matchWinesAgainstDNA(entries, dnaProfile) {
   if (!dnaProfile || !entries.length) return [];
 
-  // Extract user preferences from DNA profile raw data
-  const userCountries = new Set(dnaProfile.countries || []);
-  const userRegions = new Set(Object.values(dnaProfile.regions || {}).flat());
-  const userEstates = new Set(Object.values(dnaProfile.estates || {}).flat());
-  const userVarietals = new Set(dnaProfile.varietals || []);
+  const userDNA = {
+    countries: new Set(dnaProfile.countries || []),
+    regions: new Set(Object.values(dnaProfile.regions || {}).flat()),
+    estates: new Set(Object.values(dnaProfile.estates || {}).flat()),
+    varietals: new Set(dnaProfile.varietals || []),
+    specificWines: dnaProfile.specificWines || [],
+  };
 
-  const results = [];
+  return entries.map(entry => scoreEntry(entry, userDNA));
+}
 
-  for (const entry of entries) {
-    const text = entry.name.toLowerCase();
-    let score = 0;
-    const matchReasons = [];
+// ─── Pick type display info ───
 
-    // Check country matches
-    for (const countryData of SEARCH_INDEX.countries) {
-      if (countryData.terms.some(t => text.includes(t))) {
-        if (userCountries.has(countryData.id)) {
-          score += 1;
-          matchReasons.push({ type: "country", label: countryData.name, weight: 1 });
-        }
-        break; // Only match first country
-      }
-    }
-
-    // Check region matches (stronger signal)
-    for (const regionData of SEARCH_INDEX.regions) {
-      if (regionData.terms.some(t => text.includes(t))) {
-        if (userRegions.has(regionData.id)) {
-          score += 3;
-          matchReasons.push({ type: "region", label: regionData.name, weight: 3 });
-        } else if (userCountries.has(regionData.countryId)) {
-          // Region from a country they like, but not a specific region they picked
-          score += 1;
-          matchReasons.push({ type: "country_region", label: `${regionData.name} (you like ${COUNTRIES.find(c => c.id === regionData.countryId)?.name})`, weight: 1 });
-        }
-      }
-    }
-
-    // Check estate matches (strongest signal)
-    for (const estateData of SEARCH_INDEX.estates) {
-      if (estateData.terms.some(t => text.includes(t))) {
-        if (userEstates.has(estateData.id)) {
-          score += 5;
-          matchReasons.push({ type: "estate", label: estateData.name, weight: 5 });
-        }
-      }
-    }
-
-    // Check varietal matches
-    for (const varietalData of SEARCH_INDEX.varietals) {
-      if (varietalData.terms.some(t => text.includes(t))) {
-        if (userVarietals.has(varietalData.id)) {
-          score += 2;
-          matchReasons.push({ type: "varietal", label: varietalData.name, weight: 2 });
-        }
-      }
-    }
-
-    // Check against specific favorite wines (exact or fuzzy match)
-    const specificWines = dnaProfile.specificWines || [];
-    for (const fav of specificWines) {
-      const favLower = fav.toLowerCase();
-      if (text.includes(favLower) || favLower.includes(text.slice(0, 20))) {
-        score += 10;
-        matchReasons.push({ type: "favorite", label: fav, weight: 10 });
-      }
-    }
-
-    results.push({
-      ...entry,
-      score,
-      matchReasons: matchReasons.sort((a, b) => b.weight - a.weight),
-    });
+export function getPickTypeInfo(pickType) {
+  switch (pickType) {
+    case "top": return { label: "Top Pick", emoji: "🏆", color: "#8B2332", bg: "rgba(139,35,50,0.1)" };
+    case "splurge": return { label: "Splurge", emoji: "✨", color: "#1B3D2F", bg: "rgba(27,61,47,0.08)" };
+    case "value": return { label: "Great Value", emoji: "💰", color: "#6B8F5E", bg: "rgba(107,143,94,0.1)" };
+    case "adventure": return { label: "Adventure", emoji: "🧭", color: "#8B6914", bg: "rgba(139,105,20,0.08)" };
+    case "wildcard": return { label: "Worth Trying", emoji: "🍷", color: "#1B3D2F", bg: "rgba(27,61,47,0.05)" };
+    default: return { label: "Match", emoji: "🍷", color: "#1B3D2F", bg: "rgba(27,61,47,0.05)" };
   }
-
-  // Sort by score descending, then alphabetically for ties
-  return results.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
-}
-
-// ─── Filter results by preferences ───
-
-export function filterResults(results, { colorPreference, minPrice, maxPrice }) {
-  return results.filter(r => {
-    // Price filter
-    if (r.price !== null) {
-      if (minPrice && r.price < minPrice) return false;
-      if (maxPrice && r.price > maxPrice) return false;
-    }
-
-    // Color filter (best-effort based on detected varietal)
-    if (colorPreference && colorPreference !== "all") {
-      const text = r.name.toLowerCase();
-      const detectedVarietals = SEARCH_INDEX.varietals.filter(v =>
-        v.terms.some(t => text.includes(t))
-      );
-      if (detectedVarietals.length > 0) {
-        const isRed = detectedVarietals.some(v => v.color === "red");
-        const isWhite = detectedVarietals.some(v => v.color === "white");
-        if (colorPreference === "red" && !isRed && isWhite) return false;
-        if (colorPreference === "white" && !isWhite && isRed) return false;
-      }
-      // If we can't detect the color, keep it in the results
-    }
-
-    return true;
-  });
-}
-
-// ─── Get match tier label ───
-
-export function getMatchTier(score) {
-  if (score >= 8) return { label: "Perfect for you", color: "#8B2332", bg: "rgba(139,35,50,0.1)" };
-  if (score >= 5) return { label: "Strong match", color: "#1B3D2F", bg: "rgba(27,61,47,0.08)" };
-  if (score >= 2) return { label: "Worth trying", color: "#6B8F5E", bg: "rgba(107,143,94,0.1)" };
-  if (score >= 1) return { label: "Loose match", color: "#1B3D2F", bg: "rgba(27,61,47,0.04)" };
-  return { label: "No match data", color: "#1B3D2F", bg: "rgba(27,61,47,0.02)" };
 }

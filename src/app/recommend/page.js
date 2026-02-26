@@ -1,369 +1,100 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, filterResults, getMatchTier } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo } from "@/lib/matchEngine";
 
-// ─── Price range options ───
-const PRICE_RANGES = [
-  { id: "any", label: "Any price", min: null, max: null },
-  { id: "under30", label: "Under $30", min: null, max: 30 },
-  { id: "30to60", label: "$30 – $60", min: 30, max: 60 },
-  { id: "60to100", label: "$60 – $100", min: 60, max: 100 },
-  { id: "over100", label: "$100+", min: 100, max: null },
-];
-
-const COLOR_OPTIONS = [
-  { id: "all", label: "All wines", emoji: "🍷" },
-  { id: "red", label: "Red", emoji: "🔴" },
-  { id: "white", label: "White", emoji: "⚪" },
-];
-
-// ─── No Profile State ───
-function NoProfileCard() {
-  return (
-    <div style={{ textAlign: "center", padding: "60px 24px" }}>
-      <div style={{ fontSize: "48px", marginBottom: 16 }}>🍷</div>
-      <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#1B3D2F", margin: "0 0 12px 0" }}>
-        Build your Wine DNA first
-      </h2>
-      <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.6, lineHeight: 1.6, maxWidth: 360, margin: "0 auto 24px" }}>
-        Take the quick quiz to tell us what wines you love, then come back here to get personalized picks from any restaurant wine list.
-      </p>
-      <a href="/" style={{
-        display: "inline-block", padding: "14px 36px", borderRadius: "100px",
-        background: "#8B2332", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif",
-        fontSize: "15px", fontWeight: 600, textDecoration: "none",
-        boxShadow: "0 4px 16px rgba(139,35,50,0.25)",
-      }}>Take the Quiz</a>
-    </div>
-  );
-}
-
-// ─── Input Step ───
-function InputStep({ onSubmit }) {
-  const [wineListText, setWineListText] = useState("");
-  const [priceRange, setPriceRange] = useState("any");
-  const [colorPref, setColorPref] = useState("all");
-  const textareaRef = useRef(null);
-
-  const handleSubmit = () => {
-    if (!wineListText.trim()) return;
-    const range = PRICE_RANGES.find(p => p.id === priceRange);
-    onSubmit({
-      text: wineListText,
-      colorPreference: colorPref,
-      minPrice: range?.min,
-      maxPrice: range?.max,
-    });
-  };
-
-  const handlePasteExample = () => {
-    const example = `Wines by the Bottle
-
-WHITE
-Cloudy Bay Sauvignon Blanc, Marlborough 2023    $52
-Domaine Leflaive Puligny-Montrachet 2021    $185
-Trimbach Riesling, Alsace 2022    $38
-Gavi di Gavi, La Scolca 2022    $44
-Cakebread Chardonnay, Napa Valley 2022    $72
-Dog Point Sauvignon Blanc, Marlborough 2023    $48
-Domaine Weinbach Riesling Grand Cru Schlossberg 2020    $120
-
-RED
-Kanonkop Paul Sauer, Stellenbosch 2019    $88
-Caymus Cabernet Sauvignon, Napa Valley 2021    $95
-Château Lynch-Bages, Pauillac 2018    $210
-Muga Reserva, Rioja 2019    $42
-Roagna Barolo Pira 2017    $175
-Catena Zapata Malbec, Mendoza 2021    $55
-Mullineux Syrah, Swartland 2020    $68
-E. Guigal Côte-Rôtie Brune et Blonde 2019    $125
-Fontodi Chianti Classico 2020    $56
-Ridge Monte Bello 2019    $250
-Felton Road Block 5 Pinot Noir, Central Otago 2022    $95
-Cristom Pinot Noir, Eola-Amity Hills 2021    $72`;
-
-    setWineListText(example);
-    setTimeout(() => textareaRef.current?.focus(), 100);
-  };
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: 28 }}>
-        <div style={{ fontSize: "36px", marginBottom: 8 }}>📋</div>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#1B3D2F", margin: "0 0 8px 0" }}>
-          What's on the wine list?
-        </h2>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.6, lineHeight: 1.5, maxWidth: 400, margin: "0 auto" }}>
-          Paste the wine list from the restaurant's website, or type in what you see on the menu. We'll find your best matches.
-        </p>
-      </div>
-
-      {/* Wine list text area */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <label style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.5, fontWeight: 600 }}>
-            Wine List
-          </label>
-          <button onClick={handlePasteExample} style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B2332",
-            background: "none", border: "none", cursor: "pointer", fontWeight: 600, opacity: 0.7,
-          }}>Try an example</button>
-        </div>
-        <textarea
-          ref={textareaRef}
-          value={wineListText}
-          onChange={e => setWineListText(e.target.value)}
-          placeholder={"Paste wine list here...\n\nExample:\nCloudy Bay Sauvignon Blanc, Marlborough  $52\nKanonkop Paul Sauer, Stellenbosch  $88\nCaymus Cabernet Sauvignon, Napa Valley  $95"}
-          style={{
-            width: "100%", minHeight: 180, padding: "16px", borderRadius: "14px",
-            border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)",
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F",
-            lineHeight: 1.6, resize: "vertical", outline: "none", transition: "border-color 0.2s ease",
-          }}
-          onFocus={e => e.target.style.borderColor = "#8B2332"}
-          onBlur={e => e.target.style.borderColor = "rgba(27,61,47,0.15)"}
-        />
-      </div>
-
-      {/* Filters row */}
-      <div style={{ display: "flex", gap: "12px", marginBottom: 24 }}>
-        {/* Color preference */}
-        <div style={{ flex: 1 }}>
-          <label style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.5, fontWeight: 600, display: "block", marginBottom: 8 }}>
-            I'm in the mood for
-          </label>
-          <div style={{ display: "flex", gap: "6px" }}>
-            {COLOR_OPTIONS.map(opt => (
-              <button key={opt.id} onClick={() => setColorPref(opt.id)} style={{
-                flex: 1, padding: "10px 8px", borderRadius: "10px",
-                border: colorPref === opt.id ? "2px solid #8B2332" : "2px solid rgba(27,61,47,0.12)",
-                background: colorPref === opt.id ? "rgba(139,35,50,0.06)" : "rgba(255,255,255,0.5)",
-                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: colorPref === opt.id ? 600 : 400,
-                color: colorPref === opt.id ? "#8B2332" : "#1B3D2F", cursor: "pointer", transition: "all 0.2s ease",
-              }}>
-                {opt.emoji} {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Price range */}
-      <div style={{ marginBottom: 28 }}>
-        <label style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.5, fontWeight: 600, display: "block", marginBottom: 8 }}>
-          Price range
-        </label>
-        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-          {PRICE_RANGES.map(range => (
-            <button key={range.id} onClick={() => setPriceRange(range.id)} style={{
-              padding: "8px 16px", borderRadius: "100px",
-              border: priceRange === range.id ? "2px solid #8B2332" : "2px solid rgba(27,61,47,0.12)",
-              background: priceRange === range.id ? "rgba(139,35,50,0.06)" : "rgba(255,255,255,0.5)",
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: priceRange === range.id ? 600 : 400,
-              color: priceRange === range.id ? "#8B2332" : "#1B3D2F", cursor: "pointer", transition: "all 0.2s ease",
-              whiteSpace: "nowrap",
-            }}>{range.label}</button>
-          ))}
-        </div>
-      </div>
-
-      {/* Submit */}
-      <button onClick={handleSubmit} disabled={!wineListText.trim()} style={{
-        width: "100%", padding: "16px", borderRadius: "14px", border: "none",
-        background: wineListText.trim() ? "#8B2332" : "rgba(27,61,47,0.1)",
-        color: wineListText.trim() ? "#F5F0E8" : "rgba(27,61,47,0.3)",
-        fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", fontWeight: 600,
-        cursor: wineListText.trim() ? "pointer" : "default", transition: "all 0.2s ease",
-        boxShadow: wineListText.trim() ? "0 4px 16px rgba(139,35,50,0.25)" : "none",
-      }}>Find My Wines</button>
-    </div>
-  );
-}
-
-// ─── Results Step ───
-function ResultsStep({ results, totalParsed, onBack }) {
-  const matched = results.filter(r => r.score > 0);
-  const unmatched = results.filter(r => r.score === 0);
-
-  return (
-    <div>
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: 24 }}>
-        <div style={{ fontSize: "36px", marginBottom: 8 }}>✨</div>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#1B3D2F", margin: "0 0 8px 0" }}>
-          {matched.length > 0 ? `${matched.length} ${matched.length === 1 ? "match" : "matches"} found` : "No matches found"}
-        </h2>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.6 }}>
-          {matched.length > 0
-            ? `We found ${matched.length} wine${matched.length === 1 ? "" : "s"} that match your DNA out of ${totalParsed} on the list.`
-            : `We parsed ${totalParsed} wines but couldn't match any to your DNA. Try adding more preferences to your profile.`
-          }
-        </p>
-      </div>
-
-      {/* Matched wines */}
-      {matched.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: 24 }}>
-          {matched.map((wine, i) => {
-            const tier = getMatchTier(wine.score);
-            return (
-              <div key={i} style={{
-                background: "rgba(255,255,255,0.6)", borderRadius: "16px",
-                padding: "18px 20px", border: "1px solid rgba(27,61,47,0.08)",
-                borderLeft: `4px solid ${tier.color}`,
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px", color: "#1B3D2F", lineHeight: 1.3 }}>
-                      {wine.name}
-                    </div>
-                  </div>
-                  {wine.price && (
-                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 700, color: "#1B3D2F", marginLeft: 12, whiteSpace: "nowrap" }}>
-                      ${wine.price}
-                    </div>
-                  )}
-                </div>
-
-                {/* Match tier badge */}
-                <span style={{
-                  display: "inline-block", padding: "3px 10px", borderRadius: "100px",
-                  background: tier.bg, color: tier.color,
-                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", fontWeight: 600,
-                  textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8,
-                }}>{tier.label}</span>
-
-                {/* Match reasons */}
-                {wine.matchReasons.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                    {wine.matchReasons.map((reason, j) => (
-                      <span key={j} style={{
-                        fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F",
-                        opacity: 0.6, lineHeight: 1.3,
-                      }}>
-                        {reason.type === "estate" && "🏛️"}
-                        {reason.type === "region" && "📍"}
-                        {reason.type === "varietal" && "🍇"}
-                        {reason.type === "country" && "🌍"}
-                        {reason.type === "country_region" && "🌍"}
-                        {reason.type === "favorite" && "❤️"}
-                        {" "}{reason.label}
-                        {j < wine.matchReasons.length - 1 && " · "}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Unmatched wines (collapsed) */}
-      {unmatched.length > 0 && (
-        <UnmatchedSection wines={unmatched} />
-      )}
-
-      {/* Actions */}
-      <div style={{ display: "flex", gap: "12px", marginTop: 20, paddingBottom: 24 }}>
-        <button onClick={onBack} style={{
-          flex: 1, padding: "14px", borderRadius: "14px",
-          border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)",
-          color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, cursor: "pointer",
-        }}>Try Another List</button>
-        <a href="/" style={{
-          flex: 1, padding: "14px", borderRadius: "14px",
-          border: "2px solid rgba(139,35,50,0.2)", background: "rgba(255,255,255,0.7)",
-          color: "#8B2332", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600,
-          textDecoration: "none", textAlign: "center",
-        }}>Update My DNA</a>
-      </div>
-    </div>
-  );
-}
-
-function UnmatchedSection({ wines }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div style={{
-      background: "rgba(255,255,255,0.3)", borderRadius: "14px",
-      border: "1px solid rgba(27,61,47,0.06)", overflow: "hidden",
-    }}>
-      <button onClick={() => setExpanded(!expanded)} style={{
-        width: "100%", padding: "14px 18px", background: "none", border: "none",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        cursor: "pointer", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.5,
-      }}>
-        <span>{wines.length} other wine{wines.length === 1 ? "" : "s"} on the list</span>
-        <span style={{ transform: expanded ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.3s ease", fontSize: "12px" }}>▼</span>
-      </button>
-      {expanded && (
-        <div style={{ padding: "0 18px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
-          {wines.map((wine, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{wine.name}</span>
-              {wine.price && <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.4 }}>${wine.price}</span>}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Main Page ───
 export default function RecommendPage() {
   const [user, setUser] = useState(null);
-  const [dnaProfile, setDnaProfile] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("input"); // input | results
-  const [results, setResults] = useState([]);
+  const [wineListText, setWineListText] = useState("");
+  const [colorPref, setColorPref] = useState("all");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [picks, setPicks] = useState(null);
   const [totalParsed, setTotalParsed] = useState(0);
-
+  const [totalMatched, setTotalMatched] = useState(0);
   const supabase = createClient();
 
   useEffect(() => {
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-        // Fetch DNA profile
-        const { data } = await supabase
-          .from("wine_profiles")
-          .select("*")
-          .eq("user_id", session.user.id)
-          .single();
-        if (data) setDnaProfile(data);
+      const u = session?.user || null;
+      setUser(u);
+      if (u) {
+        const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", u.id).single();
+        if (data) setProfile(data);
       }
       setLoading(false);
     }
     init();
   }, []);
 
-  const handleSubmit = ({ text, colorPreference, minPrice, maxPrice }) => {
-    const entries = parseWineList(text);
+  const handleAnalyze = () => {
+    if (!wineListText.trim() || !profile) return;
+
+    const entries = parseWineList(wineListText);
     setTotalParsed(entries.length);
 
-    if (!dnaProfile) return;
-
-    // Use stored raw data for matching
-    const profileForMatching = {
-      countries: dnaProfile.countries || [],
-      regions: dnaProfile.regions || {},
-      estates: dnaProfile.estates || {},
-      varietals: dnaProfile.varietals || [],
-      specificWines: dnaProfile.specific_wines || [],
+    // Build DNA object from profile
+    const dna = {
+      countries: profile.countries || [],
+      regions: Object.values(profile.regions || {}).flat(),
+      estates: Object.values(profile.estates || {}).flat(),
+      varietals: profile.varietals || [],
+      specificWines: profile.specific_wines || [],
     };
 
-    const matched = matchWinesAgainstDNA(entries, profileForMatching);
-    const filtered = filterResults(matched, { colorPreference, minPrice, maxPrice });
+    const scored = matchWinesAgainstDNA(entries, dna);
+    const matched = scored.filter(e => e.score > 0);
+    setTotalMatched(matched.length);
 
-    setResults(filtered);
-    setView("results");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const min = minPrice ? parseFloat(minPrice) : null;
+    const max = maxPrice ? parseFloat(maxPrice) : null;
+
+    const curated = curatePicks(scored, {
+      minPrice: min,
+      maxPrice: max,
+      colorPreference: colorPref,
+    });
+
+    setPicks(curated);
+  };
+
+  const handleReset = () => {
+    setPicks(null);
+    setWineListText("");
+    setTotalParsed(0);
+    setTotalMatched(0);
+  };
+
+  const loadExample = () => {
+    setWineListText(`WHITES
+Cloudy Bay Sauvignon Blanc, Marlborough 2022............$52
+Domaine William Fèvre Chablis Premier Cru 2021.........$78
+Trimbach Riesling, Alsace 2021..........................$44
+Cakebread Chardonnay, Napa Valley 2021.................$72
+Jordan Chardonnay, Russian River Valley 2021...........$64
+Ken Forrester Old Vine Chenin Blanc, Stellenbosch......$38
+Sancerre, Domaine Vacheron 2022........................$62
+
+REDS
+Hamilton Russell Pinot Noir, Walker Bay 2020...........$85
+Kanonkop Pinotage, Stellenbosch 2019...................$68
+Meerlust Rubicon, Stellenbosch 2018....................$92
+Catena Zapata Malbec, Mendoza 2020.....................$58
+Penfolds Bin 389 Cabernet Shiraz, South Australia......$74
+Ridge Monte Bello, Santa Cruz Mountains 2019..........$250
+Domaine de la Côte-Rôtie, E. Guigal 2019.............$115
+Boekenhoutskloof Syrah, Swartland 2020.................$72
+Château Lynch-Bages, Pauillac 2018....................$185
+Viña Almaviva, Puente Alto 2019.......................$165
+Marchesi Antinori Tignanello 2019.....................$145
+Vega Sicilia Unico, Ribera del Duero 2012.............$350
+Pommard Premier Cru, Domaine de Courcel 2019..........$132
+Central Otago Pinot Noir, Felton Road 2021.............$95
+Barolo, Giacomo Conterno 2018.........................$210`);
   };
 
   if (loading) {
@@ -374,52 +105,258 @@ export default function RecommendPage() {
     );
   }
 
-  return (
-    <div style={{ maxWidth: 520, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-      {/* Header */}
-      <div style={{
-        padding: "16px 20px", position: "sticky", top: 0,
-        background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
-        <a href="/" style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px",
-          color: "#8B2332", fontWeight: 600, textDecoration: "none",
-        }}>Sommeasy</a>
-        {user ? (
-          <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>
-            {user.email?.split("@")[0]}
-          </span>
-        ) : (
-          <a href="/login" style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#8B2332", fontWeight: 600, textDecoration: "none" }}>Sign In</a>
-        )}
+  if (!user) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
+        <div style={{ fontSize: "48px", marginBottom: 16 }}>🔒</div>
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#1B3D2F", margin: "0 0 12px" }}>Sign in to continue</h2>
+        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.6, marginBottom: 24, maxWidth: 320 }}>You need an account and a Wine DNA profile to get restaurant recommendations.</p>
+        <a href="/login" style={{ padding: "14px 40px", borderRadius: "100px", background: "#8B2332", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none" }}>Sign In</a>
       </div>
+    );
+  }
 
-      {/* Content */}
-      <div style={{ flex: 1, padding: "20px 20px 40px" }}>
-        {!user && (
-          <div style={{ textAlign: "center", padding: "60px 24px" }}>
-            <div style={{ fontSize: "48px", marginBottom: 16 }}>🔒</div>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#1B3D2F", margin: "0 0 12px 0" }}>Sign in to get recommendations</h2>
-            <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.6, marginBottom: 24 }}>We need your Wine DNA profile to match against the wine list.</p>
-            <a href="/login" style={{ display: "inline-block", padding: "14px 36px", borderRadius: "100px", background: "#8B2332", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none" }}>Sign In</a>
+  if (!profile) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
+        <div style={{ fontSize: "48px", marginBottom: 16 }}>🍷</div>
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#1B3D2F", margin: "0 0 12px" }}>Build your Wine DNA first</h2>
+        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.6, marginBottom: 24, maxWidth: 340 }}>Take the quick quiz to tell us what wines you love, then come back here to get personalized picks from any restaurant wine list.</p>
+        <a href="/" style={{ padding: "14px 40px", borderRadius: "100px", background: "#8B2332", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none" }}>Take the Quiz</a>
+      </div>
+    );
+  }
+
+  // ─── Results view ───
+  if (picks) {
+    return (
+      <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
+        {/* Header */}
+        <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
+          <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600, textDecoration: "none" }}>Sommeasy</a>
+          <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
+        </div>
+
+        {/* Results header */}
+        <div style={{ textAlign: "center", padding: "24px 0 20px" }}>
+          <div style={{ fontSize: "36px", marginBottom: 8 }}>✨</div>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", color: "#1B3D2F", margin: "0 0 8px" }}>
+            {picks.length === 0 ? "No matches found" : `Your ${picks.length} picks`}
+          </h2>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.5, margin: 0 }}>
+            {picks.length > 0
+              ? `Curated from ${totalMatched} matches across ${totalParsed} wines on the list`
+              : `We parsed ${totalParsed} wines but couldn't find matches for your DNA. Try refining your profile.`}
+          </p>
+        </div>
+
+        {/* Curated picks */}
+        {picks.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: 32 }}>
+            {picks.map((pick, i) => {
+              const typeInfo = getPickTypeInfo(pick.pickType);
+              return (
+                <div key={i} style={{
+                  background: "rgba(255,255,255,0.7)", borderRadius: "18px", padding: "20px",
+                  border: "1px solid rgba(27,61,47,0.08)", position: "relative", overflow: "hidden",
+                  boxShadow: i === 0 ? "0 4px 20px rgba(139,35,50,0.12)" : "0 2px 8px rgba(0,0,0,0.04)",
+                }}>
+                  {/* Pick type badge */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                    <div style={{
+                      display: "inline-flex", alignItems: "center", gap: "6px",
+                      padding: "4px 12px", borderRadius: "100px",
+                      background: typeInfo.bg, color: typeInfo.color,
+                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", fontWeight: 700,
+                      textTransform: "uppercase", letterSpacing: "0.08em",
+                    }}>
+                      <span>{typeInfo.emoji}</span>
+                      <span>{typeInfo.label}</span>
+                    </div>
+                    {pick.price && (
+                      <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "18px", fontWeight: 700, color: "#1B3D2F" }}>${pick.price}</span>
+                    )}
+                  </div>
+
+                  {/* Wine name */}
+                  <h3 style={{
+                    fontFamily: "'Playfair Display', Georgia, serif", fontSize: i === 0 ? "20px" : "17px",
+                    color: "#1B3D2F", margin: "0 0 10px", lineHeight: 1.3, fontWeight: 600,
+                  }}>{pick.name}</h3>
+
+                  {/* Match reasons */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {pick.matchReasons.map((reason, j) => {
+                      const icons = { estate: "🏛️", region: "📍", varietal: "🍇", country: "🌍", country_region: "🌍", favorite: "❤️" };
+                      return (
+                        <span key={j} style={{
+                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+                          color: "#1B3D2F", opacity: 0.6, background: "rgba(27,61,47,0.04)",
+                          padding: "3px 10px", borderRadius: "100px",
+                        }}>
+                          {icons[reason.type] || "🍷"} {reason.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+
+                  {/* Pick type context */}
+                  {pick.pickType === "adventure" && (
+                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B6914", marginTop: 10, fontStyle: "italic", opacity: 0.7 }}>
+                      Something new — matches your grape preferences from a different region
+                    </div>
+                  )}
+                  {pick.pickType === "value" && (
+                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#6B8F5E", marginTop: 10, fontStyle: "italic", opacity: 0.7 }}>
+                      Best match in the lower price range
+                    </div>
+                  )}
+                  {pick.pickType === "splurge" && (
+                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", marginTop: 10, fontStyle: "italic", opacity: 0.7 }}>
+                      Worth the stretch — strong DNA match at a higher price point
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {user && !dnaProfile && <NoProfileCard />}
-
-        {user && dnaProfile && view === "input" && (
-          <InputStep onSubmit={handleSubmit} />
-        )}
-
-        {user && dnaProfile && view === "results" && (
-          <ResultsStep
-            results={results}
-            totalParsed={totalParsed}
-            onBack={() => { setView("input"); setResults([]); }}
-          />
-        )}
+        {/* Actions */}
+        <div style={{ display: "flex", gap: "12px", paddingBottom: 40 }}>
+          <button onClick={handleReset} style={{
+            flex: 1, padding: "14px 20px", borderRadius: "14px",
+            border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)",
+            color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, cursor: "pointer",
+          }}>Try Another List</button>
+          <a href="/" style={{
+            flex: 1, padding: "14px 20px", borderRadius: "14px",
+            border: "2px solid rgba(139,35,50,0.15)", background: "rgba(255,255,255,0.7)",
+            color: "#8B2332", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600,
+            textDecoration: "none", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center",
+          }}>Update My DNA</a>
+        </div>
       </div>
+    );
+  }
+
+  // ─── Input view ───
+  return (
+    <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
+      {/* Header */}
+      <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
+        <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600, textDecoration: "none" }}>Sommeasy</a>
+        <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
+      </div>
+
+      {/* Title */}
+      <div style={{ textAlign: "center", padding: "32px 0 24px" }}>
+        <div style={{ fontSize: "36px", marginBottom: 8 }}>📋</div>
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", color: "#1B3D2F", margin: "0 0 8px" }}>Paste the wine list</h2>
+        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.6, margin: 0, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
+          Copy-paste the wine list text from a restaurant menu or website and we&#39;ll find your best matches.
+        </p>
+      </div>
+
+      {/* Wine list textarea */}
+      <div style={{ marginBottom: 20 }}>
+        <textarea
+          value={wineListText}
+          onChange={(e) => setWineListText(e.target.value)}
+          placeholder={"Paste wine list here...\n\ne.g.\nCloudy Bay Sauvignon Blanc, Marlborough 2022...$52\nKanonkop Pinotage, Stellenbosch 2019...$68"}
+          rows={10}
+          style={{
+            width: "100%", padding: "16px", borderRadius: "14px",
+            border: "2px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.6)",
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F",
+            resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.6,
+          }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+          <button onClick={loadExample} style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B2332",
+            background: "none", border: "none", cursor: "pointer", textDecoration: "underline", opacity: 0.6,
+          }}>Try an example list</button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div style={{ background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "18px", border: "1px solid rgba(27,61,47,0.08)", marginBottom: 20 }}>
+        {/* Color preference */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.1em", color: "#1B3D2F", opacity: 0.5, marginBottom: 8, fontWeight: 600 }}>Color preference</div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            {[
+              { id: "all", label: "All wines" },
+              { id: "red", label: "🔴 Red" },
+              { id: "white", label: "⚪ White" },
+            ].map(opt => (
+              <button key={opt.id} onClick={() => setColorPref(opt.id)} style={{
+                flex: 1, padding: "10px 8px", borderRadius: "10px", cursor: "pointer",
+                border: colorPref === opt.id ? "2px solid #1B3D2F" : "2px solid rgba(27,61,47,0.1)",
+                background: colorPref === opt.id ? "rgba(27,61,47,0.06)" : "transparent",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: colorPref === opt.id ? 600 : 400,
+                color: "#1B3D2F",
+              }}>{opt.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Budget range — min/max inputs */}
+        <div>
+          <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.1em", color: "#1B3D2F", opacity: 0.5, marginBottom: 8, fontWeight: 600 }}>Budget range (optional)</div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <div style={{ flex: 1, position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
+              <input
+                type="number"
+                placeholder="Min"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 12px 10px 26px", borderRadius: "10px",
+                  border: "2px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)",
+                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.3 }}>to</span>
+            <div style={{ flex: 1, position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
+              <input
+                type="number"
+                placeholder="Max"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 12px 10px 26px", borderRadius: "10px",
+                  border: "2px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)",
+                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#1B3D2F", opacity: 0.35, margin: "6px 0 0", lineHeight: 1.4 }}>
+            Leave blank for any price. Budget helps us pick your Value and Splurge options.
+          </p>
+        </div>
+      </div>
+
+      {/* Analyze button */}
+      <button
+        onClick={handleAnalyze}
+        disabled={!wineListText.trim()}
+        style={{
+          width: "100%", padding: "16px", borderRadius: "14px", border: "none",
+          background: wineListText.trim() ? "#8B2332" : "rgba(139,35,50,0.3)",
+          color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px",
+          fontWeight: 600, cursor: wineListText.trim() ? "pointer" : "not-allowed",
+          boxShadow: wineListText.trim() ? "0 4px 16px rgba(139,35,50,0.25)" : "none",
+          marginBottom: 40,
+        }}
+      >Find My Wines</button>
     </div>
   );
 }
