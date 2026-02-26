@@ -31,9 +31,10 @@ export async function POST(request) {
     try {
       const pageResponse = await fetch(fetchUrl, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; Sommeasy/1.0; wine list reader)",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf,*/*;q=0.8",
         },
+        redirect: "follow",
         signal: AbortSignal.timeout(15000),
       });
 
@@ -44,9 +45,11 @@ export async function POST(request) {
       }
 
       const contentType = pageResponse.headers.get("content-type") || "";
+      const urlPath = parsedUrl.pathname.toLowerCase();
+      const isPdf = contentType.includes("application/pdf") || contentType.includes("application/octet-stream") && urlPath.endsWith(".pdf") || urlPath.endsWith(".pdf");
       
       // Handle PDF — send as document to Claude
-      if (contentType.includes("application/pdf")) {
+      if (isPdf) {
         const pdfBuffer = await pageResponse.arrayBuffer();
         const pdfBase64 = Buffer.from(pdfBuffer).toString("base64");
         
@@ -55,12 +58,17 @@ export async function POST(request) {
           return NextResponse.json({ error: "PDF is too large (max 20MB)" }, { status: 422 });
         }
 
+        if (pdfBuffer.byteLength < 100) {
+          return NextResponse.json({ error: "PDF appears to be empty or corrupted." }, { status: 422 });
+        }
+
         const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
+            "anthropic-beta": "pdfs-2024-09-25",
           },
           body: JSON.stringify({
             model: "claude-sonnet-4-20250514",
@@ -88,8 +96,9 @@ export async function POST(request) {
         });
 
         if (!claudeResponse.ok) {
-          console.error("Claude PDF error:", await claudeResponse.text());
-          return NextResponse.json({ error: "Failed to process PDF" }, { status: 502 });
+          const errBody = await claudeResponse.text();
+          console.error("Claude PDF error:", claudeResponse.status, errBody);
+          return NextResponse.json({ error: `Failed to process PDF (${claudeResponse.status}). The PDF may be image-based — try using Snap Photo instead.` }, { status: 502 });
         }
 
         const claudeData = await claudeResponse.json();
