@@ -108,8 +108,8 @@ export async function POST(request) {
         );
       }
 
-      if (pdfText.length > 20000) {
-        pdfText = pdfText.substring(0, 20000);
+      if (pdfText.length > 12000) {
+        pdfText = pdfText.substring(0, 12000);
       }
 
       return await callClaude(
@@ -178,7 +178,15 @@ async function callClaude(apiKey, prompt, source) {
   if (!claudeResponse.ok) {
     const errBody = await claudeResponse.text();
     console.error(`Claude API error (${source}):`, claudeResponse.status, errBody);
-    return NextResponse.json({ error: "Failed to analyze page content" }, { status: 502 });
+    // Surface the actual error for debugging
+    let detail = "";
+    try {
+      const errJson = JSON.parse(errBody);
+      detail = errJson.error?.message || errBody.substring(0, 200);
+    } catch {
+      detail = errBody.substring(0, 200);
+    }
+    return NextResponse.json({ error: `Failed to analyze page content (${claudeResponse.status}: ${detail})` }, { status: 502 });
   }
 
   const claudeData = await claudeResponse.json();
