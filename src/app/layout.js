@@ -4,6 +4,9 @@ export const metadata = {
   title: "Sommeasy — Your Wine DNA Profile",
   description:
     "Tell us about the wines you love and we'll build your Wine DNA profile. Never guess at a restaurant wine list again.",
+  icons: {
+    icon: "/icon.svg",
+  },
   openGraph: {
     title: "Sommeasy — Your Wine DNA Profile",
     description: "Never guess at a restaurant wine list again.",

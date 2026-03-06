@@ -4,90 +4,111 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 import Quiz from "@/components/Quiz";
 
-// ─── Saved Profile View ───
+// ─── Saved Profile View (redesigned) ───
 function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
-  const [tab, setTab] = useState("recs");
+  const [showProfile, setShowProfile] = useState(false);
   const recs = profile.recommendations || [];
+  const statCountries = (profile.countries || []).length;
+  const statRegions = Object.values(profile.regions || {}).flat().length;
+  const statGrapes = (profile.varietals || []).length;
+  const statFavs = Object.values(profile.estates || {}).flat().length + (profile.specific_wines || []).length;
+  const displayName = user?.email?.split("@")[0] || "";
 
   return (
-    <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px" }}>
+    <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
       {/* Header */}
       <div style={{
         padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between",
-        position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10,
+        position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(12px)",
+        zIndex: 10, borderBottom: "1px solid rgba(27,61,47,0.06)",
       }}>
-        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600 }}>Sommeasy</span>
-        <button onClick={onSignOut} style={{
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F",
-          background: "none", border: "1px solid rgba(27,61,47,0.2)", borderRadius: "100px",
-          padding: "6px 16px", cursor: "pointer", opacity: 0.6,
-        }}>Sign Out</button>
-      </div>
-
-      {/* Hero Card */}
-      <div style={{ background: "linear-gradient(145deg, #1B3D2F 0%, #2A5540 50%, #1B3D2F 100%)", borderRadius: "24px", padding: "32px 24px 28px", color: "#F5F0E8", marginBottom: 20, boxShadow: "0 16px 48px rgba(27,61,47,0.4)", position: "relative", overflow: "hidden", textAlign: "center" }}>
-        <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(139,35,50,0.1)" }} />
-        <div style={{ position: "absolute", bottom: -30, left: -30, width: 100, height: 100, borderRadius: "50%", background: "rgba(107,143,94,0.08)" }} />
-        <div style={{ position: "relative" }}>
-          <div style={{ fontSize: "48px", marginBottom: 12 }}>{profile.archetype_emoji}</div>
-          <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", opacity: 0.5, marginBottom: 8 }}>Your Wine DNA</div>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "32px", margin: "0 0 16px 0", fontWeight: 700, lineHeight: 1.1 }}>{profile.archetype}</h2>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", lineHeight: 1.65, opacity: 0.8, maxWidth: 360, margin: "0 auto" }}>{profile.narrative}</p>
-          <div style={{ display: "flex", justifyContent: "center", gap: "24px", marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-            {[
-              { n: (profile.countries || []).length, l: "Countries" },
-              { n: Object.values(profile.regions || {}).flat().length, l: "Regions" },
-              { n: (profile.varietals || []).length, l: "Grapes" },
-              { n: Object.values(profile.estates || {}).flat().length + (profile.specific_wines || []).length, l: "Favorites" },
-            ].map((s, i) => (
-              <div key={i} style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "22px", fontWeight: 700 }}>{s.n}</div>
-                <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.5, marginTop: 2 }}>{s.l}</div>
-              </div>
-            ))}
-          </div>
+        <span style={{
+          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px",
+          color: "#8B2332", fontWeight: 600,
+        }}>Sommeasy</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+            color: "#1B3D2F", opacity: 0.5,
+          }}>{displayName}</span>
+          <button onClick={onSignOut} style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F",
+            background: "none", border: "1px solid rgba(27,61,47,0.15)", borderRadius: "100px",
+            padding: "5px 14px", cursor: "pointer", opacity: 0.5,
+          }}>Sign Out</button>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div style={{ display: "flex", gap: "10px", marginBottom: 20 }}>
+      {/* ─── Hero: Restaurant CTA ─── */}
+      <div style={{ marginTop: 24, marginBottom: 20 }}>
         <a href="/recommend" style={{
-          flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-          padding: "16px 20px", borderRadius: "14px", border: "none",
-          background: "#8B2332", color: "#F5F0E8",
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600,
-          textDecoration: "none", boxShadow: "0 4px 16px rgba(139,35,50,0.25)",
-        }}>📋 I&#39;m at a Restaurant</a>
-        <button onClick={onRefine} style={{
-          flex: 1, padding: "16px 12px", borderRadius: "14px",
-          border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)",
-          color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600,
-          cursor: "pointer",
-        }}>Refine</button>
+          display: "block", textDecoration: "none",
+          background: "linear-gradient(145deg, #8B2332 0%, #6B1D2A 100%)",
+          borderRadius: "20px", padding: "32px 28px",
+          color: "#F5F0E8", position: "relative", overflow: "hidden",
+          boxShadow: "0 8px 32px rgba(139,35,50,0.3)",
+        }}>
+          <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
+          <div style={{ position: "absolute", bottom: -30, left: -10, width: 80, height: 80, borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
+          <div style={{ position: "relative" }}>
+            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", opacity: 0.5, marginBottom: 10 }}>At a restaurant?</div>
+            <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", fontWeight: 700, lineHeight: 1.2, marginBottom: 10 }}>Get your picks</div>
+            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", opacity: 0.7, lineHeight: 1.5, maxWidth: 280 }}>Share a wine list and we&#39;ll match it to your DNA</div>
+            <div style={{ marginTop: 20, display: "inline-flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.15)", borderRadius: "100px", padding: "10px 24px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600 }}>
+              <span>📋</span> Paste, snap, or link a menu
+            </div>
+          </div>
+        </a>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: "4px", marginBottom: 16, background: "rgba(27,61,47,0.06)", borderRadius: "12px", padding: "4px" }}>
-        {[{ id: "recs", label: `Wines to Try (${recs.length})` }, { id: "profile", label: "Full Profile" }].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: "10px 12px", borderRadius: "10px", border: "none", background: tab === t.id ? "#fff" : "transparent", color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: tab === t.id ? 600 : 400, cursor: "pointer", transition: "all 0.2s ease", boxShadow: tab === t.id ? "0 2px 8px rgba(0,0,0,0.06)" : "none" }}>{t.label}</button>
-        ))}
+      {/* ─── Compact DNA Strip ─── */}
+      <div style={{
+        background: "linear-gradient(145deg, #1B3D2F 0%, #2A5540 100%)",
+        borderRadius: "16px", padding: "18px 20px",
+        color: "#F5F0E8", marginBottom: 20,
+        boxShadow: "0 4px 16px rgba(27,61,47,0.2)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+            <div style={{ fontSize: "28px", flexShrink: 0 }}>{profile.archetype_emoji}</div>
+            <div>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", fontWeight: 700, lineHeight: 1.2 }}>{profile.archetype}</div>
+              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", opacity: 0.5, marginTop: 3 }}>
+                {statCountries} countries · {statRegions} regions · {statGrapes} grapes · {statFavs} favorites
+              </div>
+            </div>
+          </div>
+          <button onClick={onRefine} style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+            color: "#F5F0E8", background: "rgba(255,255,255,0.12)",
+            border: "1px solid rgba(255,255,255,0.15)", borderRadius: "100px",
+            padding: "6px 16px", cursor: "pointer", whiteSpace: "nowrap", fontWeight: 500,
+          }}>Refine</button>
+        </div>
       </div>
 
-      {/* Recs Tab */}
-      {tab === "recs" && recs.length > 0 && (
-        <div>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.6, textAlign: "center", margin: "0 0 16px 0", lineHeight: 1.5 }}>Based on your DNA, here are wines we think you would love.</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      {/* ─── Wines to Try ─── */}
+      {recs.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#1B3D2F", fontWeight: 600, margin: 0 }}>Wines to Try</h3>
+            <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4 }}>Based on your DNA</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {recs.map((rec, i) => (
-              <div key={i} style={{ background: "rgba(255,255,255,0.6)", borderRadius: "16px", padding: "18px 20px", border: "1px solid rgba(27,61,47,0.08)" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #8B2332, #6B1D2A)", display: "flex", alignItems: "center", justifyContent: "center", color: "#F5F0E8", fontFamily: "'Playfair Display', serif", fontSize: "14px", fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{i + 1}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", color: "#1B3D2F", lineHeight: 1.3, marginBottom: 4 }}>{rec.wine}</div>
-                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.55, lineHeight: 1.4 }}>{rec.why}</div>
-                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#8B2332", opacity: 0.7, marginTop: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {rec.matchType === "region + grape" ? "📍 Region + grape match" : rec.matchType === "grape" ? "🍇 Grape match" : "🧭 Discovery pick"}
-                    </div>
+              <div key={i} style={{ background: "rgba(255,255,255,0.6)", borderRadius: "14px", padding: "16px 18px", border: "1px solid rgba(27,61,47,0.06)", display: "flex", alignItems: "flex-start", gap: "14px" }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: "50%",
+                  background: i === 0 ? "linear-gradient(135deg, #8B2332, #6B1D2A)" : "rgba(27,61,47,0.08)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: i === 0 ? "#F5F0E8" : "#1B3D2F",
+                  fontFamily: "'Playfair Display', serif", fontSize: "13px", fontWeight: 700, flexShrink: 0, marginTop: 1,
+                }}>{i + 1}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", color: "#1B3D2F", lineHeight: 1.3, marginBottom: 4 }}>{rec.wine}</div>
+                  <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5, lineHeight: 1.4 }}>{rec.why}</div>
+                  <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "10px", color: "#8B2332", opacity: 0.6, marginTop: 5, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    {rec.matchType === "region + grape" ? "📍 Region + grape match" : rec.matchType === "grape" ? "🍇 Grape match" : "🧭 Discovery pick"}
                   </div>
                 </div>
               </div>
@@ -96,19 +117,34 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
         </div>
       )}
 
-      {/* Profile Tab */}
-      {tab === "profile" && (
-        <div>
+      {/* ─── Full Profile (expandable) ─── */}
+      <button onClick={() => setShowProfile(!showProfile)} style={{
+        width: "100%", padding: "14px 18px", borderRadius: "14px",
+        border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.4)",
+        color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif",
+        fontSize: "14px", fontWeight: 500, cursor: "pointer",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: showProfile ? 12 : 0,
+      }}>
+        <span>Full Profile</span>
+        <span style={{ transform: showProfile ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", fontSize: "12px", opacity: 0.4 }}>▼</span>
+      </button>
+
+      {showProfile && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: "14px", padding: "16px 18px", border: "1px solid rgba(27,61,47,0.06)", marginBottom: 10 }}>
+            <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.7, lineHeight: 1.6, margin: 0, fontStyle: "italic" }}>{profile.narrative}</p>
+          </div>
           {(profile.red_count > 0 || profile.white_count > 0) && (
-            <div style={{ marginBottom: 12, background: "rgba(255,255,255,0.5)", borderRadius: "14px", padding: "16px 18px", border: "1px solid rgba(27,61,47,0.08)" }}>
-              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.5, marginBottom: 10, fontWeight: 600 }}>Red vs White</div>
-              <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", gap: 2 }}>
-                <div style={{ flex: profile.red_count || 0.01, background: "#8B2332", borderRadius: "4px 0 0 4px" }} />
-                <div style={{ flex: profile.white_count || 0.01, background: "#6B8F5E", borderRadius: "0 4px 4px 0" }} />
+            <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: "14px", padding: "14px 18px", border: "1px solid rgba(27,61,47,0.06)", marginBottom: 10 }}>
+              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600 }}>Red vs White</div>
+              <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", gap: 2 }}>
+                <div style={{ flex: profile.red_count || 0.01, background: "#8B2332", borderRadius: "3px 0 0 3px" }} />
+                <div style={{ flex: profile.white_count || 0.01, background: "#6B8F5E", borderRadius: "0 3px 3px 0" }} />
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B2332", fontWeight: 600 }}>{profile.red_count} red</span>
-                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#6B8F5E", fontWeight: 600 }}>{profile.white_count} white</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
+                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#8B2332", fontWeight: 600 }}>{profile.red_count} red</span>
+                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#6B8F5E", fontWeight: 600 }}>{profile.white_count} white</span>
               </div>
             </div>
           )}
@@ -120,8 +156,8 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       )}
 
       {/* Footer */}
-      <div style={{ textAlign: "center", marginTop: 28, paddingBottom: 40 }}>
-        <button onClick={onRetake} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.4, textDecoration: "underline" }}>Start fresh &amp; retake quiz</button>
+      <div style={{ textAlign: "center", marginTop: 20, paddingBottom: 40 }}>
+        <button onClick={onRetake} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.35, textDecoration: "underline" }}>Start fresh &amp; retake quiz</button>
       </div>
     </div>
   );
@@ -130,8 +166,8 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
 function ProfileTagSection({ label, items }) {
   if (!items || items.length === 0) return null;
   return (
-    <div style={{ marginBottom: 12, background: "rgba(255,255,255,0.5)", borderRadius: "14px", padding: "14px 18px", border: "1px solid rgba(27,61,47,0.08)" }}>
-      <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.5, marginBottom: 8, fontWeight: 600 }}>{label}</div>
+    <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.4)", borderRadius: "14px", padding: "14px 18px", border: "1px solid rgba(27,61,47,0.06)" }}>
+      <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600 }}>{label}</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
         {items.map((item, i) => <span key={i} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "rgba(27,61,47,0.06)", padding: "4px 12px", borderRadius: "100px" }}>{item}</span>)}
       </div>
@@ -142,17 +178,10 @@ function ProfileTagSection({ label, items }) {
 // ─── Welcome Screen ───
 function WelcomeScreen({ onStart, user, onSignOut }) {
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      minHeight: "100vh", padding: "40px 24px", textAlign: "center",
-    }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 24px", textAlign: "center" }}>
       {user && (
         <div style={{ position: "absolute", top: 16, right: 20 }}>
-          <button onClick={onSignOut} style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F",
-            background: "none", border: "1px solid rgba(27,61,47,0.2)", borderRadius: "100px",
-            padding: "6px 16px", cursor: "pointer", opacity: 0.6,
-          }}>Sign Out</button>
+          <button onClick={onSignOut} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "1px solid rgba(27,61,47,0.2)", borderRadius: "100px", padding: "6px 16px", cursor: "pointer", opacity: 0.6 }}>Sign Out</button>
         </div>
       )}
       <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#1B3D2F", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24, fontSize: "36px", boxShadow: "0 8px 32px rgba(27,61,47,0.3)" }}>🍷</div>
@@ -164,11 +193,7 @@ function WelcomeScreen({ onStart, user, onSignOut }) {
           Tell us about the wines, regions, and grapes you love — as broad or specific as you want — and we&#39;ll build your Wine DNA profile so you never have to guess at a restaurant wine list again.
         </p>
       </div>
-      <button onClick={onStart} style={{
-        fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", fontWeight: 600, color: "#F5F0E8",
-        background: "#8B2332", border: "none", borderRadius: "100px", padding: "16px 48px",
-        cursor: "pointer", letterSpacing: "0.04em", boxShadow: "0 4px 20px rgba(139,35,50,0.3)",
-      }}>Build My Profile</button>
+      <button onClick={onStart} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", fontWeight: 600, color: "#F5F0E8", background: "#8B2332", border: "none", borderRadius: "100px", padding: "16px 48px", cursor: "pointer", letterSpacing: "0.04em", boxShadow: "0 4px 20px rgba(139,35,50,0.3)" }}>Build My Profile</button>
       {!user && (
         <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.5, marginTop: 20 }}>
           Already have an account? <a href="/login" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in</a>
@@ -194,33 +219,17 @@ export default function Home() {
       const { data: { session } } = await supabase.auth.getSession();
       const currentUser = session?.user || null;
       setUser(currentUser);
-
       if (currentUser) {
-        const { data } = await supabase
-          .from("wine_profiles")
-          .select("*")
-          .eq("user_id", currentUser.id)
-          .single();
-
-        if (data) {
-          setSavedProfile(data);
-          setView("profile");
-        } else {
-          setView("welcome");
-        }
-      } else {
-        setView("welcome");
-      }
+        const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", currentUser.id).single();
+        if (data) { setSavedProfile(data); setView("profile"); }
+        else { setView("welcome"); }
+      } else { setView("welcome"); }
       setLoading(false);
     }
     init();
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
-      if (!session?.user) {
-        setSavedProfile(null);
-        setView("welcome");
-      }
+      if (!session?.user) { setSavedProfile(null); setView("welcome"); }
     });
     return () => subscription.unsubscribe();
   }, []);
