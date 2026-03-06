@@ -1,16 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <defs>
-    <linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#A63346"/>
-      <stop offset="100%" stop-color="#8B2332"/>
-    </linearGradient>
-  </defs>
-  <!-- Wine glass bowl -->
-  <path d="M8 4 Q8 16, 14.5 19 Q16 20, 16 20 Q16 20, 17.5 19 Q24 16, 24 4 Z" fill="url(#b)"/>
-  <!-- Wine surface -->
-  <ellipse cx="16" cy="10" rx="5.5" ry="1.5" fill="#C4495A" opacity="0.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Protea wine glass favicon - simplified for small sizes -->
+  
+  <!-- Wine glass base -->
+  <ellipse cx="32" cy="56" rx="10" ry="3" fill="#1B3D2F"/>
+  
   <!-- Stem -->
-  <rect x="15" y="20" width="2" height="6" rx="1" fill="#1B3D2F"/>
-  <!-- Base -->
-  <ellipse cx="16" cy="27" rx="5" ry="1.5" fill="#1B3D2F"/>
+  <rect x="30.5" y="38" width="3" height="18" rx="1.5" fill="#1B3D2F"/>
+  
+  <!-- Leaves -->
+  <path d="M25 36 Q20 30, 22 24 Q26 28, 30 34 Z" fill="#2D6B3F"/>
+  <path d="M39 36 Q44 30, 42 24 Q38 28, 34 34 Z" fill="#2D6B3F"/>
+  
+  <!-- Protea petals - outer layer -->
+  <path d="M18 22 Q16 12, 24 6 Q28 16, 28 24 Z" fill="#8B2332"/>
+  <path d="M46 22 Q48 12, 40 6 Q36 16, 36 24 Z" fill="#8B2332"/>
+  <path d="M14 28 Q12 18, 20 10 Q24 20, 24 28 Z" fill="#A52A3A"/>
+  <path d="M50 28 Q52 18, 44 10 Q40 20, 40 28 Z" fill="#A52A3A"/>
+  
+  <!-- Protea petals - middle layer -->
+  <path d="M22 26 Q20 16, 27 8 Q30 18, 30 28 Z" fill="#9B2535"/>
+  <path d="M42 26 Q44 16, 37 8 Q34 18, 34 28 Z" fill="#9B2535"/>
+  
+  <!-- Protea petals - center/top -->
+  <path d="M26 24 Q24 14, 30 5 Q33 14, 33 24 Z" fill="#C43A4C"/>
+  <path d="M38 24 Q40 14, 34 5 Q31 14, 31 24 Z" fill="#C43A4C"/>
+  <path d="M30 22 Q28 10, 32 3 Q36 10, 34 22 Z" fill="#D14A5A"/>
+  
+  <!-- Center detail -->
+  <ellipse cx="32" cy="28" rx="6" ry="3" fill="#1B3D2F" opacity="0.15"/>
 </svg>

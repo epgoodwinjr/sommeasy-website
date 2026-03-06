@@ -24,8 +24,11 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       }}>
         <span style={{
           fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px",
-          color: "#8B2332", fontWeight: 600,
-        }}>Sommeasy</span>
+          color: "#8B2332", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px",
+        }}>
+          <img src="/protea-icon.png" alt="" style={{ height: 28, width: "auto" }} />
+          Sommeasy
+        </span>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
@@ -184,7 +187,10 @@ function WelcomeScreen({ onStart, user, onSignOut }) {
           <button onClick={onSignOut} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "1px solid rgba(27,61,47,0.2)", borderRadius: "100px", padding: "6px 16px", cursor: "pointer", opacity: 0.6 }}>Sign Out</button>
         </div>
       )}
-      <div style={{ width: 80, height: 80, borderRadius: "50%", background: "#1B3D2F", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 24, fontSize: "36px", boxShadow: "0 8px 32px rgba(27,61,47,0.3)" }}>🍷</div>
+      <img src="/protea-icon.png" alt="Sommeasy" style={{
+        height: 100, width: "auto", marginBottom: 24,
+        filter: "drop-shadow(0 8px 24px rgba(139,35,50,0.2))",
+      }} />
       <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(32px, 7vw, 48px)", color: "#8B2332", margin: "0 0 8px 0", fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.1 }}>Sommeasy</h1>
       <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", letterSpacing: "0.15em", textTransform: "uppercase", margin: "0 0 32px 0", opacity: 0.6 }}>Your Wine DNA Profile</p>
       <div style={{ maxWidth: 380, margin: "0 auto 40px" }}>
@@ -283,7 +289,8 @@ export default function Home() {
 
   if (loading || view === "loading") {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
+        <img src="/protea-icon.png" alt="" style={{ height: 60, width: "auto", opacity: 0.6 }} />
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#8B2332", opacity: 0.5 }}>Sommeasy</div>
       </div>
     );

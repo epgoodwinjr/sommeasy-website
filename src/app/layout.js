@@ -5,7 +5,11 @@ export const metadata = {
   description:
     "Tell us about the wines you love and we'll build your Wine DNA profile. Never guess at a restaurant wine list again.",
   icons: {
-    icon: "/icon.svg",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.png", type: "image/png", sizes: "32x32" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
     title: "Sommeasy — Your Wine DNA Profile",

@@ -238,7 +238,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     return (
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
         <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
-          <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600, textDecoration: "none" }}>Sommeasy</a>
+          <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: "8px" }}><img src="/protea-icon.png" alt="" style={{ height: 28, width: "auto" }} />Sommeasy</a>
           <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
         </div>
 
@@ -365,7 +365,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
       {/* Header */}
       <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
-        <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600, textDecoration: "none" }}>Sommeasy</a>
+        <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: "8px" }}><img src="/protea-icon.png" alt="" style={{ height: 28, width: "auto" }} />Sommeasy</a>
         <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
       </div>
 
