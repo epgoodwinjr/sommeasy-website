@@ -201,8 +201,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // ─── Loading state ───
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#8B2332", opacity: 0.5 }}>Loading...</div>
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
+        <img src="/protea-icon.png" alt="" style={{ height: 56, width: "auto", opacity: 0.5 }} />
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", opacity: 0.4 }}>Loading...</div>
       </div>
     );
   }
@@ -211,10 +212,10 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   if (!user) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
-        <div style={{ fontSize: "48px", marginBottom: 16 }}>🔒</div>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#1B3D2F", margin: "0 0 12px" }}>Sign in to continue</h2>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.6, marginBottom: 24, maxWidth: 320 }}>You need an account and a Wine DNA profile to get restaurant recommendations.</p>
-        <a href="/login" style={{ padding: "14px 40px", borderRadius: "100px", background: "#8B2332", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none" }}>Sign In</a>
+        <img src="/protea-icon.png" alt="" style={{ height: 64, width: "auto", marginBottom: 20, opacity: 0.7 }} />
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", color: "#1B3D2F", margin: "0 0 12px" }}>Sign in to continue</h2>
+        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.55, marginBottom: 28, maxWidth: 320, lineHeight: 1.55 }}>You need an account and a Wine DNA profile to get restaurant recommendations.</p>
+        <a href="/login" style={{ padding: "15px 44px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none", boxShadow: "0 6px 20px rgba(139,35,50,0.25)" }}>Sign In</a>
       </div>
     );
   }
@@ -223,10 +224,10 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   if (!profile) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
-        <div style={{ fontSize: "48px", marginBottom: 16 }}>🍷</div>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#1B3D2F", margin: "0 0 12px" }}>Build your Wine DNA first</h2>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.6, marginBottom: 24, maxWidth: 340 }}>Take the quick quiz to tell us what wines you love, then come back here to get personalized picks from any restaurant wine list.</p>
-        <a href="/" style={{ padding: "14px 40px", borderRadius: "100px", background: "#8B2332", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none" }}>Take the Quiz</a>
+        <img src="/protea-icon.png" alt="" style={{ height: 64, width: "auto", marginBottom: 20, opacity: 0.7 }} />
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", color: "#1B3D2F", margin: "0 0 12px" }}>Build your Wine DNA first</h2>
+        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.55, marginBottom: 28, maxWidth: 340, lineHeight: 1.55 }}>Take the quick quiz to tell us what wines you love, then come back here to get personalized picks from any restaurant wine list.</p>
+        <a href="/" style={{ padding: "15px 44px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none", boxShadow: "0 6px 20px rgba(139,35,50,0.25)" }}>Take the Quiz</a>
       </div>
     );
   }
@@ -238,16 +239,16 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     return (
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
         <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
-          <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: "8px" }}><img src="/protea-icon.png" alt="" style={{ height: 28, width: "auto" }} />Sommeasy</a>
+          <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: "10px", letterSpacing: "-0.01em" }}><img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />Sommeasy</a>
           <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
         </div>
 
-        <div style={{ textAlign: "center", padding: "24px 0 20px" }}>
-          <div style={{ fontSize: "36px", marginBottom: 8 }}>✨</div>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", color: "#1B3D2F", margin: "0 0 8px" }}>
+        <div style={{ textAlign: "center", padding: "28px 0 24px" }}>
+          <div style={{ fontSize: "32px", marginBottom: 10 }}>✨</div>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", color: "#1B3D2F", margin: "0 0 10px", fontWeight: 700, letterSpacing: "-0.01em" }}>
             {picks.length === 0 ? "No matches found" : `Your ${picks.length} picks`}
           </h2>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.5, margin: 0 }}>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, margin: 0, lineHeight: 1.5 }}>
             {picks.length > 0
               ? `Curated from ${totalMatched} matches across ${totalParsed} wines on the list`
               : `We parsed ${totalParsed} wines but couldn't find matches for your DNA. Try refining your profile.`}
@@ -365,15 +366,14 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
       {/* Header */}
       <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
-        <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#8B2332", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: "8px" }}><img src="/protea-icon.png" alt="" style={{ height: 28, width: "auto" }} />Sommeasy</a>
+        <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: "10px", letterSpacing: "-0.01em" }}><img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />Sommeasy</a>
         <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
       </div>
 
       {/* Title */}
-      <div style={{ textAlign: "center", padding: "32px 0 20px" }}>
-        <div style={{ fontSize: "36px", marginBottom: 8 }}>📋</div>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", color: "#1B3D2F", margin: "0 0 8px" }}>Get your picks</h2>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.6, margin: 0, maxWidth: 340, marginLeft: "auto", marginRight: "auto" }}>
+      <div style={{ textAlign: "center", padding: "32px 0 24px" }}>
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", color: "#1B3D2F", margin: "0 0 10px", fontWeight: 700, letterSpacing: "-0.01em" }}>Get your picks</h2>
+        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.5, margin: 0, maxWidth: 340, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
           Share a wine list and we&#39;ll find your best matches.
         </p>
       </div>
@@ -586,12 +586,12 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           onClick={handleAnalyze}
           disabled={!wineListText.trim()}
           style={{
-            width: "100%", padding: "16px", borderRadius: "14px", border: "none",
-            background: wineListText.trim() ? "#8B2332" : "rgba(139,35,50,0.3)",
+            width: "100%", padding: "17px", borderRadius: "14px", border: "none",
+            background: wineListText.trim() ? "linear-gradient(135deg, #8B2332, #7A1E2C)" : "rgba(139,35,50,0.2)",
             color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px",
             fontWeight: 600, cursor: wineListText.trim() ? "pointer" : "not-allowed",
-            boxShadow: wineListText.trim() ? "0 4px 16px rgba(139,35,50,0.25)" : "none",
-            marginBottom: 40,
+            boxShadow: wineListText.trim() ? "0 6px 24px rgba(139,35,50,0.25)" : "none",
+            marginBottom: 40, transition: "all 0.15s ease",
           }}
         >Find My Wines</button>
       )}

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
 import Quiz from "@/components/Quiz";
 
-// ─── Saved Profile View (redesigned) ───
+// ─── Saved Profile View ───
 function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const [showProfile, setShowProfile] = useState(false);
   const recs = profile.recommendations || [];
@@ -15,103 +15,157 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const displayName = user?.email?.split("@")[0] || "";
 
   return (
-    <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
-      {/* Header */}
-      <div style={{
-        padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between",
-        position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(12px)",
-        zIndex: 10, borderBottom: "1px solid rgba(27,61,47,0.06)",
+    <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 24px", minHeight: "100vh" }}>
+      {/* ─── Header ─── */}
+      <header style={{
+        padding: "20px 0 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
+        position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(16px)",
+        zIndex: 10,
       }}>
-        <span style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px",
-          color: "#8B2332", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px",
-        }}>
-          <img src="/protea-icon.png" alt="" style={{ height: 28, width: "auto" }} />
-          Sommeasy
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />
+          <span style={{
+            fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px",
+            color: "#8B2332", fontWeight: 700, letterSpacing: "-0.01em",
+          }}>Sommeasy</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <span style={{
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            color: "#1B3D2F", opacity: 0.5,
+            color: "#1B3D2F", opacity: 0.45,
           }}>{displayName}</span>
           <button onClick={onSignOut} style={{
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F",
-            background: "none", border: "1px solid rgba(27,61,47,0.15)", borderRadius: "100px",
-            padding: "5px 14px", cursor: "pointer", opacity: 0.5,
+            background: "none", border: "1px solid rgba(27,61,47,0.12)", borderRadius: "100px",
+            padding: "5px 14px", cursor: "pointer", opacity: 0.45, transition: "opacity 0.2s",
           }}>Sign Out</button>
         </div>
-      </div>
+      </header>
 
       {/* ─── Hero: Restaurant CTA ─── */}
-      <div style={{ marginTop: 24, marginBottom: 20 }}>
-        <a href="/recommend" style={{
-          display: "block", textDecoration: "none",
-          background: "linear-gradient(145deg, #8B2332 0%, #6B1D2A 100%)",
-          borderRadius: "20px", padding: "32px 28px",
-          color: "#F5F0E8", position: "relative", overflow: "hidden",
-          boxShadow: "0 8px 32px rgba(139,35,50,0.3)",
-        }}>
-          <div style={{ position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.06)" }} />
-          <div style={{ position: "absolute", bottom: -30, left: -10, width: 80, height: 80, borderRadius: "50%", background: "rgba(255,255,255,0.04)" }} />
-          <div style={{ position: "relative" }}>
-            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", opacity: 0.5, marginBottom: 10 }}>At a restaurant?</div>
-            <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", fontWeight: 700, lineHeight: 1.2, marginBottom: 10 }}>Get your picks</div>
-            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", opacity: 0.7, lineHeight: 1.5, maxWidth: 280 }}>Share a wine list and we&#39;ll match it to your DNA</div>
-            <div style={{ marginTop: 20, display: "inline-flex", alignItems: "center", gap: "8px", background: "rgba(255,255,255,0.15)", borderRadius: "100px", padding: "10px 24px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600 }}>
-              <span>📋</span> Paste, snap, or link a menu
-            </div>
+      <a href="/recommend" style={{
+        display: "block", textDecoration: "none", marginTop: 8, marginBottom: 24,
+        background: "linear-gradient(155deg, #8B2332 0%, #7A1E2C 40%, #5C1620 100%)",
+        borderRadius: "24px", padding: "36px 32px 32px",
+        color: "#F5F0E8", position: "relative", overflow: "hidden",
+        boxShadow: "0 12px 40px rgba(139,35,50,0.3), 0 2px 8px rgba(139,35,50,0.15)",
+        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+      }}>
+        {/* Decorative elements */}
+        <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
+        <div style={{ position: "absolute", bottom: -40, left: 20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.03)" }} />
+        <div style={{ position: "absolute", top: 20, right: 40, width: 60, height: 60, borderRadius: "50%", background: "rgba(255,255,255,0.025)" }} />
+        <div style={{ position: "relative" }}>
+          <div style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+            letterSpacing: "0.22em", textTransform: "uppercase",
+            opacity: 0.45, marginBottom: 12, fontWeight: 500,
+          }}>At a restaurant?</div>
+          <div style={{
+            fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px",
+            fontWeight: 700, lineHeight: 1.15, marginBottom: 12, letterSpacing: "-0.01em",
+          }}>Get your picks</div>
+          <div style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px",
+            opacity: 0.65, lineHeight: 1.55, maxWidth: 300,
+          }}>Share a wine list and we&#39;ll match it to your DNA</div>
+          <div style={{
+            marginTop: 24, display: "inline-flex", alignItems: "center", gap: "10px",
+            background: "rgba(255,255,255,0.13)", borderRadius: "100px",
+            padding: "11px 26px", fontFamily: "'Source Sans 3', sans-serif",
+            fontSize: "14px", fontWeight: 600, letterSpacing: "0.01em",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}>
+            <span style={{ fontSize: "16px" }}>📋</span> Paste, snap, or link a menu
           </div>
-        </a>
-      </div>
+        </div>
+      </a>
 
-      {/* ─── Compact DNA Strip ─── */}
+      {/* ─── DNA Strip ─── */}
       <div style={{
-        background: "linear-gradient(145deg, #1B3D2F 0%, #2A5540 100%)",
-        borderRadius: "16px", padding: "18px 20px",
-        color: "#F5F0E8", marginBottom: 20,
-        boxShadow: "0 4px 16px rgba(27,61,47,0.2)",
+        background: "linear-gradient(155deg, #1B3D2F 0%, #234A38 40%, #1B3D2F 100%)",
+        borderRadius: "18px", padding: "20px 24px",
+        color: "#F5F0E8", marginBottom: 28,
+        boxShadow: "0 6px 24px rgba(27,61,47,0.2), 0 2px 6px rgba(27,61,47,0.1)",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
-            <div style={{ fontSize: "28px", flexShrink: 0 }}>{profile.archetype_emoji}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1 }}>
+            <div style={{ fontSize: "32px", flexShrink: 0 }}>{profile.archetype_emoji}</div>
             <div>
-              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", fontWeight: 700, lineHeight: 1.2 }}>{profile.archetype}</div>
-              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", opacity: 0.5, marginTop: 3 }}>
+              <div style={{
+                fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px",
+                fontWeight: 700, lineHeight: 1.2,
+              }}>{profile.archetype}</div>
+              <div style={{
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                opacity: 0.45, marginTop: 4, letterSpacing: "0.01em",
+              }}>
                 {statCountries} countries · {statRegions} regions · {statGrapes} grapes · {statFavs} favorites
               </div>
             </div>
           </div>
           <button onClick={onRefine} style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-            color: "#F5F0E8", background: "rgba(255,255,255,0.12)",
-            border: "1px solid rgba(255,255,255,0.15)", borderRadius: "100px",
-            padding: "6px 16px", cursor: "pointer", whiteSpace: "nowrap", fontWeight: 500,
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+            color: "#F5F0E8", background: "rgba(255,255,255,0.1)",
+            border: "1px solid rgba(255,255,255,0.12)", borderRadius: "100px",
+            padding: "8px 20px", cursor: "pointer", whiteSpace: "nowrap",
+            fontWeight: 500, transition: "background 0.2s",
           }}>Refine</button>
         </div>
       </div>
 
       {/* ─── Wines to Try ─── */}
       {recs.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#1B3D2F", fontWeight: 600, margin: 0 }}>Wines to Try</h3>
-            <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4 }}>Based on your DNA</span>
+        <div style={{ marginBottom: 28 }}>
+          <div style={{
+            display: "flex", alignItems: "baseline", justifyContent: "space-between",
+            marginBottom: 16, paddingLeft: 2,
+          }}>
+            <h3 style={{
+              fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px",
+              color: "#1B3D2F", fontWeight: 600, margin: 0,
+            }}>Wines to Try</h3>
+            <span style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+              color: "#1B3D2F", opacity: 0.35, fontWeight: 500,
+            }}>Based on your DNA</span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {recs.map((rec, i) => (
-              <div key={i} style={{ background: "rgba(255,255,255,0.6)", borderRadius: "14px", padding: "16px 18px", border: "1px solid rgba(27,61,47,0.06)", display: "flex", alignItems: "flex-start", gap: "14px" }}>
+              <div key={i} style={{
+                background: "rgba(255,255,255,0.55)", borderRadius: "16px",
+                padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)",
+                display: "flex", alignItems: "flex-start", gap: "16px",
+                transition: "background 0.2s",
+              }}>
                 <div style={{
-                  width: 28, height: 28, borderRadius: "50%",
-                  background: i === 0 ? "linear-gradient(135deg, #8B2332, #6B1D2A)" : "rgba(27,61,47,0.08)",
+                  width: 30, height: 30, borderRadius: "50%",
+                  background: i === 0
+                    ? "linear-gradient(135deg, #8B2332, #6B1D2A)"
+                    : "rgba(27,61,47,0.07)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   color: i === 0 ? "#F5F0E8" : "#1B3D2F",
-                  fontFamily: "'Playfair Display', serif", fontSize: "13px", fontWeight: 700, flexShrink: 0, marginTop: 1,
+                  fontFamily: "'Playfair Display', serif", fontSize: "13px",
+                  fontWeight: 700, flexShrink: 0, marginTop: 1,
+                  boxShadow: i === 0 ? "0 2px 8px rgba(139,35,50,0.25)" : "none",
                 }}>{i + 1}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", color: "#1B3D2F", lineHeight: 1.3, marginBottom: 4 }}>{rec.wine}</div>
-                  <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5, lineHeight: 1.4 }}>{rec.why}</div>
-                  <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "10px", color: "#8B2332", opacity: 0.6, marginTop: 5, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    {rec.matchType === "region + grape" ? "📍 Region + grape match" : rec.matchType === "grape" ? "🍇 Grape match" : "🧭 Discovery pick"}
+                  <div style={{
+                    fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
+                    color: "#1B3D2F", lineHeight: 1.35, marginBottom: 5,
+                  }}>{rec.wine}</div>
+                  <div style={{
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                    color: "#1B3D2F", opacity: 0.5, lineHeight: 1.5,
+                  }}>{rec.why}</div>
+                  <div style={{
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "10px",
+                    color: "#8B2332", opacity: 0.55, marginTop: 8,
+                    textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600,
+                  }}>
+                    {rec.matchType === "region + grape" ? "📍 Region + grape match"
+                      : rec.matchType === "grape" ? "🍇 Grape match"
+                      : "🧭 Discovery pick"}
                   </div>
                 </div>
               </div>
@@ -122,32 +176,49 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
 
       {/* ─── Full Profile (expandable) ─── */}
       <button onClick={() => setShowProfile(!showProfile)} style={{
-        width: "100%", padding: "14px 18px", borderRadius: "14px",
-        border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.4)",
+        width: "100%", padding: "16px 20px", borderRadius: "16px",
+        border: "1px solid rgba(27,61,47,0.07)", background: "rgba(255,255,255,0.35)",
         color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif",
         fontSize: "14px", fontWeight: 500, cursor: "pointer",
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: showProfile ? 12 : 0,
+        marginBottom: showProfile ? 14 : 0, transition: "background 0.2s",
       }}>
         <span>Full Profile</span>
-        <span style={{ transform: showProfile ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease", fontSize: "12px", opacity: 0.4 }}>▼</span>
+        <span style={{
+          transform: showProfile ? "rotate(180deg)" : "rotate(0deg)",
+          transition: "transform 0.25s ease", fontSize: "11px", opacity: 0.35,
+        }}>▼</span>
       </button>
 
       {showProfile && (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: "14px", padding: "16px 18px", border: "1px solid rgba(27,61,47,0.06)", marginBottom: 10 }}>
-            <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.7, lineHeight: 1.6, margin: 0, fontStyle: "italic" }}>{profile.narrative}</p>
+          <div style={{
+            background: "rgba(255,255,255,0.4)", borderRadius: "16px",
+            padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)", marginBottom: 10,
+          }}>
+            <p style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
+              color: "#1B3D2F", opacity: 0.65, lineHeight: 1.65, margin: 0,
+              fontStyle: "italic",
+            }}>{profile.narrative}</p>
           </div>
           {(profile.red_count > 0 || profile.white_count > 0) && (
-            <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: "14px", padding: "14px 18px", border: "1px solid rgba(27,61,47,0.06)", marginBottom: 10 }}>
-              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600 }}>Red vs White</div>
+            <div style={{
+              background: "rgba(255,255,255,0.4)", borderRadius: "16px",
+              padding: "16px 20px", border: "1px solid rgba(27,61,47,0.06)", marginBottom: 10,
+            }}>
+              <div style={{
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+                textTransform: "uppercase", letterSpacing: "0.12em",
+                color: "#1B3D2F", opacity: 0.35, marginBottom: 10, fontWeight: 600,
+              }}>Red vs White</div>
               <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", gap: 2 }}>
                 <div style={{ flex: profile.red_count || 0.01, background: "#8B2332", borderRadius: "3px 0 0 3px" }} />
                 <div style={{ flex: profile.white_count || 0.01, background: "#6B8F5E", borderRadius: "0 3px 3px 0" }} />
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
-                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#8B2332", fontWeight: 600 }}>{profile.red_count} red</span>
-                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#6B8F5E", fontWeight: 600 }}>{profile.white_count} white</span>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B2332", fontWeight: 600 }}>{profile.red_count} red</span>
+                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#6B8F5E", fontWeight: 600 }}>{profile.white_count} white</span>
               </div>
             </div>
           )}
@@ -159,8 +230,12 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       )}
 
       {/* Footer */}
-      <div style={{ textAlign: "center", marginTop: 20, paddingBottom: 40 }}>
-        <button onClick={onRetake} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.35, textDecoration: "underline" }}>Start fresh &amp; retake quiz</button>
+      <div style={{ textAlign: "center", marginTop: 24, paddingBottom: 48 }}>
+        <button onClick={onRetake} style={{
+          fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+          color: "#1B3D2F", background: "none", border: "none",
+          cursor: "pointer", opacity: 0.3, textDecoration: "underline",
+        }}>Start fresh &amp; retake quiz</button>
       </div>
     </div>
   );
@@ -169,10 +244,23 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
 function ProfileTagSection({ label, items }) {
   if (!items || items.length === 0) return null;
   return (
-    <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.4)", borderRadius: "14px", padding: "14px 18px", border: "1px solid rgba(27,61,47,0.06)" }}>
-      <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600 }}>{label}</div>
+    <div style={{
+      marginBottom: 10, background: "rgba(255,255,255,0.4)", borderRadius: "16px",
+      padding: "16px 20px", border: "1px solid rgba(27,61,47,0.06)",
+    }}>
+      <div style={{
+        fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+        textTransform: "uppercase", letterSpacing: "0.12em",
+        color: "#1B3D2F", opacity: 0.35, marginBottom: 10, fontWeight: 600,
+      }}>{label}</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-        {items.map((item, i) => <span key={i} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "rgba(27,61,47,0.06)", padding: "4px 12px", borderRadius: "100px" }}>{item}</span>)}
+        {items.map((item, i) => (
+          <span key={i} style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+            color: "#1B3D2F", background: "rgba(27,61,47,0.05)",
+            padding: "5px 14px", borderRadius: "100px",
+          }}>{item}</span>
+        ))}
       </div>
     </div>
   );
@@ -181,31 +269,56 @@ function ProfileTagSection({ label, items }) {
 // ─── Welcome Screen ───
 function WelcomeScreen({ onStart, user, onSignOut }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 24px", textAlign: "center" }}>
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      minHeight: "100vh", padding: "40px 24px", textAlign: "center",
+    }}>
       {user && (
         <div style={{ position: "absolute", top: 16, right: 20 }}>
-          <button onClick={onSignOut} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "1px solid rgba(27,61,47,0.2)", borderRadius: "100px", padding: "6px 16px", cursor: "pointer", opacity: 0.6 }}>Sign Out</button>
+          <button onClick={onSignOut} style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F",
+            background: "none", border: "1px solid rgba(27,61,47,0.15)", borderRadius: "100px",
+            padding: "6px 16px", cursor: "pointer", opacity: 0.5,
+          }}>Sign Out</button>
         </div>
       )}
-      <img src="/protea-icon.png" alt="Sommeasy" style={{
-        height: 100, width: "auto", marginBottom: 24,
-        filter: "drop-shadow(0 8px 24px rgba(139,35,50,0.2))",
+      <img src="/logo.png" alt="Sommeasy" style={{
+        height: 200, width: "auto", marginBottom: 32,
+        filter: "drop-shadow(0 8px 24px rgba(139,35,50,0.12))",
       }} />
-      <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(32px, 7vw, 48px)", color: "#8B2332", margin: "0 0 8px 0", fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.1 }}>Sommeasy</h1>
-      <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", letterSpacing: "0.15em", textTransform: "uppercase", margin: "0 0 32px 0", opacity: 0.6 }}>Your Wine DNA Profile</p>
-      <div style={{ maxWidth: 380, margin: "0 auto 40px" }}>
-        <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", color: "#1B3D2F", lineHeight: 1.5, margin: "0 0 16px 0" }}>You know what you like.</p>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", lineHeight: 1.6, margin: 0, opacity: 0.7 }}>
-          Tell us about the wines, regions, and grapes you love — as broad or specific as you want — and we&#39;ll build your Wine DNA profile so you never have to guess at a restaurant wine list again.
+      <div style={{ maxWidth: 400, margin: "0 auto 44px" }}>
+        <p style={{
+          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px",
+          color: "#1B3D2F", lineHeight: 1.5, margin: "0 0 16px 0",
+        }}>You know what you like.</p>
+        <p style={{
+          fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px",
+          color: "#1B3D2F", lineHeight: 1.65, margin: 0, opacity: 0.65,
+        }}>
+          Tell us about the wines, regions, and grapes you love — and we&#39;ll build your
+          Wine DNA profile so you never have to guess at a restaurant wine list again.
         </p>
       </div>
-      <button onClick={onStart} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", fontWeight: 600, color: "#F5F0E8", background: "#8B2332", border: "none", borderRadius: "100px", padding: "16px 48px", cursor: "pointer", letterSpacing: "0.04em", boxShadow: "0 4px 20px rgba(139,35,50,0.3)" }}>Build My Profile</button>
+      <button onClick={onStart} style={{
+        fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", fontWeight: 600,
+        color: "#F5F0E8", background: "linear-gradient(135deg, #8B2332, #7A1E2C)",
+        border: "none", borderRadius: "100px", padding: "17px 52px",
+        cursor: "pointer", letterSpacing: "0.03em",
+        boxShadow: "0 6px 24px rgba(139,35,50,0.3), 0 2px 6px rgba(139,35,50,0.15)",
+        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+      }}>Build My Profile</button>
       {!user && (
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.5, marginTop: 20 }}>
+        <p style={{
+          fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
+          color: "#1B3D2F", opacity: 0.45, marginTop: 24,
+        }}>
           Already have an account? <a href="/login" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in</a>
         </p>
       )}
-      <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.4, marginTop: 12 }}>Takes about 2 minutes</p>
+      <p style={{
+        fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+        color: "#1B3D2F", opacity: 0.3, marginTop: 12,
+      }}>Takes about 2 minutes</p>
     </div>
   );
 }
@@ -259,39 +372,24 @@ export default function Home() {
   const handleSaveProfile = async (profile) => {
     if (!user) return;
     const { error } = await supabase.from("wine_profiles").upsert({
-      user_id: user.id,
-      archetype: profile.archetype,
-      archetype_emoji: profile.archetypeEmoji,
-      narrative: profile.narrative,
-      countries: profile.raw.countries,
-      regions: profile.raw.regions,
-      estates: profile.raw.estates,
-      varietals: profile.raw.varietals,
-      specific_wines: profile.raw.specificWines,
-      recommendations: profile.recommendations,
-      red_count: profile.redCount,
-      white_count: profile.whiteCount,
+      user_id: user.id, archetype: profile.archetype, archetype_emoji: profile.archetypeEmoji,
+      narrative: profile.narrative, countries: profile.raw.countries, regions: profile.raw.regions,
+      estates: profile.raw.estates, varietals: profile.raw.varietals,
+      specific_wines: profile.raw.specificWines, recommendations: profile.recommendations,
+      red_count: profile.redCount, white_count: profile.whiteCount,
     }, { onConflict: "user_id" });
-
-    if (error) {
-      console.error("Save error:", error);
-      alert("Error saving profile. Please try again.");
-    } else {
+    if (error) { console.error("Save error:", error); alert("Error saving profile. Please try again."); }
+    else {
       const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", user.id).single();
-      if (data) {
-        setSavedProfile(data);
-        setSavedMessage("Profile saved!");
-        setTimeout(() => setSavedMessage(null), 3000);
-        setView("profile");
-      }
+      if (data) { setSavedProfile(data); setSavedMessage("Profile saved!"); setTimeout(() => setSavedMessage(null), 3000); setView("profile"); }
     }
   };
 
   if (loading || view === "loading") {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
-        <img src="/protea-icon.png" alt="" style={{ height: 60, width: "auto", opacity: 0.6 }} />
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", color: "#8B2332", opacity: 0.5 }}>Sommeasy</div>
+        <img src="/protea-icon.png" alt="" style={{ height: 56, width: "auto", opacity: 0.5 }} />
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", opacity: 0.4 }}>Sommeasy</div>
       </div>
     );
   }
