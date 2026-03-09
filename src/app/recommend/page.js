@@ -29,6 +29,9 @@ export default function RecommendPage() {
   const [menuUrl, setMenuUrl] = useState("");
   const [photoPreview, setPhotoPreview] = useState(null);
   const [extractedFrom, setExtractedFrom] = useState(null);
+  const [pickRatings, setPickRatings] = useState({});
+  const [ratingPick, setRatingPick] = useState(null);
+  const [ratingToast, setRatingToast] = useState(null);
   const fileInputRef = useRef(null);
   const supabase = createClient();
 
@@ -158,6 +161,28 @@ export default function RecommendPage() {
     setPicks(curated);
   };
 
+  // ─── Pick rating ───
+  const handleRatePick = async (wineName, rating) => {
+    setPickRatings((prev) => ({ ...prev, [wineName]: rating }));
+    setRatingPick(null);
+    setRatingToast("Rating saved!");
+    setTimeout(() => setRatingToast(null), 2500);
+
+    try {
+      await fetch("/api/auth/callback", { method: "GET" }); // ensure session
+      const supabase = createClient();
+      await supabase.from("wine_interactions").upsert({
+        user_id: user.id,
+        wine_name: wineName,
+        interaction_type: "had",
+        rating: rating,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id, wine_name" });
+    } catch (err) {
+      console.error("Rating save error:", err);
+    }
+  };
+
   const handleReset = () => {
     setPicks(null);
     setWineListText("");
@@ -236,8 +261,52 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // RESULTS VIEW
   // ═══════════════════════════════════════════════════
   if (picks) {
+    const RATING_OPTIONS = [
+      { id: "loved", emoji: "❤️", label: "Loved it" },
+      { id: "liked", emoji: "👍", label: "Liked it" },
+      { id: "fine", emoji: "😐", label: "It was fine" },
+      { id: "not_for_me", emoji: "👎", label: "Not for me" },
+    ];
+
     return (
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
+        {/* Rating modal */}
+        {ratingPick && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 100,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(27,61,47,0.4)", backdropFilter: "blur(8px)", padding: 24,
+          }} onClick={() => setRatingPick(null)}>
+            <div onClick={(e) => e.stopPropagation()} style={{
+              background: "#F5F0E8", borderRadius: "24px", padding: "28px 24px",
+              maxWidth: 360, width: "100%", boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
+            }}>
+              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.15em", color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600 }}>How was it?</div>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#1B3D2F", lineHeight: 1.3, marginBottom: 24 }}>{ratingPick}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {RATING_OPTIONS.map((r) => (
+                  <button key={r.id} onClick={() => handleRatePick(ratingPick, r.id)} style={{
+                    display: "flex", alignItems: "center", gap: "12px",
+                    padding: "14px 18px", borderRadius: "14px",
+                    border: pickRatings[ratingPick] === r.id ? "2px solid #8B2332" : "1px solid rgba(27,61,47,0.08)",
+                    background: pickRatings[ratingPick] === r.id ? "rgba(139,35,50,0.06)" : "rgba(255,255,255,0.5)",
+                    cursor: "pointer", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
+                    color: "#1B3D2F", fontWeight: pickRatings[ratingPick] === r.id ? 600 : 500,
+                    width: "100%", textAlign: "left",
+                  }}><span style={{ fontSize: "20px" }}>{r.emoji}</span> {r.label}</button>
+                ))}
+              </div>
+              <button onClick={() => setRatingPick(null)} style={{
+                marginTop: 16, width: "100%", padding: "10px",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                color: "#1B3D2F", opacity: 0.4, background: "none", border: "none", cursor: "pointer",
+              }}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {ratingToast && (
+          <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px", borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, zIndex: 90, boxShadow: "0 4px 20px rgba(27,61,47,0.3)" }}>✓ {ratingToast}</div>
+        )}
         <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
           <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: "10px", letterSpacing: "-0.01em" }}><img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />Sommeasy</a>
           <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
@@ -336,13 +405,44 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                       Worth the stretch — strong DNA match at a higher price point
                     </div>
                   )}
+
+                  {/* Rating section */}
+                  <div style={{
+                    marginTop: 14, paddingTop: 14,
+                    borderTop: "1px solid rgba(27,61,47,0.06)",
+                  }}>
+                    {pickRatings[pick.name] ? (
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: "8px",
+                        fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                        color: "#1B3D2F", opacity: 0.6,
+                      }}>
+                        <span>{{ loved: "❤️", liked: "👍", fine: "😐", not_for_me: "👎" }[pickRatings[pick.name]]}</span>
+                        <span>{{ loved: "Loved it", liked: "Liked it", fine: "It was fine", not_for_me: "Not for me" }[pickRatings[pick.name]]}</span>
+                        <button onClick={() => setRatingPick(pick.name)} style={{
+                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+                          color: "#8B2332", background: "none", border: "none",
+                          cursor: "pointer", marginLeft: "auto", textDecoration: "underline", opacity: 0.6,
+                        }}>Change</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setRatingPick(pick.name)} style={{
+                        display: "flex", alignItems: "center", gap: "8px",
+                        padding: "8px 14px", borderRadius: "10px",
+                        border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.03)",
+                        fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+                        color: "#8B2332", fontWeight: 600, cursor: "pointer",
+                        width: "100%", justifyContent: "center",
+                      }}>🍷 Had this wine? Rate it</button>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "12px", paddingBottom: 40 }}>
+        <div style={{ display: "flex", gap: "12px", marginBottom: 12 }}>
           <button onClick={handleReset} style={{
             flex: 1, padding: "14px 20px", borderRadius: "14px",
             border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)",
@@ -354,6 +454,12 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             color: "#8B2332", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600,
             textDecoration: "none", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center",
           }}>Update My DNA</a>
+        </div>
+        <div style={{ textAlign: "center", paddingBottom: 40 }}>
+          <a href="/journal" style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+            color: "#1B3D2F", opacity: 0.4, textDecoration: "underline",
+          }}>View Wine Journal →</a>
         </div>
       </div>
     );

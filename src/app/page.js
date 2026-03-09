@@ -387,6 +387,21 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
         </div>
       )}
 
+      {/* Journal link */}
+      {recs.length > 0 && Object.keys(interactions).length > 0 && (
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <a href="/journal" style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+            color: "#8B2332", fontWeight: 600, textDecoration: "none",
+            display: "inline-flex", alignItems: "center", gap: "6px",
+            padding: "10px 20px", borderRadius: "100px",
+            border: "1px solid rgba(139,35,50,0.12)",
+            background: "rgba(139,35,50,0.03)",
+            transition: "all 0.15s ease",
+          }}>🍷 Wine Journal →</a>
+        </div>
+      )}
+
       {/* Full Profile (expandable) */}
       <button onClick={() => setShowProfile(!showProfile)} style={{
         width: "100%", padding: "16px 20px", borderRadius: "16px",

@@ -356,30 +356,43 @@ export function generateDNAProfile(answers) {
   // ─── Build recommendations ───
   const recs = [];
   const used = new Set();
+  // Pre-exclude wines the user already knows about
+  for (const sw of (specificWines || [])) {
+    // Normalize for fuzzy matching: "Constantia Glen Five" should match "Constantia Glen Five"
+    used.add(sw.toLowerCase().trim());
+  }
+  // Helper: check if wine name is already known
+  function isKnown(wineName) {
+    const norm = wineName.toLowerCase().trim();
+    for (const s of used) {
+      if (s === norm || norm.includes(s) || s.includes(norm)) return true;
+    }
+    return false;
+  }
   // Pass 1: Region + varietal combos (strongest match)
   for (const c of WINE_RECS.combos) {
     if (recs.length >= 20) break;
     const hasR = c.regions.some((r) => allRegionIds.includes(r));
     const hasV = c.varietals.length === 0 ? hasR : c.varietals.some((v) => varietals.includes(v));
-    if (hasR && hasV && !used.has(c.wine)) { recs.push({ ...c, matchType: "region + grape" }); used.add(c.wine); }
+    if (hasR && hasV && !isKnown(c.wine)) { recs.push({ ...c, matchType: "region + grape" }); used.add(c.wine.toLowerCase().trim()); }
   }
   // Pass 2: Varietal-only matches
   for (const vId of varietals) {
     if (recs.length >= 20) break;
     const r = WINE_RECS.byVarietal[vId];
-    if (r && !used.has(r.wine)) { recs.push({ ...r, matchType: "grape" }); used.add(r.wine); }
+    if (r && !isKnown(r.wine)) { recs.push({ ...r, matchType: "grape" }); used.add(r.wine.toLowerCase().trim()); }
   }
   // Pass 3: Region-only matches (no varietal requirement)
   for (const c of WINE_RECS.combos) {
     if (recs.length >= 20) break;
     const hasR = c.regions.some((r) => allRegionIds.includes(r));
-    if (hasR && !used.has(c.wine)) { recs.push({ ...c, matchType: "region" }); used.add(c.wine); }
+    if (hasR && !isKnown(c.wine)) { recs.push({ ...c, matchType: "region" }); used.add(c.wine.toLowerCase().trim()); }
   }
   // Pass 4: Country-level discovery picks
   for (const cId of countries) {
     if (recs.length >= 20) break;
     const r = WINE_RECS.byCountry[cId];
-    if (r && !used.has(r.wine)) { recs.push({ ...r, matchType: "discovery" }); used.add(r.wine); }
+    if (r && !isKnown(r.wine)) { recs.push({ ...r, matchType: "discovery" }); used.add(r.wine.toLowerCase().trim()); }
   }
 
   return {
