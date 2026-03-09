@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import Quiz from "@/components/Quiz";
 
@@ -145,6 +145,12 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const [interactions, setInteractions] = useState({});
   const [ratingWine, setRatingWine] = useState(null);
   const [toast, setToast] = useState(null);
+  // Bottle logging
+  const [bottleStep, setBottleStep] = useState(null); // null | "camera" | "processing" | "confirm"
+  const [bottleData, setBottleData] = useState(null);
+  const [bottleName, setBottleName] = useState("");
+  const [bottleError, setBottleError] = useState("");
+  const bottleInputRef = useRef(null);
   const supabase = createClient();
 
   const recs = profile.recommendations || [];
@@ -206,6 +212,68 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       saveInteraction(ratingWine, "had", rating);
       setRatingWine(null);
     }
+  };
+
+  // ─── Bottle logging ───
+  const handleBottlePhoto = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBottleStep("processing");
+    setBottleError("");
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await fetch("/api/ocr-bottle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: reader.result }),
+        });
+        const data = await res.json();
+
+        if (data.error && !data.wineName) {
+          setBottleError(data.error);
+          setBottleStep("camera");
+          return;
+        }
+
+        setBottleData(data);
+        setBottleName(data.wineName || "");
+        setBottleStep("confirm");
+      } catch (err) {
+        setBottleError("Failed to process image. Please try again.");
+        setBottleStep("camera");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleBottleSave = async (rating) => {
+    if (!bottleName.trim()) return;
+    const name = bottleName.trim();
+
+    // Save to wine_interactions
+    await supabase.from("wine_interactions").upsert({
+      user_id: user.id,
+      wine_name: name,
+      interaction_type: "had",
+      rating: rating,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id, wine_name" });
+
+    // Also append to specific_wines in profile
+    const currentSpecific = profile.specific_wines || [];
+    if (!currentSpecific.some((w) => w.toLowerCase() === name.toLowerCase())) {
+      await supabase.from("wine_profiles").update({
+        specific_wines: [...currentSpecific, name],
+      }).eq("user_id", user.id);
+    }
+
+    setInteractions((prev) => ({ ...prev, [name]: { type: "had", rating } }));
+    setBottleStep(null);
+    setBottleData(null);
+    setBottleName("");
+    showToast("Added to your collection!");
   };
 
   // Filter recs: exclude wines already interacted with
@@ -279,6 +347,161 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
           </div>
         </div>
       </a>
+
+      {/* ─── Log a Bottle ─── */}
+      <input
+        ref={bottleInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleBottlePhoto}
+        style={{ display: "none" }}
+      />
+
+      {bottleStep === null && (
+        <button onClick={() => { setBottleStep("camera"); bottleInputRef.current?.click(); }} style={{
+          width: "100%", display: "flex", alignItems: "center", gap: "16px",
+          padding: "18px 24px", borderRadius: "18px", marginBottom: 24,
+          border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.5)",
+          cursor: "pointer", textAlign: "left", transition: "all 0.15s ease",
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: "12px",
+            background: "linear-gradient(135deg, rgba(139,35,50,0.08), rgba(139,35,50,0.04))",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "22px", flexShrink: 0,
+          }}>📸</div>
+          <div>
+            <div style={{
+              fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
+              color: "#1B3D2F", fontWeight: 600, lineHeight: 1.3,
+            }}>Log a Bottle</div>
+            <div style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+              color: "#1B3D2F", opacity: 0.45, lineHeight: 1.4, marginTop: 2,
+            }}>Snap a label to add it to your collection</div>
+          </div>
+        </button>
+      )}
+
+      {bottleStep === "processing" && (
+        <div style={{
+          padding: "32px 24px", borderRadius: "18px", marginBottom: 24,
+          border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.5)",
+          textAlign: "center",
+        }}>
+          <div style={{
+            width: 32, height: 32, border: "3px solid rgba(139,35,50,0.15)",
+            borderTopColor: "#8B2332", borderRadius: "50%",
+            animation: "spin 0.8s linear infinite",
+            margin: "0 auto 16px",
+          }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <p style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
+            color: "#8B2332", fontWeight: 600, margin: "0 0 4px",
+          }}>Reading the label...</p>
+          <p style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+            color: "#1B3D2F", opacity: 0.4, margin: 0,
+          }}>This may take a few seconds</p>
+        </div>
+      )}
+
+      {bottleStep === "camera" && (
+        <div style={{
+          padding: "24px", borderRadius: "18px", marginBottom: 24,
+          border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.5)",
+        }}>
+          {bottleError && (
+            <div style={{
+              padding: "12px 16px", borderRadius: "12px", marginBottom: 16,
+              background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.12)",
+            }}>
+              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#8B2332", margin: 0, lineHeight: 1.4 }}>{bottleError}</p>
+            </div>
+          )}
+          <button onClick={() => bottleInputRef.current?.click()} style={{
+            width: "100%", padding: "16px", borderRadius: "14px",
+            border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.03)",
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
+            color: "#8B2332", fontWeight: 600, cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+          }}>📸 Take another photo</button>
+          <button onClick={() => { setBottleStep(null); setBottleError(""); }} style={{
+            width: "100%", padding: "10px", marginTop: 8,
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+            color: "#1B3D2F", opacity: 0.4, background: "none",
+            border: "none", cursor: "pointer",
+          }}>Cancel</button>
+        </div>
+      )}
+
+      {bottleStep === "confirm" && (
+        <div style={{
+          padding: "24px", borderRadius: "18px", marginBottom: 24,
+          border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.6)",
+        }}>
+          <div style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+            textTransform: "uppercase", letterSpacing: "0.15em",
+            color: "#1B3D2F", opacity: 0.4, marginBottom: 12, fontWeight: 600,
+          }}>We detected this wine</div>
+          <input
+            type="text"
+            value={bottleName}
+            onChange={(e) => setBottleName(e.target.value)}
+            style={{
+              width: "100%", padding: "14px 16px", borderRadius: "12px",
+              border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.7)",
+              fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px",
+              color: "#1B3D2F", outline: "none", boxSizing: "border-box",
+              marginBottom: 6,
+            }}
+          />
+          {bottleData?.region && (
+            <p style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+              color: "#1B3D2F", opacity: 0.5, margin: "0 0 16px 4px",
+            }}>📍 {bottleData.region}{bottleData.vintage ? ` · ${bottleData.vintage}` : ""}</p>
+          )}
+          <div style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+            color: "#1B3D2F", opacity: 0.5, marginBottom: 12,
+          }}>How was it?</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {[
+              { id: "loved", emoji: "❤️", label: "Loved it" },
+              { id: "liked", emoji: "👍", label: "Liked it" },
+              { id: "fine", emoji: "😐", label: "It was fine" },
+              { id: "not_for_me", emoji: "👎", label: "Not for me" },
+            ].map((r) => (
+              <button key={r.id} onClick={() => handleBottleSave(r.id)} style={{
+                display: "flex", alignItems: "center", gap: "10px",
+                padding: "12px 16px", borderRadius: "12px",
+                border: "1px solid rgba(27,61,47,0.08)",
+                background: "rgba(255,255,255,0.5)", cursor: "pointer",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
+                color: "#1B3D2F", fontWeight: 500, width: "100%", textAlign: "left",
+              }}>
+                <span style={{ fontSize: "18px" }}>{r.emoji}</span> {r.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: "8px", marginTop: 12 }}>
+            <button onClick={() => { setBottleStep("camera"); bottleInputRef.current?.click(); }} style={{
+              flex: 1, padding: "10px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+              color: "#8B2332", background: "none", border: "1px solid rgba(139,35,50,0.12)",
+              borderRadius: "10px", cursor: "pointer",
+            }}>Retake photo</button>
+            <button onClick={() => { setBottleStep(null); setBottleData(null); setBottleName(""); }} style={{
+              flex: 1, padding: "10px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+              color: "#1B3D2F", opacity: 0.4, background: "none", border: "1px solid rgba(27,61,47,0.06)",
+              borderRadius: "10px", cursor: "pointer",
+            }}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* DNA Strip */}
       <div style={{
