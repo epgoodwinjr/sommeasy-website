@@ -356,19 +356,28 @@ export function generateDNAProfile(answers) {
   // ─── Build recommendations ───
   const recs = [];
   const used = new Set();
+  // Pass 1: Region + varietal combos (strongest match)
   for (const c of WINE_RECS.combos) {
-    if (recs.length >= 5) break;
+    if (recs.length >= 20) break;
     const hasR = c.regions.some((r) => allRegionIds.includes(r));
     const hasV = c.varietals.length === 0 ? hasR : c.varietals.some((v) => varietals.includes(v));
     if (hasR && hasV && !used.has(c.wine)) { recs.push({ ...c, matchType: "region + grape" }); used.add(c.wine); }
   }
+  // Pass 2: Varietal-only matches
   for (const vId of varietals) {
-    if (recs.length >= 5) break;
+    if (recs.length >= 20) break;
     const r = WINE_RECS.byVarietal[vId];
     if (r && !used.has(r.wine)) { recs.push({ ...r, matchType: "grape" }); used.add(r.wine); }
   }
+  // Pass 3: Region-only matches (no varietal requirement)
+  for (const c of WINE_RECS.combos) {
+    if (recs.length >= 20) break;
+    const hasR = c.regions.some((r) => allRegionIds.includes(r));
+    if (hasR && !used.has(c.wine)) { recs.push({ ...c, matchType: "region" }); used.add(c.wine); }
+  }
+  // Pass 4: Country-level discovery picks
   for (const cId of countries) {
-    if (recs.length >= 5) break;
+    if (recs.length >= 20) break;
     const r = WINE_RECS.byCountry[cId];
     if (r && !used.has(r.wine)) { recs.push({ ...r, matchType: "discovery" }); used.add(r.wine); }
   }
@@ -377,7 +386,7 @@ export function generateDNAProfile(answers) {
     archetype, archetypeEmoji, narrative,
     countries: countryNames, regions: regionNames, estates: estateNames,
     varietals: varietalNames, specificWines: specificWines || [],
-    recommendations: recs.slice(0, 5),
+    recommendations: recs.slice(0, 20),
     redCount: reds.length, whiteCount: whites.length,
     raw: { countries, regions, estates, varietals, specificWines },
   };
