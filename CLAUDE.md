@@ -4,23 +4,25 @@
 
 Sommeasy is a wine recommendation app that helps users find wines from restaurant menus matching their taste preferences. A user provides a restaurant menu URL (or PDF), sets their taste preferences and budget, and Sommeasy recommends specific bottles from that menu.
 
-This repo contains the **website/landing page** for Sommeasy — not the app itself. The website's job is to explain what Sommeasy does, build trust, and convert visitors into early users (email signups).
+This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendation engine, wine journal, and bottle logging.
 
 ## Tech Stack
 
-- **Frontend:** React Native (Expo, Expo Router)
-- **Backend:** FastAPI (Python)
-- **Build tooling:** Babel, TypeScript with tsconfig path aliases
-- **PDF processing:** Custom extraction using Y-coordinate detection for line breaks
-- **Core flow:** URL fetch → PDF extraction → wine parsing → taste matching → budget-filtered recommendations
+- **Framework:** Next.js 14 (App Router)
+- **Auth + Database:** Supabase (Postgres with RLS, auth.users)
+- **Styling:** Inline styles / CSS-in-JS (no Tailwind)
+- **PDF processing:** unpdf with Y-coordinate detection for line breaks
+- **OCR:** Tesseract.js (bottle label photos), Claude Vision API (restaurant menu photos)
+- **Deployment:** Vercel (auto-deploys from main)
+- **Core flow:** URL/photo/paste → PDF extraction or OCR → wine parsing → DNA matching → budget-filtered curated picks
 
 ## Current State
 
-- Core wine parsing and recommendation engine works reliably across different restaurant menu formats
-- A 12-PR execution plan exists to address frontend build issues, backend structure, API contracts, and MVP polish
-- PR-01 (frontend build system — deprecated babel plugin, module-resolver aliases, tsconfig path aliases) has been merged
-- Remaining known issues: some frontend runtime crashes post-PR-01, backend import path issues
-- Next priorities: continuing the PR plan (PR-02+), filtering out by-the-glass wines from bottle recommendations
+- Quiz (5 steps), DNA profile with 15 archetypes across 6 scoring dimensions
+- Restaurant recommendation engine: URL fetch, PDF extraction, photo OCR, paste — curated 5-pick output
+- Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings
+- Log a Bottle: Tesseract OCR on label photos, saves to journal + influences DNA
+- Supabase tables: profiles, wine_interactions
 
 ## Brand & Design
 
@@ -79,17 +81,18 @@ You don't need to ask permission for individual code changes. Make the call, shi
 
 ## Key Technical Context
 
-- PDF text extraction requires Y-coordinate detection to preserve line breaks — naive extraction merges everything into one line and breaks the parser
-- Wine name cleanup must handle: dot leaders, bin numbers, broken accent characters, section headers misidentified as wine entries
-- The frontend build crash was caused by a triple-compounding misconfiguration (deprecated babel plugin + module-resolver aliases + tsconfig path aliases resolving to stale template files)
-- By-the-glass wines need to be filtered from bottle recommendations — BTG wines flood results with misleadingly low prices
+- PDF text extraction uses Y-coordinate detection (transform[5]) to preserve line breaks — naive extraction merges everything into one blob and breaks the parser
+- Wine name cleanup handles: dot leaders, bin numbers, broken accent characters, section headers misidentified as wine entries, US state abbreviations
+- matchEngine.js uses wineReference-lookup.json (processed from 130k WineMag reviews): 1,097 regions, 2,000 producers, 488 varietals, 43 countries
+- profileEngine.js generates up to 20 wine recommendations across 4 matching passes; pre-seeds exclusion list with user's named specific wines
+- Supabase client (supabase.js) stubs gracefully when env vars are absent during Vercel build-time pre-rendering
+- wineAutocomplete.json (140KB) lazy-loads on quiz Step 5 only — doesn't affect initial load
 
 ## Priorities (Current)
 
-1. Resolve remaining frontend runtime crashes and backend import issues
-2. Continue the 12-PR execution plan (PR-02 onward)
-3. Filter BTG wines from bottle recommendations
-4. MVP polish and stability
+1. Filter by-the-glass wines from bottle recommendations
+2. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
+3. MVP polish and stability
 
 ## What NOT to Do
 
