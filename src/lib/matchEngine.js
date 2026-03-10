@@ -346,6 +346,7 @@ export function parseWineList(text) {
   // Track current section context
   var currentVarietal = null;
   var currentColor = null;
+  var inBTGSection = false;
 
   for (var li = 0; li < lines.length; li++) {
     var line = lines[li];
@@ -354,6 +355,12 @@ export function parseWineList(text) {
 
     // Check if this line is a section header
     if (skipPatterns.test(stripped)) {
+      // Track by-the-glass vs bottle section state
+      if (/^(wines?\s*by\s*the\s*glass|by\s*the\s*glass|glass\s*pours?|by\s*glass|tasting\s*pours?)\s*$/i.test(stripped)) {
+        inBTGSection = true;
+      } else if (/^(wines?\s*by\s*the\s*bottle|by\s*the\s*bottle|bottle\s*list|full\s*bottles?|bottled?\s*wines?|bottle\s*selections?)\s*$/i.test(stripped)) {
+        inBTGSection = false;
+      }
       // Update context based on header type
       if (varietalHeaders[strippedLower]) {
         currentVarietal = varietalHeaders[strippedLower];
@@ -404,12 +411,14 @@ export function parseWineList(text) {
     // "$95", "95", "25.", "10/40" (glass/bottle), "$10/$40"
     var price = null;
     var name = line;
+    var isGlassBottlePrice = false;
 
-    // Format: "10/40" or "$10/$40" (glass/bottle) — take bottle price
+    // Format: "10/40" or "$10/$40" (glass/bottle) — take bottle price, flag as BTG
     var glassBottle = line.match(/\$?\s*(\d{1,3})\s*\/\s*\$?\s*(\d{1,4})\s*\.?\s*$/);
     if (glassBottle) {
       price = parseFloat(glassBottle[2]);
       name = line.slice(0, glassBottle.index).trim();
+      isGlassBottlePrice = true;
     } else {
       // Standard: "$95" or "95" or "95." at end
       var priceMatch = line.match(/\$?\s*(\d{1,4}(?:\.\d{2})?)\s*\.?\s*$/);
@@ -477,12 +486,13 @@ export function parseWineList(text) {
     var normKey = displayName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
     if (normKey.length < 3 || seenNorm.has(normKey)) continue;
     seenNorm.add(normKey);
-    entries.push({ 
-      name: displayName, 
-      price: price, 
+    entries.push({
+      name: displayName,
+      price: price,
       originalLine: line,
       sectionVarietal: currentVarietal || null,
       sectionColor: currentColor || null,
+      isByTheGlass: inBTGSection || isGlassBottlePrice,
     });
   }
   return entries;
@@ -708,7 +718,8 @@ export function matchWinesAgainstDNA(entries, dnaProfile) {
     specificWines: dnaProfile.specificWines || [],
     estateNames: estateNames,
   };
-  return entries.map(function(entry) { return scoreEntry(entry, userDNA); });
+  const bottleEntries = entries.filter(function(entry) { return !entry.isByTheGlass; });
+  return bottleEntries.map(function(entry) { return scoreEntry(entry, userDNA); });
 }
 
 export function getPickTypeInfo(pickType) {
