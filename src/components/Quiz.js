@@ -152,7 +152,14 @@ function VarietalStep({ selected, onToggle }) {
   );
 }
 
-function SpecificWineStep({ wines, onAdd, onRemove }) {
+function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
+  // Derive tappable suggestions from Step 4 estate selections
+  const estateSuggestions = Object.entries(selectedEstates || {})
+    .flatMap(([rId, eIds]) =>
+      (ESTATES[rId] || []).filter(e => eIds.includes(e.id)).map(e => e.name)
+    )
+    .filter(name => !wines.includes(name))
+    .slice(0, 8);
   const [val, setVal] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -243,7 +250,28 @@ function SpecificWineStep({ wines, onAdd, onRemove }) {
           </div>
         ))}
       </div>}
-      {wines.length === 0 && <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4, textAlign: "center", margin: "24px 0", fontStyle: "italic" }}>No specific wines added yet — perfectly fine!</p>}
+      {estateSuggestions.length > 0 && wines.length === 0 && (
+        <div style={{ marginTop: 8, marginBottom: 8 }}>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "0 0 10px 2px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>From your producers</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {estateSuggestions.map((name) => (
+              <button key={name} onClick={() => onAdd(name)} style={{
+                display: "inline-flex", alignItems: "center", gap: "6px",
+                padding: "8px 16px", borderRadius: "100px",
+                border: "1px solid rgba(139,35,50,0.2)",
+                background: "rgba(139,35,50,0.04)",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
+                color: "#8B2332", cursor: "pointer", transition: "all 0.15s ease",
+              }}>
+                <span style={{ fontSize: "12px", opacity: 0.6 }}>+</span> {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {wines.length === 0 && estateSuggestions.length === 0 && (
+        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4, textAlign: "center", margin: "24px 0", fontStyle: "italic" }}>No specific wines added yet — perfectly fine!</p>
+      )}
     </div>
   );
 }
@@ -424,7 +452,7 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
         {step === 1 && <RegionStep selectedCountries={answers.countries} regions={answers.regions} onToggle={(cId, rId) => setAnswers(p => ({ ...p, regions: { ...p.regions, [cId]: toggle(p.regions[cId] || [], rId) } }))} />}
         {step === 2 && <EstateStep regions={answers.regions} estates={answers.estates} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
         {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} />}
-        {step === 4 && <SpecificWineStep wines={answers.specificWines} onAdd={w => setAnswers(p => ({ ...p, specificWines: [...p.specificWines, w] }))} onRemove={i => setAnswers(p => ({ ...p, specificWines: p.specificWines.filter((_, j) => j !== i) }))} />}
+        {step === 4 && <SpecificWineStep wines={answers.specificWines} onAdd={w => setAnswers(p => ({ ...p, specificWines: [...p.specificWines, w] }))} onRemove={i => setAnswers(p => ({ ...p, specificWines: p.specificWines.filter((_, j) => j !== i) }))} selectedEstates={answers.estates} />}
         {step === 99 && profile && <DNAProfileCard profile={profile} onStartOver={restart} onSave={handleSave} saving={saving} user={user} />}
       </div>
 
