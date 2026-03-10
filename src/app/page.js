@@ -685,27 +685,70 @@ function ProfileTagSection({ label, items }) {
 
 // ─── Welcome Screen ───
 function WelcomeScreen({ onStart, user, onSignOut }) {
+  const steps = [
+    {
+      n: "1",
+      title: "Build your Wine DNA",
+      body: "A 2-minute quiz about the wines, regions, and grapes you love.",
+    },
+    {
+      n: "2",
+      title: "Share the wine list",
+      body: "Paste it, snap a photo, or drop in a URL from the restaurant's site.",
+    },
+    {
+      n: "3",
+      title: "Get your picks",
+      body: "We match what's on the menu to your taste and surface your best options.",
+    },
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: "40px 24px", textAlign: "center" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "100vh", padding: "48px 24px 56px", textAlign: "center" }}>
       {user && (
         <div style={{ position: "absolute", top: 16, right: 20 }}>
           <button onClick={onSignOut} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "1px solid rgba(27,61,47,0.15)", borderRadius: "100px", padding: "6px 16px", cursor: "pointer", opacity: 0.5 }}>Sign Out</button>
         </div>
       )}
+
+      {/* Logo */}
       <img src="/logo.png" alt="Sommeasy" style={{ height: 200, width: "auto", marginBottom: 32, filter: "drop-shadow(0 8px 24px rgba(139,35,50,0.12))" }} />
-      <div style={{ maxWidth: 400, margin: "0 auto 44px" }}>
-        <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3D2F", lineHeight: 1.5, margin: "0 0 16px 0" }}>You know what you like.</p>
+
+      {/* Hero copy */}
+      <div style={{ maxWidth: 380, margin: "0 auto 40px" }}>
+        <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", color: "#1B3D2F", lineHeight: 1.35, margin: "0 0 14px 0", letterSpacing: "-0.01em" }}>
+          Never guess at a wine list again.
+        </p>
         <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", lineHeight: 1.65, margin: 0, opacity: 0.65 }}>
-          Tell us about the wines, regions, and grapes you love — and we&#39;ll build your Wine DNA profile so you never have to guess at a restaurant wine list again.
+          Tell us what you like. We&apos;ll find it on the menu.
         </p>
       </div>
+
+      {/* CTA */}
       <button onClick={onStart} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", fontWeight: 600, color: "#F5F0E8", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", border: "none", borderRadius: "100px", padding: "17px 52px", cursor: "pointer", letterSpacing: "0.03em", boxShadow: "0 6px 24px rgba(139,35,50,0.3), 0 2px 6px rgba(139,35,50,0.15)" }}>Build My Profile</button>
+
       {!user && (
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, marginTop: 24 }}>
+        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, marginTop: 20 }}>
           Already have an account? <a href="/login" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in</a>
         </p>
       )}
-      <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.3, marginTop: 12 }}>Takes about 2 minutes</p>
+      <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.3, marginTop: 10, marginBottom: 48 }}>Takes about 2 minutes</p>
+
+      {/* How it works */}
+      <div style={{ width: "100%", maxWidth: 420, textAlign: "left" }}>
+        <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.18em", color: "#1B3D2F", opacity: 0.35, fontWeight: 600, textAlign: "center", marginBottom: 20 }}>How it works</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {steps.map((s) => (
+            <div key={s.n} style={{ display: "flex", alignItems: "flex-start", gap: "16px", background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)" }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", display: "flex", alignItems: "center", justifyContent: "center", color: "#F5F0E8", fontFamily: "'Playfair Display', serif", fontSize: "13px", fontWeight: 700, flexShrink: 0, marginTop: 1, boxShadow: "0 2px 8px rgba(139,35,50,0.25)" }}>{s.n}</div>
+              <div>
+                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px", color: "#1B3D2F", fontWeight: 600, lineHeight: 1.3, marginBottom: 4 }}>{s.title}</div>
+                <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.55, lineHeight: 1.5 }}>{s.body}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
