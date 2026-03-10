@@ -275,11 +275,14 @@ function DNAProfileCard({ profile, onStartOver, onSave, saving, user }) {
 
       {/* Save prompt */}
       {!user && (
-        <div style={{ background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "18px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 16, textAlign: "center" }}>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 12px 0" }}>
-            <strong>Create an account</strong> to save your Wine DNA and use it at restaurants.
+        <div style={{ background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "20px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 16, textAlign: "center" }}>
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#1B3D2F", marginBottom: 8, lineHeight: 1.3 }}>
+            {profile.archetypeEmoji} You&apos;re <em>{profile.archetype}</em>.
+          </div>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 16px 0", lineHeight: 1.55, opacity: 0.7 }}>
+            Save your profile free — then paste any restaurant wine list and get your picks matched to your taste in seconds.
           </p>
-          <a href="/signup" style={{ display: "inline-block", padding: "10px 28px", borderRadius: "100px", background: "#8B2332", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, textDecoration: "none" }}>Sign Up to Save</a>
+          <a href="/signup" style={{ display: "inline-block", padding: "12px 32px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, textDecoration: "none", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>Save My Profile →</a>
         </div>
       )}
       {user && onSave && (
