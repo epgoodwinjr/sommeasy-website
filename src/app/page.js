@@ -54,10 +54,10 @@ function parseBottleText(rawText) {
   // Wine name: join first 1–2 meaningful lines
   const wineName = meaningful.slice(0, 2).join(" ").substring(0, 80).trim();
 
-  // Region: a line with a region keyword, or the 3rd meaningful line
-  const regionKw = /valley|hills|coast|county|district|region|cru|appellation|dop|aop|ava|doc|docg|\bdo\b|stellenbosch|bordeaux|burgundy|champagne|napa|sonoma|barossa|marlborough|rioja|tuscany|piedmont|rh.ne|alsace|loire|chianti|priorat|ribera|duero/i;
+  // Region: a line matching known appellations/regions
+  const regionKw = /valley|hills|coast|county|district|region|cru|appellation|dop|aop|ava|doc|docg|\bdo\b|stellenbosch|franschhoek|swartland|walker bay|paarl|bordeaux|burgundy|champagne|napa|sonoma|barossa|clare|eden|coonawarra|marlborough|central otago|hawke|rioja|tuscany|piedmont|rh.ne|alsace|loire|chianti|priorat|ribera|duero|pauillac|margaux|medoc|saint.julien|saint.estephe|sauternes|pomerol|graves|saint.emilion|australia|mendoza|argentina|willamette|columbia|walla|finger lakes/i;
   const regionLine = meaningful.find((l, i) => i >= 1 && regionKw.test(l));
-  const region = ((regionLine || meaningful[2] || "").substring(0, 60)) || null;
+  const region = regionLine ? regionLine.substring(0, 60) : null;
 
   return { wineName, vintage, region: region || null };
 }
