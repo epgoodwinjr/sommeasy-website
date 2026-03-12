@@ -151,6 +151,8 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const [bottleName, setBottleName] = useState("");
   const [bottleError, setBottleError] = useState("");
   const bottleInputRef = useRef(null);
+  const bottleGalleryRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(false);
   const supabase = createClient();
 
   const recs = profile.recommendations || [];
@@ -159,6 +161,10 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const statGrapes = (profile.varietals || []).length;
   const statFavs = Object.values(profile.estates || {}).flat().length + (profile.specific_wines || []).length;
   const displayName = user?.email?.split("@")[0] || "";
+
+  useEffect(() => {
+    setIsMobile(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  }, []);
 
   // Load interactions on mount
   useEffect(() => {
@@ -218,16 +224,19 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const handleBottlePhoto = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = ""; // allow re-selecting same file
     setBottleStep("processing");
     setBottleError("");
 
     const reader = new FileReader();
     reader.onload = async () => {
       try {
+        const base64 = reader.result.split(",")[1];
+        const mediaType = file.type || "image/jpeg";
         const res = await fetch("/api/ocr-bottle", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: reader.result }),
+          body: JSON.stringify({ image: base64, mediaType }),
         });
         const data = await res.json();
 
@@ -349,39 +358,53 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       </a>
 
       {/* ─── Log a Bottle ─── */}
-      <input
-        ref={bottleInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleBottlePhoto}
-        style={{ display: "none" }}
-      />
+      {/* Camera input — opens rear camera directly on mobile */}
+      <input ref={bottleInputRef} type="file" accept="image/*" capture="environment" onChange={handleBottlePhoto} style={{ display: "none" }} />
+      {/* Gallery/upload input — opens photo picker or file dialog */}
+      <input ref={bottleGalleryRef} type="file" accept="image/*" onChange={handleBottlePhoto} style={{ display: "none" }} />
 
       {bottleStep === null && (
-        <button onClick={() => { setBottleStep("camera"); bottleInputRef.current?.click(); }} style={{
-          width: "100%", display: "flex", alignItems: "center", gap: "16px",
-          padding: "18px 24px", borderRadius: "18px", marginBottom: 24,
-          border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.5)",
-          cursor: "pointer", textAlign: "left", transition: "all 0.15s ease",
-        }}>
+        <div style={{ marginBottom: 24 }}>
+          {/* Collapsed header row */}
           <div style={{
-            width: 44, height: 44, borderRadius: "12px",
-            background: "linear-gradient(135deg, rgba(139,35,50,0.08), rgba(139,35,50,0.04))",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "22px", flexShrink: 0,
-          }}>📸</div>
-          <div>
+            display: "flex", alignItems: "center", gap: "16px",
+            padding: "18px 24px", borderRadius: isMobile ? "18px 18px 0 0" : "18px",
+            border: "1px solid rgba(27,61,47,0.08)",
+            borderBottom: isMobile ? "none" : "1px solid rgba(27,61,47,0.08)",
+            background: "rgba(255,255,255,0.5)",
+          }}>
             <div style={{
-              fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
-              color: "#1B3D2F", fontWeight: 600, lineHeight: 1.3,
-            }}>Log a Bottle</div>
-            <div style={{
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-              color: "#1B3D2F", opacity: 0.45, lineHeight: 1.4, marginTop: 2,
-            }}>Snap a label to add it to your collection</div>
+              width: 44, height: 44, borderRadius: "12px",
+              background: "linear-gradient(135deg, rgba(139,35,50,0.08), rgba(139,35,50,0.04))",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "22px", flexShrink: 0,
+            }}>📸</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px", color: "#1B3D2F", fontWeight: 600, lineHeight: 1.3 }}>Log a Bottle</div>
+              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.45, lineHeight: 1.4, marginTop: 2 }}>Photo a label to add it to your collection</div>
+            </div>
           </div>
-        </button>
+          {/* Action buttons */}
+          <div style={{ display: "flex", gap: "1px" }}>
+            {isMobile && (
+              <button onClick={() => { setBottleStep("camera"); bottleInputRef.current?.click(); }} style={{
+                flex: 1, padding: "13px 8px", borderRadius: "0 0 0 18px",
+                border: "1px solid rgba(27,61,47,0.08)", borderTop: "none",
+                background: "rgba(139,35,50,0.04)", cursor: "pointer",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                color: "#8B2332", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+              }}>📷 Take Photo</button>
+            )}
+            <button onClick={() => { setBottleStep("camera"); bottleGalleryRef.current?.click(); }} style={{
+              flex: 1, padding: "13px 8px",
+              borderRadius: isMobile ? "0 0 18px 0" : "0 0 18px 18px",
+              border: "1px solid rgba(27,61,47,0.08)", borderTop: "none",
+              background: "rgba(255,255,255,0.4)", cursor: "pointer",
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+              color: "#1B3D2F", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+            }}>{isMobile ? "🖼 Choose Photo" : "⬆️ Upload Photo"}</button>
+          </div>
+        </div>
       )}
 
       {bottleStep === "processing" && (

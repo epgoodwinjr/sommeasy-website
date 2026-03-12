@@ -33,7 +33,13 @@ export default function RecommendPage() {
   const [ratingPick, setRatingPick] = useState(null);
   const [ratingToast, setRatingToast] = useState(null);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const [isMobile, setIsMobile] = useState(false);
   const supabase = createClient();
+
+  useEffect(() => {
+    setIsMobile(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -53,6 +59,7 @@ export default function RecommendPage() {
   const handlePhotoSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = ""; // allow re-selecting the same file
     setErrorMsg("");
 
     const previewUrl = URL.createObjectURL(file);
@@ -541,14 +548,10 @@ Barolo, Giacomo Conterno 2018.........................$210`);
       {/* ─── PHOTO MODE ─── */}
       {inputMode === "photo" && (
         <div style={{ marginBottom: 20 }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handlePhotoSelect}
-            style={{ display: "none" }}
-          />
+          {/* Camera input — opens rear camera directly on mobile */}
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelect} style={{ display: "none" }} />
+          {/* Gallery/upload input — opens photo picker or file dialog */}
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: "none" }} />
 
           {processing ? (
             <div style={{
@@ -564,22 +567,41 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               <div style={{ width: 32, height: 32, border: "3px solid rgba(139,35,50,0.2)", borderTopColor: "#8B2332", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 16 }} />
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#8B2332", fontWeight: 600, margin: 0 }}>{processingMsg}</p>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "8px 0 0" }}>This usually takes 3-5 seconds</p>
+              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "8px 0 0" }}>This usually takes 3–5 seconds</p>
             </div>
           ) : (
-            <button onClick={() => fileInputRef.current?.click()} style={{
-              width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              padding: "40px 24px", borderRadius: "16px", border: "2px dashed rgba(139,35,50,0.2)",
-              background: "rgba(139,35,50,0.03)", cursor: "pointer", transition: "all 0.2s ease",
-            }}>
-              <div style={{ fontSize: "40px", marginBottom: 12 }}>📸</div>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", fontWeight: 600, margin: "0 0 4px" }}>
-                Take a photo or choose image
-              </p>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5, margin: 0, maxWidth: 280, textAlign: "center", lineHeight: 1.4 }}>
-                Point your camera at the wine list. Works best with good lighting and a flat surface.
-              </p>
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {isMobile && (
+                <button onClick={() => cameraInputRef.current?.click()} style={{
+                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
+                  padding: "20px 24px", borderRadius: "16px",
+                  border: "2px solid rgba(139,35,50,0.2)", background: "rgba(139,35,50,0.04)",
+                  cursor: "pointer", transition: "all 0.2s ease",
+                }}>
+                  <span style={{ fontSize: "28px" }}>📷</span>
+                  <div style={{ textAlign: "left" }}>
+                    <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#8B2332", fontWeight: 600, margin: 0 }}>Take a Photo</p>
+                    <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5, margin: "2px 0 0" }}>Opens your camera</p>
+                  </div>
+                </button>
+              )}
+              <button onClick={() => fileInputRef.current?.click()} style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
+                padding: "20px 24px", borderRadius: "16px",
+                border: "2px dashed rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.5)",
+                cursor: "pointer", transition: "all 0.2s ease",
+              }}>
+                <span style={{ fontSize: "28px" }}>🖼</span>
+                <div style={{ textAlign: "left" }}>
+                  <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", fontWeight: 600, margin: 0 }}>
+                    {isMobile ? "Choose from Library" : "Upload a Photo"}
+                  </p>
+                  <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5, margin: "2px 0 0" }}>
+                    {isMobile ? "Pick from your photos" : "Select an image file from your computer"}
+                  </p>
+                </div>
+              </button>
+            </div>
           )}
         </div>
       )}
