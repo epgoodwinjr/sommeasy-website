@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase";
 import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName } from "@/lib/matchEngine";
 
 // ─── Image compression utility ───
+// Returns a compressed JPEG Blob (max 1600px, 0.82 quality, handles HEIC/HEIF)
 function compressImage(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -24,10 +25,7 @@ function compressImage(file) {
       URL.revokeObjectURL(url);
       canvas.toBlob((blob) => {
         if (!blob) { reject(new Error("Compression failed")); return; }
-        const reader = new FileReader();
-        reader.onloadend = () => resolve({ base64: reader.result.split(",")[1], mediaType: "image/jpeg" });
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
+        resolve(blob);
       }, "image/jpeg", 0.82);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
@@ -97,26 +95,25 @@ export default function RecommendPage() {
     setPhotoPreview(previewUrl);
 
     setProcessing(true);
-    setProcessingMsg("Reading your wine list...");
+    setProcessingMsg("Preparing...");
 
     try {
-      const { base64, mediaType } = await compressImage(file);
+      const blob = await compressImage(file);
 
-      const res = await fetch("/api/ocr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, mediaType }),
-      });
-      const data = await res.json();
+      setProcessingMsg("Reading your wine list...");
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker("eng");
+      const { data: { text } } = await worker.recognize(blob);
+      await worker.terminate();
 
-      if (data.error && !data.text) {
-        setErrorMsg(data.error);
+      if (!text || text.trim().length < 10) {
+        setErrorMsg("Couldn't read any text from this photo. Try a clearer, well-lit image of the wine list.");
         setProcessing(false);
         setProcessingMsg("");
         return;
       }
 
-      setWineListText(data.text || "");
+      setWineListText(text.trim());
       setExtractedFrom("photo");
       setProcessingMsg("");
       setProcessing(false);
@@ -593,7 +590,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               <div style={{ width: 32, height: 32, border: "3px solid rgba(139,35,50,0.2)", borderTopColor: "#8B2332", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 16 }} />
               <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#8B2332", fontWeight: 600, margin: 0 }}>{processingMsg}</p>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "8px 0 0" }}>This usually takes 3–5 seconds</p>
+              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "8px 0 0" }}>May take up to 30 seconds on first use</p>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>

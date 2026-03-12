@@ -12,7 +12,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - **Auth + Database:** Supabase (Postgres with RLS, auth.users)
 - **Styling:** Inline styles / CSS-in-JS (no Tailwind)
 - **PDF processing:** unpdf with Y-coordinate detection for line breaks
-- **OCR:** Claude Vision API (`claude-sonnet-4-6`) for both bottle labels and restaurant menu photos
+- **OCR:** Tesseract.js v7, runs entirely client-side in the browser — no API cost
 - **Deployment:** Vercel (auto-deploys from main)
 - **Core flow:** URL/photo/paste → PDF extraction or OCR → wine parsing → DNA matching → budget-filtered curated picks
 
@@ -21,7 +21,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - Quiz (5 steps), DNA profile with 15 archetypes across 6 scoring dimensions
 - Restaurant recommendation engine: URL fetch, PDF extraction, photo OCR, paste — curated 5-pick output
 - Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings
-- Log a Bottle: Claude Vision OCR on label photos, saves to journal + influences DNA
+- Log a Bottle: Tesseract.js client-side OCR on label photos, saves to journal + influences DNA
 - Supabase tables: profiles, wine_interactions
 
 ## Brand & Design
@@ -94,9 +94,18 @@ You don't need to ask permission for individual code changes. Make the call, shi
 2. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
 3. MVP polish and stability
 
+## API Cost Constraint
+
+**Do NOT use the Anthropic API (Claude) anywhere in this app.** The site is pre-monetization and cannot absorb per-call API costs. All AI/ML features must use free, client-side, or self-hosted alternatives.
+
+- OCR uses Tesseract.js running in the browser (zero cost)
+- The `/api/ocr` and `/api/ocr-bottle` routes exist in the codebase but are NOT called — do not reintroduce calls to them
+- If a feature would require a paid external API, flag it for discussion rather than implementing it
+
 ## What NOT to Do
 
 - Don't add new features before existing ones are stable
 - Don't introduce new dependencies without a strong reason
 - Don't change the brand voice or visual identity without discussion
 - Don't optimize prematurely — get it working, then get it fast
+- Don't use any paid API (Anthropic, OpenAI, Google Vision, etc.) — see API Cost Constraint above

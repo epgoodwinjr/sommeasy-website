@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase";
 import Quiz from "@/components/Quiz";
 
 // ─── Image compression utility ───
+// Returns a compressed JPEG Blob (max 1600px, 0.82 quality, handles HEIC/HEIF)
 function compressImage(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -24,15 +25,41 @@ function compressImage(file) {
       URL.revokeObjectURL(url);
       canvas.toBlob((blob) => {
         if (!blob) { reject(new Error("Compression failed")); return; }
-        const reader = new FileReader();
-        reader.onloadend = () => resolve({ base64: reader.result.split(",")[1], mediaType: "image/jpeg" });
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
+        resolve(blob);
       }, "image/jpeg", 0.82);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
     img.src = url;
   });
+}
+
+// ─── Bottle label text parser ───
+function parseBottleText(rawText) {
+  const lines = rawText
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter((l) => l.length > 1);
+
+  // Extract vintage (4-digit year 1960–2030)
+  const vintageMatch = rawText.match(/\b(19[6-9]\d|20[0-2]\d)\b/);
+  const vintage = vintageMatch ? vintageMatch[0] : null;
+
+  // Filter out junk: volume, alcohol %, barcodes, URLs, generic phrases
+  const junkPattern = /^\d+(\.\d+)?$|\d+\s*ml|\d+\s*cl|\d+(\.\d+)?%|alc\.?|vol\.?|contains sulph|product of|bottled by|estate bottled|www\.|\.com|\.co\.|imported by|\d{8,}/i;
+  const meaningful = lines.filter((l) => {
+    if (vintage && l.trim() === vintage) return false;
+    return !junkPattern.test(l);
+  });
+
+  // Wine name: join first 1–2 meaningful lines
+  const wineName = meaningful.slice(0, 2).join(" ").substring(0, 80).trim();
+
+  // Region: a line with a region keyword, or the 3rd meaningful line
+  const regionKw = /valley|hills|coast|county|district|region|cru|appellation|dop|aop|ava|doc|docg|\bdo\b|stellenbosch|bordeaux|burgundy|champagne|napa|sonoma|barossa|marlborough|rioja|tuscany|piedmont|rh.ne|alsace|loire|chianti|priorat|ribera|duero/i;
+  const regionLine = meaningful.find((l, i) => i >= 1 && regionKw.test(l));
+  const region = ((regionLine || meaningful[2] || "").substring(0, 60)) || null;
+
+  return { wineName, vintage, region: region || null };
 }
 
 // ─── Rating Modal ───
@@ -260,22 +287,29 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
     setBottleError("");
 
     try {
-      const { base64, mediaType } = await compressImage(file);
-      const res = await fetch("/api/ocr-bottle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, mediaType }),
-      });
-      const data = await res.json();
+      const blob = await compressImage(file);
 
-      if (data.error && !data.wineName) {
-        setBottleError(data.error);
+      const { createWorker } = await import("tesseract.js");
+      const worker = await createWorker("eng");
+      const { data: { text } } = await worker.recognize(blob);
+      await worker.terminate();
+
+      if (!text || text.trim().length < 3) {
+        setBottleError("Couldn't read the label. Try a clearer, well-lit photo of the front of the bottle.");
         setBottleStep("camera");
         return;
       }
 
-      setBottleData(data);
-      setBottleName(data.wineName || "");
+      const parsed = parseBottleText(text);
+
+      if (!parsed.wineName || parsed.wineName.length < 2) {
+        setBottleError("Couldn't make out the wine name. Try a clearer photo.");
+        setBottleStep("camera");
+        return;
+      }
+
+      setBottleData(parsed);
+      setBottleName(parsed.wineName);
       setBottleStep("confirm");
     } catch (err) {
       setBottleError("Failed to process image. Please try again.");
@@ -453,7 +487,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
           <p style={{
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
             color: "#1B3D2F", opacity: 0.4, margin: 0,
-          }}>This may take a few seconds</p>
+          }}>May take up to 30 seconds on first use</p>
         </div>
       )}
 
