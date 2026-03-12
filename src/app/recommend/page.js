@@ -4,6 +4,37 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName } from "@/lib/matchEngine";
 
+// ─── Image compression utility ───
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1600;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > MAX || h > MAX) {
+        if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error("Compression failed")); return; }
+        const reader = new FileReader();
+        reader.onloadend = () => resolve({ base64: reader.result.split(",")[1], mediaType: "image/jpeg" });
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }, "image/jpeg", 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+    img.src = url;
+  });
+}
+
 // ─── Input mode constants ───
 const MODES = [
   { id: "paste", label: "Paste Text", icon: "📋" },
@@ -56,7 +87,7 @@ export default function RecommendPage() {
   }, []);
 
   // ─── Photo handling ───
-  const handlePhotoSelect = (e) => {
+  const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = ""; // allow re-selecting the same file
@@ -65,41 +96,36 @@ export default function RecommendPage() {
     const previewUrl = URL.createObjectURL(file);
     setPhotoPreview(previewUrl);
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result.split(",")[1];
-      const mediaType = file.type || "image/jpeg";
+    setProcessing(true);
+    setProcessingMsg("Reading your wine list...");
 
-      setProcessing(true);
-      setProcessingMsg("Reading your wine list...");
+    try {
+      const { base64, mediaType } = await compressImage(file);
 
-      try {
-        const res = await fetch("/api/ocr", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64, mediaType }),
-        });
-        const data = await res.json();
+      const res = await fetch("/api/ocr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64, mediaType }),
+      });
+      const data = await res.json();
 
-        if (data.error && !data.text) {
-          setErrorMsg(data.error);
-          setProcessing(false);
-          setProcessingMsg("");
-          return;
-        }
-
-        setWineListText(data.text || "");
-        setExtractedFrom("photo");
-        setProcessingMsg("");
-        setProcessing(false);
-        setInputMode("paste");
-      } catch (err) {
-        setErrorMsg("Failed to process photo. Please try again.");
+      if (data.error && !data.text) {
+        setErrorMsg(data.error);
         setProcessing(false);
         setProcessingMsg("");
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+
+      setWineListText(data.text || "");
+      setExtractedFrom("photo");
+      setProcessingMsg("");
+      setProcessing(false);
+      setInputMode("paste");
+    } catch (err) {
+      setErrorMsg("Failed to process photo. Please try again.");
+      setProcessing(false);
+      setProcessingMsg("");
+    }
   };
 
   // ─── URL handling ───

@@ -70,7 +70,7 @@ If this is not a wine bottle label, respond with exactly: {"error": "not_a_wine_
       }
       console.error("Claude API error (ocr-bottle):", detail);
       return NextResponse.json(
-        { error: `Couldn't read the label (${response.status}). Try a clearer photo with good lighting.` },
+        { error: `Couldn't read the label (${response.status}${detail ? ": " + detail : ""}). Try a clearer photo.` },
         { status: 502 }
       );
     }
