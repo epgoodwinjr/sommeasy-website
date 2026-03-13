@@ -2,65 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
+import { compressImage } from "@/lib/image-utils";
 import Quiz from "@/components/Quiz";
-
-// ─── Image compression utility ───
-// Returns a compressed JPEG Blob (max 1600px, 0.82 quality, handles HEIC/HEIF)
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const MAX = 1600;
-      let w = img.naturalWidth;
-      let h = img.naturalHeight;
-      if (w > MAX || h > MAX) {
-        if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => {
-        if (!blob) { reject(new Error("Compression failed")); return; }
-        resolve(blob);
-      }, "image/jpeg", 0.82);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
-    img.src = url;
-  });
-}
-
-// ─── Bottle label text parser ───
-function parseBottleText(rawText) {
-  const lines = rawText
-    .split("\n")
-    .map((l) => l.replace(/\s+/g, " ").trim())
-    .filter((l) => l.length > 1);
-
-  // Extract vintage (4-digit year 1960–2030)
-  const vintageMatch = rawText.match(/\b(19[6-9]\d|20[0-2]\d)\b/);
-  const vintage = vintageMatch ? vintageMatch[0] : null;
-
-  // Filter out junk: volume, alcohol %, barcodes, URLs, generic phrases
-  const junkPattern = /^\d+(\.\d+)?$|\d+\s*ml|\d+\s*cl|\d+(\.\d+)?%|alc\.?|vol\.?|contains sulph|product of|bottled by|estate bottled|www\.|\.com|\.co\.|imported by|\d{8,}/i;
-  const meaningful = lines.filter((l) => {
-    if (vintage && l.trim() === vintage) return false;
-    return !junkPattern.test(l);
-  });
-
-  // Wine name: join first 1–2 meaningful lines
-  const wineName = meaningful.slice(0, 2).join(" ").substring(0, 80).trim();
-
-  // Region: a line matching known appellations/regions
-  const regionKw = /valley|hills|coast|county|district|region|cru|appellation|dop|aop|ava|doc|docg|\bdo\b|stellenbosch|franschhoek|swartland|walker bay|paarl|bordeaux|burgundy|champagne|napa|sonoma|barossa|clare|eden|coonawarra|marlborough|central otago|hawke|rioja|tuscany|piedmont|rh.ne|alsace|loire|chianti|priorat|ribera|duero|pauillac|margaux|medoc|saint.julien|saint.estephe|sauternes|pomerol|graves|saint.emilion|australia|mendoza|argentina|willamette|columbia|walla|finger lakes/i;
-  const regionLine = meaningful.find((l, i) => i >= 1 && regionKw.test(l));
-  const region = regionLine ? regionLine.substring(0, 60) : null;
-
-  return { wineName, vintage, region: region || null };
-}
 
 // ─── Rating Modal ───
 function RatingModal({ wine, onRate, onClose }) {
@@ -278,7 +221,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
     }
   };
 
-  // ─── Bottle logging ───
+  // ─── Bottle logging (Claude Vision via /api/scan-label) ───
   const handleBottlePhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -289,27 +232,39 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
     try {
       const blob = await compressImage(file);
 
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng");
-      const { data: { text } } = await worker.recognize(blob);
-      await worker.terminate();
+      const formData = new FormData();
+      formData.append("image", blob, "label.jpg");
 
-      if (!text || text.trim().length < 3) {
-        setBottleError("Couldn't read the label. Try a clearer, well-lit photo of the front of the bottle.");
+      const res = await fetch("/api/scan-label", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setBottleError(data.error || "Couldn't read the label. Try a clearer photo.");
         setBottleStep("camera");
         return;
       }
 
-      const parsed = parseBottleText(text);
+      // Build display name: producer + name, or whichever is available
+      const displayName = [data.producer, data.name].filter(Boolean).join(" ") || null;
 
-      if (!parsed.wineName || parsed.wineName.length < 2) {
+      if (!displayName || displayName.length < 2) {
         setBottleError("Couldn't make out the wine name. Try a clearer photo.");
         setBottleStep("camera");
         return;
       }
 
-      setBottleData(parsed);
-      setBottleName(parsed.wineName);
+      setBottleData({
+        wineName: displayName,
+        vintage: data.vintage ? String(data.vintage) : null,
+        region: data.region || null,
+        country: data.country || null,
+        confidence: data.confidence || "low",
+      });
+      setBottleName(displayName);
       setBottleStep("confirm");
     } catch (err) {
       setBottleError("Failed to process image. Please try again.");
