@@ -125,28 +125,31 @@ export default function RecommendPage() {
 
         const { createWorker } = await import("tesseract.js");
         const worker = await createWorker("eng");
-        const { data: { text, confidence } } = await worker.recognize(processedDataUrl);
-        await worker.terminate();
+        try {
+          const { data: { text, confidence } } = await worker.recognize(processedDataUrl);
 
-        if (confidence < 70) {
-          setErrorMsg("The image was too hard to read (low confidence). Try a clearer, well-lit photo.");
-          setProcessing(false);
+          if (confidence < 70) {
+            setErrorMsg("The image was too hard to read (low confidence). Try a clearer, well-lit photo.");
+            setProcessing(false);
+            setProcessingMsg("");
+            return;
+          }
+
+          if (!text || text.trim().length < 10) {
+            setErrorMsg("Couldn't read any text from this photo. Try a clearer, well-lit image.");
+            setProcessing(false);
+            setProcessingMsg("");
+            return;
+          }
+
+          setWineListText(text.trim());
+          setExtractedFrom("photo");
           setProcessingMsg("");
-          return;
-        }
-
-        if (!text || text.trim().length < 10) {
-          setErrorMsg("Couldn't read any text from this photo. Try a clearer, well-lit image.");
           setProcessing(false);
-          setProcessingMsg("");
-          return;
+          setInputMode("paste");
+        } finally {
+          await worker.terminate();
         }
-
-        setWineListText(text.trim());
-        setExtractedFrom("photo");
-        setProcessingMsg("");
-        setProcessing(false);
-        setInputMode("paste");
       }
     } catch (err) {
       setErrorMsg("Failed to process photo. Please try again.");
@@ -252,6 +255,7 @@ export default function RecommendPage() {
     setPhotoPreview(null);
     setMenuUrl("");
     setExtractedFrom(null);
+    setPhotoSource("wine-list");
   };
 
   const loadExample = () => {

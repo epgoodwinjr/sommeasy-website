@@ -81,10 +81,22 @@ export async function POST(req) {
       throw new Error("No text response from Claude");
     }
 
+    console.log("scan-label raw response:", textContent.text);
     const extraction = parseLabelResponse(textContent.text);
+    console.log("scan-label extraction:", JSON.stringify(extraction));
+
+    // If parsing failed or nothing useful was extracted, tell the client
+    const hasUsefulData = extraction.name || extraction.producer;
+    if (!hasUsefulData) {
+      return NextResponse.json(
+        { error: "Couldn't identify the wine from this label. Try a clearer, closer photo." },
+        { status: 422 }
+      );
+    }
+
     return NextResponse.json(extraction);
   } catch (err) {
-    console.error("Label scan error:", err);
+    console.error("Label scan error:", err?.message || err);
     return NextResponse.json(
       { error: "Failed to scan label. Please try again." },
       { status: 500 }
