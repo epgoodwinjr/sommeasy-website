@@ -288,14 +288,28 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
 
       if (upsertErr) throw upsertErr;
 
-      // Also append to specific_wines in profile
+      // Update specific_wines based on rating:
+      // loved/liked → add to specific_wines (positive signal for matching)
+      // not_for_me → remove from specific_wines (avoid boosting disliked wines)
+      // fine → leave unchanged
       const currentSpecific = profile.specific_wines || [];
-      if (!currentSpecific.some((w) => w.toLowerCase() === name.toLowerCase())) {
-        const { error: updateErr } = await supabase.from("wine_profiles").update({
-          specific_wines: [...currentSpecific, name],
-        }).eq("user_id", user.id);
+      const nameLower = name.toLowerCase();
 
-        if (updateErr) console.error("Profile update failed:", updateErr);
+      if (rating === "loved" || rating === "liked") {
+        if (!currentSpecific.some((w) => w.toLowerCase() === nameLower)) {
+          const { error: updateErr } = await supabase.from("wine_profiles").update({
+            specific_wines: [...currentSpecific, name],
+          }).eq("user_id", user.id);
+          if (updateErr) console.error("Profile update failed:", updateErr);
+        }
+      } else if (rating === "not_for_me") {
+        const filtered = currentSpecific.filter((w) => w.toLowerCase() !== nameLower);
+        if (filtered.length !== currentSpecific.length) {
+          const { error: updateErr } = await supabase.from("wine_profiles").update({
+            specific_wines: filtered,
+          }).eq("user_id", user.id);
+          if (updateErr) console.error("Profile update failed:", updateErr);
+        }
       }
 
       setInteractions((prev) => ({ ...prev, [name]: { type: "had", rating } }));
