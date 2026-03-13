@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName, buildFeedbackSignals } from "@/lib/matchEngine";
 import { compressImage, preprocessForOCR } from "@/lib/image-utils";
 
 // ─── Input mode constants ───
@@ -44,6 +44,7 @@ export default function RecommendPage() {
   const cameraInputRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
   const [photoSource, setPhotoSource] = useState("wine-list"); // "wine-list" | "shelf-tag" | "bottle-label"
+  const [interactions, setInteractions] = useState([]);
   const supabase = createClient();
 
   useEffect(() => {
@@ -56,8 +57,13 @@ export default function RecommendPage() {
       const u = session?.user || null;
       setUser(u);
       if (u) {
-        const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", u.id).single();
-        if (data) setProfile(data);
+        // Fetch profile and interactions in parallel
+        const [profileResult, interactionsResult] = await Promise.all([
+          supabase.from("wine_profiles").select("*").eq("user_id", u.id).single(),
+          supabase.from("wine_interactions").select("*").eq("user_id", u.id),
+        ]);
+        if (profileResult.data) setProfile(profileResult.data);
+        if (interactionsResult.data) setInteractions(interactionsResult.data);
       }
       setLoading(false);
     }
@@ -208,7 +214,12 @@ export default function RecommendPage() {
       specificWines: profile.specific_wines || [],
     };
 
-    const scored = matchWinesAgainstDNA(entries, dna);
+    // Build feedback signals from past ratings (loved/liked/not_for_me)
+    const feedbackSignals = interactions.length > 0
+      ? buildFeedbackSignals(interactions)
+      : null;
+
+    const scored = matchWinesAgainstDNA(entries, dna, feedbackSignals);
     const matched = scored.filter(e => e.score > 0);
     setTotalMatched(matched.length);
 
@@ -430,8 +441,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                       </span>
                     )}
                     {pick.matchReasons.map((reason, j) => {
-                      const icons = { estate: "\u{1F3DB}\uFE0F", region: "\u{1F4CD}", varietal: "\u{1F347}", country: "\u{1F30D}", country_region: "\u{1F30D}", favorite: "\u2764\uFE0F" };
-                      if (reason.type === "country") return null;
+                      const icons = { estate: "\u{1F3DB}\uFE0F", region: "\u{1F4CD}", varietal: "\u{1F347}", country: "\u{1F30D}", country_region: "\u{1F30D}", favorite: "\u2764\uFE0F", feedback_boost: "\u{1F4C8}" };
+                      if (reason.type === "country" || reason.type === "feedback_suppress") return null;
                       return (
                         <span key={j} style={{
                           fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
