@@ -3,41 +3,20 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName } from "@/lib/matchEngine";
-
-// ─── Image compression utility ───
-// Returns a compressed JPEG Blob (max 1600px, 0.82 quality, handles HEIC/HEIF)
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const MAX = 1600;
-      let w = img.naturalWidth;
-      let h = img.naturalHeight;
-      if (w > MAX || h > MAX) {
-        if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => {
-        if (!blob) { reject(new Error("Compression failed")); return; }
-        resolve(blob);
-      }, "image/jpeg", 0.82);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
-    img.src = url;
-  });
-}
+import { compressImage, preprocessForOCR } from "@/lib/image-utils";
 
 // ─── Input mode constants ───
 const MODES = [
   { id: "paste", label: "Paste Text", icon: "📋" },
   { id: "photo", label: "Snap Photo", icon: "📷" },
   { id: "url", label: "Paste URL", icon: "🔗" },
+];
+
+// ─── Photo source types ───
+const PHOTO_SOURCES = [
+  { id: "wine-list", label: "Wine List / Menu" },
+  { id: "shelf-tag", label: "Shelf Tag / Price Card" },
+  { id: "bottle-label", label: "Bottle Label" },
 ];
 
 export default function RecommendPage() {
@@ -64,6 +43,7 @@ export default function RecommendPage() {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [photoSource, setPhotoSource] = useState("wine-list"); // "wine-list" | "shelf-tag" | "bottle-label"
   const supabase = createClient();
 
   useEffect(() => {
@@ -84,7 +64,7 @@ export default function RecommendPage() {
     init();
   }, []);
 
-  // ─── Photo handling ───
+  // ─── Photo handling (hybrid: Tesseract for lists/tags, Vision for labels) ───
   const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -98,26 +78,76 @@ export default function RecommendPage() {
     setProcessingMsg("Preparing...");
 
     try {
-      const blob = await compressImage(file);
+      if (photoSource === "bottle-label") {
+        // ── Claude Vision path for bottle labels ──
+        setProcessingMsg("Reading your bottle label...");
+        const blob = await compressImage(file);
 
-      setProcessingMsg("Reading your wine list...");
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng");
-      const { data: { text } } = await worker.recognize(blob);
-      await worker.terminate();
+        const formData = new FormData();
+        formData.append("image", blob, "label.jpg");
 
-      if (!text || text.trim().length < 10) {
-        setErrorMsg("Couldn't read any text from this photo. Try a clearer, well-lit image of the wine list.");
-        setProcessing(false);
+        const res = await fetch("/api/scan-label", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          setErrorMsg(data.error || "Couldn't read the label. Try a clearer photo.");
+          setProcessing(false);
+          setProcessingMsg("");
+          return;
+        }
+
+        // Build a text representation to feed into the wine list parser
+        const parts = [data.producer, data.name].filter(Boolean);
+        if (data.vintage) parts.push(String(data.vintage));
+        if (data.region) parts.push(data.region);
+
+        const labelText = parts.join(" ");
+        if (labelText.length < 3) {
+          setErrorMsg("Couldn't make out the wine details. Try a clearer photo.");
+          setProcessing(false);
+          setProcessingMsg("");
+          return;
+        }
+
+        setWineListText(labelText);
+        setExtractedFrom("photo");
         setProcessingMsg("");
-        return;
-      }
+        setProcessing(false);
+        setInputMode("paste");
+      } else {
+        // ── Tesseract path for wine lists and shelf tags ──
+        setProcessingMsg(photoSource === "shelf-tag" ? "Reading your shelf tag..." : "Reading your wine list...");
+        const processedDataUrl = await preprocessForOCR(file);
 
-      setWineListText(text.trim());
-      setExtractedFrom("photo");
-      setProcessingMsg("");
-      setProcessing(false);
-      setInputMode("paste");
+        const { createWorker } = await import("tesseract.js");
+        const worker = await createWorker("eng");
+        const { data: { text, confidence } } = await worker.recognize(processedDataUrl);
+        await worker.terminate();
+
+        if (confidence < 70) {
+          setErrorMsg("The image was too hard to read (low confidence). Try a clearer, well-lit photo.");
+          setProcessing(false);
+          setProcessingMsg("");
+          return;
+        }
+
+        if (!text || text.trim().length < 10) {
+          setErrorMsg("Couldn't read any text from this photo. Try a clearer, well-lit image.");
+          setProcessing(false);
+          setProcessingMsg("");
+          return;
+        }
+
+        setWineListText(text.trim());
+        setExtractedFrom("photo");
+        setProcessingMsg("");
+        setProcessing(false);
+        setInputMode("paste");
+      }
     } catch (err) {
       setErrorMsg("Failed to process photo. Please try again.");
       setProcessing(false);
@@ -594,6 +624,28 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {/* Photo source type selector */}
+              <div style={{
+                display: "flex", borderRadius: "10px", overflow: "hidden",
+                border: "1px solid rgba(27,61,47,0.1)", marginBottom: 4,
+              }}>
+                {PHOTO_SOURCES.map((src) => (
+                  <button
+                    key={src.id}
+                    onClick={() => setPhotoSource(src.id)}
+                    style={{
+                      flex: 1, padding: "9px 6px",
+                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+                      fontWeight: photoSource === src.id ? 600 : 400,
+                      color: photoSource === src.id ? "#8B2332" : "#1B3D2F",
+                      background: photoSource === src.id ? "rgba(139,35,50,0.06)" : "transparent",
+                      border: "none", cursor: "pointer",
+                      borderRight: "1px solid rgba(27,61,47,0.06)",
+                      transition: "all 0.15s ease",
+                    }}
+                  >{src.label}</button>
+                ))}
+              </div>
               {isMobile && (
                 <button onClick={() => cameraInputRef.current?.click()} style={{
                   width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
