@@ -276,28 +276,37 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
     if (!bottleName.trim()) return;
     const name = bottleName.trim();
 
-    // Save to wine_interactions
-    await supabase.from("wine_interactions").upsert({
-      user_id: user.id,
-      wine_name: name,
-      interaction_type: "had",
-      rating: rating,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id, wine_name" });
+    try {
+      // Save to wine_interactions
+      const { error: upsertErr } = await supabase.from("wine_interactions").upsert({
+        user_id: user.id,
+        wine_name: name,
+        interaction_type: "had",
+        rating: rating,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id, wine_name" });
 
-    // Also append to specific_wines in profile
-    const currentSpecific = profile.specific_wines || [];
-    if (!currentSpecific.some((w) => w.toLowerCase() === name.toLowerCase())) {
-      await supabase.from("wine_profiles").update({
-        specific_wines: [...currentSpecific, name],
-      }).eq("user_id", user.id);
+      if (upsertErr) throw upsertErr;
+
+      // Also append to specific_wines in profile
+      const currentSpecific = profile.specific_wines || [];
+      if (!currentSpecific.some((w) => w.toLowerCase() === name.toLowerCase())) {
+        const { error: updateErr } = await supabase.from("wine_profiles").update({
+          specific_wines: [...currentSpecific, name],
+        }).eq("user_id", user.id);
+
+        if (updateErr) console.error("Profile update failed:", updateErr);
+      }
+
+      setInteractions((prev) => ({ ...prev, [name]: { type: "had", rating } }));
+      setBottleStep(null);
+      setBottleData(null);
+      setBottleName("");
+      showToast("Added to your collection!");
+    } catch (err) {
+      console.error("Bottle save failed:", err);
+      setBottleError("Couldn't save — please try again.");
     }
-
-    setInteractions((prev) => ({ ...prev, [name]: { type: "had", rating } }));
-    setBottleStep(null);
-    setBottleData(null);
-    setBottleName("");
-    showToast("Added to your collection!");
   };
 
   // Filter recs: exclude wines already interacted with
@@ -485,23 +494,34 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
             textTransform: "uppercase", letterSpacing: "0.15em",
             color: "#1B3D2F", opacity: 0.4, marginBottom: 12, fontWeight: 600,
           }}>We detected this wine</div>
-          <input
-            type="text"
+          <textarea
             value={bottleName}
-            onChange={(e) => setBottleName(e.target.value)}
+            onChange={(e) => {
+              setBottleName(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
+            }}
+            rows={1}
             style={{
               width: "100%", padding: "14px 16px", borderRadius: "12px",
               border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.7)",
               fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px",
               color: "#1B3D2F", outline: "none", boxSizing: "border-box",
-              marginBottom: 6,
+              marginBottom: 6, resize: "none", overflow: "hidden",
+              lineHeight: 1.4, minHeight: "50px",
+            }}
+            ref={(el) => {
+              if (el) {
+                el.style.height = "auto";
+                el.style.height = el.scrollHeight + "px";
+              }
             }}
           />
-          {bottleData?.region && (
+          {(bottleData?.region || bottleData?.country || bottleData?.vintage) && (
             <p style={{
               fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
               color: "#1B3D2F", opacity: 0.5, margin: "0 0 16px 4px",
-            }}>📍 {bottleData.region}{bottleData.vintage ? ` · ${bottleData.vintage}` : ""}</p>
+            }}>📍 {[bottleData.region, bottleData.country].filter(Boolean).join(", ")}{bottleData.vintage ? ` · ${bottleData.vintage}` : ""}</p>
           )}
           <div style={{
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
