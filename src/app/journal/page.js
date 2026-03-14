@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
+import { resolveAndAccumulate, reverseAccumulation, fetchDnaTimeline } from "@/lib/dnaEvolution";
 
 const RATING_DISPLAY = {
   loved: { emoji: "❤️", label: "Loved it" },
@@ -71,6 +72,8 @@ export default function JournalPage() {
   const [ratingWine, setRatingWine] = useState(null);
   const [ratingCurrent, setRatingCurrent] = useState(null);
   const [toast, setToast] = useState(null);
+  const [timelineEntries, setTimelineEntries] = useState([]);
+  const [evolutionToasts, setEvolutionToasts] = useState([]);
   const supabase = createClient();
 
   useEffect(() => {
@@ -80,6 +83,8 @@ export default function JournalPage() {
       setUser(currentUser);
       if (currentUser) {
         await loadInteractions(currentUser.id);
+        const timeline = await fetchDnaTimeline(supabase, currentUser.id);
+        setTimelineEntries(timeline);
       }
       setLoading(false);
     }
@@ -100,7 +105,30 @@ export default function JournalPage() {
     setTimeout(() => setToast(null), 2500);
   }, []);
 
+  const showEvolutionToasts = useCallback((items, isDemotion) => {
+    if (!items || items.length === 0) return;
+    const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
+    const toasts = items.map((p) => {
+      const target = dimensionLabels[p.dimension] || "your DNA";
+      return isDemotion
+        ? `🧬 ${p.displayName} removed from ${target}`
+        : `🧬 Your Wine DNA evolved: ${p.displayName} added to ${target}`;
+    });
+    toasts.forEach((msg, i) => {
+      setTimeout(() => {
+        setEvolutionToasts((prev) => [...prev, msg]);
+        setTimeout(() => {
+          setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+        }, 4000);
+      }, 1500 + (i * 1500));
+    });
+  }, []);
+
   const handleUpdateRating = async (wineName, rating) => {
+    // Find previous rating for point differential calculation
+    const prev = interactions.find((i) => i.wine_name === wineName);
+    const previousRating = prev?.rating || null;
+
     const { error } = await supabase.from("wine_interactions").upsert({
       user_id: user.id,
       wine_name: wineName,
@@ -110,6 +138,17 @@ export default function JournalPage() {
     }, { onConflict: "user_id, wine_name" });
 
     if (!error) {
+      // Re-run DNA evolution with the rating change
+      try {
+        const result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
+        if (result?.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
+        if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+        // Refresh timeline
+        const timeline = await fetchDnaTimeline(supabase, user.id);
+        setTimelineEntries(timeline);
+      } catch (evoErr) {
+        console.error("DNA evolution error (non-blocking):", evoErr);
+      }
       await loadInteractions(user.id);
       showToast("Rating updated!");
     }
@@ -117,6 +156,14 @@ export default function JournalPage() {
   };
 
   const handleDelete = async (wineName) => {
+    // Reverse DNA accumulation before deleting
+    try {
+      const result = await reverseAccumulation(supabase, user.id, wineName);
+      if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+    } catch (evoErr) {
+      console.error("DNA reversal error (non-blocking):", evoErr);
+    }
+
     const { error } = await supabase
       .from("wine_interactions")
       .delete()
@@ -125,6 +172,9 @@ export default function JournalPage() {
 
     if (!error) {
       setInteractions((prev) => prev.filter((i) => i.wine_name !== wineName));
+      // Refresh timeline
+      const timeline = await fetchDnaTimeline(supabase, user.id);
+      setTimelineEntries(timeline);
       showToast("Removed");
     }
   };
@@ -222,6 +272,7 @@ export default function JournalPage() {
           { id: "tried", label: `Tried (${tried.length})` },
           { id: "want", label: `Want to Try (${wanted.length})` },
           { id: "skipped", label: `Skipped (${skipped.length})` },
+          { id: "timeline", label: "DNA Timeline" },
         ].map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
             flex: 1, padding: "11px 8px", borderRadius: "11px", border: "none",
@@ -392,6 +443,67 @@ export default function JournalPage() {
           )}
         </div>
       )}
+
+      {/* ─── DNA TIMELINE TAB ─── */}
+      {tab === "timeline" && (
+        <div>
+          {timelineEntries.length === 0 ? (
+            <div style={{
+              textAlign: "center", padding: "48px 20px",
+              background: "rgba(255,255,255,0.4)", borderRadius: "16px",
+              border: "1px solid rgba(27,61,47,0.06)",
+            }}>
+              <div style={{ fontSize: "36px", marginBottom: 12 }}>🧬</div>
+              <p style={{
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
+                color: "#1B3D2F", opacity: 0.5, margin: 0, lineHeight: 1.5,
+              }}>Your DNA hasn&apos;t evolved yet. Keep logging bottles and your profile will grow to reflect what you love.</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {timelineEntries.map((entry) => {
+                const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
+                const target = dimensionLabels[entry.dimension] || "your DNA";
+                const text = entry.event_type === "promoted"
+                  ? `${entry.display_name} added to ${target}`
+                  : `${entry.display_name} removed from ${target}`;
+                return (
+                  <div key={entry.id} style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+                    background: "rgba(255,255,255,0.55)", borderRadius: "14px",
+                    padding: "14px 18px", border: "1px solid rgba(27,61,47,0.06)",
+                  }}>
+                    <div style={{
+                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
+                      color: "#1B3D2F", lineHeight: 1.4,
+                    }}>
+                      <span style={{ marginRight: 8 }}>🧬</span>
+                      {text}
+                    </div>
+                    <span style={{
+                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+                      color: "#1B3D2F", opacity: 0.3, flexShrink: 0, whiteSpace: "nowrap",
+                    }}>{formatDate(entry.event_at)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Evolution toasts */}
+      {evolutionToasts.map((msg, i) => (
+        <div key={msg} style={{
+          position: "fixed", top: toast ? 56 + (i * 44) : 16 + (i * 44),
+          left: "50%", transform: "translateX(-50%)",
+          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
+          borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif",
+          fontSize: "14px", fontWeight: 600, zIndex: 91,
+          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
+          whiteSpace: "nowrap",
+        }}>{msg}</div>
+      ))}
 
       {/* Summary stats */}
       {interactions.length > 0 && (
