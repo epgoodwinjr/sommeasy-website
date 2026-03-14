@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-utils";
+import { resolveAndAccumulate, syncQuizSelections } from "@/lib/dnaEvolution";
 import Quiz from "@/components/Quiz";
 
 // ─── Rating Modal ───
@@ -146,6 +147,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const [interactions, setInteractions] = useState({});
   const [ratingWine, setRatingWine] = useState(null);
   const [toast, setToast] = useState(null);
+  const [evolutionToasts, setEvolutionToasts] = useState([]);
   // Bottle logging
   const [bottleStep, setBottleStep] = useState(null); // null | "camera" | "processing" | "confirm"
   const [bottleData, setBottleData] = useState(null);
@@ -272,12 +274,30 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
     }
   };
 
+  const showEvolutionToasts = useCallback((promotions) => {
+    if (!promotions || promotions.length === 0) return;
+    const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
+    const toasts = promotions.map((p) => {
+      const target = dimensionLabels[p.dimension] || "your DNA";
+      return `🧬 Your Wine DNA evolved: ${p.displayName} added to ${target}`;
+    });
+    // Show sequentially with 1s gaps, starting after the standard toast
+    toasts.forEach((msg, i) => {
+      setTimeout(() => {
+        setEvolutionToasts((prev) => [...prev, msg]);
+        setTimeout(() => {
+          setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+        }, 4000);
+      }, 1500 + (i * 1500));
+    });
+  }, []);
+
   const handleBottleSave = async (rating) => {
     if (!bottleName.trim()) return;
     const name = bottleName.trim();
 
     try {
-      // Save to wine_interactions
+      // 1. Save to wine_interactions
       const { error: upsertErr } = await supabase.from("wine_interactions").upsert({
         user_id: user.id,
         wine_name: name,
@@ -288,10 +308,15 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
 
       if (upsertErr) throw upsertErr;
 
-      // Update specific_wines based on rating:
-      // loved/liked → add to specific_wines (positive signal for matching)
-      // not_for_me → remove from specific_wines (avoid boosting disliked wines)
-      // fine → leave unchanged
+      // 2. DNA Evolution: resolve metadata, accumulate points, check promotions
+      let evolutionResult = null;
+      try {
+        evolutionResult = await resolveAndAccumulate(supabase, user.id, name, rating);
+      } catch (evoErr) {
+        console.error("DNA evolution error (non-blocking):", evoErr);
+      }
+
+      // 3. Update specific_wines based on rating (existing logic)
       const currentSpecific = profile.specific_wines || [];
       const nameLower = name.toLowerCase();
 
@@ -316,7 +341,14 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       setBottleStep(null);
       setBottleData(null);
       setBottleName("");
+
+      // 4. Show standard toast
       showToast("Added to your collection!");
+
+      // 5. Show evolution toasts if any promotions fired
+      if (evolutionResult?.promotions?.length > 0) {
+        showEvolutionToasts(evolutionResult.promotions);
+      }
     } catch (err) {
       console.error("Bottle save failed:", err);
       setBottleError("Couldn't save — please try again.");
@@ -348,6 +380,19 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
           boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
         }}>✓ {toast}</div>
       )}
+
+      {/* Evolution toasts */}
+      {evolutionToasts.map((msg, i) => (
+        <div key={msg} style={{
+          position: "fixed", top: toast ? 56 + (i * 44) : 16 + (i * 44),
+          left: "50%", transform: "translateX(-50%)",
+          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
+          borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif",
+          fontSize: "14px", fontWeight: 600, zIndex: 91,
+          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
+          whiteSpace: "nowrap",
+        }}>{msg}</div>
+      ))}
 
       {/* Header */}
       <header style={{
@@ -880,6 +925,12 @@ export default function Home() {
     }, { onConflict: "user_id" });
     if (error) { console.error("Save error:", error); alert("Error saving profile. Please try again."); }
     else {
+      // Sync quiz selections into dna_accumulation with source='quiz'
+      try {
+        await syncQuizSelections(supabase, user.id, profile.raw);
+      } catch (syncErr) {
+        console.error("Quiz sync error (non-blocking):", syncErr);
+      }
       const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", user.id).single();
       if (data) { setSavedProfile(data); setSavedMessage("Profile saved!"); setTimeout(() => setSavedMessage(null), 3000); setView("profile"); }
     }
