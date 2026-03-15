@@ -435,34 +435,31 @@ export function parseWineList(text) {
 
 
 // ═══════════════════════════════════════════════════════
-// SCORING
+// ATTRIBUTE DETECTION (shared by scoring + feedback)
 // ═══════════════════════════════════════════════════════
 
-function scoreEntry(entry, userDNA) {
-  const text = " " + entry.name.toLowerCase() + " ";
-  var score = 0;
-  const matchReasons = [];
-  const detectedRegionIds = new Set();
-  const detectedCountryIds = new Set();
-  var detectedColor = null;
+function detectWineAttributes(wineName) {
+  const text = " " + wineName.toLowerCase() + " ";
+  const regionIds = new Set();
+  const countryIds = new Set();
+  const varietalIds = new Set();
+  const producerTerms = new Set();
+  var color = null;
   const claimed = new Set();
 
-  // PRODUCER (weight: 5)
+  // Producer detection
   for (var pi = 0; pi < SEARCH_INDEX.producerTerms.length; pi++) {
     const prod = SEARCH_INDEX.producerTerms[pi];
     if (prod.term.length < 4) continue;
     if (text.includes(prod.term)) {
-      if (prod.dnaCountryId) detectedCountryIds.add(prod.dnaCountryId);
-      if (userDNA.estateNames.has(prod.term)) {
-        score += 5;
-        matchReasons.push({ type: "estate", label: prod.name, weight: 5 });
-      }
+      producerTerms.add(prod.term);
+      if (prod.dnaCountryId) countryIds.add(prod.dnaCountryId);
       claimed.add(prod.term);
       break;
     }
   }
 
-  // REGION (weight: 3 direct, 1 adjacent)
+  // Region detection
   for (var ri = 0; ri < SEARCH_INDEX.regionTerms.length; ri++) {
     const reg = SEARCH_INDEX.regionTerms[ri];
     if (claimed.has(reg.term)) continue;
@@ -483,31 +480,154 @@ function scoreEntry(entry, userDNA) {
     }
   }
 
-  // VARIETAL (weight: 2)
+  // Varietal detection
   for (var vi = 0; vi < SEARCH_INDEX.varietyTerms.length; vi++) {
     const v = SEARCH_INDEX.varietyTerms[vi];
     if (text.includes(v.term)) {
-      if (v.color && !detectedColor) detectedColor = v.color;
-      if (v.dnaVarietalId && userDNA.varietals.has(v.dnaVarietalId)) {
-        score += 2;
-        matchReasons.push({ type: "varietal", label: v.name, weight: 2 });
-      }
+      if (v.dnaVarietalId) varietalIds.add(v.dnaVarietalId);
+      if (v.color && !color) color = v.color;
       claimed.add(v.term);
       break;
     }
   }
 
+  // Country detection
+  for (var ci = 0; ci < SEARCH_INDEX.countryTerms.length; ci++) {
+    const c = SEARCH_INDEX.countryTerms[ci];
+    if (c.term.length < 4) continue;
+    if (termMatchesInText(c.term, text)) {
+      if (c.dnaCountryId) countryIds.add(c.dnaCountryId);
+      break;
+    }
+  }
+
+  return { regionIds, countryIds, varietalIds, producerTerms, color };
+}
+
+
+// ═══════════════════════════════════════════════════════
+// FEEDBACK SIGNALS (from rated wines)
+// ═══════════════════════════════════════════════════════
+
+export function buildFeedbackSignals(interactions) {
+  const signals = {
+    boostedRegions: new Map(),      // regionId → { weight, count }
+    boostedVarietals: new Map(),    // varietalId → { weight, count }
+    boostedProducers: new Map(),    // producerTerm → { weight, count }
+    suppressedRegions: new Set(),
+    suppressedVarietals: new Set(),
+    suppressedProducers: new Set(),
+    suppressedWineNames: [],
+  };
+
+  const BOOST_WEIGHTS = { loved: 2, liked: 1 };
+  const PRODUCER_BOOST_WEIGHTS = { loved: 3, liked: 1 };
+
+  for (var i = 0; i < interactions.length; i++) {
+    const inter = interactions[i];
+    if (!inter.rating || inter.rating === "fine") continue;
+    if (inter.interaction_type !== "had") continue;
+
+    const attrs = detectWineAttributes(inter.wine_name);
+
+    if (inter.rating === "not_for_me") {
+      attrs.regionIds.forEach(function(id) { signals.suppressedRegions.add(id); });
+      attrs.varietalIds.forEach(function(id) { signals.suppressedVarietals.add(id); });
+      attrs.producerTerms.forEach(function(t) { signals.suppressedProducers.add(t); });
+      signals.suppressedWineNames.push(inter.wine_name);
+    } else {
+      var w = BOOST_WEIGHTS[inter.rating];
+      var pw = PRODUCER_BOOST_WEIGHTS[inter.rating];
+      if (!w) continue;
+
+      attrs.regionIds.forEach(function(id) {
+        var existing = signals.boostedRegions.get(id);
+        if (existing) { existing.count++; existing.weight = Math.max(existing.weight, w); }
+        else { signals.boostedRegions.set(id, { weight: w, count: 1 }); }
+      });
+
+      attrs.varietalIds.forEach(function(id) {
+        var existing = signals.boostedVarietals.get(id);
+        if (existing) { existing.count++; existing.weight = Math.max(existing.weight, w); }
+        else { signals.boostedVarietals.set(id, { weight: w, count: 1 }); }
+      });
+
+      attrs.producerTerms.forEach(function(t) {
+        var existing = signals.boostedProducers.get(t);
+        if (existing) { existing.count++; existing.weight = Math.max(existing.weight, pw); }
+        else { signals.boostedProducers.set(t, { weight: pw, count: 1 }); }
+      });
+    }
+  }
+
+  // Suppression wins over boost when conflicting
+  signals.suppressedRegions.forEach(function(id) { signals.boostedRegions.delete(id); });
+  signals.suppressedVarietals.forEach(function(id) { signals.boostedVarietals.delete(id); });
+  signals.suppressedProducers.forEach(function(t) { signals.boostedProducers.delete(t); });
+
+  return signals;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// SCORING
+// ═══════════════════════════════════════════════════════
+
+function scoreEntry(entry, userDNA, feedbackSignals) {
+  const text = " " + entry.name.toLowerCase() + " ";
+  var score = 0;
+  const matchReasons = [];
+  const attrs = detectWineAttributes(entry.name);
+  const detectedRegionIds = attrs.regionIds;
+  const detectedCountryIds = attrs.countryIds;
+  var detectedColor = attrs.color;
+
+  // PRODUCER (weight: 5)
+  for (const prodTerm of attrs.producerTerms) {
+    if (userDNA.estateNames.has(prodTerm)) {
+      var prodEntry = SEARCH_INDEX.producerTerms.find(function(p) { return p.term === prodTerm; });
+      score += 5;
+      matchReasons.push({ type: "estate", label: prodEntry ? prodEntry.name : prodTerm, weight: 5 });
+    }
+  }
+
+  // REGION (weight: 3 direct, 1 adjacent)
+  for (const regId of detectedRegionIds) {
+    if (userDNA.regions.has(regId)) {
+      var regEntry = SEARCH_INDEX.regionTerms.find(function(r) { return r.dnaRegionId === regId; });
+      score += 3;
+      matchReasons.push({ type: "region", label: regEntry ? (regEntry.subregion || regEntry.wmProvince || regEntry.term) : regId, weight: 3 });
+    } else {
+      // Check country-level match for this region
+      for (const cId of detectedCountryIds) {
+        if (userDNA.countries.has(cId)) {
+          var cName = DNA_COUNTRIES.find(function(c) { return c.id === cId; });
+          var regEntry2 = SEARCH_INDEX.regionTerms.find(function(r) { return r.dnaRegionId === regId; });
+          var regLabel = regEntry2 ? (regEntry2.subregion || regEntry2.wmProvince || regEntry2.term) : regId;
+          score += 1;
+          matchReasons.push({ type: "country_region", label: regLabel + " (you like " + (cName ? cName.name : cId) + ")", weight: 1 });
+          break;
+        }
+      }
+    }
+  }
+
+  // VARIETAL (weight: 2)
+  for (const varId of attrs.varietalIds) {
+    if (userDNA.varietals.has(varId)) {
+      var varEntry = SEARCH_INDEX.varietyTerms.find(function(v) { return v.dnaVarietalId === varId; });
+      score += 2;
+      matchReasons.push({ type: "varietal", label: varEntry ? varEntry.name : varId, weight: 2 });
+    }
+  }
+
   // COUNTRY (weight: 1, only if no region already scored)
   if (!matchReasons.some(function(r) { return r.type === "region" || r.type === "country_region"; })) {
-    for (var ci = 0; ci < SEARCH_INDEX.countryTerms.length; ci++) {
-      const c = SEARCH_INDEX.countryTerms[ci];
-      if (c.term.length < 4) continue;
-      if (termMatchesInText(c.term, text)) {
-        if (c.dnaCountryId) detectedCountryIds.add(c.dnaCountryId);
-        if (c.dnaCountryId && userDNA.countries.has(c.dnaCountryId)) {
-          score += 1;
-          matchReasons.push({ type: "country", label: c.name, weight: 1 });
-        }
+    for (const cId of detectedCountryIds) {
+      if (userDNA.countries.has(cId)) {
+        var countryEntry = SEARCH_INDEX.countryTerms.find(function(c) { return c.dnaCountryId === cId; });
+        score += 1;
+        matchReasons.push({ type: "country", label: countryEntry ? countryEntry.name : cId, weight: 1 });
         break;
       }
     }
@@ -522,12 +642,71 @@ function scoreEntry(entry, userDNA) {
     }
   }
 
+  // FEEDBACK SIGNALS — boost or suppress based on past ratings
+  if (feedbackSignals) {
+    // Suppress specific wines the user rated "not for me"
+    for (var si = 0; si < feedbackSignals.suppressedWineNames.length; si++) {
+      var suppressed = feedbackSignals.suppressedWineNames[si];
+      if (suppressed.length >= 4 && text.includes(suppressed.toLowerCase())) {
+        // Remove any favorite bonus that was incorrectly added
+        var favIdx = matchReasons.findIndex(function(r) { return r.type === "favorite"; });
+        if (favIdx >= 0) {
+          score -= matchReasons[favIdx].weight;
+          matchReasons.splice(favIdx, 1);
+        }
+        score -= 5;
+        matchReasons.push({ type: "feedback_suppress", label: "You didn't enjoy this wine", weight: -5 });
+      }
+    }
+
+    // Boosted regions
+    for (const regId of detectedRegionIds) {
+      var boost = feedbackSignals.boostedRegions.get(regId);
+      if (boost) {
+        score += boost.weight;
+        var countLabel = boost.count > 1 ? (boost.count + " wines") : "a wine";
+        matchReasons.push({ type: "feedback_boost", label: "You " + (boost.weight >= 2 ? "loved" : "liked") + " " + countLabel + " from this region", weight: boost.weight });
+      }
+      if (feedbackSignals.suppressedRegions.has(regId)) {
+        score -= 2;
+        matchReasons.push({ type: "feedback_suppress", label: "Similar region to a wine you didn't enjoy", weight: -2 });
+      }
+    }
+
+    // Boosted varietals
+    for (const varId of attrs.varietalIds) {
+      var vBoost = feedbackSignals.boostedVarietals.get(varId);
+      if (vBoost) {
+        score += vBoost.weight;
+        var vCountLabel = vBoost.count > 1 ? (vBoost.count + " wines") : "a wine";
+        matchReasons.push({ type: "feedback_boost", label: "You " + (vBoost.weight >= 2 ? "loved" : "liked") + " " + vCountLabel + " with this grape", weight: vBoost.weight });
+      }
+      if (feedbackSignals.suppressedVarietals.has(varId)) {
+        score -= 2;
+        matchReasons.push({ type: "feedback_suppress", label: "Similar grape to a wine you didn't enjoy", weight: -2 });
+      }
+    }
+
+    // Boosted/suppressed producers
+    for (const prodTerm of attrs.producerTerms) {
+      var pBoost = feedbackSignals.boostedProducers.get(prodTerm);
+      if (pBoost) {
+        score += pBoost.weight;
+        matchReasons.push({ type: "feedback_boost", label: "You've enjoyed this producer before", weight: pBoost.weight });
+      }
+      if (feedbackSignals.suppressedProducers.has(prodTerm)) {
+        score -= 3;
+        matchReasons.push({ type: "feedback_suppress", label: "You didn't enjoy this producer", weight: -3 });
+      }
+    }
+  }
+
   return {
     name: entry.name,
     price: entry.price,
     originalLine: entry.originalLine,
     score: score,
-    matchReasons: matchReasons.sort(function(a, b) { return b.weight - a.weight; }),
+    matchReasons: matchReasons.sort(function(a, b) { return (b.weight || 0) - (a.weight || 0); }),
     detectedColor: detectedColor || entry.sectionColor || null,
     detectedRegionIds: Array.from(detectedRegionIds),
     detectedCountryIds: Array.from(detectedCountryIds),
@@ -631,7 +810,7 @@ export function curatePicks(scoredEntries, options) {
 // MAIN ENTRY POINT
 // ═══════════════════════════════════════════════════════
 
-export function matchWinesAgainstDNA(entries, dnaProfile) {
+export function matchWinesAgainstDNA(entries, dnaProfile, feedbackSignals) {
   if (!dnaProfile || !entries.length) return [];
   const estateNames = new Set();
   const allEstates = dnaProfile.estates || {};
@@ -647,15 +826,24 @@ export function matchWinesAgainstDNA(entries, dnaProfile) {
     }
   }
 
+  // Filter out suppressed wines from specificWines so they don't get the weight-10 boost
+  var specificWines = dnaProfile.specificWines || [];
+  if (feedbackSignals && feedbackSignals.suppressedWineNames.length > 0) {
+    var suppressedLower = new Set(
+      feedbackSignals.suppressedWineNames.map(function(n) { return n.toLowerCase(); })
+    );
+    specificWines = specificWines.filter(function(w) { return !suppressedLower.has(w.toLowerCase()); });
+  }
+
   const userDNA = {
     countries: new Set(dnaProfile.countries || []),
     regions: new Set(Object.values(dnaProfile.regions || {}).flat()),
     varietals: new Set(dnaProfile.varietals || []),
-    specificWines: dnaProfile.specificWines || [],
+    specificWines: specificWines,
     estateNames: estateNames,
   };
   const bottleEntries = entries.filter(function(entry) { return !entry.isByTheGlass; });
-  return bottleEntries.map(function(entry) { return scoreEntry(entry, userDNA); });
+  return bottleEntries.map(function(entry) { return scoreEntry(entry, userDNA, feedbackSignals || null); });
 }
 
 export function getPickTypeInfo(pickType) {

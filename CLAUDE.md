@@ -12,7 +12,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - **Auth + Database:** Supabase (Postgres with RLS, auth.users)
 - **Styling:** Inline styles / CSS-in-JS (no Tailwind)
 - **PDF processing:** unpdf with Y-coordinate detection for line breaks
-- **OCR:** Tesseract.js v7, runs entirely client-side in the browser — no API cost
+- **OCR:** Tesseract.js v7 (menus/shelf tags, client-side) + Claude Vision API (bottle labels, server-side)
 - **Deployment:** Vercel (auto-deploys from main)
 - **Core flow:** URL/photo/paste → PDF extraction or OCR → wine parsing → DNA matching → budget-filtered curated picks
 
@@ -21,7 +21,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - Quiz (5 steps), DNA profile with 15 archetypes across 6 scoring dimensions
 - Restaurant recommendation engine: URL fetch, PDF extraction, photo OCR, paste — curated 5-pick output
 - Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings
-- Log a Bottle: Tesseract.js client-side OCR on label photos, saves to journal + influences DNA
+- Log a Bottle: Claude Vision API for label OCR (via `/api/scan-label`), saves to journal + influences DNA
 - Supabase tables: profiles, wine_interactions
 
 ## Brand & Design
@@ -95,12 +95,32 @@ You don't need to ask permission for individual code changes. Make the call, shi
 2. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
 3. MVP polish and stability
 
+## Image Processing & OCR
+
+Sommeasy handles three types of image inputs. Always route to the correct
+processing path — do NOT use a single approach for all image types:
+
+| Source | Tool | Reason |
+|---|---|---|
+| Wine bottle labels | Claude Vision API (`claude-sonnet-4-6`) | Decorative fonts, curved surfaces, complex backgrounds — Tesseract fails here |
+| Restaurant wine lists / menus | Tesseract.js (client-side) | Clean printed text, free, no API cost |
+| Wine shop shelf tags / price cards | Tesseract.js (client-side) | Simple high-contrast text, Tesseract handles well |
+
+**Key rules:**
+
+- Never call the Anthropic API directly from the browser. Always proxy through a Next.js API route (`/app/api/scan-label/route.ts`) to keep the API key server-side.
+- Never put `NEXT_PUBLIC_` prefix on `ANTHROPIC_API_KEY` — that would expose it to the browser.
+- Both paths must output the shared `WineExtraction` schema before any database matching.
+- Tesseract must always run client-side in a `'use client'` component — never on the server.
+- Always preprocess images before Tesseract (greyscale + contrast boost).
+- The full implementation patterns, component code, and prompt template live in: `.claude/skills/sommeasy-image-processing/`
+
 ## API Cost Constraint
 
-**Do NOT use the Anthropic API (Claude) anywhere in this app.** The site is pre-monetization and cannot absorb per-call API costs. All AI/ML features must use free, client-side, or self-hosted alternatives.
+Claude Vision is allowed **only** for bottle label scanning (via `/api/scan-label`). All other features must use free, client-side alternatives.
 
-- OCR uses Tesseract.js running in the browser (zero cost)
-- The `/api/ocr` and `/api/ocr-bottle` routes exist in the codebase but are NOT called — do not reintroduce calls to them
+- Menu/shelf OCR uses Tesseract.js running in the browser (zero cost)
+- Do not introduce new paid API calls beyond the label-scanning route without discussion
 - If a feature would require a paid external API, flag it for discussion rather than implementing it
 
 ## What NOT to Do
@@ -109,4 +129,4 @@ You don't need to ask permission for individual code changes. Make the call, shi
 - Don't introduce new dependencies without a strong reason
 - Don't change the brand voice or visual identity without discussion
 - Don't optimize prematurely — get it working, then get it fast
-- Don't use any paid API (Anthropic, OpenAI, Google Vision, etc.) — see API Cost Constraint above
+- Don't use paid APIs beyond the approved bottle-label route — see API Cost Constraint above

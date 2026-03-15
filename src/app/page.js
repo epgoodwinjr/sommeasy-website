@@ -2,65 +2,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
+import { compressImage } from "@/lib/image-utils";
+import { resolveAndAccumulate, syncQuizSelections } from "@/lib/dnaEvolution";
 import Quiz from "@/components/Quiz";
-
-// ─── Image compression utility ───
-// Returns a compressed JPEG Blob (max 1600px, 0.82 quality, handles HEIC/HEIF)
-function compressImage(file) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const MAX = 1600;
-      let w = img.naturalWidth;
-      let h = img.naturalHeight;
-      if (w > MAX || h > MAX) {
-        if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      canvas.toBlob((blob) => {
-        if (!blob) { reject(new Error("Compression failed")); return; }
-        resolve(blob);
-      }, "image/jpeg", 0.82);
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
-    img.src = url;
-  });
-}
-
-// ─── Bottle label text parser ───
-function parseBottleText(rawText) {
-  const lines = rawText
-    .split("\n")
-    .map((l) => l.replace(/\s+/g, " ").trim())
-    .filter((l) => l.length > 1);
-
-  // Extract vintage (4-digit year 1960–2030)
-  const vintageMatch = rawText.match(/\b(19[6-9]\d|20[0-2]\d)\b/);
-  const vintage = vintageMatch ? vintageMatch[0] : null;
-
-  // Filter out junk: volume, alcohol %, barcodes, URLs, generic phrases
-  const junkPattern = /^\d+(\.\d+)?$|\d+\s*ml|\d+\s*cl|\d+(\.\d+)?%|alc\.?|vol\.?|contains sulph|product of|bottled by|estate bottled|www\.|\.com|\.co\.|imported by|\d{8,}/i;
-  const meaningful = lines.filter((l) => {
-    if (vintage && l.trim() === vintage) return false;
-    return !junkPattern.test(l);
-  });
-
-  // Wine name: join first 1–2 meaningful lines
-  const wineName = meaningful.slice(0, 2).join(" ").substring(0, 80).trim();
-
-  // Region: a line matching known appellations/regions
-  const regionKw = /valley|hills|coast|county|district|region|cru|appellation|dop|aop|ava|doc|docg|\bdo\b|stellenbosch|franschhoek|swartland|walker bay|paarl|bordeaux|burgundy|champagne|napa|sonoma|barossa|clare|eden|coonawarra|marlborough|central otago|hawke|rioja|tuscany|piedmont|rh.ne|alsace|loire|chianti|priorat|ribera|duero|pauillac|margaux|medoc|saint.julien|saint.estephe|sauternes|pomerol|graves|saint.emilion|australia|mendoza|argentina|willamette|columbia|walla|finger lakes/i;
-  const regionLine = meaningful.find((l, i) => i >= 1 && regionKw.test(l));
-  const region = regionLine ? regionLine.substring(0, 60) : null;
-
-  return { wineName, vintage, region: region || null };
-}
 
 // ─── Rating Modal ───
 function RatingModal({ wine, onRate, onClose }) {
@@ -203,6 +147,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const [interactions, setInteractions] = useState({});
   const [ratingWine, setRatingWine] = useState(null);
   const [toast, setToast] = useState(null);
+  const [evolutionToasts, setEvolutionToasts] = useState([]);
   // Bottle logging
   const [bottleStep, setBottleStep] = useState(null); // null | "camera" | "processing" | "confirm"
   const [bottleData, setBottleData] = useState(null);
@@ -278,7 +223,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
     }
   };
 
-  // ─── Bottle logging ───
+  // ─── Bottle logging (Claude Vision via /api/scan-label) ───
   const handleBottlePhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -289,27 +234,39 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
     try {
       const blob = await compressImage(file);
 
-      const { createWorker } = await import("tesseract.js");
-      const worker = await createWorker("eng");
-      const { data: { text } } = await worker.recognize(blob);
-      await worker.terminate();
+      const formData = new FormData();
+      formData.append("image", blob, "label.jpg");
 
-      if (!text || text.trim().length < 3) {
-        setBottleError("Couldn't read the label. Try a clearer, well-lit photo of the front of the bottle.");
+      const res = await fetch("/api/scan-label", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || data.error) {
+        setBottleError(data.error || "Couldn't read the label. Try a clearer photo.");
         setBottleStep("camera");
         return;
       }
 
-      const parsed = parseBottleText(text);
+      // Build display name: producer + name, or whichever is available
+      const displayName = [data.producer, data.name].filter(Boolean).join(" ") || null;
 
-      if (!parsed.wineName || parsed.wineName.length < 2) {
+      if (!displayName || displayName.length < 2) {
         setBottleError("Couldn't make out the wine name. Try a clearer photo.");
         setBottleStep("camera");
         return;
       }
 
-      setBottleData(parsed);
-      setBottleName(parsed.wineName);
+      setBottleData({
+        wineName: displayName,
+        vintage: data.vintage ? String(data.vintage) : null,
+        region: data.region || null,
+        country: data.country || null,
+        confidence: data.confidence || "low",
+      });
+      setBottleName(displayName);
       setBottleStep("confirm");
     } catch (err) {
       setBottleError("Failed to process image. Please try again.");
@@ -317,32 +274,85 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
     }
   };
 
+  const showEvolutionToasts = useCallback((promotions) => {
+    if (!promotions || promotions.length === 0) return;
+    const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
+    const toasts = promotions.map((p) => {
+      const target = dimensionLabels[p.dimension] || "your DNA";
+      return `🧬 Your Wine DNA evolved: ${p.displayName} added to ${target}`;
+    });
+    // Show sequentially with 1s gaps, starting after the standard toast
+    toasts.forEach((msg, i) => {
+      setTimeout(() => {
+        setEvolutionToasts((prev) => [...prev, msg]);
+        setTimeout(() => {
+          setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+        }, 4000);
+      }, 1500 + (i * 1500));
+    });
+  }, []);
+
   const handleBottleSave = async (rating) => {
     if (!bottleName.trim()) return;
     const name = bottleName.trim();
 
-    // Save to wine_interactions
-    await supabase.from("wine_interactions").upsert({
-      user_id: user.id,
-      wine_name: name,
-      interaction_type: "had",
-      rating: rating,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id, wine_name" });
+    try {
+      // 1. Save to wine_interactions
+      const { error: upsertErr } = await supabase.from("wine_interactions").upsert({
+        user_id: user.id,
+        wine_name: name,
+        interaction_type: "had",
+        rating: rating,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id, wine_name" });
 
-    // Also append to specific_wines in profile
-    const currentSpecific = profile.specific_wines || [];
-    if (!currentSpecific.some((w) => w.toLowerCase() === name.toLowerCase())) {
-      await supabase.from("wine_profiles").update({
-        specific_wines: [...currentSpecific, name],
-      }).eq("user_id", user.id);
+      if (upsertErr) throw upsertErr;
+
+      // 2. DNA Evolution: resolve metadata, accumulate points, check promotions
+      let evolutionResult = null;
+      try {
+        evolutionResult = await resolveAndAccumulate(supabase, user.id, name, rating);
+      } catch (evoErr) {
+        console.error("DNA evolution error (non-blocking):", evoErr);
+      }
+
+      // 3. Update specific_wines based on rating (existing logic)
+      const currentSpecific = profile.specific_wines || [];
+      const nameLower = name.toLowerCase();
+
+      if (rating === "loved" || rating === "liked") {
+        if (!currentSpecific.some((w) => w.toLowerCase() === nameLower)) {
+          const { error: updateErr } = await supabase.from("wine_profiles").update({
+            specific_wines: [...currentSpecific, name],
+          }).eq("user_id", user.id);
+          if (updateErr) console.error("Profile update failed:", updateErr);
+        }
+      } else if (rating === "not_for_me") {
+        const filtered = currentSpecific.filter((w) => w.toLowerCase() !== nameLower);
+        if (filtered.length !== currentSpecific.length) {
+          const { error: updateErr } = await supabase.from("wine_profiles").update({
+            specific_wines: filtered,
+          }).eq("user_id", user.id);
+          if (updateErr) console.error("Profile update failed:", updateErr);
+        }
+      }
+
+      setInteractions((prev) => ({ ...prev, [name]: { type: "had", rating } }));
+      setBottleStep(null);
+      setBottleData(null);
+      setBottleName("");
+
+      // 4. Show standard toast
+      showToast("Added to your collection!");
+
+      // 5. Show evolution toasts if any promotions fired
+      if (evolutionResult?.promotions?.length > 0) {
+        showEvolutionToasts(evolutionResult.promotions);
+      }
+    } catch (err) {
+      console.error("Bottle save failed:", err);
+      setBottleError("Couldn't save — please try again.");
     }
-
-    setInteractions((prev) => ({ ...prev, [name]: { type: "had", rating } }));
-    setBottleStep(null);
-    setBottleData(null);
-    setBottleName("");
-    showToast("Added to your collection!");
   };
 
   // Filter recs: exclude wines already interacted with
@@ -370,6 +380,19 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
           boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
         }}>✓ {toast}</div>
       )}
+
+      {/* Evolution toasts */}
+      {evolutionToasts.map((msg, i) => (
+        <div key={msg} style={{
+          position: "fixed", top: toast ? 56 + (i * 44) : 16 + (i * 44),
+          left: "50%", transform: "translateX(-50%)",
+          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
+          borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif",
+          fontSize: "14px", fontWeight: 600, zIndex: 91,
+          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
+          whiteSpace: "nowrap",
+        }}>{msg}</div>
+      ))}
 
       {/* Header */}
       <header style={{
@@ -530,23 +553,34 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
             textTransform: "uppercase", letterSpacing: "0.15em",
             color: "#1B3D2F", opacity: 0.4, marginBottom: 12, fontWeight: 600,
           }}>We detected this wine</div>
-          <input
-            type="text"
+          <textarea
             value={bottleName}
-            onChange={(e) => setBottleName(e.target.value)}
+            onChange={(e) => {
+              setBottleName(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = e.target.scrollHeight + "px";
+            }}
+            rows={1}
             style={{
               width: "100%", padding: "14px 16px", borderRadius: "12px",
               border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.7)",
               fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px",
               color: "#1B3D2F", outline: "none", boxSizing: "border-box",
-              marginBottom: 6,
+              marginBottom: 6, resize: "none", overflow: "hidden",
+              lineHeight: 1.4, minHeight: "50px",
+            }}
+            ref={(el) => {
+              if (el) {
+                el.style.height = "auto";
+                el.style.height = el.scrollHeight + "px";
+              }
             }}
           />
-          {bottleData?.region && (
+          {(bottleData?.region || bottleData?.country || bottleData?.vintage) && (
             <p style={{
               fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
               color: "#1B3D2F", opacity: 0.5, margin: "0 0 16px 4px",
-            }}>📍 {bottleData.region}{bottleData.vintage ? ` · ${bottleData.vintage}` : ""}</p>
+            }}>📍 {[bottleData.region, bottleData.country].filter(Boolean).join(", ")}{bottleData.vintage ? ` · ${bottleData.vintage}` : ""}</p>
           )}
           <div style={{
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
@@ -891,6 +925,12 @@ export default function Home() {
     }, { onConflict: "user_id" });
     if (error) { console.error("Save error:", error); alert("Error saving profile. Please try again."); }
     else {
+      // Sync quiz selections into dna_accumulation with source='quiz'
+      try {
+        await syncQuizSelections(supabase, user.id, profile.raw);
+      } catch (syncErr) {
+        console.error("Quiz sync error (non-blocking):", syncErr);
+      }
       const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", user.id).single();
       if (data) { setSavedProfile(data); setSavedMessage("Profile saved!"); setTimeout(() => setSavedMessage(null), 3000); setView("profile"); }
     }
