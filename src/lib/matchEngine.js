@@ -1,117 +1,15 @@
-// matchEngine.js — v3: WineMag 130k integrated
-// Uses wineReference-lookup.json (processed from 130k WineMag reviews)
-// NO dependency on wineDatabase.js
+// matchEngine.js — v4: Unified data architecture
+// Single data source: wineUnified.json (built from 130k WineMag reviews)
 
-import lookupData from "./wineReference-lookup.json";
-import { COUNTRIES as DNA_COUNTRIES, REGIONS as DNA_REGIONS, VARIETALS as DNA_VARIETALS, ESTATES as DNA_ESTATES } from "./wineData";
+import wineUnified from "./wineUnified.json";
 
-// ═══════════════════════════════════════════════════════
-// MAPPING TABLES: WineMag names → DNA profile IDs
-// ═══════════════════════════════════════════════════════
-
-const COUNTRY_TO_DNA = {
-  "France": "france", "Italy": "italy", "Spain": "spain", "Portugal": "portugal",
-  "Germany": "germany", "Austria": "austria", "US": "usa",
-  "Argentina": "argentina", "Chile": "chile", "Australia": "australia",
-  "New Zealand": "new_zealand", "South Africa": "south_africa",
-};
-
-const PROVINCE_TO_DNA_REGION = {
-  "Bordeaux": "bordeaux", "Burgundy": "burgundy", "Champagne": "champagne",
-  "Alsace": "alsace", "Provence": "provence",
-  "Languedoc-Roussillon": "languedoc", "South of France": "languedoc",
-  "Loire Valley": "loire", "Rhône Valley": "rhone",
-  "Beaujolais": "beaujolais", "Southwest France": "southwest_france",
-  "Tuscany": "tuscany", "Piedmont": "piedmont", "Veneto": "veneto",
-  "Sicily & Sardinia": "sicily", "Southern Italy": "puglia", "Puglia": "puglia",
-  "Northeastern Italy": "trentino", "Campania": "campania",
-  "Northern Spain": "rioja", "Catalonia": "penedes",
-  "Stellenbosch": "stellenbosch", "Coastal Region": "stellenbosch",
-  "Constantia": "constantia", "Franschhoek": "franschhoek",
-  "Swartland": "swartland", "Walker Bay": "walker_bay", "Paarl": "paarl",
-  "Mendoza Province": "mendoza",
-  "Maipo Valley": "maipo", "Colchagua Valley": "colchagua",
-  "Casablanca Valley": "casablanca", "Aconcagua": "aconcagua",
-  "South Australia": "barossa", "Western Australia": "margaret_river", "New South Wales": "hunter",
-  "Marlborough": "marlborough", "Central Otago": "central_otago", "Hawke's Bay": "hawkes_bay",
-  "Douro": "douro", "Alentejo": "alentejo", "Dão": "dao", "Vinho Verde": "vinho_verde",
-  "Mosel": "mosel", "Rheingau": "rheingau", "Pfalz": "pfalz", "Rheinhessen": "rheinhessen",
-  "Baden": "baden",
-  "Niederösterreich": "kamptal", "Burgenland": "burgenland",
-  "California": "napa", "Oregon": "willamette", "Washington": "walla_walla",
-  "New York": "finger_lakes", "Virginia": "virginia",
-};
-
-const SUBREGION_TO_DNA_REGION = {
-  "napa valley": "napa", "napa": "napa", "oakville": "napa", "rutherford": "napa",
-  "stags leap district": "napa", "howell mountain": "napa", "spring mountain district": "napa",
-  "calistoga": "napa", "atlas peak": "napa", "mount veeder": "napa", "st. helena": "napa",
-  "sonoma valley": "sonoma", "russian river valley": "sonoma", "dry creek valley": "sonoma",
-  "alexander valley": "sonoma", "sonoma coast": "sonoma", "sonoma mountain": "sonoma",
-  "willamette valley": "willamette", "dundee hills": "willamette", "eola-amity hills": "willamette",
-  "ribbon ridge": "willamette", "chehalem mountains": "willamette",
-  "paso robles": "paso_robles", "paso robles estrella district": "paso_robles",
-  "santa barbara county": "santa_barbara", "santa ynez valley": "santa_barbara",
-  "sta. rita hills": "santa_barbara", "santa rita hills": "santa_barbara",
-  "santa maria valley": "santa_barbara", "happy canyon of santa barbara": "santa_barbara",
-  "finger lakes": "finger_lakes", "walla walla valley": "walla_walla",
-  "columbia valley": "walla_walla",
-  "morgon": "beaujolais", "fleurie": "beaujolais", "moulin-à-vent": "beaujolais",
-  "brouilly": "beaujolais", "juliénas": "beaujolais", "chiroubles": "beaujolais",
-  "beaujolais-villages": "beaujolais", "saint-amour": "beaujolais",
-  "côte de brouilly": "beaujolais", "régnié": "beaujolais", "chénas": "beaujolais",
-  "cahors": "southwest_france", "madiran": "southwest_france", "gaillac": "southwest_france",
-  "jurançon": "southwest_france", "bergerac": "southwest_france", "irouléguy": "southwest_france",
-  "côte-rôtie": "rhone", "hermitage": "rhone", "châteauneuf-du-pape": "rhone",
-  "chateauneuf-du-pape": "rhone", "gigondas": "rhone", "cornas": "rhone",
-  "saint-joseph": "rhone", "crozes-hermitage": "rhone", "condrieu": "rhone",
-  "vacqueyras": "rhone", "côtes du rhône": "rhone",
-  "sancerre": "loire", "pouilly-fumé": "loire", "vouvray": "loire",
-  "muscadet sèvre et maine": "loire", "chinon": "loire", "bourgueil": "loire",
-  "savennières": "loire", "anjou": "loire", "saumur": "loire",
-  "bandol": "provence", "côtes de provence": "provence",
-  "rioja": "rioja", "ribera del duero": "ribera", "priorat": "priorat",
-  "rías baixas": "rias_baixas", "jerez": "jerez", "rueda": "rueda", "penedès": "penedes",
-  "barossa valley": "barossa", "eden valley": "barossa",
-  "mclaren vale": "mclaren", "yarra valley": "yarra",
-  "margaret river": "margaret_river", "hunter valley": "hunter", "coonawarra": "coonawarra",
-  "uco valley": "mendoza", "luján de cuyo": "mendoza",
-  "cafayate": "salta", "salta": "salta",
-  "wachau": "wachau", "kamptal": "kamptal", "kremstal": "kamptal",
-};
-
-const VARIETY_TO_DNA = {};
-const varietyNameMap = {
-  cabernet_sauvignon: ["Cabernet Sauvignon"],
-  merlot: ["Merlot"],
-  pinot_noir: ["Pinot Noir", "Pinot Nero"],
-  syrah: ["Syrah", "Shiraz"],
-  malbec: ["Malbec"],
-  tempranillo: ["Tempranillo", "Tinta de Toro", "Tinto Fino"],
-  sangiovese: ["Sangiovese", "Sangiovese Grosso", "Prugnolo Gentile", "Brunello"],
-  nebbiolo: ["Nebbiolo"],
-  grenache: ["Grenache", "Garnacha"],
-  zinfandel: ["Zinfandel"],
-  pinotage: ["Pinotage"],
-  mourvedre: ["Mourvèdre", "Monastrell"],
-  cabernet_franc: ["Cabernet Franc"],
-  petit_verdot: ["Petit Verdot"],
-  chardonnay: ["Chardonnay"],
-  sauvignon_blanc: ["Sauvignon Blanc", "Sauvignon"],
-  riesling: ["Riesling"],
-  pinot_grigio: ["Pinot Grigio", "Pinot Gris"],
-  chenin_blanc: ["Chenin Blanc"],
-  viognier: ["Viognier"],
-  gruner_veltliner: ["Grüner Veltliner"],
-  albarino: ["Albariño"],
-  gewurztraminer: ["Gewürztraminer"],
-  semillon: ["Sémillon", "Semillon"],
-  muscadet: ["Muscadet", "Melon"],
-  vermentino: ["Vermentino"],
-};
-for (const [dnaId, wmNames] of Object.entries(varietyNameMap)) {
-  for (const n of wmNames) VARIETY_TO_DNA[n] = dnaId;
-}
+const COUNTRIES = wineUnified.countries;
+const REGIONS = wineUnified.regions;
+const PRODUCERS = wineUnified.producers;
+const VARIETALS = wineUnified.varietals;
+const REGION_LOOKUP = wineUnified.regionLookup;
+const PRODUCER_LOOKUP = wineUnified.producerLookup;
+const VARIETAL_LOOKUP = wineUnified.varietalLookup;
 
 
 // ═══════════════════════════════════════════════════════
@@ -121,66 +19,78 @@ for (const [dnaId, wmNames] of Object.entries(varietyNameMap)) {
 function buildSearchIndex() {
   const idx = { regionTerms: [], producerTerms: [], varietyTerms: [], countryTerms: [] };
 
-  // Regions (1,097 from WineMag + manual subregions)
-  for (const [regionKey, data] of Object.entries(lookupData.regionLookup)) {
-    if (regionKey.length < 4 || ["other", "america", "europe"].includes(regionKey)) continue;
-    const dnaCountryId = COUNTRY_TO_DNA[data.country] || null;
-    const dnaRegionId = SUBREGION_TO_DNA_REGION[regionKey] || PROVINCE_TO_DNA_REGION[data.province] || null;
+  // Regions from unified regionLookup (992 entries)
+  for (const [term, data] of Object.entries(REGION_LOOKUP)) {
+    if (term.length < 4 || ["other", "america", "europe"].includes(term)) continue;
     idx.regionTerms.push({
-      term: regionKey, wmCountry: data.country, wmProvince: data.province || "",
-      subregion: data.subregion || "", dnaCountryId, dnaRegionId, count: data.count || 0,
+      term, dnaRegionId: data.regionId, dnaCountryId: data.country, count: 0,
     });
   }
-  for (const [term, dnaRegionId] of Object.entries(SUBREGION_TO_DNA_REGION)) {
-    if (term.length < 4 || idx.regionTerms.some(r => r.term === term.toLowerCase())) continue;
-    let dnaCountryId = null;
-    for (const [cId, regions] of Object.entries(DNA_REGIONS)) {
-      if (regions.some(r => r.id === dnaRegionId)) { dnaCountryId = cId; break; }
+  // Also add canonical region names as terms
+  for (const [countryId, regions] of Object.entries(REGIONS)) {
+    for (const region of regions) {
+      const term = region.name.toLowerCase();
+      if (term.length < 4 || idx.regionTerms.some(r => r.term === term)) continue;
+      idx.regionTerms.push({
+        term, dnaRegionId: region.id, dnaCountryId: countryId, count: region.reviewCount || 0,
+      });
     }
-    idx.regionTerms.push({ term: term.toLowerCase(), wmCountry: "", wmProvince: "", subregion: "", dnaCountryId, dnaRegionId, count: 0 });
   }
   idx.regionTerms.sort((a, b) => b.term.length - a.term.length);
 
-  // Producers (2,000 from WineMag + DNA estates)
-  for (const [name, data] of Object.entries(lookupData.producers)) {
+  // Producers from unified producerLookup (8,882 entries)
+  for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
     if (name.length < 3) continue;
     idx.producerTerms.push({
-      term: name.toLowerCase(), name, wmCountry: data.country,
-      wmProvince: data.province || "", dnaCountryId: COUNTRY_TO_DNA[data.country] || null,
+      term: name.toLowerCase(), name, dnaCountryId: data.country || null,
     });
-  }
-  for (const [regionId, estates] of Object.entries(DNA_ESTATES)) {
-    for (const estate of estates) {
-      if (!idx.producerTerms.some(p => p.term === estate.name.toLowerCase())) {
-        let countryId = null;
-        for (const [cId, regions] of Object.entries(DNA_REGIONS)) {
-          if (regions.some(r => r.id === regionId)) { countryId = cId; break; }
-        }
-        idx.producerTerms.push({ term: estate.name.toLowerCase(), name: estate.name, wmCountry: "", wmProvince: "", dnaCountryId: countryId });
-      }
-    }
   }
   idx.producerTerms.sort((a, b) => b.term.length - a.term.length);
 
-  // Varieties (488 from WineMag)
-  for (const [name, data] of Object.entries(lookupData.varieties)) {
-    if (name.length < 4 || /^(red|white|rosé|sparkling)\s+blend$/i.test(name)) continue;
+  // Varietals from unified varietals array (71 entries)
+  for (const v of VARIETALS) {
+    if (v.name.length < 4) continue;
     idx.varietyTerms.push({
-      term: name.toLowerCase(), name, color: data.color,
-      dnaVarietalId: VARIETY_TO_DNA[name] || null, count: data.count || 0,
+      term: v.name.toLowerCase(), name: v.name, color: v.color,
+      dnaVarietalId: v.id, count: v.reviewCount || 0,
+    });
+    // Add synonym terms (e.g., "shiraz" for "syrah")
+    if (v.name.includes(" / ")) {
+      for (const part of v.name.split(" / ")) {
+        const partLower = part.trim().toLowerCase();
+        if (partLower.length >= 4 && !idx.varietyTerms.some(vt => vt.term === partLower)) {
+          idx.varietyTerms.push({
+            term: partLower, name: v.name, color: v.color,
+            dnaVarietalId: v.id, count: v.reviewCount || 0,
+          });
+        }
+      }
+    }
+  }
+  // Add varietalLookup synonyms as additional search terms
+  for (const [synonym, canonicalId] of Object.entries(VARIETAL_LOOKUP)) {
+    const synLower = synonym.toLowerCase().replace(/_/g, " ");
+    if (synLower.length < 4 || idx.varietyTerms.some(v => v.term === synLower)) continue;
+    const canonical = VARIETALS.find(v => v.id === canonicalId);
+    if (!canonical) continue;
+    idx.varietyTerms.push({
+      term: synLower, name: canonical.name, color: canonical.color,
+      dnaVarietalId: canonicalId, count: canonical.reviewCount || 0,
     });
   }
   idx.varietyTerms.sort((a, b) => b.term.length - a.term.length);
 
-  // Countries
-  for (const [name, count] of Object.entries(lookupData.countries)) {
-    if (name.length < 3) continue;
-    idx.countryTerms.push({ term: name.toLowerCase(), name, dnaCountryId: COUNTRY_TO_DNA[name] || null, count });
+  // Countries from unified countries array
+  for (const c of COUNTRIES) {
+    if (c.name.length < 3) continue;
+    idx.countryTerms.push({ term: c.name.toLowerCase(), name: c.name, dnaCountryId: c.id, count: c.reviewCount || 0 });
   }
 
   // Add US aliases (since "US" is only 2 chars and gets filtered)
-  idx.countryTerms.push({ term: "united states", name: "United States", dnaCountryId: "usa", count: 54504 });
-  idx.countryTerms.push({ term: "u.s.a.", name: "United States", dnaCountryId: "usa", count: 54504 });
+  const usCountry = COUNTRIES.find(c => c.id === "us");
+  const usCount = usCountry ? usCountry.reviewCount : 54504;
+  idx.countryTerms.push({ term: "united states", name: "United States", dnaCountryId: "us", count: usCount });
+  idx.countryTerms.push({ term: "u.s.a.", name: "United States", dnaCountryId: "us", count: usCount });
 
   // Add US state full names as country-level signals
   var stateToUSA = ["california", "oregon", "washington", "new york", "virginia", "texas",
@@ -188,7 +98,7 @@ function buildSearchIndex() {
     "north carolina", "ohio", "missouri"];
   for (var si = 0; si < stateToUSA.length; si++) {
     if (!idx.regionTerms.some(function(r) { return r.term === stateToUSA[si]; })) {
-      idx.countryTerms.push({ term: stateToUSA[si], name: "United States", dnaCountryId: "usa", count: 1000 });
+      idx.countryTerms.push({ term: stateToUSA[si], name: "United States", dnaCountryId: "us", count: 1000 });
     }
   }
 
@@ -652,14 +562,14 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
     if (userDNA.regions.has(regId)) {
       var regEntry = SEARCH_INDEX.regionTerms.find(function(r) { return r.dnaRegionId === regId; });
       score += 3;
-      matchReasons.push({ type: "region", label: regEntry ? (regEntry.subregion || regEntry.wmProvince || regEntry.term) : regId, weight: 3 });
+      matchReasons.push({ type: "region", label: regEntry ? regEntry.term : regId, weight: 3 });
     } else {
       // Check country-level match for this region
       for (const cId of detectedCountryIds) {
         if (userDNA.countries.has(cId)) {
-          var cName = DNA_COUNTRIES.find(function(c) { return c.id === cId; });
+          var cName = COUNTRIES.find(function(c) { return c.id === cId; });
           var regEntry2 = SEARCH_INDEX.regionTerms.find(function(r) { return r.dnaRegionId === regId; });
-          var regLabel = regEntry2 ? (regEntry2.subregion || regEntry2.wmProvince || regEntry2.term) : regId;
+          var regLabel = regEntry2 ? regEntry2.term : regId;
           score += 1;
           matchReasons.push({ type: "country_region", label: regLabel + " (you like " + (cName ? cName.name : cId) + ")", weight: 1 });
           break;
@@ -872,12 +782,11 @@ export function matchWinesAgainstDNA(entries, dnaProfile, feedbackSignals) {
   const allEstates = dnaProfile.estates || {};
   for (const regionId of Object.keys(allEstates)) {
     const estateIds = allEstates[regionId] || [];
+    const regionProducers = PRODUCERS[regionId] || [];
     for (var i = 0; i < estateIds.length; i++) {
       const estateId = estateIds[i];
-      for (const [, estates] of Object.entries(DNA_ESTATES)) {
-        const found = estates.find(function(est) { return est.id === estateId; });
-        if (found) { estateNames.add(found.name.toLowerCase()); break; }
-      }
+      const found = regionProducers.find(function(p) { return p.id === estateId; });
+      if (found) { estateNames.add(found.name.toLowerCase()); }
     }
   }
 
@@ -922,17 +831,16 @@ export function getIndexStats() {
 }
 
 var COUNTRY_FLAGS = {};
-for (var ci = 0; ci < DNA_COUNTRIES.length; ci++) {
-  COUNTRY_FLAGS[DNA_COUNTRIES[ci].id] = DNA_COUNTRIES[ci].emoji;
+var COUNTRY_NAMES = {};
+for (var ci = 0; ci < COUNTRIES.length; ci++) {
+  COUNTRY_FLAGS[COUNTRIES[ci].id] = COUNTRIES[ci].emoji;
+  COUNTRY_NAMES[COUNTRIES[ci].id] = COUNTRIES[ci].name;
 }
 
-export function getCountryFlag(dnaCountryId) {
-  return COUNTRY_FLAGS[dnaCountryId] || "";
+export function getCountryFlag(countryId) {
+  return COUNTRY_FLAGS[countryId] || "";
 }
 
-export function getCountryName(dnaCountryId) {
-  for (var i = 0; i < DNA_COUNTRIES.length; i++) {
-    if (DNA_COUNTRIES[i].id === dnaCountryId) return DNA_COUNTRIES[i].name;
-  }
-  return "";
+export function getCountryName(countryId) {
+  return COUNTRY_NAMES[countryId] || "";
 }

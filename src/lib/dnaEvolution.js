@@ -13,7 +13,9 @@ import {
   getCountryDisplayName,
   DNA_TO_VARIETY_NAME,
 } from "./wineResolver";
-import { ESTATES as DNA_ESTATES } from "./wineData";
+import wineUnified from "./wineUnified.json";
+
+const PRODUCERS = wineUnified.producers;
 
 
 // ═══════════════════════════════════════════════════════
@@ -134,7 +136,7 @@ function buildDimensionUpdates(resolution) {
 
   // Estate (winery) — only if it maps to a DNA estate
   if (resolution.winery) {
-    // Try to find the estate in DNA_ESTATES
+    // Try to find the estate in PRODUCERS
     let estateId = dnaMapping.dnaEstateId;
     let estateMappable = dnaMapping.estateMappable;
 
@@ -285,7 +287,7 @@ async function checkRollupPromotions(supabase, userId) {
     const regionCounts = {};
     for (const est of promotedEstates) {
       // Find which region this estate belongs to
-      for (const [regionId, estates] of Object.entries(DNA_ESTATES)) {
+      for (const [regionId, estates] of Object.entries(PRODUCERS)) {
         if (estates.some(e => e.id === est.dimension_value)) {
           regionCounts[regionId] = (regionCounts[regionId] || 0) + 1;
           break;
@@ -479,7 +481,7 @@ async function applyPromotions(supabase, userId, promotions) {
     } else if (dimension === "estate") {
       // Find which region this estate belongs to
       let estateRegion = null;
-      for (const [regionId, estateList] of Object.entries(DNA_ESTATES)) {
+      for (const [regionId, estateList] of Object.entries(PRODUCERS)) {
         if (estateList.some(e => e.id === dimensionValue)) {
           estateRegion = regionId;
           break;
@@ -681,7 +683,7 @@ export async function syncQuizSelections(supabase, userId, quizAnswers) {
   for (const [regionId, estateIds] of Object.entries(estates || {})) {
     for (const estateId of estateIds) {
       // Find display name
-      const estateList = DNA_ESTATES[regionId] || [];
+      const estateList = PRODUCERS[regionId] || [];
       const estate = estateList.find(e => e.id === estateId);
       if (estate) {
         items.push({

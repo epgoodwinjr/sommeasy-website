@@ -1,7 +1,10 @@
-import { COUNTRIES, REGIONS, ESTATES, VARIETALS } from "./wineData";
+import wineUnified from "./wineUnified.json";
+
+const { countries: COUNTRIES, regions: REGIONS, producers: PRODUCERS, varietals: VARIETALS } = wineUnified;
 
 // ═══════════════════════════════════════════════════════
-// WINE RECOMMENDATIONS (unchanged — bucket 2 will expand)
+// WINE RECOMMENDATIONS — hand-curated editorial picks
+// IDs match wineUnified.json (generated from WineMag 130k)
 // ═══════════════════════════════════════════════════════
 
 const WINE_RECS = {
@@ -10,12 +13,12 @@ const WINE_RECS = {
     { regions: ["bordeaux"], varietals: ["merlot"], wine: "Château Le Pin, Pomerol", why: "Right Bank Pomerol — Merlot-dominant and velvety" },
     { regions: ["burgundy"], varietals: ["pinot_noir"], wine: "Domaine Dujac, Morey-Saint-Denis", why: "Elegant Burgundian Pinot with terroir-driven complexity" },
     { regions: ["burgundy"], varietals: ["chardonnay"], wine: "Domaine Roulot, Meursault", why: "Precise, mineral-driven white Burgundy" },
-    { regions: ["napa"], varietals: ["cabernet_sauvignon"], wine: "Dunn Vineyards, Howell Mountain", why: "Mountain-grown Napa Cab with serious aging potential" },
-    { regions: ["napa", "sonoma"], varietals: ["pinot_noir"], wine: "Littorai, Sonoma Coast Pinot Noir", why: "Cool-climate California Pinot with Burgundian restraint" },
-    { regions: ["willamette"], varietals: ["pinot_noir"], wine: "Cristom Vineyards, Eola-Amity Hills", why: "Oregon Pinot at its finest — pure, site-driven, age-worthy" },
+    { regions: ["napa_valley"], varietals: ["cabernet_sauvignon"], wine: "Dunn Vineyards, Howell Mountain", why: "Mountain-grown Napa Cab with serious aging potential" },
+    { regions: ["napa_valley", "sonoma"], varietals: ["pinot_noir"], wine: "Littorai, Sonoma Coast Pinot Noir", why: "Cool-climate California Pinot with Burgundian restraint" },
+    { regions: ["willamette_valley"], varietals: ["pinot_noir"], wine: "Cristom Vineyards, Eola-Amity Hills", why: "Oregon Pinot at its finest — pure, site-driven, age-worthy" },
     { regions: ["barossa"], varietals: ["syrah"], wine: "Henschke Hill of Grace", why: "Australia's most iconic single-vineyard Shiraz" },
-    { regions: ["rhone"], varietals: ["syrah"], wine: "Jean-Louis Chave, Hermitage", why: "Northern Rhône benchmark — Syrah doesn't get more profound" },
-    { regions: ["rhone"], varietals: ["grenache"], wine: "Château Rayas, Châteauneuf-du-Pape", why: "Southern Rhône legend — pure Grenache, hauntingly good" },
+    { regions: ["rhone_valley"], varietals: ["syrah"], wine: "Jean-Louis Chave, Hermitage", why: "Northern Rhône benchmark — Syrah doesn't get more profound" },
+    { regions: ["rhone_valley"], varietals: ["grenache"], wine: "Château Rayas, Châteauneuf-du-Pape", why: "Southern Rhône legend — pure Grenache, hauntingly good" },
     { regions: ["rioja"], varietals: ["tempranillo"], wine: "Artadi, Viña El Pisón", why: "Modern Rioja from old vines — Tempranillo at its most expressive" },
     { regions: ["tuscany"], varietals: ["sangiovese"], wine: "Montevertine, Le Pergole Torte", why: "Pure Sangiovese outside the rules — a cult favorite" },
     { regions: ["piedmont"], varietals: ["nebbiolo"], wine: "Roagna, Barolo Pira", why: "Traditional Barolo from one of the great old-guard families" },
@@ -29,7 +32,7 @@ const WINE_RECS = {
     { regions: ["douro"], varietals: [], wine: "Niepoort, Charme", why: "Modern Douro red — Portuguese elegance with serious structure" },
     { regions: ["champagne"], varietals: ["chardonnay", "pinot_noir"], wine: "Krug, Grande Cuvée", why: "The pinnacle of Champagne — richness, complexity, and power" },
     { regions: ["alsace"], varietals: ["riesling", "gewurztraminer"], wine: "Domaine Weinbach, Grand Cru Schlossberg", why: "Alsatian terroir at its most crystalline" },
-    { regions: ["loire"], varietals: ["chenin_blanc", "sauvignon_blanc"], wine: "Domaine Huet, Le Haut-Lieu Sec, Vouvray", why: "Loire Chenin at its most complex — biodynamic pioneer" },
+    { regions: ["loire_valley"], varietals: ["chenin_blanc", "sauvignon_blanc"], wine: "Domaine Huet, Le Haut-Lieu Sec, Vouvray", why: "Loire Chenin at its most complex — biodynamic pioneer" },
     { regions: ["beaujolais"], varietals: ["grenache"], wine: "Marcel Lapierre, Morgon", why: "The natural wine movement started here — pure Gamay perfection" },
   ],
   byVarietal: {
@@ -61,7 +64,7 @@ const WINE_RECS = {
     france: { wine: "Domaine Weinbach, Riesling Grand Cru Schlossberg", why: "A French region you might not have explored — crystalline Alsatian Riesling" },
     italy: { wine: "COS, Cerasuolo di Vittoria, Sicily", why: "Sicily's only DOCG — a gorgeous, underexplored Italian red" },
     spain: { wine: "Raúl Pérez, Sketch, Rías Baixas", why: "Spain beyond Rioja — barrel-fermented Albariño" },
-    usa: { wine: "Matthiasson, Napa Valley White", why: "The other side of Napa — a sophisticated, layered white blend" },
+    us: { wine: "Matthiasson, Napa Valley White", why: "The other side of Napa — a sophisticated, layered white blend" },
     south_africa: { wine: "Mullineux, Schist Syrah, Swartland", why: "If you love SA wines, the Swartland is where the action is" },
     argentina: { wine: "Bodega Chacra, Pinot Noir Barda, Patagonia", why: "Argentina beyond Malbec — Patagonian Pinot with real purity" },
     chile: { wine: "Clos des Fous, Cauquenina, Itata", why: "Chile's exciting new wave — old-vine País from the south" },
@@ -122,7 +125,6 @@ function determineArchetype(ctx) {
   const whiteRatio = totalVarietals > 0 ? whiteCount / totalVarietals : 0.5;
 
   // ─── 1. THE GRAND PALATE ───
-  // Encyclopedic: very deep AND very broad
   if (depth >= 6 && breadth >= 5 && varietalCount >= 5) {
     return {
       archetype: "The Grand Palate",
@@ -132,7 +134,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 2. THE COLLECTOR ───
-  // Deep and broad, but not quite encyclopedic
   if (depth >= 4 && breadth >= 4) {
     return {
       archetype: "The Collector",
@@ -142,7 +143,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 3. THE TERROIR DEVOTEE ───
-  // Deep in one country, many regions, knows producers
   if (breadth <= 2 && depth >= 4 && regionCount >= 4) {
     const focus = topCountry || countryNames[0];
     return {
@@ -153,7 +153,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 4. THE CONNOISSEUR ───
-  // Good depth, moderate breadth, producer-focused
   if (depth >= 3 && breadth >= 2 && breadth <= 4) {
     return {
       archetype: "The Connoisseur",
@@ -163,7 +162,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 5. THE GLOBE-TROTTER ───
-  // Very wide, variety-seeking, lower depth
   if (breadth >= 6 && varietalCount >= 5) {
     return {
       archetype: "The Globe-Trotter",
@@ -173,7 +171,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 6. THE EXPLORER ───
-  // Wide but not as extreme as Globe-Trotter
   if (breadth >= 4 && depth < 3) {
     return {
       archetype: "The Explorer",
@@ -183,7 +180,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 7. THE CLASSICIST ───
-  // Old World dominant, meaningful breadth
   if (oldWorldRatio >= 0.75 && breadth >= 3 && regionCount >= 3) {
     return {
       archetype: "The Classicist",
@@ -193,7 +189,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 8. THE PIONEER ───
-  // New World dominant, meaningful breadth
   if (newWorldRatio >= 0.7 && breadth >= 2 && regionCount >= 2) {
     return {
       archetype: "The Pioneer",
@@ -203,37 +198,41 @@ function determineArchetype(ctx) {
   }
 
   // ─── 9. THE BRIDGE BUILDER ───
-  // Balanced Old/New World
   if (breadth >= 3 && oldWorldRatio >= 0.3 && oldWorldRatio <= 0.7 && varietalCount >= 3) {
     return {
       archetype: "The Bridge Builder",
       archetypeEmoji: "🌉",
-      narrative: `You don't pick sides. Old World, New World — you taste what's good regardless of where it comes from. ${joinList(countryNames, 3)} might seem like an eclectic mix, but there's a throughline: you're drawn to ${joinList(varietalNames.slice(0, 2), 2)} whether they're grown in ancient European soils or planted last generation in ${countryNames.find(c => ["United States", "Australia", "South Africa", "Chile", "Argentina", "New Zealand"].includes(c)) || "the New World"}. That open-mindedness is the mark of a genuinely evolved palate.`,
+      narrative: `You don't pick sides. Old World, New World — you taste what's good regardless of where it comes from. ${joinList(countryNames, 3)} might seem like an eclectic mix, but there's a throughline: you're drawn to ${joinList(varietalNames.slice(0, 2), 2)} whether they're grown in ancient European soils or planted last generation in ${countryNames.find(c => ["United States", "US", "Australia", "South Africa", "Chile", "Argentina", "New Zealand"].includes(c)) || "the New World"}. That open-mindedness is the mark of a genuinely evolved palate.`,
     };
   }
 
   // ─── 10. THE RED DEVOTEE ───
-  // Heavily red-weighted
   if (redRatio >= 0.8 && varietalCount >= 3) {
+    const redNames = varietalNames.filter(name => {
+      const v = VARIETALS.find(x => x.name === name);
+      return v && v.color === "red";
+    });
     return {
       archetype: "The Red Devotee",
       archetypeEmoji: "🍷",
-      narrative: `Red wine isn't just your preference — it's your language. ${joinList(varietalNames.filter(v => { const vObj = VARIETALS.find(x => x.name === v); return vObj && vObj.color === "red"; }).slice(0, 3), 3)} — you know the spectrum from elegant to powerful and you have opinions about each.${regionNames.length > 0 ? ` Across ${joinList(regionNames.slice(0, 3), 3)}, you've mapped out where your reds reach their peak.` : ""}${countryNames.length > 0 ? ` ${joinList(countryNames, 2)} produce the wines that move you most.` : ""} When someone hands you the wine list, you're going straight to the left side of the page.`,
+      narrative: `Red wine isn't just your preference — it's your language. ${joinList(redNames.slice(0, 3), 3)} — you know the spectrum from elegant to powerful and you have opinions about each.${regionNames.length > 0 ? ` Across ${joinList(regionNames.slice(0, 3), 3)}, you've mapped out where your reds reach their peak.` : ""}${countryNames.length > 0 ? ` ${joinList(countryNames, 2)} produce the wines that move you most.` : ""} When someone hands you the wine list, you're going straight to the left side of the page.`,
     };
   }
 
   // ─── 11. THE WHITE WINE AUTHORITY ───
-  // Heavily white-weighted
   if (whiteRatio >= 0.7 && varietalCount >= 3) {
+    const whiteNames = varietalNames.filter(name => {
+      const v = VARIETALS.find(x => x.name === name);
+      return v && v.color === "white";
+    });
     return {
       archetype: "The White Wine Authority",
       archetypeEmoji: "✨",
-      narrative: `While the world obsesses over reds, you've been quietly building expertise in the wines most people overlook. ${joinList(varietalNames.filter(v => { const vObj = VARIETALS.find(x => x.name === v); return vObj && vObj.color === "white"; }).slice(0, 3), 3)} — you understand the difference between them in ways that surprise even wine professionals.${regionNames.length > 0 ? ` ${joinList(regionNames.slice(0, 3), 3)} are where you've found your magic.` : ""} There's a depth and complexity to great white wine that you're tuned into, and it sets you apart.`,
+      narrative: `While the world obsesses over reds, you've been quietly building expertise in the wines most people overlook. ${joinList(whiteNames.slice(0, 3), 3)} — you understand the difference between them in ways that surprise even wine professionals.${regionNames.length > 0 ? ` ${joinList(regionNames.slice(0, 3), 3)} are where you've found your magic.` : ""} There's a depth and complexity to great white wine that you're tuned into, and it sets you apart.`,
     };
   }
 
   // ─── 12. THE LOYALIST ───
-  // Single country, meaningful depth within it
   if (breadth === 1 && regionCount >= 2) {
     const country = countryNames[0] || "your chosen country";
     return {
@@ -244,7 +243,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 13. THE PURIST ───
-  // Few varietals but knows them well
   if (varietalCount >= 1 && varietalCount <= 2 && (depth >= 2 || regionCount >= 2)) {
     return {
       archetype: "The Purist",
@@ -254,7 +252,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 14. THE CURIOUS PALATE ───
-  // Some selections but still building
   if (breadth >= 2 && varietalCount >= 2) {
     return {
       archetype: "The Curious Palate",
@@ -264,7 +261,6 @@ function determineArchetype(ctx) {
   }
 
   // ─── 15. THE RISING PALATE ───
-  // Catch-all for lighter selections
   return {
     archetype: "The Rising Palate",
     archetypeEmoji: "🌱",
@@ -281,32 +277,32 @@ export function generateDNAProfile(answers) {
   const { countries, regions, estates, varietals, specificWines } = answers;
 
   // ─── Resolve names from IDs ───
-  const countryObjs = countries.map((id) => COUNTRIES.find((c) => c.id === id)).filter(Boolean);
-  const countryNames = countryObjs.map((c) => c.name);
-  const oldWorld = countryObjs.filter((c) => c.world === "old").length;
-  const newWorld = countryObjs.filter((c) => c.world === "new").length;
+  const countryObjs = countries.map(id => COUNTRIES.find(c => c.id === id)).filter(Boolean);
+  const countryNames = countryObjs.map(c => c.name);
+  const oldWorld = countryObjs.filter(c => c.world === "old").length;
+  const newWorld = countryObjs.filter(c => c.world === "new").length;
 
   const allRegionIds = Object.values(regions).flat();
-  const regionNames = allRegionIds.map((rId) => {
-    for (const rl of Object.values(REGIONS)) {
-      const f = rl.find((r) => r.id === rId);
+  const regionNames = allRegionIds.map(rId => {
+    for (const regionList of Object.values(REGIONS)) {
+      const f = regionList.find(r => r.id === rId);
       if (f) return f.name;
     }
     return null;
   }).filter(Boolean);
 
   const allEstateIds = Object.values(estates).flat();
-  const estateNames = allEstateIds.map((eId) => {
-    for (const el of Object.values(ESTATES)) {
-      const f = el.find((e) => e.id === eId);
+  const estateNames = allEstateIds.map(eId => {
+    for (const producerList of Object.values(PRODUCERS)) {
+      const f = producerList.find(p => p.id === eId);
       if (f) return f.name;
     }
     return null;
   }).filter(Boolean);
 
-  const varietalNames = varietals.map((id) => VARIETALS.find((v) => v.id === id)?.name).filter(Boolean);
-  const reds = varietals.filter((id) => VARIETALS.find((v) => v.id === id)?.color === "red");
-  const whites = varietals.filter((id) => VARIETALS.find((v) => v.id === id)?.color === "white");
+  const varietalNames = varietals.map(id => VARIETALS.find(v => v.id === id)?.name).filter(Boolean);
+  const reds = varietals.filter(id => VARIETALS.find(v => v.id === id)?.color === "red");
+  const whites = varietals.filter(id => VARIETALS.find(v => v.id === id)?.color === "white");
 
   // ─── Compute scoring dimensions ───
   const breadth = countries.length;
@@ -328,11 +324,9 @@ export function generateDNAProfile(answers) {
     }
   }
   if (topCountryId) {
-    const cObj = COUNTRIES.find(c => c.id === topCountryId);
-    const topCountry = cObj ? cObj.name : null;
     topCountryRegions = (regions[topCountryId] || []).map(rId => {
-      for (const rl of Object.values(REGIONS)) {
-        const f = rl.find(r => r.id === rId);
+      for (const regionList of Object.values(REGIONS)) {
+        const f = regionList.find(r => r.id === rId);
         if (f) return f.name;
       }
       return null;
@@ -356,12 +350,9 @@ export function generateDNAProfile(answers) {
   // ─── Build recommendations ───
   const recs = [];
   const used = new Set();
-  // Pre-exclude wines the user already knows about
   for (const sw of (specificWines || [])) {
-    // Normalize for fuzzy matching: "Constantia Glen Five" should match "Constantia Glen Five"
     used.add(sw.toLowerCase().trim());
   }
-  // Helper: check if wine name is already known
   function isKnown(wineName) {
     const norm = wineName.toLowerCase().trim();
     for (const s of used) {
@@ -372,8 +363,8 @@ export function generateDNAProfile(answers) {
   // Pass 1: Region + varietal combos (strongest match)
   for (const c of WINE_RECS.combos) {
     if (recs.length >= 20) break;
-    const hasR = c.regions.some((r) => allRegionIds.includes(r));
-    const hasV = c.varietals.length === 0 ? hasR : c.varietals.some((v) => varietals.includes(v));
+    const hasR = c.regions.some(r => allRegionIds.includes(r));
+    const hasV = c.varietals.length === 0 ? hasR : c.varietals.some(v => varietals.includes(v));
     if (hasR && hasV && !isKnown(c.wine)) { recs.push({ ...c, matchType: "region + grape" }); used.add(c.wine.toLowerCase().trim()); }
   }
   // Pass 2: Varietal-only matches
@@ -382,10 +373,10 @@ export function generateDNAProfile(answers) {
     const r = WINE_RECS.byVarietal[vId];
     if (r && !isKnown(r.wine)) { recs.push({ ...r, matchType: "grape" }); used.add(r.wine.toLowerCase().trim()); }
   }
-  // Pass 3: Region-only matches (no varietal requirement)
+  // Pass 3: Region-only matches
   for (const c of WINE_RECS.combos) {
     if (recs.length >= 20) break;
-    const hasR = c.regions.some((r) => allRegionIds.includes(r));
+    const hasR = c.regions.some(r => allRegionIds.includes(r));
     if (hasR && !isKnown(c.wine)) { recs.push({ ...c, matchType: "region" }); used.add(c.wine.toLowerCase().trim()); }
   }
   // Pass 4: Country-level discovery picks
