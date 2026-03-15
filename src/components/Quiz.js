@@ -242,20 +242,98 @@ function ProducerStep({ selectedRegions, estates, onToggle }) {
   );
 }
 
-function VarietalStep({ selected, onToggle }) {
-  const reds = VARIETALS.filter(v => v.color === "red");
-  const whites = VARIETALS.filter(v => v.color === "white");
+function VarietalStep({ selected, onToggle, selectedRegions, selectedEstates }) {
+  // Compute relevance scores: regionMatches * 3 + producerMatches * 1 (per spec 2E)
+  const scores = {};
+
+  // Region signal: each selected region's topVarietals get +3
+  Object.entries(selectedRegions || {}).forEach(([countryId, regionIds]) => {
+    regionIds.forEach(rId => {
+      const region = (REGIONS_DATA[countryId] || []).find(r => r.id === rId);
+      if (region && region.topVarietals) {
+        region.topVarietals.forEach(vId => {
+          scores[vId] = (scores[vId] || 0) + 3;
+        });
+      }
+    });
+  });
+
+  // Producer signal: each selected producer's topVarietals get +1
+  Object.entries(selectedEstates || {}).forEach(([rId, pIds]) => {
+    const producers = PRODUCERS_DATA[rId] || [];
+    pIds.forEach(pId => {
+      const producer = producers.find(p => p.id === pId);
+      if (producer && producer.topVarietals) {
+        producer.topVarietals.forEach(vId => {
+          scores[vId] = (scores[vId] || 0) + 1;
+        });
+      }
+    });
+  });
+
+  const hasSelections = Object.keys(scores).length > 0;
+
+  const sorted = VARIETALS_RAW.slice().sort((a, b) => {
+    const sa = scores[a.id] || 0;
+    const sb = scores[b.id] || 0;
+    if (sa !== sb) return sb - sa;
+    return b.reviewCount - a.reviewCount;
+  });
+
+  const relevant = hasSelections ? sorted.filter(v => scores[v.id]) : [];
+  const other = hasSelections ? sorted.filter(v => !scores[v.id]) : sorted;
+
+  const renderGroup = (varietals, colorLabel, colorHex) => {
+    const filtered = varietals.filter(v => v.color === colorLabel);
+    if (filtered.length === 0) return null;
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <p style={{
+          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+          textTransform: "uppercase", letterSpacing: "0.12em",
+          color: colorHex, margin: "0 0 8px 4px", fontWeight: 600,
+        }}>{colorLabel === "red" ? "Red" : "White"}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          {filtered.map(v => (
+            <Chip key={v.id} label={v.name} color={colorHex}
+              selected={selected.includes(v.id)}
+              onClick={() => onToggle(v.id)} small />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSection = (label, varietals) => {
+    if (varietals.length === 0) return null;
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <p style={{
+          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+          textTransform: "uppercase", letterSpacing: "0.15em",
+          color: "#1B3D2F", opacity: 0.4, margin: "0 0 12px 4px", fontWeight: 600,
+        }}>{label}</p>
+        {renderGroup(varietals, "red", "#8B2332")}
+        {renderGroup(varietals, "white", "#6B8F5E")}
+      </div>
+    );
+  };
+
   return (
     <div>
-      <StepHeader number="04" title="Which grapes do you love?" subtitle="These are your preferences regardless of origin. A Pinot Noir lover is a Pinot Noir lover, whether Burgundy or Oregon." />
-      <div style={{ marginBottom: 20 }}>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#8B2332", margin: "0 0 10px 4px", fontWeight: 600 }}>Red Varietals</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>{reds.map(v => <Chip key={v.id} label={v.name} color="#8B2332" selected={selected.includes(v.id)} onClick={() => onToggle(v.id)} small />)}</div>
-      </div>
-      <div>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#6B8F5E", margin: "0 0 10px 4px", fontWeight: 600 }}>White Varietals</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>{whites.map(v => <Chip key={v.id} label={v.name} color="#6B8F5E" selected={selected.includes(v.id)} onClick={() => onToggle(v.id)} small />)}</div>
-      </div>
+      <StepHeader number="04" title="Which grapes do you love?"
+        subtitle="These are your preferences regardless of origin. A Pinot Noir lover is a Pinot Noir lover, whether Burgundy or Oregon." />
+      {hasSelections ? (
+        <>
+          {renderSection("Based on your selections", relevant)}
+          {renderSection("Other varietals", other)}
+        </>
+      ) : (
+        <>
+          {renderGroup(sorted, "red", "#8B2332")}
+          {renderGroup(sorted, "white", "#6B8F5E")}
+        </>
+      )}
     </div>
   );
 }
@@ -559,7 +637,7 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
         {step === 0 && <CountryStep selected={answers.countries} onToggle={id => setAnswers(p => ({ ...p, countries: toggle(p.countries, id) }))} />}
         {step === 1 && <RegionStep selectedCountries={answers.countries} regions={answers.regions} onToggle={(cId, rId) => setAnswers(p => ({ ...p, regions: { ...p.regions, [cId]: toggle(p.regions[cId] || [], rId) } }))} />}
         {step === 2 && <ProducerStep selectedRegions={answers.regions} estates={answers.estates} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
-        {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} />}
+        {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} selectedRegions={answers.regions} selectedEstates={answers.estates} />}
         {step === 4 && <SpecificWineStep wines={answers.specificWines} onAdd={w => setAnswers(p => ({ ...p, specificWines: [...p.specificWines, w] }))} onRemove={i => setAnswers(p => ({ ...p, specificWines: p.specificWines.filter((_, j) => j !== i) }))} selectedEstates={answers.estates} />}
         {step === 99 && profile && <DNAProfileCard profile={profile} onStartOver={restart} onSave={handleSave} saving={saving} user={user} />}
       </div>
