@@ -174,23 +174,70 @@ function RegionStep({ selectedCountries, regions, onToggle }) {
   );
 }
 
-function EstateStep({ regions, estates, onToggle }) {
-  const items = Object.entries(regions).flatMap(([countryId, regionIds]) =>
-    regionIds.filter(rId => ESTATES[rId]).map(rId => ({
-      id: rId,
-      region: Object.values(REGIONS).flat().find(r => r.id === rId),
-      country: COUNTRIES.find(c => c.id === countryId),
-      estateList: ESTATES[rId] || [],
-    }))
+function ProducerStep({ selectedRegions, estates, onToggle }) {
+  const [expandedRegions, setExpandedRegions] = useState({});
+  const PAGE_SIZE = 15;
+
+  const items = Object.entries(selectedRegions).flatMap(([countryId, regionIds]) =>
+    regionIds
+      .filter(rId => PRODUCERS_DATA[rId] && PRODUCERS_DATA[rId].length > 0)
+      .map(rId => {
+        const region = (REGIONS_DATA[countryId] || []).find(r => r.id === rId);
+        const country = COUNTRIES_RAW.find(c => c.id === countryId);
+        return {
+          id: rId,
+          region,
+          country,
+          producers: PRODUCERS_DATA[rId] || [],
+        };
+      })
   );
-  if (items.length === 0) return <div><StepHeader number="03" title="Favorite producers?" subtitle="We don't have estates listed for your selected regions yet — no worries! You can add specific wines in the next step." /></div>;
+
+  if (items.length === 0) {
+    return (
+      <div>
+        <StepHeader number="03" title="Any favorite producers?"
+          subtitle="No producers found for your selected regions — no worries! You can add specific wines in the next step." />
+      </div>
+    );
+  }
+
   return (
     <div>
-      <StepHeader number="03" title="Any favorite producers?" subtitle="Know specific estates or wineries you love? Select them — totally fine to skip." />
+      <StepHeader number="03" title="Any favorite producers?"
+        subtitle="Know specific estates or wineries you love? Select them — totally fine to skip this step." />
       <Accordion items={items} defaultOpen={items[0]?.id}
-        getLabel={i => `${i.country.emoji} ${i.region.name}`}
+        getLabel={i => `${i.country?.emoji || ""} ${i.region?.name || i.id}`}
         getCount={i => (estates[i.id] || []).length}
-        renderContent={i => i.estateList.map(e => <Chip key={e.id} label={e.name} selected={(estates[i.id] || []).includes(e.id)} onClick={() => onToggle(i.id, e.id)} small />)} />
+        renderContent={i => {
+          const showCount = expandedRegions[i.id] || PAGE_SIZE;
+          const visible = i.producers.slice(0, showCount);
+          const remaining = i.producers.length - showCount;
+          return (
+            <>
+              {visible.map(p => (
+                <Chip key={p.id} label={p.name}
+                  selected={(estates[i.id] || []).includes(p.id)}
+                  onClick={() => onToggle(i.id, p.id)} small />
+              ))}
+              {remaining > 0 && (
+                <button onClick={() => setExpandedRegions(p => ({
+                  ...p, [i.id]: showCount + PAGE_SIZE,
+                }))}
+                  style={{
+                    width: "100%", padding: "8px", marginTop: 4,
+                    background: "none", border: "1px dashed rgba(27,61,47,0.2)",
+                    borderRadius: "8px", cursor: "pointer",
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                    color: "#8B2332", fontWeight: 500,
+                  }}>
+                  Show {Math.min(remaining, PAGE_SIZE)} more producers
+                </button>
+              )}
+            </>
+          );
+        }}
+      />
     </div>
   );
 }
@@ -511,7 +558,7 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
       <div style={{ flex: 1, padding: "20px 20px 120px", opacity: anim ? 0 : 1, transform: anim ? "translateX(20px)" : "translateX(0)", transition: "all 0.2s ease" }}>
         {step === 0 && <CountryStep selected={answers.countries} onToggle={id => setAnswers(p => ({ ...p, countries: toggle(p.countries, id) }))} />}
         {step === 1 && <RegionStep selectedCountries={answers.countries} regions={answers.regions} onToggle={(cId, rId) => setAnswers(p => ({ ...p, regions: { ...p.regions, [cId]: toggle(p.regions[cId] || [], rId) } }))} />}
-        {step === 2 && <EstateStep regions={answers.regions} estates={answers.estates} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
+        {step === 2 && <ProducerStep selectedRegions={answers.regions} estates={answers.estates} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
         {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} />}
         {step === 4 && <SpecificWineStep wines={answers.specificWines} onAdd={w => setAnswers(p => ({ ...p, specificWines: [...p.specificWines, w] }))} onRemove={i => setAnswers(p => ({ ...p, specificWines: p.specificWines.filter((_, j) => j !== i) }))} selectedEstates={answers.estates} />}
         {step === 99 && profile && <DNAProfileCard profile={profile} onStartOver={restart} onSave={handleSave} saving={saving} user={user} />}
