@@ -77,12 +77,12 @@ def test_get_region_field_defaults():
     assert get_region_field("France") == "province"
     assert get_region_field("Germany") == "province"
     assert get_region_field("Portugal") == "province"
+    assert get_region_field("Italy") == "province"  # Italian provinces ARE quiz-level
 
 
 def test_get_region_field_overrides():
     assert get_region_field("US") == "region_1"
     assert get_region_field("Australia") == "region_1"
-    assert get_region_field("Italy") == "region_1"
     assert get_region_field("Spain") == "region_1"
     assert get_region_field("Argentina") == "region_1"
 
@@ -138,23 +138,131 @@ def test_aggregate_regions_usa():
     assert region_lookup['oakville']['regionId'] == 'napa_valley'
 
 
-def test_aggregate_regions_fallback():
-    """When region_1 is empty for a US wine, fall back to province."""
+def test_aggregate_regions_us_rollup():
+    """US sub-AVAs should roll up into parent regions (Oakville → Napa Valley)."""
     df = pd.DataFrame({
-        'country': ['US'] * 30,
-        'province': ['California'] * 30,
-        'region_1': [''] * 30,
-        'region_2': [''] * 30,
-        'variety': ['Chardonnay'] * 30,
-        'winery': ['Generic'] * 30,
-        'points': [85] * 30,
-        'price': [15] * 30,
+        'country': ['US'] * 90,
+        'province': ['California'] * 90,
+        'region_1': ['Napa Valley'] * 20 + ['Oakville'] * 15 + ['Rutherford'] * 15 +
+                     ['Russian River Valley'] * 20 + ['Dry Creek Valley'] * 10 +
+                     ['Paso Robles'] * 10,
+        'region_2': [''] * 90,
+        'variety': ['Cabernet Sauvignon'] * 50 + ['Pinot Noir'] * 30 + ['Zinfandel'] * 10,
+        'winery': ['Producer'] * 90,
+        'points': [90] * 90,
+        'price': [60] * 90,
     })
     qualifying_countries = ['us']
-    regions, _ = aggregate_regions(df, qualifying_countries, min_reviews=20)
+    regions, region_lookup = aggregate_regions(df, qualifying_countries, min_reviews=20)
+
     assert 'us' in regions
-    cal = next(r for r in regions['us'] if r['name'] == 'California')
-    assert cal['reviewCount'] == 30
+    region_names = [r['name'] for r in regions['us']]
+
+    # Oakville and Rutherford should be rolled up into Napa Valley
+    assert 'Napa Valley' in region_names
+    assert 'Oakville' not in region_names
+    assert 'Rutherford' not in region_names
+
+    # Russian River Valley and Dry Creek Valley should roll up into Sonoma
+    assert 'Sonoma' in region_names
+    assert 'Russian River Valley' not in region_names
+
+    # Napa Valley should have 50 reviews (20 direct + 15 Oakville + 15 Rutherford)
+    napa = next(r for r in regions['us'] if r['name'] == 'Napa Valley')
+    assert napa['reviewCount'] == 50
+
+    # Sonoma should have 30 reviews (20 RRV + 10 DCV)
+    sonoma = next(r for r in regions['us'] if r['name'] == 'Sonoma')
+    assert sonoma['reviewCount'] == 30
+
+    # Sub-AVAs should still appear in regionLookup
+    assert 'oakville' in region_lookup
+    assert region_lookup['oakville']['regionId'] == 'napa_valley'
+    assert 'russian river valley' in region_lookup
+    assert region_lookup['russian river valley']['regionId'] == 'sonoma'
+
+
+def test_aggregate_regions_fallback():
+    """When region_1 is empty for a non-skip country, fall back to province."""
+    df = pd.DataFrame({
+        'country': ['France'] * 30,
+        'province': ['Alsace'] * 30,
+        'region_1': [''] * 30,
+        'region_2': [''] * 30,
+        'variety': ['Riesling'] * 30,
+        'winery': ['Generic'] * 30,
+        'points': [89] * 30,
+        'price': [25] * 30,
+    })
+    qualifying_countries = ['france']
+    regions, _ = aggregate_regions(df, qualifying_countries, min_reviews=20)
+    assert 'france' in regions
+    alsace = next(r for r in regions['france'] if r['name'] == 'Alsace')
+    assert alsace['reviewCount'] == 30
+
+
+def test_aggregate_regions_italy_composite_split():
+    """Italy's composite provinces should be split into admin regions via region_1."""
+    df = pd.DataFrame({
+        'country': ['Italy'] * 120,
+        'province': ['Tuscany'] * 40 + ['Northeastern Italy'] * 40 +
+                    ['Southern Italy'] * 40,
+        'region_1': ['Chianti Classico'] * 40 +
+                    ['Alto Adige'] * 20 + ['Collio'] * 20 +
+                    ['Taurasi'] * 20 + ['Salento'] * 20,
+        'region_2': [''] * 120,
+        'variety': ['Sangiovese'] * 40 + ['Pinot Grigio'] * 40 +
+                   ['Aglianico'] * 20 + ['Primitivo'] * 20,
+        'winery': ['Producer'] * 120,
+        'points': [89] * 120,
+        'price': [40] * 120,
+    })
+    qualifying_countries = ['italy']
+    regions, region_lookup = aggregate_regions(df, qualifying_countries, min_reviews=20)
+
+    assert 'italy' in regions
+    region_names = [r['name'] for r in regions['italy']]
+
+    # Tuscany stays as Tuscany (not a composite)
+    assert 'Tuscany' in region_names
+
+    # Northeastern Italy should be split into two admin regions
+    assert 'Northeastern Italy' not in region_names
+    assert 'Trentino-Alto Adige' in region_names
+    assert 'Friuli-Venezia Giulia' in region_names
+
+    # Southern Italy should be split
+    assert 'Southern Italy' not in region_names
+    assert 'Campania' in region_names
+    assert 'Puglia' in region_names
+
+    # Verify review counts
+    taa = next(r for r in regions['italy'] if r['name'] == 'Trentino-Alto Adige')
+    assert taa['reviewCount'] == 20
+    fvg = next(r for r in regions['italy'] if r['name'] == 'Friuli-Venezia Giulia')
+    assert fvg['reviewCount'] == 20
+
+
+def test_aggregate_regions_france_jura():
+    """France Other should be split — Jura extracted via region_1."""
+    df = pd.DataFrame({
+        'country': ['France'] * 80,
+        'province': ['Bordeaux'] * 40 + ['France Other'] * 40,
+        'region_1': ['Pauillac'] * 40 + ['Arbois'] * 20 + ['Corse'] * 20,
+        'region_2': [''] * 80,
+        'variety': ['Cabernet Sauvignon'] * 40 + ['Savagnin'] * 20 + ['Nielluccio'] * 20,
+        'winery': ['Producer'] * 80,
+        'points': [89] * 80,
+        'price': [40] * 80,
+    })
+    qualifying_countries = ['france']
+    regions, _ = aggregate_regions(df, qualifying_countries, min_reviews=20)
+
+    region_names = [r['name'] for r in regions['france']]
+    assert 'Bordeaux' in region_names
+    assert 'France Other' not in region_names
+    assert 'Jura' in region_names
+    assert 'Corsica' in region_names
 
 
 # ═══════════════════════════════════════════════════════

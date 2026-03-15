@@ -21,7 +21,7 @@ import pandas as pd
 # ═══════════════════════════════════════════════════════
 
 MIN_COUNTRY_REVIEWS = 100
-MIN_REGION_REVIEWS = 20
+MIN_REGION_REVIEWS = 50
 MIN_PRODUCER_REVIEWS = 3
 MIN_VARIETAL_REVIEWS = 100
 MAX_PRODUCERS_PER_REGION = 100
@@ -68,11 +68,373 @@ COUNTRY_EMOJI = {
 # Which WineMag field to use as the primary region for each country.
 # Countries not listed here default to "province".
 REGION_FIELD_OVERRIDE = {
-    "US": "region_1",
+    "US": "region_1",          # Province = state (too broad); region_1 + roll-up = quiz-level
     "Australia": "region_1",
-    "Italy": "region_1",       # Province lumps Friuli+Alto Adige as "Northeastern Italy"
     "Spain": "region_1",       # Province is too broad (Northern Spain, Catalonia)
     "Argentina": "region_1",   # Province is just "Mendoza Province"
+}
+
+# Per-country minimum review overrides for region qualification.
+# Countries not listed use the global MIN_REGION_REVIEWS.
+MIN_REGION_REVIEWS_OVERRIDE = {
+    "US": 200,               # Lots of micro-AVAs; target ~12-15 quiz regions
+    "South Africa": 15,      # Sparse data; need low threshold to capture key districts
+}
+
+# Regions to exclude from quiz output (state names, generic catch-alls).
+# Keyed by country_id (lowercase). These still appear in regionLookup for matching.
+SKIP_REGIONS = {
+    "us": {"california", "oregon", "washington", "america", "idaho", "texas",
+           "colorado", "michigan", "missouri", "arizona", "new mexico",
+           "north coast", "central coast", "south coast", "new york"},
+    "spain": {"spain", "vino de la tierra de castilla",
+              "vino de la tierra de castilla y león"},
+    "chile": {"chile"},
+    "australia": {"australia", "south eastern australia", "south australia",
+                  "western australia", "victoria"},
+    "argentina": {"argentina"},
+    "south africa": {"western cape", "coastal region"},
+    "austria": {"österreichischer sekt"},
+}
+
+# ─── US sub-AVA roll-up ───────────────────────────────────────
+# Maps sub-AVA names (lowercase) to parent region display name.
+# Sub-AVAs still appear in regionLookup for matching.
+US_REGION_ROLLUP = {
+    # Napa Valley sub-AVAs
+    "oakville": "Napa Valley", "rutherford": "Napa Valley",
+    "stags leap district": "Napa Valley", "howell mountain": "Napa Valley",
+    "spring mountain district": "Napa Valley", "calistoga": "Napa Valley",
+    "atlas peak": "Napa Valley", "mount veeder": "Napa Valley",
+    "st. helena": "Napa Valley", "yountville": "Napa Valley",
+    "diamond mountain district": "Napa Valley", "coombsville": "Napa Valley",
+    "los carneros": "Napa Valley", "oak knoll district of napa valley": "Napa Valley",
+    "napa county": "Napa Valley", "oak knoll district": "Napa Valley",
+    "carneros": "Napa Valley", "carneros-napa valley": "Napa Valley",
+    "napa county-sonoma county": "Napa Valley",
+    # Sonoma sub-AVAs
+    "russian river valley": "Sonoma", "dry creek valley": "Sonoma",
+    "alexander valley": "Sonoma", "sonoma coast": "Sonoma",
+    "sonoma mountain": "Sonoma", "sonoma valley": "Sonoma",
+    "knights valley": "Sonoma", "bennett valley": "Sonoma",
+    "chalk hill": "Sonoma", "fort ross-seaview": "Sonoma",
+    "moon mountain district sonoma county": "Sonoma", "petaluma gap": "Sonoma",
+    "sonoma county": "Sonoma", "green valley": "Sonoma",
+    "rockpile": "Sonoma", "sonoma county-napa county": "Sonoma",
+    "marin county": "Sonoma",
+    # Willamette Valley sub-AVAs
+    "dundee hills": "Willamette Valley", "eola-amity hills": "Willamette Valley",
+    "ribbon ridge": "Willamette Valley", "chehalem mountains": "Willamette Valley",
+    "yamhill-carlton": "Willamette Valley", "mcminnville": "Willamette Valley",
+    "van duzer corridor": "Willamette Valley",
+    "walla walla valley (or)": "Willamette Valley",
+    # Santa Barbara sub-AVAs
+    "santa ynez valley": "Santa Barbara", "sta. rita hills": "Santa Barbara",
+    "santa rita hills": "Santa Barbara", "santa maria valley": "Santa Barbara",
+    "happy canyon of santa barbara": "Santa Barbara",
+    "santa barbara county": "Santa Barbara", "ballard canyon": "Santa Barbara",
+    # Paso Robles sub-AVAs
+    "paso robles estrella district": "Paso Robles",
+    "paso robles willow creek district": "Paso Robles",
+    "adelaida district": "Paso Robles",
+    # Columbia Valley sub-AVAs (Washington)
+    "columbia valley (wa)": "Columbia Valley",
+    "walla walla valley (wa)": "Columbia Valley",
+    "red mountain": "Columbia Valley", "yakima valley": "Columbia Valley",
+    "horse heaven hills": "Columbia Valley", "wahluke slope": "Columbia Valley",
+    "rattlesnake hills": "Columbia Valley", "ancient lakes": "Columbia Valley",
+    "snipes mountain": "Columbia Valley", "lake chelan": "Columbia Valley",
+    "naches heights": "Columbia Valley",
+    "columbia valley (or)": "Columbia Valley",
+    "columbia gorge (wa)": "Columbia Valley", "columbia gorge (or)": "Columbia Valley",
+    # Monterey area
+    "monterey county": "Monterey", "arroyo seco": "Monterey",
+    "carmel valley": "Monterey", "chalone": "Monterey",
+    "santa lucia highlands": "Monterey", "mt. harlan": "Monterey",
+    "san benito county": "Monterey", "paicines": "Monterey",
+    "cienega valley": "Monterey",
+    # Mendocino area
+    "mendocino county": "Mendocino", "mendocino ridge": "Mendocino",
+    "anderson valley": "Mendocino", "potter valley": "Mendocino",
+    "redwood valley": "Mendocino", "yorkville highlands": "Mendocino",
+    # Sierra Foothills area
+    "amador county": "Sierra Foothills", "el dorado": "Sierra Foothills",
+    "el dorado county": "Sierra Foothills", "calaveras county": "Sierra Foothills",
+    "fiddletown": "Sierra Foothills", "fair play": "Sierra Foothills",
+    "shenandoah valley (ca)": "Sierra Foothills",
+    # San Luis Obispo area
+    "edna valley": "San Luis Obispo", "arroyo grande valley": "San Luis Obispo",
+    "san luis obispo county": "San Luis Obispo",
+    "templeton gap district": "San Luis Obispo",
+    # Lake County area
+    "red hills lake county": "Lake County", "clear lake": "Lake County",
+    "high valley": "Lake County",
+    # Finger Lakes sub-AVAs
+    "seneca lake": "Finger Lakes", "cayuga lake": "Finger Lakes",
+    # Long Island
+    "north fork of long island": "Long Island",
+    "hudson river region": "Long Island",
+    # Rogue Valley / Umpqua
+    "southern oregon": "Rogue Valley", "applegate valley": "Rogue Valley",
+    "elkton oregon": "Umpqua Valley",
+    # Temecula
+    "temecula": "Temecula Valley",
+    # Small California counties → nearby parent
+    "contra costa county": "Lodi", "clarksburg": "Lodi", "mokelumne river": "Lodi",
+    "santa clara valley": "Santa Cruz Mountains",
+    "ben lomond mountain": "Santa Cruz Mountains",
+    # Virginia sub-regions
+    "monticello": "Virginia", "middleburg": "Virginia",
+    "shenandoah valley": "Virginia",
+}
+
+# ─── Australia sub-region roll-up ─────────────────────────────
+AUSTRALIA_REGION_ROLLUP = {
+    "barossa valley": "Barossa", "eden valley": "Barossa",
+    "clarendon": "McLaren Vale", "langhorne creek": "McLaren Vale",
+    "frankland river": "Great Southern", "padthaway": "Coonawarra",
+    "rutherglen": "Victoria",  # Historic NE Victoria
+    "heathcote": "Victoria",
+    "mornington peninsula": "Victoria",
+}
+
+# ─── Argentina sub-region roll-up ─────────────────────────────
+ARGENTINA_REGION_ROLLUP = {
+    # Mendoza sub-districts
+    "luján de cuyo": "Mendoza", "agrelo": "Mendoza", "perdriel": "Mendoza",
+    "maipú": "Mendoza", "mendoza province": "Mendoza",
+    # Uco Valley sub-districts (Tupungato, La Consulta, Vista Flores are within Uco Valley)
+    "valle de uco": "Uco Valley", "tupungato": "Uco Valley",
+    "la consulta": "Uco Valley", "vista flores": "Uco Valley",
+    # Salta / Calchaquí
+    "cafayate": "Salta", "calchaquí valley": "Salta",
+    # Patagonia sub-regions
+    "neuquén": "Patagonia", "alto valle del río negro": "Patagonia",
+    "río negro valley": "Patagonia",
+}
+
+# ─── South Africa sub-district roll-up ────────────────────────
+# SA uses province (default). Roll up tiny sub-districts into parents.
+SOUTH_AFRICA_REGION_ROLLUP = {
+    "simonsberg-stellenbosch": "Stellenbosch",
+    "jonkershoek valley": "Stellenbosch",
+    "helderberg": "Stellenbosch", "devon valley": "Stellenbosch",
+    "polkadraai hills": "Stellenbosch", "vlootenburg": "Stellenbosch",
+    "simonsberg-paarl": "Paarl", "wellington": "Paarl",
+    "bot river": "Walker Bay", "hemel en aarde": "Walker Bay",
+    "cape peninsula": "Constantia",
+    "groenekloof": "Darling",
+    "overberg": "Elgin",
+    "cape south coast": "Elgin",
+    "paardeberg": "Swartland",
+}
+
+# ─── Germany region roll-up ──────────────────────────────────
+GERMANY_REGION_ROLLUP = {
+    "mosel-saar-ruwer": "Mosel",  # Old name for the same region
+}
+
+# ─── Portugal region roll-up ─────────────────────────────────
+PORTUGAL_REGION_ROLLUP = {
+    "alentejano": "Alentejo",  # IGP vs DOC for same region
+}
+
+# ─── Austria region roll-up ──────────────────────────────────
+AUSTRIA_REGION_ROLLUP = {
+    "wagram-donauland": "Wagram",  # Old name
+}
+
+# ─── All roll-up dicts ────────────────────────────────────────
+REGION_ROLLUP = {
+    "US": US_REGION_ROLLUP,
+    "Australia": AUSTRALIA_REGION_ROLLUP,
+    "Argentina": ARGENTINA_REGION_ROLLUP,
+    "South Africa": SOUTH_AFRICA_REGION_ROLLUP,
+    "Germany": GERMANY_REGION_ROLLUP,
+    "Portugal": PORTUGAL_REGION_ROLLUP,
+    "Austria": AUSTRIA_REGION_ROLLUP,
+}
+
+# ─── Composite province splitting ─────────────────────────────
+# For countries where WineMag lumps multiple admin regions under a single
+# "province" value, we look at region_1 to determine the actual region.
+# Structure: { country: { province_name: { region_1_lower: target_region } } }
+COMPOSITE_SPLITS = {
+    "Italy": {
+        "Northeastern Italy": {
+            # → Trentino-Alto Adige
+            "alto adige": "Trentino-Alto Adige",
+            "alto adige valle isarco": "Trentino-Alto Adige",
+            "alto adige terlano": "Trentino-Alto Adige",
+            "trentino": "Trentino-Alto Adige",
+            "trento": "Trentino-Alto Adige",
+            "teroldego rotaliano": "Trentino-Alto Adige",
+            "vigneti delle dolomiti": "Trentino-Alto Adige",
+            "trentino superiore": "Trentino-Alto Adige",
+            "mitterberg": "Trentino-Alto Adige",
+            # → Friuli-Venezia Giulia
+            "collio": "Friuli-Venezia Giulia",
+            "colli orientali del friuli": "Friuli-Venezia Giulia",
+            "venezia giulia": "Friuli-Venezia Giulia",
+            "friuli grave": "Friuli-Venezia Giulia",
+            "friuli isonzo": "Friuli-Venezia Giulia",
+            "friuli colli orientali": "Friuli-Venezia Giulia",
+            "isonzo del friuli": "Friuli-Venezia Giulia",
+            "friuli": "Friuli-Venezia Giulia",
+            "friuli aquileia": "Friuli-Venezia Giulia",
+            "friuli venezia giulia": "Friuli-Venezia Giulia",
+            "rosazzo": "Friuli-Venezia Giulia",
+            "grave del friuli": "Friuli-Venezia Giulia",
+            "ramandolo": "Friuli-Venezia Giulia",
+            # Cross-border IGTs — assign to Veneto (largest constituent)
+            "delle venezie": "Veneto",
+            "venezie": "Veneto",
+            "colli trevigiani": "Veneto",
+            "del veneto": "Veneto",
+            "garda": "Veneto",
+            "garda classico": "Lombardy",
+            "benaco bresciano": "Lombardy",
+        },
+        "Sicily & Sardinia": {
+            # → Sicily
+            "sicilia": "Sicily", "etna": "Sicily",
+            "terre siciliane": "Sicily", "cerasuolo di vittoria": "Sicily",
+            "vittoria": "Sicily", "contea di sclafani": "Sicily",
+            "contessa entellina": "Sicily", "menfi": "Sicily",
+            "monreale": "Sicily", "faro": "Sicily",
+            "delia nivolelli": "Sicily", "marsala": "Sicily",
+            "passito di pantelleria": "Sicily", "mamertino": "Sicily",
+            "noto": "Sicily",
+            # → Sardinia
+            "isola dei nuraghi": "Sardinia", "vermentino di sardegna": "Sardinia",
+            "cannonau di sardegna": "Sardinia", "vermentino di gallura": "Sardinia",
+            "carignano del sulcis": "Sardinia",
+        },
+        "Southern Italy": {
+            # → Campania
+            "taurasi": "Campania", "fiano di avellino": "Campania",
+            "greco di tufo": "Campania", "campania": "Campania",
+            "irpinia": "Campania", "terre del volturno": "Campania",
+            "sannio": "Campania", "lacryma christi del vesuvio": "Campania",
+            "campi flegrei": "Campania", "beneventano": "Campania",
+            "falerno del massico": "Campania", "taburno": "Campania",
+            "aglianico del taburno": "Campania",
+            "falanghina del sannio": "Campania",
+            "costa d'amalfi": "Campania",
+            "falanghina del beneventano": "Campania",
+            "ischia": "Campania", "roccamonfina": "Campania",
+            "cilento": "Campania", "colli di salerno": "Campania",
+            "penisola sorrentina": "Campania",
+            "asprinio di aversa": "Campania",
+            "sant' agata dei goti": "Campania",
+            "galluccio": "Campania", "vesuvio": "Campania",
+            "epomeo": "Campania", "pompeiano": "Campania",
+            "paestum": "Campania",
+            "catalanesca del monte somma": "Campania",
+            "coda di volpe d'irpinia": "Campania",
+            "aglianico d'irpinia": "Campania",
+            "aglianico del beneventano": "Campania",
+            # → Puglia
+            "salento": "Puglia", "puglia": "Puglia",
+            "primitivo di manduria": "Puglia",
+            "salice salentino": "Puglia", "castel del monte": "Puglia",
+            "primitivo del salento": "Puglia", "murgia": "Puglia",
+            "galatina": "Puglia", "copertino": "Puglia",
+            "gioia del colle": "Puglia", "nardò": "Puglia",
+            "moscato di trani": "Puglia",
+            "cacc'e mmitte di lucera": "Puglia",
+            "squinzano": "Puglia", "brindisi": "Puglia",
+            "rosso di cerignola": "Puglia", "tarantino": "Puglia",
+            "primitivo del tarantino": "Puglia", "martina": "Puglia",
+            # → Basilicata
+            "aglianico del vulture": "Basilicata",
+            "basilicata": "Basilicata",
+            # → Calabria
+            "calabria": "Calabria", "cirò": "Calabria",
+            "cirò classico": "Calabria", "val di neto": "Calabria",
+            "donnici": "Calabria", "lamezia": "Calabria",
+            # → Molise
+            "molise": "Campania",  # Too small for own region; roll into Campania
+            "biferno rosso": "Campania",
+            "terra degli osci": "Campania",
+            "falanghina del molise": "Campania",
+        },
+        "Central Italy": {
+            # → Abruzzo
+            "montepulciano d'abruzzo": "Abruzzo",
+            "trebbiano d'abruzzo": "Abruzzo", "abruzzo": "Abruzzo",
+            "terre di chieti": "Abruzzo", "colline pescaresi": "Abruzzo",
+            "montepulciano d'abruzzo colline teramane": "Abruzzo",
+            "colli aprutini": "Abruzzo", "cerasuolo d'abruzzo": "Abruzzo",
+            "controguerra": "Abruzzo", "colline teatine": "Abruzzo",
+            "montepulciano d'abruzzo cerasuolo": "Abruzzo",
+            "colline teramane": "Abruzzo",
+            # → Umbria
+            "umbria": "Umbria", "montefalco sagrantino": "Umbria",
+            "montefalco rosso": "Umbria", "sagrantino di montefalco": "Umbria",
+            "orvieto classico superiore": "Umbria",
+            "orvieto classico": "Umbria", "orvieto": "Umbria",
+            "torgiano": "Umbria", "montefalco": "Umbria",
+            "torgiano rosso riserva": "Umbria",
+            "colli perugini": "Umbria", "lago di corbara": "Umbria",
+            "colli martani": "Umbria", "assisi": "Umbria", "todi": "Umbria",
+            # → Marche
+            "verdicchio dei castelli di jesi classico superiore": "Marche",
+            "verdicchio dei castelli di jesi classico": "Marche",
+            "marche": "Marche", "verdicchio dei castelli di jesi": "Marche",
+            "offida pecorino": "Marche", "rosso piceno": "Marche",
+            "rosso conero": "Marche", "conero": "Marche",
+            "verdicchio di matelica": "Marche",
+            "rosso piceno superiore": "Marche",
+            "falerio": "Marche", "offida passerina": "Marche",
+            "falerio dei colli ascolani": "Marche", "offida rosso": "Marche",
+            # → Emilia-Romagna
+            "romagna": "Emilia-Romagna",
+            "lambrusco grasparossa di castelvetro": "Emilia-Romagna",
+            "lambrusco di sorbara": "Emilia-Romagna",
+            "sangiovese di romagna superiore": "Emilia-Romagna",
+            "sangiovese di romagna": "Emilia-Romagna",
+            "emilia": "Emilia-Romagna", "emilia-romagna": "Emilia-Romagna",
+            "forlì": "Emilia-Romagna", "colli piacentini": "Emilia-Romagna",
+            "lambrusco di modena": "Emilia-Romagna",
+            "albana di romagna": "Emilia-Romagna",
+            "lambrusco dell'emilia": "Emilia-Romagna",
+            "rubicone": "Emilia-Romagna", "colli bolognesi": "Emilia-Romagna",
+            "gutturnio colli piacentini": "Emilia-Romagna",
+            "colli di faenza": "Emilia-Romagna",
+            "lambrusco reggiano": "Emilia-Romagna",
+            "gutturnio classico superiore": "Emilia-Romagna",
+            "lambrusco salamino di santa croce": "Emilia-Romagna",
+            # → Lazio
+            "lazio": "Lazio", "frascati superiore": "Lazio",
+            "frascati": "Lazio", "cesanese del piglio": "Lazio",
+            "circeo": "Lazio", "civitella d'agliano": "Lazio",
+            "est! est!! est!!! di montefiascone": "Lazio",
+            # San Marino → assign to Emilia-Romagna (nearest)
+            "san marino": "Emilia-Romagna",
+        },
+        "Italy Other": {},  # Generic wines — skip (empty dict → returns None)
+        "Northwestern Italy": {
+            "valle d'aosta": "Valle d'Aosta",
+            "colli di luni": "Liguria",
+            "riviera ligure di ponente": "Liguria",
+        },
+    },
+    "France": {
+        "France Other": {
+            # → Jura
+            "arbois": "Jura", "côtes du jura": "Jura",
+            "crémant de jura": "Jura", "l'étoile": "Jura",
+            "château-chalon": "Jura",
+            # → Corsica
+            "corse": "Corsica", "patrimonio": "Corsica",
+            "ile de beauté": "Corsica", "corse porto vecchio": "Corsica",
+            # → Savoie
+            "savoie": "Savoie", "vin de savoie": "Savoie",
+            "roussette de savoie": "Savoie",
+            # Vin de France, Vin Mousseux, etc. → not mapped → skip
+        },
+    },
 }
 
 VARIETAL_SYNONYMS = {
@@ -244,14 +606,40 @@ def get_region_field(country):
 
 
 def _get_primary_region(row):
-    """Determine the primary region name for a given row, based on country-specific rules."""
+    """Determine the primary region name for a given row, based on country-specific rules.
+
+    Handles three cases:
+    1. Composite province splitting (Italy, France) — WineMag lumps multiple admin
+       regions under one province; we use region_1 to determine the actual region.
+    2. Sub-region roll-up (US, Australia, Argentina, SA) — consolidate sub-AVAs
+       into parent regions.
+    3. Direct pass-through — province or region_1 used as-is.
+    """
     country = row['country']
     field = get_region_field(country)
     value = row.get(field, '')
     # Fall back to province if the override field is empty
     if not value and field != 'province':
         value = row.get('province', '')
-    return value if value else None
+    if not value:
+        return None
+
+    # Check for composite province that needs splitting via region_1
+    country_splits = COMPOSITE_SPLITS.get(country)
+    if country_splits and value in country_splits:
+        region_1_map = country_splits[value]
+        r1 = row.get('region_1', '').lower().strip()
+        if r1 and r1 in region_1_map:
+            return region_1_map[r1]
+        return None  # Can't determine specific region from composite province
+
+    # Apply country-specific sub-region roll-up
+    rollup = REGION_ROLLUP.get(country)
+    if rollup:
+        rolled = rollup.get(value.lower().strip())
+        if rolled:
+            return rolled
+    return value
 
 
 def aggregate_regions(df, qualifying_country_ids, min_reviews=MIN_REGION_REVIEWS):
@@ -276,16 +664,28 @@ def aggregate_regions(df, qualifying_country_ids, min_reviews=MIN_REGION_REVIEWS
         country_df = country_df.dropna(subset=['_primary_region'])
         country_df = country_df[country_df['_primary_region'] != '']
 
+        # Per-country minimum review threshold (only applied when using global default)
+        if min_reviews == MIN_REGION_REVIEWS:
+            effective_min = MIN_REGION_REVIEWS_OVERRIDE.get(country_name, min_reviews)
+        else:
+            effective_min = min_reviews
+        # Per-country skip set (lowercase region names to exclude)
+        skip_set = SKIP_REGIONS.get(country_id, set())
+
         # Group by primary region
         grouped = country_df.groupby('_primary_region')
 
         region_list = []
         for region_name, group in grouped:
-            if len(group) < min_reviews:
+            if len(group) < effective_min:
                 continue
 
             # Skip catch-all "Other" regions — not useful as quiz options
             if region_name.lower().strip() == 'other' or region_name.endswith(' Other'):
+                continue
+
+            # Skip generic regions (state names, country names, meta-AVAs)
+            if region_name.lower().strip() in skip_set:
                 continue
 
             region_id = make_id(region_name)
