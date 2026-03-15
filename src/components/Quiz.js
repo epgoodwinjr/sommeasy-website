@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { COUNTRIES, REGIONS, ESTATES, VARIETALS } from "@/lib/wineData";
+import wineUnified from "@/lib/wineUnified.json";
 import { generateDNAProfile } from "@/lib/profileEngine";
+
+const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DATA, varietals: VARIETALS_RAW } = wineUnified;
 
 // ─── Small UI components ───
 
