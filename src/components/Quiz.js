@@ -90,12 +90,34 @@ function ProfileSection({ label, items }) {
 // ─── Quiz Steps ───
 
 function CountryStep({ selected, onToggle }) {
+  const oldWorld = COUNTRIES_RAW.filter(c => c.world === "old")
+    .sort((a, b) => b.reviewCount - a.reviewCount);
+  const newWorld = COUNTRIES_RAW.filter(c => c.world === "new")
+    .sort((a, b) => b.reviewCount - a.reviewCount);
+
+  const renderGroup = (label, countries) => (
+    <div style={{ marginBottom: 20 }}>
+      <p style={{
+        fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+        textTransform: "uppercase", letterSpacing: "0.15em",
+        color: "#1B3D2F", opacity: 0.4, margin: "0 0 10px 4px", fontWeight: 600,
+      }}>{label}</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+        {countries.map(c => (
+          <Chip key={c.id} label={c.name} emoji={c.emoji}
+            selected={selected.includes(c.id)}
+            onClick={() => onToggle(c.id)} />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div>
-      <StepHeader number="01" title="Where in the world?" subtitle="Select the countries whose wines you enjoy. Pick as many as you like." />
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center", padding: "0 8px" }}>
-        {COUNTRIES.map(c => <Chip key={c.id} label={c.name} emoji={c.emoji} selected={selected.includes(c.id)} onClick={() => onToggle(c.id)} />)}
-      </div>
+      <StepHeader number="01" title="Where in the world?"
+        subtitle="Select the countries whose wines you enjoy. Pick as many as you like." />
+      {renderGroup("Old World", oldWorld)}
+      {renderGroup("New World", newWorld)}
     </div>
   );
 }
