@@ -1,125 +1,42 @@
 // wineResolver.js — Wine Metadata Resolver
 // Fuzzy-matches logged wine names against the 130k WineMag dataset
 // to extract structured metadata (winery, varietal, region, country)
-// Runs entirely client-side using wineReference-lookup.json
+// Runs entirely client-side using wineUnified.json
 
-import lookupData from "./wineReference-lookup.json";
-import { COUNTRIES as DNA_COUNTRIES, REGIONS as DNA_REGIONS, VARIETALS as DNA_VARIETALS, ESTATES as DNA_ESTATES } from "./wineData";
+import wineUnified from "./wineUnified.json";
+
+const COUNTRIES = wineUnified.countries;
+const REGIONS = wineUnified.regions;
+const PRODUCERS = wineUnified.producers;
+const VARIETALS = wineUnified.varietals;
+const REGION_LOOKUP = wineUnified.regionLookup;
+const PRODUCER_LOOKUP = wineUnified.producerLookup;
+const VARIETAL_LOOKUP = wineUnified.varietalLookup;
 
 
 // ═══════════════════════════════════════════════════════
-// MAPPING TABLES (mirrored from matchEngine.js)
+// VARIETAL MAPPING (built from VARIETALS + VARIETAL_LOOKUP)
 // ═══════════════════════════════════════════════════════
-
-const COUNTRY_TO_DNA = {
-  "France": "france", "Italy": "italy", "Spain": "spain", "Portugal": "portugal",
-  "Germany": "germany", "Austria": "austria", "US": "usa",
-  "Argentina": "argentina", "Chile": "chile", "Australia": "australia",
-  "New Zealand": "new_zealand", "South Africa": "south_africa",
-};
-
-const PROVINCE_TO_DNA_REGION = {
-  "Bordeaux": "bordeaux", "Burgundy": "burgundy", "Champagne": "champagne",
-  "Alsace": "alsace", "Provence": "provence",
-  "Languedoc-Roussillon": "languedoc", "South of France": "languedoc",
-  "Loire Valley": "loire", "Rhône Valley": "rhone",
-  "Beaujolais": "beaujolais", "Southwest France": "southwest_france",
-  "Tuscany": "tuscany", "Piedmont": "piedmont", "Veneto": "veneto",
-  "Sicily & Sardinia": "sicily", "Southern Italy": "puglia", "Puglia": "puglia",
-  "Northeastern Italy": "trentino", "Campania": "campania",
-  "Northern Spain": "rioja", "Catalonia": "penedes",
-  "Stellenbosch": "stellenbosch", "Coastal Region": "stellenbosch",
-  "Constantia": "constantia", "Franschhoek": "franschhoek",
-  "Swartland": "swartland", "Walker Bay": "walker_bay", "Paarl": "paarl",
-  "Mendoza Province": "mendoza",
-  "Maipo Valley": "maipo", "Colchagua Valley": "colchagua",
-  "Casablanca Valley": "casablanca", "Aconcagua": "aconcagua",
-  "South Australia": "barossa", "Western Australia": "margaret_river", "New South Wales": "hunter",
-  "Marlborough": "marlborough", "Central Otago": "central_otago", "Hawke's Bay": "hawkes_bay",
-  "Douro": "douro", "Alentejo": "alentejo", "Dão": "dao", "Vinho Verde": "vinho_verde",
-  "Mosel": "mosel", "Rheingau": "rheingau", "Pfalz": "pfalz", "Rheinhessen": "rheinhessen",
-  "Baden": "baden",
-  "Niederösterreich": "kamptal", "Burgenland": "burgenland",
-  "California": "napa", "Oregon": "willamette", "Washington": "walla_walla",
-  "New York": "finger_lakes", "Virginia": "virginia",
-};
-
-const SUBREGION_TO_DNA_REGION = {
-  "napa valley": "napa", "napa": "napa", "oakville": "napa", "rutherford": "napa",
-  "stags leap district": "napa", "howell mountain": "napa", "spring mountain district": "napa",
-  "calistoga": "napa", "atlas peak": "napa", "mount veeder": "napa", "st. helena": "napa",
-  "sonoma valley": "sonoma", "russian river valley": "sonoma", "dry creek valley": "sonoma",
-  "alexander valley": "sonoma", "sonoma coast": "sonoma", "sonoma mountain": "sonoma",
-  "willamette valley": "willamette", "dundee hills": "willamette", "eola-amity hills": "willamette",
-  "ribbon ridge": "willamette", "chehalem mountains": "willamette",
-  "paso robles": "paso_robles", "paso robles estrella district": "paso_robles",
-  "santa barbara county": "santa_barbara", "santa ynez valley": "santa_barbara",
-  "sta. rita hills": "santa_barbara", "santa rita hills": "santa_barbara",
-  "santa maria valley": "santa_barbara", "happy canyon of santa barbara": "santa_barbara",
-  "finger lakes": "finger_lakes", "walla walla valley": "walla_walla",
-  "columbia valley": "walla_walla",
-  "morgon": "beaujolais", "fleurie": "beaujolais", "moulin-à-vent": "beaujolais",
-  "brouilly": "beaujolais", "juliénas": "beaujolais", "chiroubles": "beaujolais",
-  "beaujolais-villages": "beaujolais", "saint-amour": "beaujolais",
-  "côte de brouilly": "beaujolais", "régnié": "beaujolais", "chénas": "beaujolais",
-  "cahors": "southwest_france", "madiran": "southwest_france", "gaillac": "southwest_france",
-  "jurançon": "southwest_france", "bergerac": "southwest_france", "irouléguy": "southwest_france",
-  "côte-rôtie": "rhone", "hermitage": "rhone", "châteauneuf-du-pape": "rhone",
-  "chateauneuf-du-pape": "rhone", "gigondas": "rhone", "cornas": "rhone",
-  "saint-joseph": "rhone", "crozes-hermitage": "rhone", "condrieu": "rhone",
-  "vacqueyras": "rhone", "côtes du rhône": "rhone",
-  "sancerre": "loire", "pouilly-fumé": "loire", "vouvray": "loire",
-  "muscadet sèvre et maine": "loire", "chinon": "loire", "bourgueil": "loire",
-  "savennières": "loire", "anjou": "loire", "saumur": "loire",
-  "bandol": "provence", "côtes de provence": "provence",
-  "rioja": "rioja", "ribera del duero": "ribera", "priorat": "priorat",
-  "rías baixas": "rias_baixas", "jerez": "jerez", "rueda": "rueda", "penedès": "penedes",
-  "barossa valley": "barossa", "eden valley": "barossa",
-  "mclaren vale": "mclaren", "yarra valley": "yarra",
-  "margaret river": "margaret_river", "hunter valley": "hunter", "coonawarra": "coonawarra",
-  "uco valley": "mendoza", "luján de cuyo": "mendoza",
-  "cafayate": "salta", "salta": "salta",
-  "wachau": "wachau", "kamptal": "kamptal", "kremstal": "kamptal",
-};
 
 // WineMag varietal names → DNA varietal IDs
 const VARIETY_TO_DNA = {};
-const VARIETY_NAME_MAP = {
-  cabernet_sauvignon: ["Cabernet Sauvignon"],
-  merlot: ["Merlot"],
-  pinot_noir: ["Pinot Noir", "Pinot Nero"],
-  syrah: ["Syrah", "Shiraz"],
-  malbec: ["Malbec"],
-  tempranillo: ["Tempranillo", "Tinta de Toro", "Tinto Fino"],
-  sangiovese: ["Sangiovese", "Sangiovese Grosso", "Prugnolo Gentile", "Brunello"],
-  nebbiolo: ["Nebbiolo"],
-  grenache: ["Grenache", "Garnacha"],
-  zinfandel: ["Zinfandel"],
-  pinotage: ["Pinotage"],
-  mourvedre: ["Mourvèdre", "Monastrell"],
-  cabernet_franc: ["Cabernet Franc"],
-  petit_verdot: ["Petit Verdot"],
-  chardonnay: ["Chardonnay"],
-  sauvignon_blanc: ["Sauvignon Blanc", "Sauvignon"],
-  riesling: ["Riesling"],
-  pinot_grigio: ["Pinot Grigio", "Pinot Gris"],
-  chenin_blanc: ["Chenin Blanc"],
-  viognier: ["Viognier"],
-  gruner_veltliner: ["Grüner Veltliner"],
-  albarino: ["Albariño"],
-  gewurztraminer: ["Gewürztraminer"],
-  semillon: ["Sémillon", "Semillon"],
-  muscadet: ["Muscadet", "Melon"],
-  vermentino: ["Vermentino"],
-};
-for (const [dnaId, wmNames] of Object.entries(VARIETY_NAME_MAP)) {
-  for (const n of wmNames) VARIETY_TO_DNA[n] = dnaId;
+
+// Map each varietal's canonical name to its ID
+for (const v of VARIETALS) {
+  VARIETY_TO_DNA[v.name] = v.id;
+}
+
+// Map each synonym to the canonical ID
+for (const [synonym, canonicalId] of Object.entries(VARIETAL_LOOKUP)) {
+  // Capitalize the synonym for display-name matching
+  const displaySynonym = synonym.charAt(0).toUpperCase() + synonym.slice(1);
+  VARIETY_TO_DNA[displaySynonym] = canonicalId;
 }
 
 // Reverse map: DNA varietal ID → canonical display name
 const DNA_TO_VARIETY_NAME = {};
-for (const [dnaId, wmNames] of Object.entries(VARIETY_NAME_MAP)) {
-  DNA_TO_VARIETY_NAME[dnaId] = wmNames[0]; // First entry is the canonical name
+for (const v of VARIETALS) {
+  DNA_TO_VARIETY_NAME[v.id] = v.name;
 }
 
 
@@ -179,41 +96,43 @@ function getProducerIndex() {
 
   _producerIndex = [];
 
-  // From the WineMag 2,000 producers
-  for (const [name, data] of Object.entries(lookupData.producers)) {
+  // From PRODUCER_LOOKUP (keyed by lowercase name)
+  for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
     const norm = normalize(name);
     if (norm.length < 3) continue;
+    // Display name: use the original key with first-letter capitalization
+    const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
     _producerIndex.push({
-      name,          // Original display name
-      norm,          // Normalized for matching
+      name: displayName,
+      norm,
       tokens: new Set(tokenize(name)),
       country: data.country,
       province: data.province || "",
-      dnaCountryId: COUNTRY_TO_DNA[data.country] || null,
-      dnaRegionId: PROVINCE_TO_DNA_REGION[data.province] || SUBREGION_TO_DNA_REGION[(data.province || "").toLowerCase()] || null,
+      dnaCountryId: data.country,      // Direct — already a DNA country ID
+      dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
     });
   }
 
-  // Also include DNA estates not in WineMag dataset
-  for (const [regionId, estates] of Object.entries(DNA_ESTATES)) {
-    for (const estate of estates) {
-      const norm = normalize(estate.name);
+  // Also include producers from PRODUCERS (keyed by regionId) not already in PRODUCER_LOOKUP
+  for (const [regionId, producers] of Object.entries(PRODUCERS)) {
+    for (const producer of producers) {
+      const norm = normalize(producer.name);
       if (_producerIndex.some(p => p.norm === norm)) continue;
       // Find the country for this region
       let countryId = null;
-      for (const [cId, regions] of Object.entries(DNA_REGIONS)) {
-        if (regions.some(r => r.id === regionId)) { countryId = cId; break; }
+      for (const [cId, regionList] of Object.entries(REGIONS)) {
+        if (regionList.some(r => r.id === regionId)) { countryId = cId; break; }
       }
-      const countryObj = countryId ? DNA_COUNTRIES.find(c => c.id === countryId) : null;
+      const countryObj = countryId ? COUNTRIES.find(c => c.id === countryId) : null;
       _producerIndex.push({
-        name: estate.name,
+        name: producer.name,
         norm,
-        tokens: new Set(tokenize(estate.name)),
+        tokens: new Set(tokenize(producer.name)),
         country: countryObj ? countryObj.name : "",
         province: "",
         dnaCountryId: countryId,
         dnaRegionId: regionId,
-        dnaEstateId: estate.id, // Direct estate ID from wineData
+        dnaEstateId: producer.id,
       });
     }
   }
@@ -235,15 +154,15 @@ function getVarietalIndex() {
   if (_varietalIndex) return _varietalIndex;
 
   _varietalIndex = [];
-  for (const [name, data] of Object.entries(lookupData.varieties)) {
-    const norm = normalize(name);
+  for (const v of VARIETALS) {
+    const norm = normalize(v.name);
     if (norm.length < 3) continue;
     _varietalIndex.push({
-      name,       // e.g., "Syrah"
+      name: v.name,
       norm,
-      color: data.color,
-      dnaId: VARIETY_TO_DNA[name] || null,
-      count: data.count || 0,
+      color: v.color,
+      dnaId: v.id,
+      count: v.reviewCount || 0,
     });
   }
 
@@ -264,16 +183,16 @@ function getRegionIndex() {
   if (_regionIndex) return _regionIndex;
 
   _regionIndex = [];
-  for (const [key, data] of Object.entries(lookupData.regionLookup)) {
+  for (const [key, data] of Object.entries(REGION_LOOKUP)) {
     if (key.length < 4 || ["other", "america", "europe"].includes(key)) continue;
     _regionIndex.push({
       term: key,
       country: data.country,
-      province: data.province || "",
-      subregion: data.subregion || "",
-      dnaCountryId: COUNTRY_TO_DNA[data.country] || null,
-      dnaRegionId: SUBREGION_TO_DNA_REGION[key] || PROVINCE_TO_DNA_REGION[data.province] || null,
-      count: data.count || 0,
+      province: "",
+      subregion: "",
+      dnaCountryId: data.country,      // Direct — already a DNA country ID
+      dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
+      count: 0,
     });
   }
 
@@ -583,50 +502,49 @@ export function resolveWine(wineName) {
 // EXPORTS FOR DNA EVOLUTION ENGINE
 // ═══════════════════════════════════════════════════════
 
-// Re-export mapping utilities needed by dnaEvolution.js
-export { COUNTRY_TO_DNA, PROVINCE_TO_DNA_REGION, SUBREGION_TO_DNA_REGION, VARIETY_TO_DNA, VARIETY_NAME_MAP, DNA_TO_VARIETY_NAME };
+export { VARIETY_TO_DNA, DNA_TO_VARIETY_NAME };
 
 /**
  * Find the country ID that contains a given region ID.
  * Used by the promotion engine to key estates/regions by country.
  */
 export function findCountryForRegion(dnaRegionId) {
-  for (const [countryId, regions] of Object.entries(DNA_REGIONS)) {
-    if (regions.some(r => r.id === dnaRegionId)) return countryId;
+  for (const [countryId, regionList] of Object.entries(REGIONS)) {
+    if (regionList.some(r => r.id === dnaRegionId)) return countryId;
   }
   return null;
 }
 
 /**
- * Check if a DNA varietal ID exists in wineData.js
+ * Check if a DNA varietal ID exists in wineUnified.json
  */
 export function isValidDnaVarietal(dnaVarietalId) {
-  return DNA_VARIETALS.some(v => v.id === dnaVarietalId);
+  return VARIETALS.some(v => v.id === dnaVarietalId);
 }
 
 /**
- * Check if a DNA region ID exists in wineData.js
+ * Check if a DNA region ID exists in wineUnified.json
  */
 export function isValidDnaRegion(dnaRegionId) {
-  for (const regions of Object.values(DNA_REGIONS)) {
-    if (regions.some(r => r.id === dnaRegionId)) return true;
+  for (const regionList of Object.values(REGIONS)) {
+    if (regionList.some(r => r.id === dnaRegionId)) return true;
   }
   return false;
 }
 
 /**
- * Check if a DNA country ID exists in wineData.js
+ * Check if a DNA country ID exists in wineUnified.json
  */
 export function isValidDnaCountry(dnaCountryId) {
-  return DNA_COUNTRIES.some(c => c.id === dnaCountryId);
+  return COUNTRIES.some(c => c.id === dnaCountryId);
 }
 
 /**
  * Get display name for a DNA region ID
  */
 export function getRegionDisplayName(dnaRegionId) {
-  for (const regions of Object.values(DNA_REGIONS)) {
-    const found = regions.find(r => r.id === dnaRegionId);
+  for (const regionList of Object.values(REGIONS)) {
+    const found = regionList.find(r => r.id === dnaRegionId);
     if (found) return found.name;
   }
   return dnaRegionId;
@@ -636,6 +554,6 @@ export function getRegionDisplayName(dnaRegionId) {
  * Get display name for a DNA country ID
  */
 export function getCountryDisplayName(dnaCountryId) {
-  const found = DNA_COUNTRIES.find(c => c.id === dnaCountryId);
+  const found = COUNTRIES.find(c => c.id === dnaCountryId);
   return found ? found.name : dnaCountryId;
 }

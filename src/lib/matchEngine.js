@@ -11,31 +11,6 @@ const REGION_LOOKUP = wineUnified.regionLookup;
 const PRODUCER_LOOKUP = wineUnified.producerLookup;
 const VARIETAL_LOOKUP = wineUnified.varietalLookup;
 
-// ═══════════════════════════════════════════════════════
-// VARIETY NAME → DNA ID MAPPING
-// ═══════════════════════════════════════════════════════
-
-// Build variety name → canonical ID map from unified data
-const VARIETY_TO_DNA = {};
-// Map display names to IDs (e.g., "Pinot Noir" → "pinot_noir", "Syrah / Shiraz" → "syrah")
-for (const v of VARIETALS) {
-  VARIETY_TO_DNA[v.name] = v.id;
-  // Also map each word before " / " separately (e.g., "Syrah" and "Shiraz" both → "syrah")
-  if (v.name.includes(" / ")) {
-    for (const part of v.name.split(" / ")) {
-      VARIETY_TO_DNA[part.trim()] = v.id;
-    }
-  }
-}
-// Add synonym mappings from varietalLookup (e.g., "Monastrell" → "mourvedre")
-for (const [synonym, canonicalId] of Object.entries(VARIETAL_LOOKUP)) {
-  // Convert synonym to display-style casing for text matching
-  const displayName = synonym.charAt(0).toUpperCase() + synonym.slice(1);
-  VARIETY_TO_DNA[displayName] = canonicalId;
-  // Also keep lowercase version
-  VARIETY_TO_DNA[synonym] = canonicalId;
-}
-
 
 // ═══════════════════════════════════════════════════════
 // BUILD SEARCH INDEX
@@ -44,14 +19,14 @@ for (const [synonym, canonicalId] of Object.entries(VARIETAL_LOOKUP)) {
 function buildSearchIndex() {
   const idx = { regionTerms: [], producerTerms: [], varietyTerms: [], countryTerms: [] };
 
-  // Regions from unified regionLookup (992 entries — all WineMag sub-appellations mapped to canonical regions)
+  // Regions from unified regionLookup (992 entries)
   for (const [term, data] of Object.entries(REGION_LOOKUP)) {
     if (term.length < 4 || ["other", "america", "europe"].includes(term)) continue;
     idx.regionTerms.push({
       term, dnaRegionId: data.regionId, dnaCountryId: data.country, count: 0,
     });
   }
-  // Also add canonical region names as terms (some may not be in regionLookup)
+  // Also add canonical region names as terms
   for (const [countryId, regions] of Object.entries(REGIONS)) {
     for (const region of regions) {
       const term = region.name.toLowerCase();
@@ -400,7 +375,7 @@ export function parseWineList(text) {
     var hasVarietal = false;
     var hasRegionOrCountry = false;
     var textLower = displayName.toLowerCase();
-
+    
     for (var vi = 0; vi < SEARCH_INDEX.varietyTerms.length; vi++) {
       if (textLower.includes(SEARCH_INDEX.varietyTerms[vi].term)) { hasVarietal = true; break; }
     }
@@ -464,17 +439,8 @@ function detectWineAttributes(wineName) {
     const reg = SEARCH_INDEX.regionTerms[ri];
     if (claimed.has(reg.term)) continue;
     if (termMatchesInText(reg.term, text)) {
-      if (reg.dnaRegionId) detectedRegionIds.add(reg.dnaRegionId);
-      if (reg.dnaCountryId) detectedCountryIds.add(reg.dnaCountryId);
-      if (reg.dnaRegionId && userDNA.regions.has(reg.dnaRegionId)) {
-        score += 3;
-        matchReasons.push({ type: "region", label: reg.term, weight: 3 });
-      } else if (reg.dnaCountryId && userDNA.countries.has(reg.dnaCountryId)) {
-        score += 1;
-        const cObj = COUNTRIES.find(function(c) { return c.id === reg.dnaCountryId; });
-        const countryLabel = cObj ? cObj.name : reg.dnaCountryId;
-        matchReasons.push({ type: "country_region", label: reg.term + " (you like " + countryLabel + ")", weight: 1 });
-      }
+      if (reg.dnaRegionId) regionIds.add(reg.dnaRegionId);
+      if (reg.dnaCountryId) countryIds.add(reg.dnaCountryId);
       claimed.add(reg.term);
       break;
     }
@@ -596,14 +562,14 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
     if (userDNA.regions.has(regId)) {
       var regEntry = SEARCH_INDEX.regionTerms.find(function(r) { return r.dnaRegionId === regId; });
       score += 3;
-      matchReasons.push({ type: "region", label: regEntry ? (regEntry.subregion || regEntry.wmProvince || regEntry.term) : regId, weight: 3 });
+      matchReasons.push({ type: "region", label: regEntry ? regEntry.term : regId, weight: 3 });
     } else {
       // Check country-level match for this region
       for (const cId of detectedCountryIds) {
         if (userDNA.countries.has(cId)) {
-          var cName = DNA_COUNTRIES.find(function(c) { return c.id === cId; });
+          var cName = COUNTRIES.find(function(c) { return c.id === cId; });
           var regEntry2 = SEARCH_INDEX.regionTerms.find(function(r) { return r.dnaRegionId === regId; });
-          var regLabel = regEntry2 ? (regEntry2.subregion || regEntry2.wmProvince || regEntry2.term) : regId;
+          var regLabel = regEntry2 ? regEntry2.term : regId;
           score += 1;
           matchReasons.push({ type: "country_region", label: regLabel + " (you like " + (cName ? cName.name : cId) + ")", weight: 1 });
           break;
@@ -820,9 +786,7 @@ export function matchWinesAgainstDNA(entries, dnaProfile, feedbackSignals) {
     for (var i = 0; i < estateIds.length; i++) {
       const estateId = estateIds[i];
       const found = regionProducers.find(function(p) { return p.id === estateId; });
-      if (found) {
-        estateNames.add(found.name.toLowerCase());
-      }
+      if (found) { estateNames.add(found.name.toLowerCase()); }
     }
   }
 
@@ -866,7 +830,6 @@ export function getIndexStats() {
   };
 }
 
-// Country flag/name helpers from unified COUNTRIES array
 var COUNTRY_FLAGS = {};
 var COUNTRY_NAMES = {};
 for (var ci = 0; ci < COUNTRIES.length; ci++) {
