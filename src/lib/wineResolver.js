@@ -28,7 +28,7 @@ const PROVINCE_TO_DNA_REGION = {
   "Sicily & Sardinia": "sicily", "Southern Italy": "puglia", "Puglia": "puglia",
   "Northeastern Italy": "trentino", "Campania": "campania",
   "Northern Spain": "rioja", "Catalonia": "penedes",
-  "Stellenbosch": "stellenbosch", "Coastal Region": "stellenbosch",
+  "Stellenbosch": "stellenbosch", "Simonsberg-Stellenbosch": "stellenbosch", "Coastal Region": "stellenbosch",
   "Constantia": "constantia", "Franschhoek": "franschhoek",
   "Swartland": "swartland", "Walker Bay": "walker_bay", "Paarl": "paarl",
   "Mendoza Province": "mendoza",
@@ -194,11 +194,17 @@ function getProducerIndex() {
     });
   }
 
-  // Also include DNA estates not in WineMag dataset
+  // Also include DNA estates — merge dnaEstateId into existing WineMag entries
   for (const [regionId, estates] of Object.entries(DNA_ESTATES)) {
     for (const estate of estates) {
       const norm = normalize(estate.name);
-      if (_producerIndex.some(p => p.norm === norm)) continue;
+      const existing = _producerIndex.find(p => p.norm === norm);
+      if (existing) {
+        // Producer exists in WineMag — enrich with DNA estate ID
+        existing.dnaEstateId = estate.id;
+        if (!existing.dnaRegionId) existing.dnaRegionId = regionId;
+        continue;
+      }
       // Find the country for this region
       let countryId = null;
       for (const [cId, regions] of Object.entries(DNA_REGIONS)) {
