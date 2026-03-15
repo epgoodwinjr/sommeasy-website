@@ -342,7 +342,7 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
   // Derive tappable suggestions from Step 4 estate selections
   const estateSuggestions = Object.entries(selectedEstates || {})
     .flatMap(([rId, eIds]) =>
-      (ESTATES[rId] || []).filter(e => eIds.includes(e.id)).map(e => e.name)
+      (PRODUCERS_DATA[rId] || []).filter(p => eIds.includes(p.id)).map(p => p.name)
     )
     .filter(name => !wines.includes(name))
     .slice(0, 8);
