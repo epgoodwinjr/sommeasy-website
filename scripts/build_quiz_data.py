@@ -23,7 +23,7 @@ import pandas as pd
 MIN_COUNTRY_REVIEWS = 100
 MIN_REGION_REVIEWS = 20
 MIN_PRODUCER_REVIEWS = 3
-MIN_VARIETAL_REVIEWS = 50
+MIN_VARIETAL_REVIEWS = 100
 MAX_PRODUCERS_PER_REGION = 100
 
 # ═══════════════════════════════════════════════════════
@@ -70,6 +70,7 @@ COUNTRY_EMOJI = {
 REGION_FIELD_OVERRIDE = {
     "US": "region_1",
     "Australia": "region_1",
+    "Italy": "region_1",       # Province lumps Friuli+Alto Adige as "Northeastern Italy"
     "Spain": "region_1",       # Province is too broad (Northern Spain, Catalonia)
     "Argentina": "region_1",   # Province is just "Mendoza Province"
 }

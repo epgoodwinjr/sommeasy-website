@@ -75,13 +75,14 @@ def test_aggregate_countries_old_new_world():
 
 def test_get_region_field_defaults():
     assert get_region_field("France") == "province"
-    assert get_region_field("Italy") == "province"
     assert get_region_field("Germany") == "province"
+    assert get_region_field("Portugal") == "province"
 
 
 def test_get_region_field_overrides():
     assert get_region_field("US") == "region_1"
     assert get_region_field("Australia") == "region_1"
+    assert get_region_field("Italy") == "region_1"
     assert get_region_field("Spain") == "region_1"
     assert get_region_field("Argentina") == "region_1"
 
