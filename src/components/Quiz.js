@@ -123,16 +123,53 @@ function CountryStep({ selected, onToggle }) {
 }
 
 function RegionStep({ selectedCountries, regions, onToggle }) {
+  const [expandedCountries, setExpandedCountries] = useState({});
+  const INITIAL_SHOW = 12;
+
   const items = selectedCountries
-    .map(cId => ({ id: cId, country: COUNTRIES.find(c => c.id === cId), regions: REGIONS[cId] || [] }))
+    .map(cId => {
+      const country = COUNTRIES_RAW.find(c => c.id === cId);
+      const countryRegions = (REGIONS_DATA[cId] || [])
+        .slice()
+        .sort((a, b) => b.reviewCount - a.reviewCount);
+      return { id: cId, country, regions: countryRegions };
+    })
     .filter(i => i.regions.length > 0);
+
   return (
     <div>
-      <StepHeader number="02" title="Let's get more specific" subtitle="For each country, do you have favorite regions? Select any you know and love — or skip to like the country broadly." />
+      <StepHeader number="02" title="Let's get more specific"
+        subtitle="For each country, do you have favorite regions? Select any you know and love — or skip to like the country broadly." />
       <Accordion items={items} defaultOpen={items[0]?.id}
         getLabel={i => `${i.country.emoji} ${i.country.name}`}
         getCount={i => (regions[i.id] || []).length}
-        renderContent={i => i.regions.map(r => <Chip key={r.id} label={r.name} selected={(regions[i.id] || []).includes(r.id)} onClick={() => onToggle(i.id, r.id)} small />)} />
+        renderContent={i => {
+          const isExpanded = expandedCountries[i.id];
+          const visible = isExpanded ? i.regions : i.regions.slice(0, INITIAL_SHOW);
+          const remaining = i.regions.length - INITIAL_SHOW;
+          return (
+            <>
+              {visible.map(r => (
+                <Chip key={r.id} label={r.name}
+                  selected={(regions[i.id] || []).includes(r.id)}
+                  onClick={() => onToggle(i.id, r.id)} small />
+              ))}
+              {!isExpanded && remaining > 0 && (
+                <button onClick={() => setExpandedCountries(p => ({ ...p, [i.id]: true }))}
+                  style={{
+                    width: "100%", padding: "8px", marginTop: 4,
+                    background: "none", border: "1px dashed rgba(27,61,47,0.2)",
+                    borderRadius: "8px", cursor: "pointer",
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                    color: "#8B2332", fontWeight: 500,
+                  }}>
+                  Show {remaining} more regions
+                </button>
+              )}
+            </>
+          );
+        }}
+      />
     </div>
   );
 }
