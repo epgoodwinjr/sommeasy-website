@@ -1312,6 +1312,41 @@ def build_unified_json(csv_path, min_country_reviews=MIN_COUNTRY_REVIEWS,
     }
 
 
+def build_autocomplete(result):
+    """Generate compact autocomplete data from unified producers.
+
+    Output schema per entry: { w: producer name, v: top varietal, r: region, c: country }
+    Matches the format consumed by Quiz.js SpecificWineStep.
+    """
+    country_map = {c['id']: c['name'] for c in result['countries']}
+    varietal_map = {v['id']: v['name'] for v in result['varietals']}
+
+    # Build region_id → (region_name, country_name) lookup
+    region_info = {}
+    for country_id, region_list in result['regions'].items():
+        for r in region_list:
+            region_info[r['id']] = (r['name'], country_map.get(country_id, ''))
+
+    entries = []
+    for region_id, producers in result['producers'].items():
+        r_name, c_name = region_info.get(region_id, ('', ''))
+        for p in producers:
+            # Use first topVarietal if available, resolve ID to display name
+            top_var = ''
+            if p.get('topVarietals'):
+                top_var = varietal_map.get(p['topVarietals'][0], '')
+            entries.append({
+                'w': p['name'],
+                'v': top_var,
+                'r': r_name,
+                'c': c_name,
+            })
+
+    # Sort by producer name for consistent output
+    entries.sort(key=lambda e: e['w'].lower())
+    return entries
+
+
 def main():
     if len(sys.argv) < 3:
         print("Usage: python scripts/build_quiz_data.py <input.csv> <output.json>")
@@ -1343,6 +1378,13 @@ def main():
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     print(f"\nWrote {output_path} ({os.path.getsize(output_path):,} bytes)")
+
+    # Generate autocomplete data alongside the main output
+    ac_path = os.path.join(os.path.dirname(output_path), 'wineAutocomplete.json')
+    ac_data = build_autocomplete(result)
+    with open(ac_path, 'w', encoding='utf-8') as f:
+        json.dump(ac_data, f, ensure_ascii=False)
+    print(f"Wrote {ac_path} ({len(ac_data):,} entries, {os.path.getsize(ac_path):,} bytes)")
 
 
 if __name__ == '__main__':
