@@ -93,7 +93,10 @@ SKIP_REGIONS = {
     "australia": {"australia", "south eastern australia", "south australia",
                   "western australia", "victoria"},
     "argentina": {"argentina"},
-    "south africa": {"western cape", "coastal region"},
+    "south_africa": {"western cape", "coastal region", "south africa",
+                      "northern cape", "olifants river", "lutzville valley",
+                      "ceres plateau", "eilandia", "malgas",
+                      "breede river valley"},
     "austria": {"österreichischer sekt"},
 }
 
@@ -214,19 +217,49 @@ ARGENTINA_REGION_ROLLUP = {
 }
 
 # ─── South Africa sub-district roll-up ────────────────────────
-# SA uses province (default). Roll up tiny sub-districts into parents.
+# SA uses province (default). Roll up sub-districts into the 11 target regions:
+# Constantia, Stellenbosch, Franschhoek, Paarl, Swartland, Robertson,
+# Hemel-en-Aarde / Walker Bay, Elgin, Tulbagh, Wellington, Klein Karoo
 SOUTH_AFRICA_REGION_ROLLUP = {
+    # Stellenbosch sub-districts
     "simonsberg-stellenbosch": "Stellenbosch",
     "jonkershoek valley": "Stellenbosch",
     "helderberg": "Stellenbosch", "devon valley": "Stellenbosch",
     "polkadraai hills": "Stellenbosch", "vlootenburg": "Stellenbosch",
-    "simonsberg-paarl": "Paarl", "wellington": "Paarl",
-    "bot river": "Walker Bay", "hemel en aarde": "Walker Bay",
+    "durbanville": "Stellenbosch",       # Cape Town metro, grouped with greater Stellenbosch
+    "philadelphia": "Stellenbosch",
+    "banghoek": "Stellenbosch",
+    # Paarl sub-districts (Wellington is now its own region)
+    "simonsberg-paarl": "Paarl",
+    # Hemel-en-Aarde / Walker Bay
+    "walker bay": "Hemel-en-Aarde / Walker Bay",
+    "hemel en aarde": "Hemel-en-Aarde / Walker Bay",
+    "bot river": "Hemel-en-Aarde / Walker Bay",
+    "hemel-en-aarde valley": "Hemel-en-Aarde / Walker Bay",
+    "hemel-en-aarde ridge": "Hemel-en-Aarde / Walker Bay",
+    "upper hemel-en-aarde valley": "Hemel-en-Aarde / Walker Bay",
+    # Constantia
     "cape peninsula": "Constantia",
-    "groenekloof": "Darling",
+    "cape point": "Constantia",
+    # Elgin
     "overberg": "Elgin",
     "cape south coast": "Elgin",
+    "cape agulhas": "Elgin",
+    "elim": "Elgin",
+    # Swartland
     "paardeberg": "Swartland",
+    "darling": "Swartland",
+    "groenekloof": "Swartland",
+    "malmesbury": "Swartland",
+    "cederberg": "Swartland",
+    "piekenierskloof": "Swartland",
+    # Klein Karoo
+    "calitzdorp": "Klein Karoo",
+    "montagu": "Klein Karoo",
+    "tradouw": "Klein Karoo",
+    "klein karoo": "Klein Karoo",
+    # Robertson area
+    "breedekloof": "Robertson",
 }
 
 # ─── Germany region roll-up ──────────────────────────────────
@@ -254,6 +287,158 @@ REGION_ROLLUP = {
     "Portugal": PORTUGAL_REGION_ROLLUP,
     "Austria": AUSTRIA_REGION_ROLLUP,
 }
+
+# ─── Curated producers ──────────────────────────────────────────
+# For countries where WineMag coverage is thin, supplement with
+# curated producer lists. These are merged into WineMag-derived data
+# in inject_curated_producers(). Producers already found in WineMag
+# keep their real stats; new ones get synthetic entries.
+# Order defines rank (first = rank 1).
+CURATED_PRODUCERS = {
+    "South Africa": {
+        "Constantia": [
+            "Klein Constantia", "Steenberg", "Groot Constantia",
+            "Buitenverwachting", "Constantia Glen", "Beau Constantia",
+            "Eagles' Nest", "Constantia Royale",
+        ],
+        "Stellenbosch": [
+            # Tier 1 — Benchmark / iconic
+            "Kanonkop Wine Estate", "Meerlust Estate", "Rust en Vrede Estate",
+            "Thelema Mountain Vineyards", "De Toren Private Cellar",
+            "Jordan Wine Estate", "Delaire Graff Estate", "Simonsig Wine Estate",
+            "Warwick Estate", "Waterford Estate", "DeMorgenzon",
+            "Uva Mira Mountain Vineyards", "Keermont Vineyards",
+            "Hartenberg Estate", "Stark-Condé Wines", "Le Riche Wines",
+            "Glenelly", "Lanzerac", "Beyerskloof", "Kleine Zalze",
+            "Raats Family Wines", "Rustenberg", "Tokara",
+            # Tier 2 — Prestige estates
+            "Oldenburg Vineyards", "Neil Ellis Wines", "Kleinood",
+            "Cavalli Wine & Stud Farm", "Ernie Els Wines", "Boschkloof Wines",
+            "Muratie Estate", "Kaapzicht Wine Estate", "Delheim",
+            "Ken Forrester", "Spier", "Vergenoegd Löw Wine Estate",
+            "Longridge Wine Estate", "Stellenrust", "Mooiplaas Wine Estate",
+            "L'Avenir", "Blaauwklippen", "Louisvale Wines",
+            "Taaibosch Wine Estate", "Vriesenhof Vineyards",
+            "Rainbow's End Wine Estate", "Remhoogte Wine Estate",
+            "Bellevue Estate", "Morgenster Estate", "Quoin Rock",
+            # Tier 3 — Strong established names
+            "Hazendal", "Hidden Valley Wines", "Zevenwacht", "Idiom Wines",
+            "Dornier Wines", "Eikendal Vineyards", "Villiera Wines",
+            "Saxenburg", "Neethlingshof", "Peter Falke Wines",
+            "Middelvlei Wines", "Dalla Cia", "Miles Mossop Wines",
+            "Grangehurst", "Zorgvliet Wines", "Post House",
+            "Stellenbosch Vineyards", "Yonder Hill", "Guardian Peak",
+            "Lievland Vineyards", "Le Pommier", "Knorhoek",
+            "Haskell Vineyards", "Lyngrove", "Overgaauw Wine Estate",
+            "Avontuur Estate", "Alto Wine Estate", "Aslina Wines",
+            "Flagstone Wines",
+            # Tier 4 — Solid route producers
+            "Vredenheim", "Skilpadvlei", "Kanu Wines", "Le Grand Domaine",
+            "Clos Malverne", "Weltevreden Estate / Bertha Wines",
+            "Stellenzicht Wines", "Pink Valley Wines", "Foothills Vineyards",
+            "Slaley", "Somerbosch Wines", "Koelenhof Wine Cellar",
+            "Le Bonheur Estate", "Kunjani Wines",
+            "Clouds Wine & Guest Estate", "La Boucher Wines",
+            "Heins Family Wines (Kleine Liebe)", "Deux Frères",
+            "De Waal Wines", "De Meye", "Visio Vintners", "Long Dog Wine",
+            "LovanE Boutique Wine Estate", "Klein DasBosch", "Meinert Wines",
+            "Bartinney Private Cellar", "Ladybird Vineyards",
+            # Tier 5 — Small / niche
+            "Annandale Wines", "Barnardt Boyes Wines", "Bein Wine Cellar",
+            "Brenaissance Wine & Stud Estate", "Compagniesdrift", "Groenland",
+            "Limoenkloof", "The High Road", "Winshaw Vineyards",
+        ],
+        "Hemel-en-Aarde / Walker Bay": [
+            "Hamilton Russell Vineyards", "Newton Johnson Vineyards",
+            "Creation", "Bouchard Finlayson", "Ataraxia", "Restless River",
+            "Cap Maritime", "La Vierge", "Spookfontein", "Bosman Hermanus",
+            "Hasher Family Estate", "Francis Wines",
+        ],
+        "Elgin": [
+            "Paul Cluver", "Kershaw Wines", "Iona", "Oak Valley",
+            "Elgin Vintners", "Shannon Vineyards", "Charles Fox", "Almenkerk",
+            "La Brune", "Lothian", "Radford Dale Organic", "South Hill",
+            "Paul Wallace Family Wines", "Neil Ellis", "Highlands Road",
+            "Boschendal", "Sutherland Vineyards", "Tokara Highlands",
+            "Spioenkop Wines", "Moya Meaker", "Oneiric Wine Estate",
+            "Off the Record", "IDUN", "Vrede en Lust",
+        ],
+        "Swartland": [
+            "The Sadie Family Wines", "Mullineux", "Porseleinberg",
+            "David & Nadia", "AA Badenhorst", "Rall Wines", "TESTALONGA",
+            "Intellego", "Pulpit Rock", "Swerwer Wines", "Kloovenburg",
+            "Lammershoek", "Allesverloren", "Leeuwenkuil", "Marras",
+            "Great Heart Wines", "Riebeek Valley Wine Co", "FRAM",
+            "Org de Rac", "Babylon's Peak", "Thor Vintners & Co.",
+            "Tim Hillock", "Yellowwood", "Wightman & Sons",
+            "City on a Hill", "Dragonridge", "Hofstraat Wynkelder",
+            "Klein Amoskuil", "Nativo", "Swartland Winery",
+            "Het Vlock Casteel", "Schenkfontein",
+        ],
+        "Franschhoek": [
+            "Boekenhoutskloof", "La Motte", "Babylonstoren", "Boschendal",
+            "Rupert & Rothschild Vignerons", "Haute Cabrière", "Le Lude",
+            "Mullineux & Leeu Family Wines", "Anthonij Rupert Wyne",
+            "Cape Chamonix", "Rickety Bridge", "Holden Manz", "Paserene",
+            "Grande Provence", "Colmant", "La Petite Ferme", "Mont Rochelle",
+            "Glenwood", "Franschhoek Cellar", "Dieu Donné",
+            "Backsberg Family Wines", "Maison Estate", "Leopard's Leap",
+            "Wildeberg Wines", "Val de Vie Wine & Polo Estate", "Bellingham",
+            "Painted Wolf Wines", "Noble Hill", "Allée Bleue",
+            "Blackwater Wines & Vines", "Black Elephant Vintners", "La Bri",
+            "Lynx Wines", "Le Manoir de Brendel", "Deux Lions",
+            "Klein Goederust", "Eikehof", "Stony Brook",
+            "Veraison Vineyards", "Terre Paisible", "Akkerdal Wine Estate",
+            "Franschhoek Pass Winery", "Klein Champagne / Mel Wines",
+            "La Chataigne", "La Cotte Farm", "Old Road Wine Co.",
+        ],
+        "Paarl": [
+            "Nederburg", "Fairview", "Babylonstoren", "Brookdale", "KWV",
+            "Vrede en Lust", "Spice Route", "Perdeberg", "Rhebokskloof",
+            "Niel Joubert", "Landskroon & Survivor", "Boland Cellar",
+            "Windmeul", "Ridgeback", "Painted Wolf Wines", "Dekkersvlei",
+        ],
+        "Robertson": [
+            "Springfield Estate", "De Wetshof Estate", "Graham Beck",
+            "Silverthorn Wines", "Rietvallei Wine Estate",
+            "Bon Courage Estate", "Weltevrede Estate", "Arendsig",
+            "Van Loveren", "Paul René MCC", "Excelsior Wine Estate",
+            "Robertson Winery", "Ashton Winery",
+            "Tanagra Wine & Guestfarm", "Viljoensdrift",
+            "Mont Blois Estate", "Mimosa Wines", "Bonnievale Wines",
+            "Rooiberg Winery", "Kleinhoekkloof",
+            "Esona Boutique Wine Estate", "Langverwacht Winery",
+            "Rivergold Private Cellar", "Windfall Wine",
+        ],
+        "Tulbagh": [
+            "Saronsberg Cellar", "Rijk's Wine Estate",
+            "Twee Jonge Gezellen / Krone", "Montpellier Wine Estate",
+            "Lemberg Wine Estate", "Manley Wine Estate", "Tulbagh Winery",
+            "Theuniskraal Wine Estate",
+            "Oude Compagnies Post / Swanepoel Wines",
+            "Oudekloof Wine Estate", "Blue Crane Vineyards",
+        ],
+        "Wellington": [
+            "Bosman Family Vineyards", "Diemersfontein Wines",
+            "Doolhof Wine Estate", "Mont Du Toit Kelder",
+            "Wellington Wines", "Imbuko Wines",
+            "Upland Organic Wine & Brandy Estate", "Dunstone Estate",
+            "Andreas Wines", "Welgegund", "Wolvenhoek", "Canetsfontein",
+            "Jacaranda Wine & Guest Farm",
+        ],
+        "Klein Karoo": [
+            "Boplaas Family Vineyards", "De Krans Wine Cellar",
+            "Joubert-Tradauw", "Joseph Barry", "Calitzdorp Wine Cellar",
+            "Montagu Wine Cellar", "Karusa Wines and Craft Brewery",
+            "Drie Berge Winery", "Axe Hill Winery", "Rietrivier Winery",
+            "Tahlia Distillery", "Domein Doornkraal", "Herold Wines",
+            "Du'SwaRoo", "Peter Bayly Wines", "Grundheim",
+            "Hillock Wines", "Metanoia Distillery", "TTT Cellars",
+            "Excelsior Vlakteplaas",
+        ],
+    },
+}
+
 
 # ─── Composite province splitting ─────────────────────────────
 # For countries where WineMag lumps multiple admin regions under a single
@@ -742,6 +927,20 @@ def aggregate_regions(df, qualifying_country_ids, min_reviews=MIN_REGION_REVIEWS
         if region_list:
             regions_dict[country_id] = region_list
 
+    # Populate regionLookup with rollup source terms.
+    # The rollup transforms province values BEFORE regions are created,
+    # so the original terms (e.g., "walker bay") never enter the lookup.
+    # The match engine needs these to resolve wine list mentions.
+    for country_name, rollup in REGION_ROLLUP.items():
+        country_id = make_id(country_name)
+        for source_term, target_name in rollup.items():
+            target_id = make_id(target_name)
+            if source_term not in region_lookup:
+                region_lookup[source_term] = {
+                    'regionId': target_id,
+                    'country': country_id,
+                }
+
     return regions_dict, region_lookup
 
 
@@ -854,6 +1053,129 @@ def aggregate_producers(df, qualifying_regions, min_reviews=MIN_PRODUCER_REVIEWS
 
 
 # ═══════════════════════════════════════════════════════
+# CURATED PRODUCER INJECTION
+# ═══════════════════════════════════════════════════════
+
+def _find_existing_producer(name, existing_producers):
+    """Find a WineMag producer matching a curated name (fuzzy)."""
+    target_id = make_id(name)
+    target_lower = name.lower().strip()
+
+    for p in existing_producers:
+        # Exact ID match
+        if p['id'] == target_id:
+            return p
+        # Substring match (either direction) — handles
+        # "Kanonkop" matching "Kanonkop Wine Estate"
+        p_lower = p['name'].lower().strip()
+        if len(target_lower) >= 5 and len(p_lower) >= 5:
+            if target_lower in p_lower or p_lower in target_lower:
+                return p
+    return None
+
+
+def inject_curated_producers(producers_dict, producer_lookup,
+                             regions_dict, region_lookup):
+    """Merge curated producer lists into WineMag-derived data.
+
+    For each country/region in CURATED_PRODUCERS:
+    1. If the region doesn't exist yet, create it with synthetic stats
+    2. For each curated producer, check if already in WineMag data
+    3. If found, keep WineMag stats but assign curated rank
+    4. If not found, create a synthetic entry
+    5. Append any WineMag-only producers after the curated list
+    6. Update producer_lookup with new entries
+    """
+    for country_name, region_map in CURATED_PRODUCERS.items():
+        country_id = make_id(country_name)
+
+        for region_name, curated_names in region_map.items():
+            region_id = make_id(region_name)
+
+            # Ensure the region exists in regions_dict
+            if country_id not in regions_dict:
+                regions_dict[country_id] = []
+
+            region_exists = any(
+                r['id'] == region_id
+                for r in regions_dict.get(country_id, [])
+            )
+            if not region_exists:
+                # Create synthetic region entry
+                regions_dict[country_id].append({
+                    'id': region_id,
+                    'name': region_name,
+                    'province': region_name,
+                    'reviewCount': len(curated_names),
+                    'avgRating': 88.0,
+                    'producerCount': len(curated_names),
+                    'topVarietals': [],
+                })
+                # Add to region_lookup
+                rkey = region_name.lower().strip()
+                if rkey not in region_lookup:
+                    region_lookup[rkey] = {
+                        'regionId': region_id,
+                        'country': country_id,
+                    }
+
+            # Get existing WineMag producers for this region
+            existing = producers_dict.get(region_id, [])
+            matched_ids = set()
+
+            # Build merged list: curated order first, with WineMag stats where available
+            merged = []
+            for rank, name in enumerate(curated_names, 1):
+                pid = make_id(name)
+                match = _find_existing_producer(name, existing)
+                if match:
+                    # Keep WineMag stats, assign curated rank
+                    entry = match.copy()
+                    entry['rank'] = rank
+                    merged.append(entry)
+                    matched_ids.add(match['id'])
+                else:
+                    # Create synthetic entry
+                    merged.append({
+                        'id': pid,
+                        'name': name,
+                        'reviewCount': 1,
+                        'avgRating': 88.0,
+                        'topVarietals': [],
+                        'rank': rank,
+                    })
+
+                # Add to producer_lookup if not already there
+                lookup_key = name.lower().strip()
+                if lookup_key not in producer_lookup:
+                    producer_lookup[lookup_key] = {
+                        'producerId': pid,
+                        'regionId': region_id,
+                        'country': country_id,
+                        'province': region_name,
+                    }
+
+            # Append remaining WineMag producers not in curated list
+            remaining_rank = len(curated_names) + 1
+            for p in existing:
+                if p['id'] not in matched_ids:
+                    p_copy = p.copy()
+                    p_copy['rank'] = remaining_rank
+                    merged.append(p_copy)
+                    remaining_rank += 1
+
+            producers_dict[region_id] = merged
+
+            # Update producerCount on the region entry
+            for r in regions_dict.get(country_id, []):
+                if r['id'] == region_id:
+                    r['producerCount'] = len(merged)
+                    break
+
+    return producers_dict, producer_lookup
+
+
+# ═══════════════════════════════════════════════════════
 # VARIETAL AGGREGATION
 # ═══════════════════════════════════════════════════════
 
@@ -954,6 +1276,12 @@ def build_unified_json(csv_path, min_country_reviews=MIN_COUNTRY_REVIEWS,
         min_reviews=min_producer_reviews,
         max_per_region=max_producers_per_region
     )
+
+    # 3b. Inject curated producers (supplements thin WineMag coverage)
+    if CURATED_PRODUCERS:
+        producers, producer_lookup = inject_curated_producers(
+            producers, producer_lookup, regions, region_lookup
+        )
 
     # 4. Varietals
     varietals, varietal_lookup = aggregate_varietals(df, min_reviews=min_varietal_reviews)

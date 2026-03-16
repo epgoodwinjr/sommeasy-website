@@ -183,7 +183,7 @@
       "world": "new",
       "reviewCount": 1401,
       "avgRating": 88.1,
-      "regionCount": 11,
+      "regionCount": 10,
       "topVarietals": [
         "cabernet_sauvignon",
         "chenin_blanc",
@@ -2135,9 +2135,9 @@
         "id": "stellenbosch",
         "name": "Stellenbosch",
         "province": "Stellenbosch",
-        "reviewCount": 496,
-        "avgRating": 88.8,
-        "producerCount": 96,
+        "reviewCount": 512,
+        "avgRating": 88.7,
+        "producerCount": 138,
         "topVarietals": [
           "cabernet_sauvignon",
           "chenin_blanc",
@@ -2147,57 +2147,27 @@
         ]
       },
       {
-        "id": "western_cape",
-        "name": "Western Cape",
-        "province": "Western Cape",
-        "reviewCount": 281,
-        "avgRating": 86.7,
-        "producerCount": 97,
+        "id": "swartland",
+        "name": "Swartland",
+        "province": "Swartland",
+        "reviewCount": 95,
+        "avgRating": 88.9,
+        "producerCount": 40,
         "topVarietals": [
-          "sauvignon_blanc",
           "chenin_blanc",
           "syrah",
-          "chardonnay",
-          "pinotage"
-        ]
-      },
-      {
-        "id": "coastal_region",
-        "name": "Coastal Region",
-        "province": "Coastal Region",
-        "reviewCount": 132,
-        "avgRating": 87.4,
-        "producerCount": 48,
-        "topVarietals": [
-          "chenin_blanc",
           "pinotage",
-          "syrah",
           "sauvignon_blanc",
           "cabernet_sauvignon"
-        ]
-      },
-      {
-        "id": "paarl",
-        "name": "Paarl",
-        "province": "Paarl",
-        "reviewCount": 102,
-        "avgRating": 88.1,
-        "producerCount": 30,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "chenin_blanc",
-          "chardonnay",
-          "pinotage",
-          "syrah"
         ]
       },
       {
         "id": "robertson",
         "name": "Robertson",
         "province": "Robertson",
-        "reviewCount": 88,
-        "avgRating": 86.9,
-        "producerCount": 15,
+        "reviewCount": 91,
+        "avgRating": 87.0,
+        "producerCount": 26,
         "topVarietals": [
           "chardonnay",
           "syrah",
@@ -2207,27 +2177,27 @@
         ]
       },
       {
-        "id": "swartland",
-        "name": "Swartland",
-        "province": "Swartland",
-        "reviewCount": 74,
-        "avgRating": 89.0,
-        "producerCount": 18,
+        "id": "paarl",
+        "name": "Paarl",
+        "province": "Paarl",
+        "reviewCount": 79,
+        "avgRating": 88.2,
+        "producerCount": 23,
         "topVarietals": [
+          "chardonnay",
           "chenin_blanc",
-          "pinotage",
-          "syrah",
           "cabernet_sauvignon",
-          "viognier"
+          "pinotage",
+          "merlot"
         ]
       },
       {
         "id": "elgin",
         "name": "Elgin",
         "province": "Elgin",
-        "reviewCount": 59,
-        "avgRating": 88.5,
-        "producerCount": 22,
+        "reviewCount": 63,
+        "avgRating": 88.6,
+        "producerCount": 24,
         "topVarietals": [
           "chardonnay",
           "sauvignon_blanc",
@@ -2237,9 +2207,9 @@
         ]
       },
       {
-        "id": "walker_bay",
-        "name": "Walker Bay",
-        "province": "Walker Bay",
+        "id": "hemel_en_aarde_walker_bay",
+        "name": "Hemel-en-Aarde / Walker Bay",
+        "province": "Hemel-en-Aarde / Walker Bay",
         "reviewCount": 42,
         "avgRating": 89.2,
         "producerCount": 15,
@@ -2257,7 +2227,7 @@
         "province": "Constantia",
         "reviewCount": 27,
         "avgRating": 89.2,
-        "producerCount": 5,
+        "producerCount": 9,
         "topVarietals": [
           "sauvignon_blanc",
           "chardonnay",
@@ -2272,7 +2242,7 @@
         "province": "Franschhoek",
         "reviewCount": 23,
         "avgRating": 87.8,
-        "producerCount": 10,
+        "producerCount": 46,
         "topVarietals": [
           "sauvignon_blanc",
           "semillon",
@@ -2282,12 +2252,27 @@
         ]
       },
       {
+        "id": "wellington",
+        "name": "Wellington",
+        "province": "Wellington",
+        "reviewCount": 23,
+        "avgRating": 87.7,
+        "producerCount": 15,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "pinotage",
+          "chenin_blanc",
+          "viognier",
+          "syrah"
+        ]
+      },
+      {
         "id": "tulbagh",
         "name": "Tulbagh",
         "province": "Tulbagh",
         "reviewCount": 16,
         "avgRating": 89.8,
-        "producerCount": 4,
+        "producerCount": 12,
         "topVarietals": [
           "syrah",
           "pinotage",
@@ -2295,6 +2280,15 @@
           "rose",
           "cabernet_sauvignon"
         ]
+      },
+      {
+        "id": "klein_karoo",
+        "name": "Klein Karoo",
+        "province": "Klein Karoo",
+        "reviewCount": 20,
+        "avgRating": 88.0,
+        "producerCount": 20,
+        "topVarietals": []
       }
     ],
     "new_zealand": [
@@ -19170,14 +19164,13 @@
     ],
     "swartland": [
       {
-        "id": "spice_route",
-        "name": "Spice Route",
-        "reviewCount": 18,
-        "avgRating": 88.4,
+        "id": "sadie_family",
+        "name": "Sadie Family",
+        "reviewCount": 4,
+        "avgRating": 92.0,
         "topVarietals": [
-          "pinotage",
-          "viognier",
-          "chenin_blanc"
+          "tinta_barroca",
+          "cinsault"
         ],
         "rank": 1
       },
@@ -19194,26 +19187,291 @@
         "rank": 2
       },
       {
+        "id": "porseleinberg",
+        "name": "Porseleinberg",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 3
+      },
+      {
+        "id": "david_nadia",
+        "name": "David & Nadia",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 4
+      },
+      {
+        "id": "aa_badenhorst",
+        "name": "AA Badenhorst",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 5
+      },
+      {
+        "id": "rall_wines",
+        "name": "Rall Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "testalonga",
+        "name": "TESTALONGA",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "intellego",
+        "name": "Intellego",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 8
+      },
+      {
+        "id": "pulpit_rock",
+        "name": "Pulpit Rock",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 9
+      },
+      {
+        "id": "swerwer_wines",
+        "name": "Swerwer Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 10
+      },
+      {
+        "id": "kloovenburg",
+        "name": "Kloovenburg",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 11
+      },
+      {
+        "id": "lammershoek",
+        "name": "Lammershoek",
+        "reviewCount": 3,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 12
+      },
+      {
+        "id": "allesverloren",
+        "name": "Allesverloren",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 13
+      },
+      {
+        "id": "leeuwenkuil",
+        "name": "Leeuwenkuil",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 14
+      },
+      {
+        "id": "marras",
+        "name": "Marras",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 15
+      },
+      {
+        "id": "great_heart_wines",
+        "name": "Great Heart Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 16
+      },
+      {
+        "id": "riebeek_valley_wine_co",
+        "name": "Riebeek Valley Wine Co",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 17
+      },
+      {
+        "id": "fram",
+        "name": "FRAM",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 18
+      },
+      {
+        "id": "org_de_rac",
+        "name": "Org de Rac",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 19
+      },
+      {
+        "id": "babylon_s_peak",
+        "name": "Babylon's Peak",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 20
+      },
+      {
+        "id": "thor_vintners_co",
+        "name": "Thor Vintners & Co.",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 21
+      },
+      {
+        "id": "tim_hillock",
+        "name": "Tim Hillock",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 22
+      },
+      {
+        "id": "yellowwood",
+        "name": "Yellowwood",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 23
+      },
+      {
+        "id": "wightman_sons",
+        "name": "Wightman & Sons",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 24
+      },
+      {
+        "id": "city_on_a_hill",
+        "name": "City on a Hill",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 25
+      },
+      {
+        "id": "dragonridge",
+        "name": "Dragonridge",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 26
+      },
+      {
+        "id": "hofstraat_wynkelder",
+        "name": "Hofstraat Wynkelder",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 27
+      },
+      {
+        "id": "klein_amoskuil",
+        "name": "Klein Amoskuil",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 28
+      },
+      {
+        "id": "nativo",
+        "name": "Nativo",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 29
+      },
+      {
+        "id": "swartland_winery",
+        "name": "Swartland Winery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 30
+      },
+      {
+        "id": "het_vlock_casteel",
+        "name": "Het Vlock Casteel",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 31
+      },
+      {
+        "id": "schenkfontein",
+        "name": "Schenkfontein",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 32
+      },
+      {
+        "id": "spice_route",
+        "name": "Spice Route",
+        "reviewCount": 20,
+        "avgRating": 88.2,
+        "topVarietals": [
+          "pinotage",
+          "viognier",
+          "chenin_blanc"
+        ],
+        "rank": 33
+      },
+      {
+        "id": "neil_ellis",
+        "name": "Neil Ellis",
+        "reviewCount": 11,
+        "avgRating": 89.3,
+        "topVarietals": [
+          "syrah",
+          "chardonnay",
+          "sauvignon_blanc"
+        ],
+        "rank": 34
+      },
+      {
         "id": "a_a_badenhorst_family_wines",
         "name": "A.A. Badenhorst Family Wines",
-        "reviewCount": 9,
-        "avgRating": 90.9,
+        "reviewCount": 7,
+        "avgRating": 91.1,
         "topVarietals": [
           "syrah",
           "rose"
         ],
-        "rank": 3
+        "rank": 35
       },
       {
-        "id": "sadie_family",
-        "name": "Sadie Family",
-        "reviewCount": 4,
-        "avgRating": 92.0,
+        "id": "cederberg",
+        "name": "Cederberg",
+        "reviewCount": 9,
+        "avgRating": 89.0,
         "topVarietals": [
-          "tinta_barroca",
-          "cinsault"
+          "syrah",
+          "sauvignon_blanc",
+          "cabernet_sauvignon"
         ],
-        "rank": 4
+        "rank": 36
       },
       {
         "id": "riebeek_cellars",
@@ -19225,7 +19483,7 @@
           "chenin_blanc",
           "pinotage"
         ],
-        "rank": 5
+        "rank": 37
       },
       {
         "id": "terre_brulee",
@@ -19235,15 +19493,28 @@
         "topVarietals": [
           "chenin_blanc"
         ],
-        "rank": 6
+        "rank": 38
       },
       {
-        "id": "lammershoek",
-        "name": "Lammershoek",
+        "id": "painted_wolf",
+        "name": "Painted Wolf",
+        "reviewCount": 4,
+        "avgRating": 87.5,
+        "topVarietals": [
+          "pinotage",
+          "chenin_blanc"
+        ],
+        "rank": 39
+      },
+      {
+        "id": "ormonde",
+        "name": "Ormonde",
         "reviewCount": 3,
-        "avgRating": 88.0,
-        "topVarietals": [],
-        "rank": 7
+        "avgRating": 86.3,
+        "topVarietals": [
+          "chardonnay"
+        ],
+        "rank": 40
       }
     ],
     "umpqua_valley": [
@@ -44765,351 +45036,6 @@
         "rank": 16
       }
     ],
-    "western_cape": [
-      {
-        "id": "graham_beck",
-        "name": "Graham Beck",
-        "reviewCount": 30,
-        "avgRating": 87.0,
-        "topVarietals": [
-          "syrah",
-          "chenin_blanc",
-          "chardonnay"
-        ],
-        "rank": 1
-      },
-      {
-        "id": "mulderbosch",
-        "name": "Mulderbosch",
-        "reviewCount": 19,
-        "avgRating": 87.8,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "cabernet_sauvignon",
-          "rose"
-        ],
-        "rank": 2
-      },
-      {
-        "id": "fleur_du_cap",
-        "name": "Fleur Du Cap",
-        "reviewCount": 22,
-        "avgRating": 86.5,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "cabernet_sauvignon",
-          "merlot"
-        ],
-        "rank": 3
-      },
-      {
-        "id": "neil_ellis",
-        "name": "Neil Ellis",
-        "reviewCount": 16,
-        "avgRating": 88.1,
-        "topVarietals": [
-          "syrah",
-          "chardonnay",
-          "sauvignon_blanc"
-        ],
-        "rank": 4
-      },
-      {
-        "id": "tokara",
-        "name": "Tokara",
-        "reviewCount": 8,
-        "avgRating": 89.4,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chardonnay"
-        ],
-        "rank": 5
-      },
-      {
-        "id": "bizoe",
-        "name": "Bizoe",
-        "reviewCount": 4,
-        "avgRating": 90.5,
-        "topVarietals": [
-          "syrah"
-        ],
-        "rank": 6
-      },
-      {
-        "id": "vins_d_orrance",
-        "name": "Vins d'Orrance",
-        "reviewCount": 4,
-        "avgRating": 90.5,
-        "topVarietals": [
-          "syrah",
-          "chardonnay",
-          "chenin_blanc"
-        ],
-        "rank": 7
-      },
-      {
-        "id": "kwv",
-        "name": "KWV",
-        "reviewCount": 16,
-        "avgRating": 86.4,
-        "topVarietals": [
-          "merlot",
-          "sauvignon_blanc",
-          "syrah"
-        ],
-        "rank": 8
-      },
-      {
-        "id": "indaba",
-        "name": "Indaba",
-        "reviewCount": 15,
-        "avgRating": 85.9,
-        "topVarietals": [
-          "chardonnay",
-          "chenin_blanc",
-          "sauvignon_blanc"
-        ],
-        "rank": 9
-      },
-      {
-        "id": "ataraxia",
-        "name": "Ataraxia",
-        "reviewCount": 3,
-        "avgRating": 89.7,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chardonnay"
-        ],
-        "rank": 10
-      },
-      {
-        "id": "eikendal",
-        "name": "Eikendal",
-        "reviewCount": 8,
-        "avgRating": 87.9,
-        "topVarietals": [
-          "chardonnay",
-          "sauvignon_blanc",
-          "merlot"
-        ],
-        "rank": 11
-      },
-      {
-        "id": "nederburg",
-        "name": "Nederburg",
-        "reviewCount": 10,
-        "avgRating": 86.6,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "pinotage",
-          "cabernet_sauvignon"
-        ],
-        "rank": 12
-      },
-      {
-        "id": "guardian_peak",
-        "name": "Guardian Peak",
-        "reviewCount": 6,
-        "avgRating": 87.7,
-        "topVarietals": [
-          "merlot",
-          "syrah"
-        ],
-        "rank": 13
-      },
-      {
-        "id": "porcupine_ridge",
-        "name": "Porcupine Ridge",
-        "reviewCount": 8,
-        "avgRating": 86.9,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "syrah",
-          "cabernet_sauvignon"
-        ],
-        "rank": 14
-      },
-      {
-        "id": "brampton",
-        "name": "Brampton",
-        "reviewCount": 5,
-        "avgRating": 87.4,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "viognier",
-          "chardonnay"
-        ],
-        "rank": 15
-      },
-      {
-        "id": "protea",
-        "name": "Protea",
-        "reviewCount": 5,
-        "avgRating": 87.0,
-        "topVarietals": [
-          "chenin_blanc",
-          "rose"
-        ],
-        "rank": 16
-      },
-      {
-        "id": "fairvalley",
-        "name": "Fairvalley",
-        "reviewCount": 10,
-        "avgRating": 85.3,
-        "topVarietals": [
-          "chenin_blanc",
-          "chardonnay",
-          "pinotage"
-        ],
-        "rank": 17
-      },
-      {
-        "id": "david_frost",
-        "name": "David Frost",
-        "reviewCount": 4,
-        "avgRating": 87.0,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "pinotage",
-          "cabernet_sauvignon"
-        ],
-        "rank": 18
-      },
-      {
-        "id": "allee_bleue",
-        "name": "Allée Bleue",
-        "reviewCount": 3,
-        "avgRating": 87.3,
-        "topVarietals": [
-          "chenin_blanc"
-        ],
-        "rank": 19
-      },
-      {
-        "id": "juno",
-        "name": "Juno",
-        "reviewCount": 4,
-        "avgRating": 86.8,
-        "topVarietals": [
-          "syrah",
-          "rose"
-        ],
-        "rank": 20
-      },
-      {
-        "id": "douglas_green",
-        "name": "Douglas Green",
-        "reviewCount": 4,
-        "avgRating": 86.2,
-        "topVarietals": [
-          "syrah",
-          "sauvignon_blanc",
-          "rose"
-        ],
-        "rank": 21
-      },
-      {
-        "id": "solms_delta",
-        "name": "Solms-Delta",
-        "reviewCount": 4,
-        "avgRating": 86.2,
-        "topVarietals": [
-          "syrah",
-          "rose"
-        ],
-        "rank": 22
-      },
-      {
-        "id": "thorntree",
-        "name": "Thorntree",
-        "reviewCount": 5,
-        "avgRating": 85.6,
-        "topVarietals": [
-          "chardonnay",
-          "sauvignon_blanc",
-          "syrah"
-        ],
-        "rank": 23
-      },
-      {
-        "id": "blue_cove",
-        "name": "Blue Cove",
-        "reviewCount": 3,
-        "avgRating": 86.0,
-        "topVarietals": [
-          "viognier",
-          "merlot",
-          "syrah"
-        ],
-        "rank": 24
-      },
-      {
-        "id": "havana_hills",
-        "name": "Havana Hills",
-        "reviewCount": 3,
-        "avgRating": 86.0,
-        "topVarietals": [
-          "syrah"
-        ],
-        "rank": 25
-      },
-      {
-        "id": "sebeka",
-        "name": "Sebeka",
-        "reviewCount": 3,
-        "avgRating": 86.0,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chenin_blanc"
-        ],
-        "rank": 26
-      },
-      {
-        "id": "two_oceans",
-        "name": "Two Oceans",
-        "reviewCount": 7,
-        "avgRating": 84.4,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "syrah",
-          "chardonnay"
-        ],
-        "rank": 27
-      },
-      {
-        "id": "vintales",
-        "name": "Vintales",
-        "reviewCount": 3,
-        "avgRating": 85.7,
-        "topVarietals": [
-          "rose",
-          "sauvignon_blanc"
-        ],
-        "rank": 28
-      },
-      {
-        "id": "golden_kaan",
-        "name": "Golden Kaan",
-        "reviewCount": 4,
-        "avgRating": 85.2,
-        "topVarietals": [
-          "pinotage",
-          "chardonnay"
-        ],
-        "rank": 29
-      },
-      {
-        "id": "releaf",
-        "name": "Releaf",
-        "reviewCount": 3,
-        "avgRating": 85.0,
-        "topVarietals": [
-          "chenin_blanc"
-        ],
-        "rank": 30
-      }
-    ],
     "patagonia": [
       {
         "id": "verum",
@@ -47933,18 +47859,6 @@
         "rank": 4
       },
       {
-        "id": "tussock_jumper",
-        "name": "Tussock Jumper",
-        "reviewCount": 14,
-        "avgRating": 85.6,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chenin_blanc",
-          "malbec"
-        ],
-        "rank": 5
-      },
-      {
         "id": "bodegas_rafael_cambra",
         "name": "Bodegas Rafael Cambra",
         "reviewCount": 5,
@@ -47953,7 +47867,7 @@
           "grenache",
           "mourvedre"
         ],
-        "rank": 6
+        "rank": 5
       },
       {
         "id": "casa_l_angel",
@@ -47962,6 +47876,18 @@
         "avgRating": 87.2,
         "topVarietals": [
           "cabernet_sauvignon"
+        ],
+        "rank": 6
+      },
+      {
+        "id": "tussock_jumper",
+        "name": "Tussock Jumper",
+        "reviewCount": 12,
+        "avgRating": 85.2,
+        "topVarietals": [
+          "sauvignon_blanc",
+          "malbec",
+          "rose"
         ],
         "rank": 7
       },
@@ -51025,8 +50951,8 @@
       {
         "id": "laroche",
         "name": "Laroche",
-        "reviewCount": 9,
-        "avgRating": 86.1,
+        "reviewCount": 8,
+        "avgRating": 86.2,
         "topVarietals": [
           "chardonnay",
           "rose",
@@ -53501,138 +53427,48 @@
     ],
     "paarl": [
       {
-        "id": "vilafonte",
-        "name": "Vilafonté",
-        "reviewCount": 13,
-        "avgRating": 91.2,
+        "id": "nederburg",
+        "name": "Nederburg",
+        "reviewCount": 1,
+        "avgRating": 88.0,
         "topVarietals": [],
         "rank": 1
       },
       {
-        "id": "glen_carlou",
-        "name": "Glen Carlou",
-        "reviewCount": 13,
+        "id": "fairview",
+        "name": "Fairview",
+        "reviewCount": 11,
         "avgRating": 88.6,
         "topVarietals": [
-          "chardonnay",
-          "cabernet_sauvignon"
+          "pinotage",
+          "syrah",
+          "viognier"
         ],
         "rank": 2
       },
       {
-        "id": "fairview",
-        "name": "Fairview",
-        "reviewCount": 13,
-        "avgRating": 88.3,
-        "topVarietals": [
-          "pinotage",
-          "syrah",
-          "viognier"
-        ],
+        "id": "babylonstoren",
+        "name": "Babylonstoren",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 3
       },
       {
-        "id": "backsberg",
-        "name": "Backsberg",
-        "reviewCount": 14,
-        "avgRating": 86.4,
-        "topVarietals": [
-          "chardonnay",
-          "pinotage",
-          "merlot"
-        ],
+        "id": "brookdale",
+        "name": "Brookdale",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 4
       },
       {
-        "id": "avondale",
-        "name": "Avondale",
-        "reviewCount": 6,
-        "avgRating": 89.2,
-        "topVarietals": [
-          "chenin_blanc"
-        ],
+        "id": "kwv",
+        "name": "KWV",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 5
-      },
-      {
-        "id": "diemersfontein",
-        "name": "Diemersfontein",
-        "reviewCount": 5,
-        "avgRating": 89.8,
-        "topVarietals": [
-          "pinotage",
-          "viognier"
-        ],
-        "rank": 6
-      },
-      {
-        "id": "eventide_cellar",
-        "name": "Eventide Cellar",
-        "reviewCount": 6,
-        "avgRating": 86.7,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "syrah",
-          "viognier"
-        ],
-        "rank": 7
-      },
-      {
-        "id": "tormentoso",
-        "name": "Tormentoso",
-        "reviewCount": 6,
-        "avgRating": 85.8,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "pinotage",
-          "chenin_blanc"
-        ],
-        "rank": 8
-      },
-      {
-        "id": "nabygelegen",
-        "name": "Nabygelegen",
-        "reviewCount": 3,
-        "avgRating": 88.7,
-        "topVarietals": [
-          "chenin_blanc"
-        ],
-        "rank": 9
-      },
-      {
-        "id": "plaisir_de_merle",
-        "name": "Plaisir De Merle",
-        "reviewCount": 4,
-        "avgRating": 87.0,
-        "topVarietals": [
-          "merlot",
-          "cabernet_sauvignon",
-          "sauvignon_blanc"
-        ],
-        "rank": 10
-      },
-      {
-        "id": "noble_hill",
-        "name": "Noble Hill",
-        "reviewCount": 3,
-        "avgRating": 87.7,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "viognier",
-          "chardonnay"
-        ],
-        "rank": 11
-      },
-      {
-        "id": "niel_joubert",
-        "name": "Niel Joubert",
-        "reviewCount": 3,
-        "avgRating": 86.3,
-        "topVarietals": [
-          "syrah",
-          "cabernet_sauvignon",
-          "merlot"
-        ],
-        "rank": 12
       },
       {
         "id": "vrede_en_lust",
@@ -53644,7 +53480,155 @@
           "sauvignon_blanc",
           "chardonnay"
         ],
+        "rank": 6
+      },
+      {
+        "id": "spice_route",
+        "name": "Spice Route",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "perdeberg",
+        "name": "Perdeberg",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 8
+      },
+      {
+        "id": "rhebokskloof",
+        "name": "Rhebokskloof",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 9
+      },
+      {
+        "id": "niel_joubert",
+        "name": "Niel Joubert",
+        "reviewCount": 3,
+        "avgRating": 86.3,
+        "topVarietals": [
+          "syrah",
+          "cabernet_sauvignon",
+          "merlot"
+        ],
+        "rank": 10
+      },
+      {
+        "id": "landskroon_survivor",
+        "name": "Landskroon & Survivor",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 11
+      },
+      {
+        "id": "boland_cellar",
+        "name": "Boland Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 12
+      },
+      {
+        "id": "windmeul",
+        "name": "Windmeul",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 13
+      },
+      {
+        "id": "ridgeback",
+        "name": "Ridgeback",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 14
+      },
+      {
+        "id": "painted_wolf_wines",
+        "name": "Painted Wolf Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 15
+      },
+      {
+        "id": "dekkersvlei",
+        "name": "Dekkersvlei",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 16
+      },
+      {
+        "id": "vilafonte",
+        "name": "Vilafonté",
+        "reviewCount": 13,
+        "avgRating": 91.2,
+        "topVarietals": [],
+        "rank": 17
+      },
+      {
+        "id": "glen_carlou",
+        "name": "Glen Carlou",
+        "reviewCount": 12,
+        "avgRating": 88.8,
+        "topVarietals": [
+          "chardonnay",
+          "cabernet_sauvignon"
+        ],
+        "rank": 18
+      },
+      {
+        "id": "avondale",
+        "name": "Avondale",
+        "reviewCount": 5,
+        "avgRating": 89.6,
+        "topVarietals": [
+          "chenin_blanc"
+        ],
+        "rank": 19
+      },
+      {
+        "id": "backsberg",
+        "name": "Backsberg",
+        "reviewCount": 7,
+        "avgRating": 85.1,
+        "topVarietals": [
+          "chardonnay",
+          "merlot",
+          "cabernet_sauvignon"
+        ],
+        "rank": 20
+      },
+      {
+        "id": "tormentoso",
+        "name": "Tormentoso",
+        "reviewCount": 6,
+        "avgRating": 85.8,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "pinotage",
+          "chenin_blanc"
+        ],
+        "rank": 21
+      },
+      {
+        "id": "plaisir_de_merle",
+        "name": "Plaisir De Merle",
+        "reviewCount": 3,
+        "avgRating": 87.0,
+        "topVarietals": [
+          "merlot",
+          "cabernet_sauvignon"
+        ],
+        "rank": 22
       },
       {
         "id": "wamakersvallei",
@@ -53655,7 +53639,7 @@
           "pinotage",
           "syrah"
         ],
-        "rank": 14
+        "rank": 23
       }
     ],
     "hawke_s_bay": [
@@ -55330,18 +55314,6 @@
     ],
     "stellenbosch": [
       {
-        "id": "simonsig",
-        "name": "Simonsig",
-        "reviewCount": 32,
-        "avgRating": 89.0,
-        "topVarietals": [
-          "pinotage",
-          "chenin_blanc",
-          "sauvignon_blanc"
-        ],
-        "rank": 1
-      },
-      {
         "id": "kanonkop",
         "name": "Kanonkop",
         "reviewCount": 24,
@@ -55351,288 +55323,7 @@
           "cabernet_sauvignon",
           "rose"
         ],
-        "rank": 2
-      },
-      {
-        "id": "jardin",
-        "name": "Jardin",
-        "reviewCount": 23,
-        "avgRating": 88.7,
-        "topVarietals": [
-          "chardonnay",
-          "cabernet_sauvignon",
-          "syrah"
-        ],
-        "rank": 3
-      },
-      {
-        "id": "hartenberg",
-        "name": "Hartenberg",
-        "reviewCount": 21,
-        "avgRating": 89.5,
-        "topVarietals": [
-          "syrah",
-          "cabernet_sauvignon",
-          "chardonnay"
-        ],
-        "rank": 4
-      },
-      {
-        "id": "ernie_els",
-        "name": "Ernie Els",
-        "reviewCount": 17,
-        "avgRating": 90.6,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "chenin_blanc",
-          "merlot"
-        ],
-        "rank": 5
-      },
-      {
-        "id": "de_toren",
-        "name": "De Toren",
-        "reviewCount": 14,
-        "avgRating": 91.9,
-        "topVarietals": [],
-        "rank": 6
-      },
-      {
-        "id": "spier",
-        "name": "Spier",
-        "reviewCount": 21,
-        "avgRating": 88.2,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chenin_blanc",
-          "pinotage"
-        ],
-        "rank": 7
-      },
-      {
-        "id": "thelema",
-        "name": "Thelema",
-        "reviewCount": 20,
-        "avgRating": 88.0,
-        "topVarietals": [
-          "chardonnay",
-          "sauvignon_blanc",
-          "cabernet_sauvignon"
-        ],
-        "rank": 8
-      },
-      {
-        "id": "demorgenzon",
-        "name": "DeMorgenzon",
-        "reviewCount": 14,
-        "avgRating": 90.6,
-        "topVarietals": [
-          "chenin_blanc",
-          "sauvignon_blanc",
-          "cabernet"
-        ],
-        "rank": 9
-      },
-      {
-        "id": "stark_conde",
-        "name": "Stark-Condé",
-        "reviewCount": 12,
-        "avgRating": 90.6,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "syrah"
-        ],
-        "rank": 10
-      },
-      {
-        "id": "beau_joubert",
-        "name": "Beau Joubert",
-        "reviewCount": 20,
-        "avgRating": 86.7,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "sauvignon_blanc",
-          "syrah"
-        ],
-        "rank": 11
-      },
-      {
-        "id": "mvemve_raats",
-        "name": "Mvemve Raats",
-        "reviewCount": 5,
-        "avgRating": 93.2,
-        "topVarietals": [],
-        "rank": 12
-      },
-      {
-        "id": "ken_forrester",
-        "name": "Ken Forrester",
-        "reviewCount": 13,
-        "avgRating": 88.7,
-        "topVarietals": [
-          "chenin_blanc",
-          "pinotage",
-          "merlot"
-        ],
-        "rank": 13
-      },
-      {
-        "id": "rustenberg",
-        "name": "Rustenberg",
-        "reviewCount": 11,
-        "avgRating": 89.5,
-        "topVarietals": [
-          "chardonnay",
-          "rose",
-          "cabernet_sauvignon"
-        ],
-        "rank": 14
-      },
-      {
-        "id": "morgenhof",
-        "name": "Morgenhof",
-        "reviewCount": 14,
-        "avgRating": 87.9,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chenin_blanc",
-          "cabernet_sauvignon"
-        ],
-        "rank": 15
-      },
-      {
-        "id": "waterford",
-        "name": "Waterford",
-        "reviewCount": 10,
-        "avgRating": 89.6,
-        "topVarietals": [
-          "chardonnay",
-          "sauvignon_blanc",
-          "syrah"
-        ],
-        "rank": 16
-      },
-      {
-        "id": "radford_dale",
-        "name": "Radford Dale",
-        "reviewCount": 12,
-        "avgRating": 88.3,
-        "topVarietals": [
-          "chardonnay",
-          "chenin_blanc",
-          "viognier"
-        ],
-        "rank": 17
-      },
-      {
-        "id": "raats_family",
-        "name": "Raats Family",
-        "reviewCount": 12,
-        "avgRating": 88.2,
-        "topVarietals": [
-          "chenin_blanc",
-          "cabernet_franc"
-        ],
-        "rank": 18
-      },
-      {
-        "id": "glenelly",
-        "name": "Glenelly",
-        "reviewCount": 8,
-        "avgRating": 90.0,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "chardonnay"
-        ],
-        "rank": 19
-      },
-      {
-        "id": "warwick",
-        "name": "Warwick",
-        "reviewCount": 12,
-        "avgRating": 87.8,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "cabernet_sauvignon",
-          "pinotage"
-        ],
-        "rank": 20
-      },
-      {
-        "id": "rust_en_vrede",
-        "name": "Rust en Vrede",
-        "reviewCount": 9,
-        "avgRating": 89.1,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "merlot",
-          "syrah"
-        ],
-        "rank": 21
-      },
-      {
-        "id": "etienne_le_riche",
-        "name": "Etienne le Riche",
-        "reviewCount": 3,
-        "avgRating": 91.7,
-        "topVarietals": [
-          "cabernet_sauvignon"
-        ],
-        "rank": 22
-      },
-      {
-        "id": "kaapzicht",
-        "name": "Kaapzicht",
-        "reviewCount": 3,
-        "avgRating": 91.7,
-        "topVarietals": [
-          "chenin_blanc"
-        ],
-        "rank": 23
-      },
-      {
-        "id": "de_trafford",
-        "name": "de Trafford",
-        "reviewCount": 6,
-        "avgRating": 90.3,
-        "topVarietals": [
-          "chenin_blanc",
-          "syrah"
-        ],
-        "rank": 24
-      },
-      {
-        "id": "jordan_stellenbosch",
-        "name": "Jordan Stellenbosch",
-        "reviewCount": 4,
-        "avgRating": 90.8,
-        "topVarietals": [
-          "chardonnay"
-        ],
-        "rank": 25
-      },
-      {
-        "id": "reyneke",
-        "name": "Reyneke",
-        "reviewCount": 4,
-        "avgRating": 90.5,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chenin_blanc"
-        ],
-        "rank": 26
-      },
-      {
-        "id": "vergelegen",
-        "name": "Vergelegen",
-        "reviewCount": 8,
-        "avgRating": 88.2,
-        "topVarietals": [
-          "chardonnay",
-          "sauvignon_blanc",
-          "merlot"
-        ],
-        "rank": 27
+        "rank": 1
       },
       {
         "id": "meerlust",
@@ -55644,40 +55335,276 @@
           "merlot",
           "pinot_noir"
         ],
-        "rank": 28
+        "rank": 2
       },
       {
-        "id": "remhoogte",
-        "name": "Remhoogte",
-        "reviewCount": 5,
-        "avgRating": 89.4,
+        "id": "rust_en_vrede",
+        "name": "Rust en Vrede",
+        "reviewCount": 9,
+        "avgRating": 89.1,
         "topVarietals": [
-          "chenin_blanc",
-          "merlot"
+          "cabernet_sauvignon",
+          "merlot",
+          "syrah"
         ],
-        "rank": 29
+        "rank": 3
       },
       {
-        "id": "edgebaston",
-        "name": "Edgebaston",
-        "reviewCount": 8,
+        "id": "thelema",
+        "name": "Thelema",
+        "reviewCount": 20,
         "avgRating": 88.0,
         "topVarietals": [
           "chardonnay",
-          "viognier",
+          "sauvignon_blanc",
+          "cabernet_sauvignon"
+        ],
+        "rank": 4
+      },
+      {
+        "id": "de_toren",
+        "name": "De Toren",
+        "reviewCount": 13,
+        "avgRating": 91.9,
+        "topVarietals": [],
+        "rank": 5
+      },
+      {
+        "id": "jordan_wine_estate",
+        "name": "Jordan Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "delaire_graff_estate",
+        "name": "Delaire Graff Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "simonsig",
+        "name": "Simonsig",
+        "reviewCount": 31,
+        "avgRating": 89.1,
+        "topVarietals": [
+          "pinotage",
+          "chenin_blanc",
           "sauvignon_blanc"
         ],
-        "rank": 30
+        "rank": 8
+      },
+      {
+        "id": "warwick",
+        "name": "Warwick",
+        "reviewCount": 10,
+        "avgRating": 87.3,
+        "topVarietals": [
+          "sauvignon_blanc",
+          "cabernet_sauvignon",
+          "pinotage"
+        ],
+        "rank": 9
+      },
+      {
+        "id": "waterford",
+        "name": "Waterford",
+        "reviewCount": 10,
+        "avgRating": 89.6,
+        "topVarietals": [
+          "chardonnay",
+          "sauvignon_blanc",
+          "syrah"
+        ],
+        "rank": 10
+      },
+      {
+        "id": "demorgenzon",
+        "name": "DeMorgenzon",
+        "reviewCount": 10,
+        "avgRating": 91.8,
+        "topVarietals": [
+          "chenin_blanc",
+          "roussanne",
+          "chardonnay"
+        ],
+        "rank": 11
+      },
+      {
+        "id": "uva_mira_mountain_vineyards",
+        "name": "Uva Mira Mountain Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 12
+      },
+      {
+        "id": "keermont_vineyards",
+        "name": "Keermont Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 13
+      },
+      {
+        "id": "hartenberg",
+        "name": "Hartenberg",
+        "reviewCount": 21,
+        "avgRating": 89.5,
+        "topVarietals": [
+          "syrah",
+          "cabernet_sauvignon",
+          "chardonnay"
+        ],
+        "rank": 14
+      },
+      {
+        "id": "stark_conde",
+        "name": "Stark-Condé",
+        "reviewCount": 12,
+        "avgRating": 90.6,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "syrah"
+        ],
+        "rank": 15
+      },
+      {
+        "id": "le_riche",
+        "name": "Le Riche",
+        "reviewCount": 4,
+        "avgRating": 89.0,
+        "topVarietals": [
+          "cabernet_sauvignon"
+        ],
+        "rank": 16
+      },
+      {
+        "id": "glenelly",
+        "name": "Glenelly",
+        "reviewCount": 6,
+        "avgRating": 90.3,
+        "topVarietals": [
+          "chardonnay",
+          "cabernet_sauvignon"
+        ],
+        "rank": 17
+      },
+      {
+        "id": "lanzerac",
+        "name": "Lanzerac",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 18
       },
       {
         "id": "beyerskloof",
         "name": "Beyerskloof",
-        "reviewCount": 7,
-        "avgRating": 88.3,
+        "reviewCount": 6,
+        "avgRating": 88.7,
         "topVarietals": [
           "pinotage"
         ],
-        "rank": 31
+        "rank": 19
+      },
+      {
+        "id": "kleine_zalze",
+        "name": "Kleine Zalze",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 20
+      },
+      {
+        "id": "raats_family",
+        "name": "Raats Family",
+        "reviewCount": 6,
+        "avgRating": 88.7,
+        "topVarietals": [
+          "chenin_blanc",
+          "cabernet_franc"
+        ],
+        "rank": 21
+      },
+      {
+        "id": "rustenberg",
+        "name": "Rustenberg",
+        "reviewCount": 11,
+        "avgRating": 89.5,
+        "topVarietals": [
+          "chardonnay",
+          "rose",
+          "cabernet_sauvignon"
+        ],
+        "rank": 22
+      },
+      {
+        "id": "tokara",
+        "name": "Tokara",
+        "reviewCount": 4,
+        "avgRating": 91.0,
+        "topVarietals": [
+          "chardonnay"
+        ],
+        "rank": 23
+      },
+      {
+        "id": "oldenburg_vineyards",
+        "name": "Oldenburg Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 24
+      },
+      {
+        "id": "neil_ellis_wines",
+        "name": "Neil Ellis Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 25
+      },
+      {
+        "id": "kleinood",
+        "name": "Kleinood",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 26
+      },
+      {
+        "id": "cavalli_wine_stud_farm",
+        "name": "Cavalli Wine & Stud Farm",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 27
+      },
+      {
+        "id": "ernie_els",
+        "name": "Ernie Els",
+        "reviewCount": 15,
+        "avgRating": 91.0,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "chenin_blanc",
+          "merlot"
+        ],
+        "rank": 28
+      },
+      {
+        "id": "boschkloof",
+        "name": "Boschkloof",
+        "reviewCount": 3,
+        "avgRating": 89.0,
+        "topVarietals": [
+          "syrah"
+        ],
+        "rank": 29
       },
       {
         "id": "muratie",
@@ -55688,40 +55615,17 @@
           "syrah",
           "chardonnay"
         ],
-        "rank": 32
+        "rank": 30
       },
       {
-        "id": "winery_of_good_hope",
-        "name": "Winery of Good Hope",
-        "reviewCount": 10,
-        "avgRating": 86.8,
+        "id": "kaapzicht",
+        "name": "Kaapzicht",
+        "reviewCount": 3,
+        "avgRating": 91.7,
         "topVarietals": [
-          "chardonnay",
-          "chenin_blanc",
-          "pinotage"
+          "chenin_blanc"
         ],
-        "rank": 33
-      },
-      {
-        "id": "rudi_schultz",
-        "name": "Rudi Schultz",
-        "reviewCount": 4,
-        "avgRating": 89.5,
-        "topVarietals": [
-          "syrah"
-        ],
-        "rank": 34
-      },
-      {
-        "id": "rudera",
-        "name": "Rudera",
-        "reviewCount": 5,
-        "avgRating": 88.8,
-        "topVarietals": [
-          "chenin_blanc",
-          "syrah"
-        ],
-        "rank": 35
+        "rank": 31
       },
       {
         "id": "delheim",
@@ -55732,60 +55636,219 @@
           "cabernet_sauvignon",
           "pinotage"
         ],
+        "rank": 32
+      },
+      {
+        "id": "ken_forrester",
+        "name": "Ken Forrester",
+        "reviewCount": 7,
+        "avgRating": 89.6,
+        "topVarietals": [
+          "chenin_blanc",
+          "merlot"
+        ],
+        "rank": 33
+      },
+      {
+        "id": "spier",
+        "name": "Spier",
+        "reviewCount": 9,
+        "avgRating": 88.1,
+        "topVarietals": [
+          "pinotage",
+          "chenin_blanc",
+          "merlot"
+        ],
+        "rank": 34
+      },
+      {
+        "id": "vergenoegd_low_wine_estate",
+        "name": "Vergenoegd Löw Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 35
+      },
+      {
+        "id": "longridge",
+        "name": "Longridge",
+        "reviewCount": 3,
+        "avgRating": 86.0,
+        "topVarietals": [
+          "merlot",
+          "pinotage"
+        ],
         "rank": 36
       },
       {
-        "id": "teddy_hall",
-        "name": "Teddy Hall",
-        "reviewCount": 3,
-        "avgRating": 89.7,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "chenin_blanc",
-          "syrah"
-        ],
+        "id": "stellenrust",
+        "name": "Stellenrust",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 37
       },
       {
-        "id": "camberley",
-        "name": "Camberley",
-        "reviewCount": 5,
-        "avgRating": 88.6,
-        "topVarietals": [
-          "pinotage"
-        ],
+        "id": "mooiplaas_wine_estate",
+        "name": "Mooiplaas Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 38
       },
       {
-        "id": "le_riche",
-        "name": "Le Riche",
-        "reviewCount": 4,
-        "avgRating": 89.0,
-        "topVarietals": [
-          "cabernet_sauvignon"
-        ],
+        "id": "l_avenir",
+        "name": "L'Avenir",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 39
       },
       {
-        "id": "boschkloof",
-        "name": "Boschkloof",
-        "reviewCount": 3,
-        "avgRating": 89.0,
-        "topVarietals": [
-          "syrah"
-        ],
+        "id": "blaauwklippen",
+        "name": "Blaauwklippen",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 40
       },
       {
-        "id": "vinum_africa",
-        "name": "Vinum Africa",
-        "reviewCount": 6,
-        "avgRating": 87.2,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "chenin_blanc"
-        ],
+        "id": "louisvale_wines",
+        "name": "Louisvale Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 41
+      },
+      {
+        "id": "taaibosch_wine_estate",
+        "name": "Taaibosch Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 42
+      },
+      {
+        "id": "vriesenhof_vineyards",
+        "name": "Vriesenhof Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 43
+      },
+      {
+        "id": "rainbow_s_end_wine_estate",
+        "name": "Rainbow's End Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 44
+      },
+      {
+        "id": "remhoogte",
+        "name": "Remhoogte",
+        "reviewCount": 5,
+        "avgRating": 89.4,
+        "topVarietals": [
+          "chenin_blanc",
+          "merlot"
+        ],
+        "rank": 45
+      },
+      {
+        "id": "bellevue_estate",
+        "name": "Bellevue Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 46
+      },
+      {
+        "id": "morgenster_estate",
+        "name": "Morgenster Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 47
+      },
+      {
+        "id": "quoin_rock",
+        "name": "Quoin Rock",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 48
+      },
+      {
+        "id": "hazendal",
+        "name": "Hazendal",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 49
+      },
+      {
+        "id": "hidden_valley_wines",
+        "name": "Hidden Valley Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 50
+      },
+      {
+        "id": "zevenwacht",
+        "name": "Zevenwacht",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 51
+      },
+      {
+        "id": "idiom_wines",
+        "name": "Idiom Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 52
+      },
+      {
+        "id": "dornier_wines",
+        "name": "Dornier Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 53
+      },
+      {
+        "id": "eikendal",
+        "name": "Eikendal",
+        "reviewCount": 4,
+        "avgRating": 87.0,
+        "topVarietals": [
+          "merlot",
+          "sauvignon_blanc"
+        ],
+        "rank": 54
+      },
+      {
+        "id": "villiera_wines",
+        "name": "Villiera Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 55
+      },
+      {
+        "id": "saxenburg_estate",
+        "name": "Saxenburg Estate",
+        "reviewCount": 3,
+        "avgRating": 86.3,
+        "topVarietals": [
+          "sauvignon_blanc",
+          "merlot",
+          "chardonnay"
+        ],
+        "rank": 56
       },
       {
         "id": "neethlingshof",
@@ -55796,7 +55859,58 @@
           "chenin_blanc",
           "pinotage"
         ],
-        "rank": 42
+        "rank": 57
+      },
+      {
+        "id": "peter_falke_wines",
+        "name": "Peter Falke Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 58
+      },
+      {
+        "id": "middelvlei",
+        "name": "Middelvlei",
+        "reviewCount": 3,
+        "avgRating": 85.7,
+        "topVarietals": [
+          "pinotage",
+          "cabernet_sauvignon"
+        ],
+        "rank": 59
+      },
+      {
+        "id": "dalla_cia",
+        "name": "Dalla Cia",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 60
+      },
+      {
+        "id": "miles_mossop_wines",
+        "name": "Miles Mossop Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 61
+      },
+      {
+        "id": "grangehurst",
+        "name": "Grangehurst",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 62
+      },
+      {
+        "id": "zorgvliet_wines",
+        "name": "Zorgvliet Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 63
       },
       {
         "id": "post_house",
@@ -55808,7 +55922,207 @@
           "merlot",
           "chenin_blanc"
         ],
-        "rank": 43
+        "rank": 64
+      },
+      {
+        "id": "stellenbosch_vineyards",
+        "name": "Stellenbosch Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 65
+      },
+      {
+        "id": "yonder_hill",
+        "name": "Yonder Hill",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 66
+      },
+      {
+        "id": "guardian_peak",
+        "name": "Guardian Peak",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 67
+      },
+      {
+        "id": "lievland_vineyards",
+        "name": "Lievland Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 68
+      },
+      {
+        "id": "le_pommier",
+        "name": "Le Pommier",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 69
+      },
+      {
+        "id": "knorhoek",
+        "name": "Knorhoek",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 70
+      },
+      {
+        "id": "haskell_vineyards",
+        "name": "Haskell Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 71
+      },
+      {
+        "id": "lyngrove",
+        "name": "Lyngrove",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 72
+      },
+      {
+        "id": "overgaauw_wine_estate",
+        "name": "Overgaauw Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 73
+      },
+      {
+        "id": "avontuur_estate",
+        "name": "Avontuur Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 74
+      },
+      {
+        "id": "alto_wine_estate",
+        "name": "Alto Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 75
+      },
+      {
+        "id": "aslina_wines",
+        "name": "Aslina Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 76
+      },
+      {
+        "id": "flagstone_wines",
+        "name": "Flagstone Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 77
+      },
+      {
+        "id": "vredenheim",
+        "name": "Vredenheim",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 78
+      },
+      {
+        "id": "skilpadvlei",
+        "name": "Skilpadvlei",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 79
+      },
+      {
+        "id": "kanu_wines",
+        "name": "Kanu Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 80
+      },
+      {
+        "id": "le_grand_domaine",
+        "name": "Le Grand Domaine",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 81
+      },
+      {
+        "id": "clos_malverne",
+        "name": "Clos Malverne",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 82
+      },
+      {
+        "id": "weltevreden_estate_bertha_wines",
+        "name": "Weltevreden Estate / Bertha Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 83
+      },
+      {
+        "id": "stellenzicht_wines",
+        "name": "Stellenzicht Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 84
+      },
+      {
+        "id": "pink_valley_wines",
+        "name": "Pink Valley Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 85
+      },
+      {
+        "id": "foothills_vineyards",
+        "name": "Foothills Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 86
+      },
+      {
+        "id": "slaley",
+        "name": "Slaley",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 87
+      },
+      {
+        "id": "somerbosch_wines",
+        "name": "Somerbosch Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 88
+      },
+      {
+        "id": "koelenhof_wine_cellar",
+        "name": "Koelenhof Wine Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 89
       },
       {
         "id": "le_bonheur",
@@ -55820,7 +56134,412 @@
           "cabernet_sauvignon",
           "rose"
         ],
-        "rank": 44
+        "rank": 90
+      },
+      {
+        "id": "kunjani_wines",
+        "name": "Kunjani Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 91
+      },
+      {
+        "id": "clouds_wine_guest_estate",
+        "name": "Clouds Wine & Guest Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 92
+      },
+      {
+        "id": "la_boucher_wines",
+        "name": "La Boucher Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 93
+      },
+      {
+        "id": "heins_family_wines_kleine_liebe",
+        "name": "Heins Family Wines (Kleine Liebe)",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 94
+      },
+      {
+        "id": "deux_freres",
+        "name": "Deux Frères",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 95
+      },
+      {
+        "id": "de_waal_wines",
+        "name": "De Waal Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 96
+      },
+      {
+        "id": "de_meye",
+        "name": "De Meye",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 97
+      },
+      {
+        "id": "visio_vintners",
+        "name": "Visio Vintners",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 98
+      },
+      {
+        "id": "long_dog_wine",
+        "name": "Long Dog Wine",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 99
+      },
+      {
+        "id": "lovane_boutique_wine_estate",
+        "name": "LovanE Boutique Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 100
+      },
+      {
+        "id": "klein_dasbosch",
+        "name": "Klein DasBosch",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 101
+      },
+      {
+        "id": "meinert_wines",
+        "name": "Meinert Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 102
+      },
+      {
+        "id": "bartinney_private_cellar",
+        "name": "Bartinney Private Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 103
+      },
+      {
+        "id": "ladybird_vineyards",
+        "name": "Ladybird Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 104
+      },
+      {
+        "id": "annandale_wines",
+        "name": "Annandale Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 105
+      },
+      {
+        "id": "barnardt_boyes_wines",
+        "name": "Barnardt Boyes Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 106
+      },
+      {
+        "id": "bein_wine_cellar",
+        "name": "Bein Wine Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 107
+      },
+      {
+        "id": "brenaissance_wine_stud_estate",
+        "name": "Brenaissance Wine & Stud Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 108
+      },
+      {
+        "id": "compagniesdrift",
+        "name": "Compagniesdrift",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 109
+      },
+      {
+        "id": "groenland",
+        "name": "Groenland",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 110
+      },
+      {
+        "id": "limoenkloof",
+        "name": "Limoenkloof",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 111
+      },
+      {
+        "id": "the_high_road",
+        "name": "The High Road",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 112
+      },
+      {
+        "id": "winshaw_vineyards",
+        "name": "Winshaw Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 113
+      },
+      {
+        "id": "jardin",
+        "name": "Jardin",
+        "reviewCount": 23,
+        "avgRating": 88.7,
+        "topVarietals": [
+          "chardonnay",
+          "cabernet_sauvignon",
+          "syrah"
+        ],
+        "rank": 114
+      },
+      {
+        "id": "beau_joubert",
+        "name": "Beau Joubert",
+        "reviewCount": 20,
+        "avgRating": 86.7,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "sauvignon_blanc",
+          "syrah"
+        ],
+        "rank": 115
+      },
+      {
+        "id": "mvemve_raats",
+        "name": "Mvemve Raats",
+        "reviewCount": 5,
+        "avgRating": 93.2,
+        "topVarietals": [],
+        "rank": 116
+      },
+      {
+        "id": "morgenhof",
+        "name": "Morgenhof",
+        "reviewCount": 14,
+        "avgRating": 87.9,
+        "topVarietals": [
+          "sauvignon_blanc",
+          "chenin_blanc",
+          "cabernet_sauvignon"
+        ],
+        "rank": 117
+      },
+      {
+        "id": "radford_dale",
+        "name": "Radford Dale",
+        "reviewCount": 12,
+        "avgRating": 88.3,
+        "topVarietals": [
+          "chardonnay",
+          "chenin_blanc",
+          "viognier"
+        ],
+        "rank": 118
+      },
+      {
+        "id": "etienne_le_riche",
+        "name": "Etienne le Riche",
+        "reviewCount": 3,
+        "avgRating": 91.7,
+        "topVarietals": [
+          "cabernet_sauvignon"
+        ],
+        "rank": 119
+      },
+      {
+        "id": "de_trafford",
+        "name": "de Trafford",
+        "reviewCount": 6,
+        "avgRating": 90.3,
+        "topVarietals": [
+          "chenin_blanc",
+          "syrah"
+        ],
+        "rank": 120
+      },
+      {
+        "id": "jordan_stellenbosch",
+        "name": "Jordan Stellenbosch",
+        "reviewCount": 4,
+        "avgRating": 90.8,
+        "topVarietals": [
+          "chardonnay"
+        ],
+        "rank": 121
+      },
+      {
+        "id": "reyneke",
+        "name": "Reyneke",
+        "reviewCount": 3,
+        "avgRating": 90.7,
+        "topVarietals": [
+          "sauvignon_blanc",
+          "chenin_blanc"
+        ],
+        "rank": 122
+      },
+      {
+        "id": "mulderbosch",
+        "name": "Mulderbosch",
+        "reviewCount": 7,
+        "avgRating": 88.7,
+        "topVarietals": [
+          "chardonnay",
+          "sauvignon_blanc",
+          "cabernet_sauvignon"
+        ],
+        "rank": 123
+      },
+      {
+        "id": "vergelegen",
+        "name": "Vergelegen",
+        "reviewCount": 8,
+        "avgRating": 88.2,
+        "topVarietals": [
+          "chardonnay",
+          "sauvignon_blanc",
+          "merlot"
+        ],
+        "rank": 124
+      },
+      {
+        "id": "edgebaston",
+        "name": "Edgebaston",
+        "reviewCount": 8,
+        "avgRating": 88.0,
+        "topVarietals": [
+          "chardonnay",
+          "viognier",
+          "sauvignon_blanc"
+        ],
+        "rank": 125
+      },
+      {
+        "id": "capaia",
+        "name": "Capaia",
+        "reviewCount": 4,
+        "avgRating": 89.8,
+        "topVarietals": [
+          "sauvignon_blanc"
+        ],
+        "rank": 126
+      },
+      {
+        "id": "rudi_schultz",
+        "name": "Rudi Schultz",
+        "reviewCount": 4,
+        "avgRating": 89.5,
+        "topVarietals": [
+          "syrah"
+        ],
+        "rank": 127
+      },
+      {
+        "id": "rudera",
+        "name": "Rudera",
+        "reviewCount": 5,
+        "avgRating": 88.8,
+        "topVarietals": [
+          "chenin_blanc",
+          "syrah"
+        ],
+        "rank": 128
+      },
+      {
+        "id": "teddy_hall",
+        "name": "Teddy Hall",
+        "reviewCount": 3,
+        "avgRating": 89.7,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "chenin_blanc",
+          "syrah"
+        ],
+        "rank": 129
+      },
+      {
+        "id": "fleur_du_cap",
+        "name": "Fleur Du Cap",
+        "reviewCount": 4,
+        "avgRating": 89.2,
+        "topVarietals": [
+          "pinotage",
+          "cabernet_sauvignon"
+        ],
+        "rank": 130
+      },
+      {
+        "id": "camberley",
+        "name": "Camberley",
+        "reviewCount": 5,
+        "avgRating": 88.6,
+        "topVarietals": [
+          "pinotage"
+        ],
+        "rank": 131
+      },
+      {
+        "id": "vinum_africa",
+        "name": "Vinum Africa",
+        "reviewCount": 6,
+        "avgRating": 87.2,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "chenin_blanc"
+        ],
+        "rank": 132
+      },
+      {
+        "id": "winery_of_good_hope",
+        "name": "Winery of Good Hope",
+        "reviewCount": 7,
+        "avgRating": 86.4,
+        "topVarietals": [
+          "chenin_blanc",
+          "pinotage",
+          "chardonnay"
+        ],
+        "rank": 133
       },
       {
         "id": "bradgate",
@@ -55828,7 +56547,19 @@
         "reviewCount": 5,
         "avgRating": 86.6,
         "topVarietals": [],
-        "rank": 45
+        "rank": 134
+      },
+      {
+        "id": "durbanville_hills",
+        "name": "Durbanville Hills",
+        "reviewCount": 7,
+        "avgRating": 85.6,
+        "topVarietals": [
+          "sauvignon_blanc",
+          "pinotage",
+          "syrah"
+        ],
+        "rank": 135
       },
       {
         "id": "helderberg_wijnmakerij",
@@ -55840,73 +56571,7 @@
           "syrah",
           "merlot"
         ],
-        "rank": 46
-      },
-      {
-        "id": "dornier",
-        "name": "Dornier",
-        "reviewCount": 3,
-        "avgRating": 86.3,
-        "topVarietals": [
-          "chenin_blanc"
-        ],
-        "rank": 47
-      },
-      {
-        "id": "fat_barrel",
-        "name": "Fat Barrel",
-        "reviewCount": 3,
-        "avgRating": 86.0,
-        "topVarietals": [
-          "sauvignon_blanc"
-        ],
-        "rank": 48
-      },
-      {
-        "id": "longridge",
-        "name": "Longridge",
-        "reviewCount": 3,
-        "avgRating": 86.0,
-        "topVarietals": [
-          "merlot",
-          "pinotage"
-        ],
-        "rank": 49
-      },
-      {
-        "id": "middelvlei",
-        "name": "Middelvlei",
-        "reviewCount": 3,
-        "avgRating": 85.7,
-        "topVarietals": [
-          "pinotage",
-          "cabernet_sauvignon"
-        ],
-        "rank": 50
-      },
-      {
-        "id": "saxenburg_estate",
-        "name": "Saxenburg Estate",
-        "reviewCount": 4,
-        "avgRating": 85.2,
-        "topVarietals": [
-          "merlot",
-          "sauvignon_blanc",
-          "chardonnay"
-        ],
-        "rank": 51
-      },
-      {
-        "id": "ernst_gouws_co",
-        "name": "Ernst Gouws & Co.",
-        "reviewCount": 5,
-        "avgRating": 84.4,
-        "topVarietals": [
-          "chenin_blanc",
-          "pinotage",
-          "chardonnay"
-        ],
-        "rank": 52
+        "rank": 136
       },
       {
         "id": "stellenbosch_hills",
@@ -55914,10 +56579,21 @@
         "reviewCount": 3,
         "avgRating": 85.0,
         "topVarietals": [],
-        "rank": 53
+        "rank": 137
+      },
+      {
+        "id": "ernst_gouws_co",
+        "name": "Ernst Gouws & Co.",
+        "reviewCount": 3,
+        "avgRating": 84.7,
+        "topVarietals": [
+          "chenin_blanc",
+          "pinotage"
+        ],
+        "rank": 138
       }
     ],
-    "walker_bay": [
+    "hemel_en_aarde_walker_bay": [
       {
         "id": "hamilton_russell",
         "name": "Hamilton Russell",
@@ -55930,16 +56606,96 @@
         "rank": 1
       },
       {
+        "id": "newton_johnson_vineyards",
+        "name": "Newton Johnson Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 2
+      },
+      {
+        "id": "creation",
+        "name": "Creation",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 3
+      },
+      {
         "id": "bouchard_finlayson",
         "name": "Bouchard Finlayson",
-        "reviewCount": 11,
-        "avgRating": 88.4,
+        "reviewCount": 9,
+        "avgRating": 88.7,
         "topVarietals": [
           "chardonnay",
           "pinot_noir",
           "sauvignon_blanc"
         ],
-        "rank": 2
+        "rank": 4
+      },
+      {
+        "id": "ataraxia",
+        "name": "Ataraxia",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 5
+      },
+      {
+        "id": "restless_river",
+        "name": "Restless River",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "cap_maritime",
+        "name": "Cap Maritime",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "la_vierge",
+        "name": "La Vierge",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 8
+      },
+      {
+        "id": "spookfontein",
+        "name": "Spookfontein",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 9
+      },
+      {
+        "id": "bosman_hermanus",
+        "name": "Bosman Hermanus",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 10
+      },
+      {
+        "id": "hasher_family_estate",
+        "name": "Hasher Family Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 11
+      },
+      {
+        "id": "francis_wines",
+        "name": "Francis Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 12
       },
       {
         "id": "beaumont",
@@ -55949,7 +56705,7 @@
         "topVarietals": [
           "chenin_blanc"
         ],
-        "rank": 3
+        "rank": 13
       },
       {
         "id": "luddite",
@@ -55959,7 +56715,7 @@
         "topVarietals": [
           "chenin_blanc"
         ],
-        "rank": 4
+        "rank": 14
       },
       {
         "id": "southern_right",
@@ -55970,123 +56726,390 @@
           "sauvignon_blanc",
           "pinotage"
         ],
-        "rank": 5
+        "rank": 15
       }
     ],
-    "coastal_region": [
+    "franschhoek": [
       {
-        "id": "bellingham",
-        "name": "Bellingham",
-        "reviewCount": 14,
-        "avgRating": 88.6,
+        "id": "boekenhoutskloof",
+        "name": "Boekenhoutskloof",
+        "reviewCount": 8,
+        "avgRating": 89.4,
         "topVarietals": [
-          "chenin_blanc",
-          "pinotage",
-          "sauvignon_blanc"
+          "semillon",
+          "syrah",
+          "cabernet_sauvignon"
         ],
         "rank": 1
       },
       {
-        "id": "man_vintners",
-        "name": "MAN Vintners",
-        "reviewCount": 17,
-        "avgRating": 86.0,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chenin_blanc",
-          "pinotage"
-        ],
+        "id": "la_motte",
+        "name": "La Motte",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 2
       },
       {
-        "id": "delaire_graff",
-        "name": "Delaire Graff",
-        "reviewCount": 5,
-        "avgRating": 89.6,
-        "topVarietals": [
-          "chenin_blanc",
-          "sauvignon_blanc",
-          "chardonnay"
-        ],
+        "id": "babylonstoren",
+        "name": "Babylonstoren",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 3
-      },
-      {
-        "id": "painted_wolf",
-        "name": "Painted Wolf",
-        "reviewCount": 8,
-        "avgRating": 87.6,
-        "topVarietals": [
-          "pinotage",
-          "chenin_blanc"
-        ],
-        "rank": 4
-      },
-      {
-        "id": "goats_do_roam_wine_co",
-        "name": "Goats do Roam Wine Co.",
-        "reviewCount": 8,
-        "avgRating": 87.5,
-        "topVarietals": [
-          "rose"
-        ],
-        "rank": 5
       },
       {
         "id": "boschendal",
         "name": "Boschendal",
-        "reviewCount": 8,
-        "avgRating": 86.9,
-        "topVarietals": [
-          "rose",
-          "sauvignon_blanc",
-          "pinot_noir"
-        ],
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 4
+      },
+      {
+        "id": "rupert_rothschild_vignerons",
+        "name": "Rupert & Rothschild Vignerons",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 5
+      },
+      {
+        "id": "haute_cabriere",
+        "name": "Haute Cabrière",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 6
       },
       {
-        "id": "steenberg",
-        "name": "Steenberg",
-        "reviewCount": 3,
+        "id": "le_lude",
+        "name": "Le Lude",
+        "reviewCount": 1,
         "avgRating": 88.0,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "cabernet_sauvignon"
-        ],
+        "topVarietals": [],
         "rank": 7
       },
       {
-        "id": "la_capra_presented_by_fairview",
-        "name": "La Capra Presented by Fairview",
-        "reviewCount": 7,
-        "avgRating": 86.3,
-        "topVarietals": [
-          "chenin_blanc",
-          "pinotage",
-          "sauvignon_blanc"
-        ],
+        "id": "mullineux_leeu_family_wines",
+        "name": "Mullineux & Leeu Family Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 8
       },
       {
-        "id": "the_foundry",
-        "name": "The Foundry",
-        "reviewCount": 3,
-        "avgRating": 87.0,
-        "topVarietals": [
-          "syrah"
-        ],
+        "id": "anthonij_rupert_wyne",
+        "name": "Anthonij Rupert Wyne",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 9
       },
       {
-        "id": "man_family_wines",
-        "name": "MAN Family Wines",
+        "id": "chamonix",
+        "name": "Chamonix",
         "reviewCount": 4,
-        "avgRating": 85.8,
+        "avgRating": 88.5,
         "topVarietals": [
-          "pinotage",
-          "chenin_blanc",
-          "cabernet_sauvignon"
+          "pinot_noir",
+          "sauvignon_blanc",
+          "pinotage"
         ],
         "rank": 10
+      },
+      {
+        "id": "rickety_bridge",
+        "name": "Rickety Bridge",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 11
+      },
+      {
+        "id": "holden_manz",
+        "name": "Holden Manz",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 12
+      },
+      {
+        "id": "paserene",
+        "name": "Paserene",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 13
+      },
+      {
+        "id": "grande_provence",
+        "name": "Grande Provence",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 14
+      },
+      {
+        "id": "colmant",
+        "name": "Colmant",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 15
+      },
+      {
+        "id": "la_petite_ferme",
+        "name": "La Petite Ferme",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 16
+      },
+      {
+        "id": "mont_rochelle",
+        "name": "Mont Rochelle",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 17
+      },
+      {
+        "id": "glenwood",
+        "name": "Glenwood",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 18
+      },
+      {
+        "id": "franschhoek_cellar",
+        "name": "Franschhoek Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 19
+      },
+      {
+        "id": "dieu_donne",
+        "name": "Dieu Donne",
+        "reviewCount": 3,
+        "avgRating": 86.3,
+        "topVarietals": [
+          "merlot",
+          "sauvignon_blanc"
+        ],
+        "rank": 20
+      },
+      {
+        "id": "backsberg_family_wines",
+        "name": "Backsberg Family Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 21
+      },
+      {
+        "id": "maison_estate",
+        "name": "Maison Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 22
+      },
+      {
+        "id": "leopard_s_leap",
+        "name": "Leopard's Leap",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 23
+      },
+      {
+        "id": "wildeberg_wines",
+        "name": "Wildeberg Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 24
+      },
+      {
+        "id": "val_de_vie_wine_polo_estate",
+        "name": "Val de Vie Wine & Polo Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 25
+      },
+      {
+        "id": "bellingham",
+        "name": "Bellingham",
+        "reviewCount": 3,
+        "avgRating": 88.7,
+        "topVarietals": [
+          "chenin_blanc"
+        ],
+        "rank": 26
+      },
+      {
+        "id": "painted_wolf_wines",
+        "name": "Painted Wolf Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 27
+      },
+      {
+        "id": "noble_hill",
+        "name": "Noble Hill",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 28
+      },
+      {
+        "id": "allee_bleue",
+        "name": "Allée Bleue",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 29
+      },
+      {
+        "id": "blackwater_wines_vines",
+        "name": "Blackwater Wines & Vines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 30
+      },
+      {
+        "id": "black_elephant_vintners",
+        "name": "Black Elephant Vintners",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 31
+      },
+      {
+        "id": "la_bri",
+        "name": "La Bri",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 32
+      },
+      {
+        "id": "lynx_wines",
+        "name": "Lynx Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 33
+      },
+      {
+        "id": "le_manoir_de_brendel",
+        "name": "Le Manoir de Brendel",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 34
+      },
+      {
+        "id": "deux_lions",
+        "name": "Deux Lions",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 35
+      },
+      {
+        "id": "klein_goederust",
+        "name": "Klein Goederust",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 36
+      },
+      {
+        "id": "eikehof",
+        "name": "Eikehof",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 37
+      },
+      {
+        "id": "stony_brook",
+        "name": "Stony Brook",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 38
+      },
+      {
+        "id": "veraison_vineyards",
+        "name": "Veraison Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 39
+      },
+      {
+        "id": "terre_paisible",
+        "name": "Terre Paisible",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 40
+      },
+      {
+        "id": "akkerdal_wine_estate",
+        "name": "Akkerdal Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 41
+      },
+      {
+        "id": "franschhoek_pass_winery",
+        "name": "Franschhoek Pass Winery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 42
+      },
+      {
+        "id": "klein_champagne_mel_wines",
+        "name": "Klein Champagne / Mel Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 43
+      },
+      {
+        "id": "la_chataigne",
+        "name": "La Chataigne",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 44
+      },
+      {
+        "id": "la_cotte_farm",
+        "name": "La Cotte Farm",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 45
+      },
+      {
+        "id": "old_road_wine_co",
+        "name": "Old Road Wine Co.",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 46
       }
     ],
     "savoie": [
@@ -57271,43 +58294,6 @@
         "rank": 30
       }
     ],
-    "franschhoek": [
-      {
-        "id": "boekenhoutskloof",
-        "name": "Boekenhoutskloof",
-        "reviewCount": 17,
-        "avgRating": 88.6,
-        "topVarietals": [
-          "syrah",
-          "semillon",
-          "rose"
-        ],
-        "rank": 1
-      },
-      {
-        "id": "chamonix",
-        "name": "Chamonix",
-        "reviewCount": 4,
-        "avgRating": 88.5,
-        "topVarietals": [
-          "pinot_noir",
-          "sauvignon_blanc",
-          "pinotage"
-        ],
-        "rank": 2
-      },
-      {
-        "id": "dieu_donne",
-        "name": "Dieu Donne",
-        "reviewCount": 3,
-        "avgRating": 86.3,
-        "topVarietals": [
-          "merlot",
-          "sauvignon_blanc"
-        ],
-        "rank": 3
-      }
-    ],
     "emilia_romagna": [
       {
         "id": "tre_monti",
@@ -57739,18 +58725,6 @@
     ],
     "constantia": [
       {
-        "id": "buitenverwachting",
-        "name": "Buitenverwachting",
-        "reviewCount": 12,
-        "avgRating": 87.8,
-        "topVarietals": [
-          "sauvignon_blanc",
-          "chardonnay",
-          "cabernet_sauvignon"
-        ],
-        "rank": 1
-      },
-      {
         "id": "klein_constantia",
         "name": "Klein Constantia",
         "reviewCount": 4,
@@ -57760,6 +58734,14 @@
           "cabernet_sauvignon",
           "sauvignon_blanc"
         ],
+        "rank": 1
+      },
+      {
+        "id": "steenberg",
+        "name": "Steenberg",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 2
       },
       {
@@ -57775,13 +58757,13 @@
         "rank": 3
       },
       {
-        "id": "cape_point_vineyards",
-        "name": "Cape Point Vineyards",
-        "reviewCount": 3,
-        "avgRating": 90.7,
+        "id": "buitenverwachting",
+        "name": "Buitenverwachting",
+        "reviewCount": 9,
+        "avgRating": 88.3,
         "topVarietals": [
-          "sauvignon_blanc",
-          "chardonnay"
+          "chardonnay",
+          "sauvignon_blanc"
         ],
         "rank": 4
       },
@@ -57794,6 +58776,41 @@
           "sauvignon_blanc"
         ],
         "rank": 5
+      },
+      {
+        "id": "beau_constantia",
+        "name": "Beau Constantia",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "eagles_nest",
+        "name": "Eagles' Nest",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "constantia_royale",
+        "name": "Constantia Royale",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 8
+      },
+      {
+        "id": "cape_point_vineyards",
+        "name": "Cape Point Vineyards",
+        "reviewCount": 3,
+        "avgRating": 90.7,
+        "topVarietals": [
+          "sauvignon_blanc",
+          "chardonnay"
+        ],
+        "rank": 9
       }
     ],
     "nahe": [
@@ -59524,14 +60541,12 @@
     ],
     "robertson": [
       {
-        "id": "robertson_winery",
-        "name": "Robertson Winery",
-        "reviewCount": 26,
-        "avgRating": 86.7,
+        "id": "springfield_estate",
+        "name": "Springfield Estate",
+        "reviewCount": 4,
+        "avgRating": 88.8,
         "topVarietals": [
-          "syrah",
-          "pinotage",
-          "chenin_blanc"
+          "chardonnay"
         ],
         "rank": 1
       },
@@ -59548,36 +60563,75 @@
         "rank": 2
       },
       {
-        "id": "springfield_estate",
-        "name": "Springfield Estate",
-        "reviewCount": 4,
-        "avgRating": 88.8,
+        "id": "graham_beck",
+        "name": "Graham Beck",
+        "reviewCount": 12,
+        "avgRating": 87.9,
         "topVarietals": [
-          "chardonnay"
+          "chardonnay",
+          "syrah",
+          "chenin_blanc"
         ],
         "rank": 3
       },
       {
-        "id": "rietvallei_estate_wine",
-        "name": "Rietvallei Estate Wine",
-        "reviewCount": 7,
-        "avgRating": 87.7,
-        "topVarietals": [
-          "cabernet_sauvignon",
-          "sauvignon_blanc",
-          "chenin_blanc"
-        ],
+        "id": "silverthorn_wines",
+        "name": "Silverthorn Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 4
       },
       {
-        "id": "danie_de_wet",
-        "name": "Danie de Wet",
-        "reviewCount": 4,
-        "avgRating": 87.8,
+        "id": "rietvallei_wine_estate",
+        "name": "Rietvallei Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 5
+      },
+      {
+        "id": "bon_courage_estate",
+        "name": "Bon Courage Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "weltevrede_estate",
+        "name": "Weltevrede Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "arendsig",
+        "name": "Arendsig",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 8
+      },
+      {
+        "id": "van_loveren",
+        "name": "Van Loveren",
+        "reviewCount": 5,
+        "avgRating": 86.4,
         "topVarietals": [
+          "chenin_blanc",
           "chardonnay"
         ],
-        "rank": 5
+        "rank": 9
+      },
+      {
+        "id": "paul_rene_mcc",
+        "name": "Paul René MCC",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 10
       },
       {
         "id": "excelsior",
@@ -59589,19 +60643,67 @@
           "chardonnay",
           "sauvignon_blanc"
         ],
-        "rank": 6
+        "rank": 11
       },
       {
-        "id": "van_loveren",
-        "name": "Van Loveren",
-        "reviewCount": 6,
+        "id": "robertson_winery",
+        "name": "Robertson Winery",
+        "reviewCount": 26,
         "avgRating": 86.7,
         "topVarietals": [
-          "chenin_blanc",
-          "chardonnay",
-          "sauvignon_blanc"
+          "syrah",
+          "pinotage",
+          "chenin_blanc"
         ],
-        "rank": 7
+        "rank": 12
+      },
+      {
+        "id": "ashton_winery",
+        "name": "Ashton Winery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 13
+      },
+      {
+        "id": "tanagra_wine_guestfarm",
+        "name": "Tanagra Wine & Guestfarm",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 14
+      },
+      {
+        "id": "viljoensdrift",
+        "name": "Viljoensdrift",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 15
+      },
+      {
+        "id": "mont_blois_estate",
+        "name": "Mont Blois Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 16
+      },
+      {
+        "id": "mimosa_wines",
+        "name": "Mimosa Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 17
+      },
+      {
+        "id": "bonnievale_wines",
+        "name": "Bonnievale Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 18
       },
       {
         "id": "rooiberg",
@@ -59613,7 +60715,200 @@
           "chenin_blanc",
           "sauvignon_blanc"
         ],
+        "rank": 19
+      },
+      {
+        "id": "kleinhoekkloof",
+        "name": "Kleinhoekkloof",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 20
+      },
+      {
+        "id": "esona_boutique_wine_estate",
+        "name": "Esona Boutique Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 21
+      },
+      {
+        "id": "langverwacht_winery",
+        "name": "Langverwacht Winery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 22
+      },
+      {
+        "id": "rivergold_private_cellar",
+        "name": "Rivergold Private Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 23
+      },
+      {
+        "id": "windfall_wine",
+        "name": "Windfall Wine",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 24
+      },
+      {
+        "id": "rietvallei_estate_wine",
+        "name": "Rietvallei Estate Wine",
+        "reviewCount": 7,
+        "avgRating": 87.7,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "sauvignon_blanc",
+          "chenin_blanc"
+        ],
+        "rank": 25
+      },
+      {
+        "id": "danie_de_wet",
+        "name": "Danie de Wet",
+        "reviewCount": 4,
+        "avgRating": 87.8,
+        "topVarietals": [
+          "chardonnay"
+        ],
+        "rank": 26
+      }
+    ],
+    "wellington": [
+      {
+        "id": "bosman_family_vineyards",
+        "name": "Bosman Family Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 1
+      },
+      {
+        "id": "diemersfontein",
+        "name": "Diemersfontein",
+        "reviewCount": 5,
+        "avgRating": 89.8,
+        "topVarietals": [
+          "pinotage",
+          "viognier"
+        ],
+        "rank": 2
+      },
+      {
+        "id": "doolhof_wine_estate",
+        "name": "Doolhof Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 3
+      },
+      {
+        "id": "mont_du_toit_kelder",
+        "name": "Mont Du Toit Kelder",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 4
+      },
+      {
+        "id": "wellington_wines",
+        "name": "Wellington Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 5
+      },
+      {
+        "id": "imbuko_wines",
+        "name": "Imbuko Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "upland_organic_wine_brandy_estate",
+        "name": "Upland Organic Wine & Brandy Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "dunstone_estate",
+        "name": "Dunstone Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 8
+      },
+      {
+        "id": "andreas_wines",
+        "name": "Andreas Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 9
+      },
+      {
+        "id": "welgegund",
+        "name": "Welgegund",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 10
+      },
+      {
+        "id": "wolvenhoek",
+        "name": "Wolvenhoek",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 11
+      },
+      {
+        "id": "canetsfontein",
+        "name": "Canetsfontein",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 12
+      },
+      {
+        "id": "jacaranda_wine_guest_farm",
+        "name": "Jacaranda Wine & Guest Farm",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 13
+      },
+      {
+        "id": "eventide_cellar",
+        "name": "Eventide Cellar",
+        "reviewCount": 6,
+        "avgRating": 86.7,
+        "topVarietals": [
+          "cabernet_sauvignon",
+          "syrah",
+          "viognier"
+        ],
+        "rank": 14
+      },
+      {
+        "id": "nabygelegen",
+        "name": "Nabygelegen",
+        "reviewCount": 3,
+        "avgRating": 88.7,
+        "topVarietals": [
+          "chenin_blanc"
+        ],
+        "rank": 15
       }
     ],
     "peloponnese": [
@@ -59695,15 +60990,11 @@
         "rank": 2
       },
       {
-        "id": "elgin_vintners",
-        "name": "Elgin Vintners",
-        "reviewCount": 4,
-        "avgRating": 86.5,
-        "topVarietals": [
-          "viognier",
-          "pinot_noir",
-          "chardonnay"
-        ],
+        "id": "iona",
+        "name": "Iona",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 3
       },
       {
@@ -59716,6 +61007,170 @@
           "sauvignon_blanc"
         ],
         "rank": 4
+      },
+      {
+        "id": "elgin_vintners",
+        "name": "Elgin Vintners",
+        "reviewCount": 4,
+        "avgRating": 86.5,
+        "topVarietals": [
+          "viognier",
+          "pinot_noir",
+          "chardonnay"
+        ],
+        "rank": 5
+      },
+      {
+        "id": "shannon_vineyards",
+        "name": "Shannon Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "charles_fox",
+        "name": "Charles Fox",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "almenkerk",
+        "name": "Almenkerk",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 8
+      },
+      {
+        "id": "la_brune",
+        "name": "La Brune",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 9
+      },
+      {
+        "id": "lothian",
+        "name": "Lothian",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 10
+      },
+      {
+        "id": "radford_dale_organic",
+        "name": "Radford Dale Organic",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 11
+      },
+      {
+        "id": "south_hill",
+        "name": "South Hill",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 12
+      },
+      {
+        "id": "paul_wallace_family_wines",
+        "name": "Paul Wallace Family Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 13
+      },
+      {
+        "id": "neil_ellis",
+        "name": "Neil Ellis",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 14
+      },
+      {
+        "id": "highlands_road",
+        "name": "Highlands Road",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 15
+      },
+      {
+        "id": "boschendal",
+        "name": "Boschendal",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 16
+      },
+      {
+        "id": "sutherland_vineyards",
+        "name": "Sutherland Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 17
+      },
+      {
+        "id": "tokara_highlands",
+        "name": "Tokara Highlands",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 18
+      },
+      {
+        "id": "spioenkop_wines",
+        "name": "Spioenkop Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 19
+      },
+      {
+        "id": "moya_meaker",
+        "name": "Moya Meaker",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 20
+      },
+      {
+        "id": "oneiric_wine_estate",
+        "name": "Oneiric Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 21
+      },
+      {
+        "id": "off_the_record",
+        "name": "Off the Record",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 22
+      },
+      {
+        "id": "idun",
+        "name": "IDUN",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 23
+      },
+      {
+        "id": "vrede_en_lust",
+        "name": "Vrede en Lust",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 24
       }
     ],
     "elqui_valley": [
@@ -59970,23 +61425,13 @@
       {
         "id": "saronsberg",
         "name": "Saronsberg",
-        "reviewCount": 7,
-        "avgRating": 90.1,
+        "reviewCount": 6,
+        "avgRating": 90.3,
         "topVarietals": [
           "syrah",
           "rose"
         ],
         "rank": 1
-      },
-      {
-        "id": "fable_mountain",
-        "name": "Fable Mountain",
-        "reviewCount": 6,
-        "avgRating": 91.5,
-        "topVarietals": [
-          "syrah"
-        ],
-        "rank": 2
       },
       {
         "id": "rijk_s",
@@ -59998,7 +61443,89 @@
           "pinotage",
           "chenin_blanc"
         ],
+        "rank": 2
+      },
+      {
+        "id": "twee_jonge_gezellen_krone",
+        "name": "Twee Jonge Gezellen / Krone",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
         "rank": 3
+      },
+      {
+        "id": "montpellier_wine_estate",
+        "name": "Montpellier Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 4
+      },
+      {
+        "id": "lemberg_wine_estate",
+        "name": "Lemberg Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 5
+      },
+      {
+        "id": "manley_wine_estate",
+        "name": "Manley Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "tulbagh_winery",
+        "name": "Tulbagh Winery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "theuniskraal_wine_estate",
+        "name": "Theuniskraal Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 8
+      },
+      {
+        "id": "oude_compagnies_post_swanepoel_wines",
+        "name": "Oude Compagnies Post / Swanepoel Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 9
+      },
+      {
+        "id": "oudekloof_wine_estate",
+        "name": "Oudekloof Wine Estate",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 10
+      },
+      {
+        "id": "blue_crane_vineyards",
+        "name": "Blue Crane Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 11
+      },
+      {
+        "id": "fable_mountain",
+        "name": "Fable Mountain",
+        "reviewCount": 3,
+        "avgRating": 91.7,
+        "topVarietals": [
+          "syrah"
+        ],
+        "rank": 12
       }
     ],
     "clare_valley": [
@@ -60481,6 +62008,168 @@
         ],
         "rank": 5
       }
+    ],
+    "klein_karoo": [
+      {
+        "id": "boplaas_family_vineyards",
+        "name": "Boplaas Family Vineyards",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 1
+      },
+      {
+        "id": "de_krans_wine_cellar",
+        "name": "De Krans Wine Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 2
+      },
+      {
+        "id": "joubert_tradauw",
+        "name": "Joubert-Tradauw",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 3
+      },
+      {
+        "id": "joseph_barry",
+        "name": "Joseph Barry",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 4
+      },
+      {
+        "id": "calitzdorp_wine_cellar",
+        "name": "Calitzdorp Wine Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 5
+      },
+      {
+        "id": "montagu_wine_cellar",
+        "name": "Montagu Wine Cellar",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 6
+      },
+      {
+        "id": "karusa_wines_and_craft_brewery",
+        "name": "Karusa Wines and Craft Brewery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 7
+      },
+      {
+        "id": "drie_berge_winery",
+        "name": "Drie Berge Winery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 8
+      },
+      {
+        "id": "axe_hill_winery",
+        "name": "Axe Hill Winery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 9
+      },
+      {
+        "id": "rietrivier_winery",
+        "name": "Rietrivier Winery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 10
+      },
+      {
+        "id": "tahlia_distillery",
+        "name": "Tahlia Distillery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 11
+      },
+      {
+        "id": "domein_doornkraal",
+        "name": "Domein Doornkraal",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 12
+      },
+      {
+        "id": "herold_wines",
+        "name": "Herold Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 13
+      },
+      {
+        "id": "du_swaroo",
+        "name": "Du'SwaRoo",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 14
+      },
+      {
+        "id": "peter_bayly_wines",
+        "name": "Peter Bayly Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 15
+      },
+      {
+        "id": "grundheim",
+        "name": "Grundheim",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 16
+      },
+      {
+        "id": "hillock_wines",
+        "name": "Hillock Wines",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 17
+      },
+      {
+        "id": "metanoia_distillery",
+        "name": "Metanoia Distillery",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 18
+      },
+      {
+        "id": "ttt_cellars",
+        "name": "TTT Cellars",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 19
+      },
+      {
+        "id": "excelsior_vlakteplaas",
+        "name": "Excelsior Vlakteplaas",
+        "reviewCount": 1,
+        "avgRating": 88.0,
+        "topVarietals": [],
+        "rank": 20
+      }
     ]
   },
   "varietals": [
@@ -60775,7 +62464,7 @@
         "sonoma",
         "santa_barbara",
         "paso_robles",
-        "rogue_valley"
+        "virginia"
       ]
     },
     {
@@ -61302,8 +62991,8 @@
         "stellenbosch",
         "western_cape",
         "coastal_region",
-        "paarl",
-        "swartland"
+        "swartland",
+        "paarl"
       ]
     },
     {
@@ -65276,10 +66965,6 @@
       "regionId": "weinviertel",
       "country": "austria"
     },
-    "coastal region": {
-      "regionId": "coastal_region",
-      "country": "south_africa"
-    },
     "constantia": {
       "regionId": "constantia",
       "country": "south_africa"
@@ -65290,6 +66975,10 @@
     },
     "franschhoek": {
       "regionId": "franschhoek",
+      "country": "south_africa"
+    },
+    "hemel-en-aarde / walker bay": {
+      "regionId": "hemel_en_aarde_walker_bay",
       "country": "south_africa"
     },
     "paarl": {
@@ -65312,12 +67001,8 @@
       "regionId": "tulbagh",
       "country": "south_africa"
     },
-    "walker bay": {
-      "regionId": "walker_bay",
-      "country": "south_africa"
-    },
-    "western cape": {
-      "regionId": "western_cape",
+    "wellington": {
+      "regionId": "wellington",
       "country": "south_africa"
     },
     "central otago": {
@@ -65403,6 +67088,198 @@
     "thracian valley": {
       "regionId": "thracian_valley",
       "country": "bulgaria"
+    },
+    "oak knoll district of napa valley": {
+      "regionId": "napa_valley",
+      "country": "us"
+    },
+    "petaluma gap": {
+      "regionId": "sonoma",
+      "country": "us"
+    },
+    "yamhill-carlton": {
+      "regionId": "willamette_valley",
+      "country": "us"
+    },
+    "van duzer corridor": {
+      "regionId": "willamette_valley",
+      "country": "us"
+    },
+    "santa rita hills": {
+      "regionId": "santa_barbara",
+      "country": "us"
+    },
+    "paso robles estrella district": {
+      "regionId": "paso_robles",
+      "country": "us"
+    },
+    "temecula": {
+      "regionId": "temecula_valley",
+      "country": "us"
+    },
+    "frankland river": {
+      "regionId": "great_southern",
+      "country": "australia"
+    },
+    "rutherglen": {
+      "regionId": "victoria",
+      "country": "australia"
+    },
+    "heathcote": {
+      "regionId": "victoria",
+      "country": "australia"
+    },
+    "mornington peninsula": {
+      "regionId": "victoria",
+      "country": "australia"
+    },
+    "mendoza province": {
+      "regionId": "mendoza",
+      "country": "argentina"
+    },
+    "simonsberg-stellenbosch": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "jonkershoek valley": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "helderberg": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "devon valley": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "polkadraai hills": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "vlootenburg": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "durbanville": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "philadelphia": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "banghoek": {
+      "regionId": "stellenbosch",
+      "country": "south_africa"
+    },
+    "simonsberg-paarl": {
+      "regionId": "paarl",
+      "country": "south_africa"
+    },
+    "walker bay": {
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa"
+    },
+    "hemel en aarde": {
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa"
+    },
+    "bot river": {
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa"
+    },
+    "hemel-en-aarde valley": {
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa"
+    },
+    "hemel-en-aarde ridge": {
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa"
+    },
+    "upper hemel-en-aarde valley": {
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa"
+    },
+    "cape peninsula": {
+      "regionId": "constantia",
+      "country": "south_africa"
+    },
+    "cape point": {
+      "regionId": "constantia",
+      "country": "south_africa"
+    },
+    "overberg": {
+      "regionId": "elgin",
+      "country": "south_africa"
+    },
+    "cape south coast": {
+      "regionId": "elgin",
+      "country": "south_africa"
+    },
+    "cape agulhas": {
+      "regionId": "elgin",
+      "country": "south_africa"
+    },
+    "elim": {
+      "regionId": "elgin",
+      "country": "south_africa"
+    },
+    "paardeberg": {
+      "regionId": "swartland",
+      "country": "south_africa"
+    },
+    "darling": {
+      "regionId": "swartland",
+      "country": "south_africa"
+    },
+    "groenekloof": {
+      "regionId": "swartland",
+      "country": "south_africa"
+    },
+    "malmesbury": {
+      "regionId": "swartland",
+      "country": "south_africa"
+    },
+    "cederberg": {
+      "regionId": "swartland",
+      "country": "south_africa"
+    },
+    "piekenierskloof": {
+      "regionId": "swartland",
+      "country": "south_africa"
+    },
+    "calitzdorp": {
+      "regionId": "klein_karoo",
+      "country": "south_africa"
+    },
+    "montagu": {
+      "regionId": "klein_karoo",
+      "country": "south_africa"
+    },
+    "tradouw": {
+      "regionId": "klein_karoo",
+      "country": "south_africa"
+    },
+    "klein karoo": {
+      "regionId": "klein_karoo",
+      "country": "south_africa"
+    },
+    "breedekloof": {
+      "regionId": "robertson",
+      "country": "south_africa"
+    },
+    "mosel-saar-ruwer": {
+      "regionId": "mosel",
+      "country": "germany"
+    },
+    "alentejano": {
+      "regionId": "alentejo",
+      "country": "portugal"
+    },
+    "wagram-donauland": {
+      "regionId": "wagram",
+      "country": "austria"
     }
   },
   "producerLookup": {
@@ -66413,12 +68290,6 @@
       "regionId": "kamptal",
       "country": "austria",
       "province": "Kamptal"
-    },
-    "allée bleue": {
-      "producerId": "allee_bleue",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "alma fria": {
       "producerId": "alma_fria",
@@ -67848,12 +69719,6 @@
       "country": "us",
       "province": "California"
     },
-    "ataraxia": {
-      "producerId": "ataraxia",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "atlas peak": {
       "producerId": "atlas_peak",
       "regionId": "napa_valley",
@@ -68792,7 +70657,7 @@
     },
     "beaumont": {
       "producerId": "beaumont",
-      "regionId": "walker_bay",
+      "regionId": "hemel_en_aarde_walker_bay",
       "country": "south_africa",
       "province": "Bot River"
     },
@@ -68978,9 +70843,9 @@
     },
     "bellingham": {
       "producerId": "bellingham",
-      "regionId": "coastal_region",
+      "regionId": "franschhoek",
       "country": "south_africa",
-      "province": "Coastal Region"
+      "province": "Franschhoek"
     },
     "bellini": {
       "producerId": "bellini",
@@ -69510,12 +71375,6 @@
       "country": "italy",
       "province": "Veneto"
     },
-    "bizoe": {
-      "producerId": "bizoe",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "bjornstad": {
       "producerId": "bjornstad",
       "regionId": "sonoma",
@@ -69671,12 +71530,6 @@
       "regionId": "finger_lakes",
       "country": "us",
       "province": "New York"
-    },
-    "blue cove": {
-      "producerId": "blue_cove",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "blue farm": {
       "producerId": "blue_farm",
@@ -70662,12 +72515,6 @@
       "country": "italy",
       "province": "Tuscany"
     },
-    "boschendal": {
-      "producerId": "boschendal",
-      "regionId": "coastal_region",
-      "country": "south_africa",
-      "province": "Coastal Region"
-    },
     "boschkloof": {
       "producerId": "boschkloof",
       "regionId": "stellenbosch",
@@ -70766,7 +72613,7 @@
     },
     "bouchard finlayson": {
       "producerId": "bouchard_finlayson",
-      "regionId": "walker_bay",
+      "regionId": "hemel_en_aarde_walker_bay",
       "country": "south_africa",
       "province": "Overberg"
     },
@@ -70895,12 +72742,6 @@
       "regionId": "piedmont",
       "country": "italy",
       "province": "Piedmont"
-    },
-    "brampton": {
-      "producerId": "brampton",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "brancaia": {
       "producerId": "brancaia",
@@ -72617,6 +74458,12 @@
       "regionId": "priorat",
       "country": "spain",
       "province": "Catalonia"
+    },
+    "capaia": {
+      "producerId": "capaia",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Philadelphia"
     },
     "capanna": {
       "producerId": "capanna",
@@ -74381,6 +76228,12 @@
       "regionId": "sierra_foothills",
       "country": "us",
       "province": "California"
+    },
+    "cederberg": {
+      "producerId": "cederberg",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Cederberg"
     },
     "cefalicchio": {
       "producerId": "cefalicchio",
@@ -82782,12 +84635,6 @@
       "country": "france",
       "province": "Burgundy"
     },
-    "david frost": {
-      "producerId": "david_frost",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "david fulton": {
       "producerId": "david_fulton",
       "regionId": "napa_valley",
@@ -83088,12 +84935,6 @@
       "country": "portugal",
       "province": "Douro"
     },
-    "delaire graff": {
-      "producerId": "delaire_graff",
-      "regionId": "coastal_region",
-      "country": "south_africa",
-      "province": "Coastal Region"
-    },
     "delamotte": {
       "producerId": "delamotte",
       "regionId": "champagne",
@@ -83372,7 +85213,7 @@
     },
     "diemersfontein": {
       "producerId": "diemersfontein",
-      "regionId": "paarl",
+      "regionId": "wellington",
       "country": "south_africa",
       "province": "Wellington"
     },
@@ -86190,12 +88031,6 @@
       "country": "italy",
       "province": "Northeastern Italy"
     },
-    "dornier": {
-      "producerId": "dornier",
-      "regionId": "stellenbosch",
-      "country": "south_africa",
-      "province": "Stellenbosch"
-    },
     "dosio": {
       "producerId": "dosio",
       "regionId": "piedmont",
@@ -86219,12 +88054,6 @@
       "regionId": "burgundy",
       "country": "france",
       "province": "Burgundy"
-    },
-    "douglas green": {
-      "producerId": "douglas_green",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "doukénie": {
       "producerId": "doukenie",
@@ -86586,6 +88415,12 @@
       "country": "us",
       "province": "Oregon"
     },
+    "durbanville hills": {
+      "producerId": "durbanville_hills",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Durbanville"
+    },
     "durigutti": {
       "producerId": "durigutti",
       "regionId": "mendoza",
@@ -86912,7 +88747,7 @@
     },
     "eikendal": {
       "producerId": "eikendal",
-      "regionId": "western_cape",
+      "regionId": "stellenbosch",
       "country": "south_africa",
       "province": "Stellenbosch"
     },
@@ -87644,7 +89479,7 @@
     },
     "eventide cellar": {
       "producerId": "eventide_cellar",
-      "regionId": "paarl",
+      "regionId": "wellington",
       "country": "south_africa",
       "province": "Wellington"
     },
@@ -87773,12 +89608,6 @@
       "regionId": "willamette_valley",
       "country": "us",
       "province": "Oregon"
-    },
-    "fairvalley": {
-      "producerId": "fairvalley",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "fairview": {
       "producerId": "fairview",
@@ -87941,12 +89770,6 @@
       "regionId": "tuscany",
       "country": "italy",
       "province": "Tuscany"
-    },
-    "fat barrel": {
-      "producerId": "fat_barrel",
-      "regionId": "stellenbosch",
-      "country": "south_africa",
-      "province": "Stellenbosch"
     },
     "fat bastard": {
       "producerId": "fat_bastard",
@@ -89000,9 +90823,9 @@
     },
     "fleur du cap": {
       "producerId": "fleur_du_cap",
-      "regionId": "western_cape",
+      "regionId": "stellenbosch",
       "country": "south_africa",
-      "province": "Western Cape"
+      "province": "Stellenbosch"
     },
     "flocchini": {
       "producerId": "flocchini",
@@ -90768,12 +92591,6 @@
       "country": "us",
       "province": "California"
     },
-    "goats do roam wine co.": {
-      "producerId": "goats_do_roam_wine_co",
-      "regionId": "coastal_region",
-      "country": "south_africa",
-      "province": "Coastal Region"
-    },
     "godelia": {
       "producerId": "godelia",
       "regionId": "bierzo",
@@ -90803,12 +92620,6 @@
       "regionId": "mendocino",
       "country": "us",
       "province": "California"
-    },
-    "golden kaan": {
-      "producerId": "golden_kaan",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "golden ridge": {
       "producerId": "golden_ridge",
@@ -90980,9 +92791,9 @@
     },
     "graham beck": {
       "producerId": "graham_beck",
-      "regionId": "western_cape",
+      "regionId": "robertson",
       "country": "south_africa",
-      "province": "Western Cape"
+      "province": "Robertson"
     },
     "gramercy": {
       "producerId": "gramercy",
@@ -91350,12 +93161,6 @@
       "country": "us",
       "province": "Washington"
     },
-    "guardian peak": {
-      "producerId": "guardian_peak",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "guastaferro": {
       "producerId": "guastaferro",
       "regionId": "campania",
@@ -91628,7 +93433,7 @@
     },
     "hamilton russell": {
       "producerId": "hamilton_russell",
-      "regionId": "walker_bay",
+      "regionId": "hemel_en_aarde_walker_bay",
       "country": "south_africa",
       "province": "Hemel en Aarde"
     },
@@ -91841,12 +93646,6 @@
       "regionId": "southwest_france",
       "country": "france",
       "province": "Southwest France"
-    },
-    "havana hills": {
-      "producerId": "havana_hills",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "havens": {
       "producerId": "havens",
@@ -93318,12 +95117,6 @@
       "country": "us",
       "province": "California"
     },
-    "indaba": {
-      "producerId": "indaba",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "indigené": {
       "producerId": "indigene",
       "regionId": "monterey",
@@ -94608,12 +96401,6 @@
       "country": "australia",
       "province": "Western Australia"
     },
-    "juno": {
-      "producerId": "juno",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "junta": {
       "producerId": "junta",
       "regionId": "curico_valley",
@@ -94673,12 +96460,6 @@
       "regionId": "columbia_valley",
       "country": "us",
       "province": "Washington"
-    },
-    "kwv": {
-      "producerId": "kwv",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "kaapzicht": {
       "producerId": "kaapzicht",
@@ -95669,12 +97450,6 @@
       "regionId": "veneto",
       "country": "italy",
       "province": "Veneto"
-    },
-    "la capra presented by fairview": {
-      "producerId": "la_capra_presented_by_fairview",
-      "regionId": "coastal_region",
-      "country": "south_africa",
-      "province": "Coastal Region"
     },
     "la carraia": {
       "producerId": "la_carraia",
@@ -98204,7 +99979,7 @@
     },
     "luddite": {
       "producerId": "luddite",
-      "regionId": "walker_bay",
+      "regionId": "hemel_en_aarde_walker_bay",
       "country": "south_africa",
       "province": "Bot River"
     },
@@ -98477,18 +100252,6 @@
       "regionId": "sonoma",
       "country": "us",
       "province": "California"
-    },
-    "man family wines": {
-      "producerId": "man_family_wines",
-      "regionId": "coastal_region",
-      "country": "south_africa",
-      "province": "Coastal Region"
-    },
-    "man vintners": {
-      "producerId": "man_vintners",
-      "regionId": "coastal_region",
-      "country": "south_africa",
-      "province": "Coastal Region"
     },
     "mcv": {
       "producerId": "mcv",
@@ -101762,9 +103525,9 @@
     },
     "mulderbosch": {
       "producerId": "mulderbosch",
-      "regionId": "western_cape",
+      "regionId": "stellenbosch",
       "country": "south_africa",
-      "province": "Western Cape"
+      "province": "Stellenbosch"
     },
     "mullineux": {
       "producerId": "mullineux",
@@ -101954,7 +103717,7 @@
     },
     "nabygelegen": {
       "producerId": "nabygelegen",
-      "regionId": "paarl",
+      "regionId": "wellington",
       "country": "south_africa",
       "province": "Wellington"
     },
@@ -102126,12 +103889,6 @@
       "country": "spain",
       "province": "Northern Spain"
     },
-    "nederburg": {
-      "producerId": "nederburg",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "neethlingshof": {
       "producerId": "neethlingshof",
       "regionId": "stellenbosch",
@@ -102164,9 +103921,9 @@
     },
     "neil ellis": {
       "producerId": "neil_ellis",
-      "regionId": "western_cape",
+      "regionId": "swartland",
       "country": "south_africa",
-      "province": "Western Cape"
+      "province": "Groenekloof"
     },
     "nelson neves": {
       "producerId": "nelson_neves",
@@ -102503,12 +104260,6 @@
       "regionId": "willamette_valley",
       "country": "us",
       "province": "Oregon"
-    },
-    "noble hill": {
-      "producerId": "noble_hill",
-      "regionId": "paarl",
-      "country": "south_africa",
-      "province": "Simonsberg-Paarl"
     },
     "noble tree": {
       "producerId": "noble_tree",
@@ -103092,6 +104843,12 @@
       "country": "italy",
       "province": "Tuscany"
     },
+    "ormonde": {
+      "producerId": "ormonde",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Darling"
+    },
     "ornella molon": {
       "producerId": "ornella_molon",
       "regionId": "veneto",
@@ -103388,9 +105145,9 @@
     },
     "painted wolf": {
       "producerId": "painted_wolf",
-      "regionId": "coastal_region",
+      "regionId": "swartland",
       "country": "south_africa",
-      "province": "Coastal Region"
+      "province": "Swartland"
     },
     "paitin": {
       "producerId": "paitin",
@@ -105690,12 +107447,6 @@
       "country": "us",
       "province": "California"
     },
-    "porcupine ridge": {
-      "producerId": "porcupine_ridge",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "porta": {
       "producerId": "porta",
       "regionId": "aconcagua_valley",
@@ -106061,12 +107812,6 @@
       "regionId": "sierra_foothills",
       "country": "us",
       "province": "California"
-    },
-    "protea": {
-      "producerId": "protea",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "protos": {
       "producerId": "protos",
@@ -106846,7 +108591,7 @@
       "producerId": "raats_family",
       "regionId": "stellenbosch",
       "country": "south_africa",
-      "province": "Coastal Region"
+      "province": "Stellenbosch"
     },
     "rabble": {
       "producerId": "rabble",
@@ -107261,12 +109006,6 @@
       "regionId": "toro",
       "country": "spain",
       "province": "Northern Spain"
-    },
-    "releaf": {
-      "producerId": "releaf",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "remelluri": {
       "producerId": "remelluri",
@@ -109656,12 +111395,6 @@
       "country": "us",
       "province": "California"
     },
-    "sebeka": {
-      "producerId": "sebeka",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "second growth": {
       "producerId": "second_growth",
       "regionId": "willamette_valley",
@@ -110790,12 +112523,6 @@
       "country": "us",
       "province": "California"
     },
-    "solms-delta": {
-      "producerId": "solms_delta",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "solo contigo": {
       "producerId": "solo_contigo",
       "regionId": "mendoza",
@@ -110972,7 +112699,7 @@
     },
     "southern right": {
       "producerId": "southern_right",
-      "regionId": "walker_bay",
+      "regionId": "hemel_en_aarde_walker_bay",
       "country": "south_africa",
       "province": "Walker Bay"
     },
@@ -111359,12 +113086,6 @@
       "regionId": "sonoma",
       "country": "us",
       "province": "California"
-    },
-    "steenberg": {
-      "producerId": "steenberg",
-      "regionId": "coastal_region",
-      "country": "south_africa",
-      "province": "Coastal Region"
     },
     "stefania mezzetti": {
       "producerId": "stefania_mezzetti",
@@ -113544,12 +115265,6 @@
       "country": "us",
       "province": "California"
     },
-    "the foundry": {
-      "producerId": "the_foundry",
-      "regionId": "coastal_region",
-      "country": "south_africa",
-      "province": "Coastal Region"
-    },
     "the four graces": {
       "producerId": "the_four_graces",
       "regionId": "willamette_valley",
@@ -113735,12 +115450,6 @@
       "regionId": "barossa",
       "country": "australia",
       "province": "South Australia"
-    },
-    "thorntree": {
-      "producerId": "thorntree",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "three": {
       "producerId": "three",
@@ -113978,9 +115687,9 @@
     },
     "tokara": {
       "producerId": "tokara",
-      "regionId": "western_cape",
+      "regionId": "stellenbosch",
       "country": "south_africa",
-      "province": "Western Cape"
+      "province": "Stellenbosch"
     },
     "tolaini": {
       "producerId": "tolaini",
@@ -114761,12 +116470,6 @@
       "regionId": "columbia_valley",
       "country": "us",
       "province": "Washington"
-    },
-    "two oceans": {
-      "producerId": "two_oceans",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "two paddocks": {
       "producerId": "two_paddocks",
@@ -116568,23 +118271,11 @@
       "country": "spain",
       "province": "Catalonia"
     },
-    "vins d'orrance": {
-      "producerId": "vins_d_orrance",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
-    },
     "vintage cowboy": {
       "producerId": "vintage_cowboy",
       "regionId": "paso_robles",
       "country": "us",
       "province": "California"
-    },
-    "vintales": {
-      "producerId": "vintales",
-      "regionId": "western_cape",
-      "country": "south_africa",
-      "province": "Western Cape"
     },
     "vinum": {
       "producerId": "vinum",
@@ -118697,6 +120388,1710 @@
       "regionId": "columbia_valley",
       "country": "us",
       "province": "Washington"
+    },
+    "steenberg": {
+      "producerId": "steenberg",
+      "regionId": "constantia",
+      "country": "south_africa",
+      "province": "Constantia"
+    },
+    "beau constantia": {
+      "producerId": "beau_constantia",
+      "regionId": "constantia",
+      "country": "south_africa",
+      "province": "Constantia"
+    },
+    "eagles' nest": {
+      "producerId": "eagles_nest",
+      "regionId": "constantia",
+      "country": "south_africa",
+      "province": "Constantia"
+    },
+    "constantia royale": {
+      "producerId": "constantia_royale",
+      "regionId": "constantia",
+      "country": "south_africa",
+      "province": "Constantia"
+    },
+    "kanonkop wine estate": {
+      "producerId": "kanonkop_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "meerlust estate": {
+      "producerId": "meerlust_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "rust en vrede estate": {
+      "producerId": "rust_en_vrede_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "thelema mountain vineyards": {
+      "producerId": "thelema_mountain_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "de toren private cellar": {
+      "producerId": "de_toren_private_cellar",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "jordan wine estate": {
+      "producerId": "jordan_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "delaire graff estate": {
+      "producerId": "delaire_graff_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "simonsig wine estate": {
+      "producerId": "simonsig_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "warwick estate": {
+      "producerId": "warwick_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "waterford estate": {
+      "producerId": "waterford_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "uva mira mountain vineyards": {
+      "producerId": "uva_mira_mountain_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "keermont vineyards": {
+      "producerId": "keermont_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "hartenberg estate": {
+      "producerId": "hartenberg_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "stark-condé wines": {
+      "producerId": "stark_conde_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "le riche wines": {
+      "producerId": "le_riche_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "lanzerac": {
+      "producerId": "lanzerac",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "kleine zalze": {
+      "producerId": "kleine_zalze",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "raats family wines": {
+      "producerId": "raats_family_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "oldenburg vineyards": {
+      "producerId": "oldenburg_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "neil ellis wines": {
+      "producerId": "neil_ellis_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "kleinood": {
+      "producerId": "kleinood",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "cavalli wine & stud farm": {
+      "producerId": "cavalli_wine_stud_farm",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "ernie els wines": {
+      "producerId": "ernie_els_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "boschkloof wines": {
+      "producerId": "boschkloof_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "muratie estate": {
+      "producerId": "muratie_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "kaapzicht wine estate": {
+      "producerId": "kaapzicht_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "vergenoegd löw wine estate": {
+      "producerId": "vergenoegd_low_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "longridge wine estate": {
+      "producerId": "longridge_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "stellenrust": {
+      "producerId": "stellenrust",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "mooiplaas wine estate": {
+      "producerId": "mooiplaas_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "l'avenir": {
+      "producerId": "l_avenir",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "blaauwklippen": {
+      "producerId": "blaauwklippen",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "louisvale wines": {
+      "producerId": "louisvale_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "taaibosch wine estate": {
+      "producerId": "taaibosch_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "vriesenhof vineyards": {
+      "producerId": "vriesenhof_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "rainbow's end wine estate": {
+      "producerId": "rainbow_s_end_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "remhoogte wine estate": {
+      "producerId": "remhoogte_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "bellevue estate": {
+      "producerId": "bellevue_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "morgenster estate": {
+      "producerId": "morgenster_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "quoin rock": {
+      "producerId": "quoin_rock",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "hazendal": {
+      "producerId": "hazendal",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "hidden valley wines": {
+      "producerId": "hidden_valley_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "zevenwacht": {
+      "producerId": "zevenwacht",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "idiom wines": {
+      "producerId": "idiom_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "dornier wines": {
+      "producerId": "dornier_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "eikendal vineyards": {
+      "producerId": "eikendal_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "villiera wines": {
+      "producerId": "villiera_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "saxenburg": {
+      "producerId": "saxenburg",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "peter falke wines": {
+      "producerId": "peter_falke_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "middelvlei wines": {
+      "producerId": "middelvlei_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "dalla cia": {
+      "producerId": "dalla_cia",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "miles mossop wines": {
+      "producerId": "miles_mossop_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "grangehurst": {
+      "producerId": "grangehurst",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "zorgvliet wines": {
+      "producerId": "zorgvliet_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "stellenbosch vineyards": {
+      "producerId": "stellenbosch_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "yonder hill": {
+      "producerId": "yonder_hill",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "guardian peak": {
+      "producerId": "guardian_peak",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "lievland vineyards": {
+      "producerId": "lievland_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "le pommier": {
+      "producerId": "le_pommier",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "knorhoek": {
+      "producerId": "knorhoek",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "haskell vineyards": {
+      "producerId": "haskell_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "lyngrove": {
+      "producerId": "lyngrove",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "overgaauw wine estate": {
+      "producerId": "overgaauw_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "avontuur estate": {
+      "producerId": "avontuur_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "alto wine estate": {
+      "producerId": "alto_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "aslina wines": {
+      "producerId": "aslina_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "flagstone wines": {
+      "producerId": "flagstone_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "vredenheim": {
+      "producerId": "vredenheim",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "skilpadvlei": {
+      "producerId": "skilpadvlei",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "kanu wines": {
+      "producerId": "kanu_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "le grand domaine": {
+      "producerId": "le_grand_domaine",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "clos malverne": {
+      "producerId": "clos_malverne",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "weltevreden estate / bertha wines": {
+      "producerId": "weltevreden_estate_bertha_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "stellenzicht wines": {
+      "producerId": "stellenzicht_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "pink valley wines": {
+      "producerId": "pink_valley_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "foothills vineyards": {
+      "producerId": "foothills_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "slaley": {
+      "producerId": "slaley",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "somerbosch wines": {
+      "producerId": "somerbosch_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "koelenhof wine cellar": {
+      "producerId": "koelenhof_wine_cellar",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "le bonheur estate": {
+      "producerId": "le_bonheur_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "kunjani wines": {
+      "producerId": "kunjani_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "clouds wine & guest estate": {
+      "producerId": "clouds_wine_guest_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "la boucher wines": {
+      "producerId": "la_boucher_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "heins family wines (kleine liebe)": {
+      "producerId": "heins_family_wines_kleine_liebe",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "deux frères": {
+      "producerId": "deux_freres",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "de waal wines": {
+      "producerId": "de_waal_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "de meye": {
+      "producerId": "de_meye",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "visio vintners": {
+      "producerId": "visio_vintners",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "long dog wine": {
+      "producerId": "long_dog_wine",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "lovane boutique wine estate": {
+      "producerId": "lovane_boutique_wine_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "klein dasbosch": {
+      "producerId": "klein_dasbosch",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "meinert wines": {
+      "producerId": "meinert_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "bartinney private cellar": {
+      "producerId": "bartinney_private_cellar",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "ladybird vineyards": {
+      "producerId": "ladybird_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "annandale wines": {
+      "producerId": "annandale_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "barnardt boyes wines": {
+      "producerId": "barnardt_boyes_wines",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "bein wine cellar": {
+      "producerId": "bein_wine_cellar",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "brenaissance wine & stud estate": {
+      "producerId": "brenaissance_wine_stud_estate",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "compagniesdrift": {
+      "producerId": "compagniesdrift",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "groenland": {
+      "producerId": "groenland",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "limoenkloof": {
+      "producerId": "limoenkloof",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "the high road": {
+      "producerId": "the_high_road",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "winshaw vineyards": {
+      "producerId": "winshaw_vineyards",
+      "regionId": "stellenbosch",
+      "country": "south_africa",
+      "province": "Stellenbosch"
+    },
+    "hamilton russell vineyards": {
+      "producerId": "hamilton_russell_vineyards",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "newton johnson vineyards": {
+      "producerId": "newton_johnson_vineyards",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "creation": {
+      "producerId": "creation",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "ataraxia": {
+      "producerId": "ataraxia",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "restless river": {
+      "producerId": "restless_river",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "cap maritime": {
+      "producerId": "cap_maritime",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "la vierge": {
+      "producerId": "la_vierge",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "spookfontein": {
+      "producerId": "spookfontein",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "bosman hermanus": {
+      "producerId": "bosman_hermanus",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "hasher family estate": {
+      "producerId": "hasher_family_estate",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "francis wines": {
+      "producerId": "francis_wines",
+      "regionId": "hemel_en_aarde_walker_bay",
+      "country": "south_africa",
+      "province": "Hemel-en-Aarde / Walker Bay"
+    },
+    "kershaw wines": {
+      "producerId": "kershaw_wines",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "iona": {
+      "producerId": "iona",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "shannon vineyards": {
+      "producerId": "shannon_vineyards",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "charles fox": {
+      "producerId": "charles_fox",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "almenkerk": {
+      "producerId": "almenkerk",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "la brune": {
+      "producerId": "la_brune",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "lothian": {
+      "producerId": "lothian",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "radford dale organic": {
+      "producerId": "radford_dale_organic",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "south hill": {
+      "producerId": "south_hill",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "paul wallace family wines": {
+      "producerId": "paul_wallace_family_wines",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "highlands road": {
+      "producerId": "highlands_road",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "boschendal": {
+      "producerId": "boschendal",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "sutherland vineyards": {
+      "producerId": "sutherland_vineyards",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "tokara highlands": {
+      "producerId": "tokara_highlands",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "spioenkop wines": {
+      "producerId": "spioenkop_wines",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "moya meaker": {
+      "producerId": "moya_meaker",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "oneiric wine estate": {
+      "producerId": "oneiric_wine_estate",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "off the record": {
+      "producerId": "off_the_record",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "idun": {
+      "producerId": "idun",
+      "regionId": "elgin",
+      "country": "south_africa",
+      "province": "Elgin"
+    },
+    "the sadie family wines": {
+      "producerId": "the_sadie_family_wines",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "porseleinberg": {
+      "producerId": "porseleinberg",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "david & nadia": {
+      "producerId": "david_nadia",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "aa badenhorst": {
+      "producerId": "aa_badenhorst",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "rall wines": {
+      "producerId": "rall_wines",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "testalonga": {
+      "producerId": "testalonga",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "intellego": {
+      "producerId": "intellego",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "pulpit rock": {
+      "producerId": "pulpit_rock",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "swerwer wines": {
+      "producerId": "swerwer_wines",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "kloovenburg": {
+      "producerId": "kloovenburg",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "allesverloren": {
+      "producerId": "allesverloren",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "leeuwenkuil": {
+      "producerId": "leeuwenkuil",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "marras": {
+      "producerId": "marras",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "great heart wines": {
+      "producerId": "great_heart_wines",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "riebeek valley wine co": {
+      "producerId": "riebeek_valley_wine_co",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "fram": {
+      "producerId": "fram",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "org de rac": {
+      "producerId": "org_de_rac",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "babylon's peak": {
+      "producerId": "babylon_s_peak",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "thor vintners & co.": {
+      "producerId": "thor_vintners_co",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "tim hillock": {
+      "producerId": "tim_hillock",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "yellowwood": {
+      "producerId": "yellowwood",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "wightman & sons": {
+      "producerId": "wightman_sons",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "city on a hill": {
+      "producerId": "city_on_a_hill",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "dragonridge": {
+      "producerId": "dragonridge",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "hofstraat wynkelder": {
+      "producerId": "hofstraat_wynkelder",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "klein amoskuil": {
+      "producerId": "klein_amoskuil",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "nativo": {
+      "producerId": "nativo",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "swartland winery": {
+      "producerId": "swartland_winery",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "het vlock casteel": {
+      "producerId": "het_vlock_casteel",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "schenkfontein": {
+      "producerId": "schenkfontein",
+      "regionId": "swartland",
+      "country": "south_africa",
+      "province": "Swartland"
+    },
+    "la motte": {
+      "producerId": "la_motte",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "babylonstoren": {
+      "producerId": "babylonstoren",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "rupert & rothschild vignerons": {
+      "producerId": "rupert_rothschild_vignerons",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "haute cabrière": {
+      "producerId": "haute_cabriere",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "le lude": {
+      "producerId": "le_lude",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "mullineux & leeu family wines": {
+      "producerId": "mullineux_leeu_family_wines",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "anthonij rupert wyne": {
+      "producerId": "anthonij_rupert_wyne",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "cape chamonix": {
+      "producerId": "cape_chamonix",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "rickety bridge": {
+      "producerId": "rickety_bridge",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "holden manz": {
+      "producerId": "holden_manz",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "paserene": {
+      "producerId": "paserene",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "grande provence": {
+      "producerId": "grande_provence",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "colmant": {
+      "producerId": "colmant",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "la petite ferme": {
+      "producerId": "la_petite_ferme",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "mont rochelle": {
+      "producerId": "mont_rochelle",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "glenwood": {
+      "producerId": "glenwood",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "franschhoek cellar": {
+      "producerId": "franschhoek_cellar",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "dieu donné": {
+      "producerId": "dieu_donne",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "backsberg family wines": {
+      "producerId": "backsberg_family_wines",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "maison estate": {
+      "producerId": "maison_estate",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "leopard's leap": {
+      "producerId": "leopard_s_leap",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "wildeberg wines": {
+      "producerId": "wildeberg_wines",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "val de vie wine & polo estate": {
+      "producerId": "val_de_vie_wine_polo_estate",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "painted wolf wines": {
+      "producerId": "painted_wolf_wines",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "noble hill": {
+      "producerId": "noble_hill",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "allée bleue": {
+      "producerId": "allee_bleue",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "blackwater wines & vines": {
+      "producerId": "blackwater_wines_vines",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "black elephant vintners": {
+      "producerId": "black_elephant_vintners",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "la bri": {
+      "producerId": "la_bri",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "lynx wines": {
+      "producerId": "lynx_wines",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "le manoir de brendel": {
+      "producerId": "le_manoir_de_brendel",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "deux lions": {
+      "producerId": "deux_lions",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "klein goederust": {
+      "producerId": "klein_goederust",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "eikehof": {
+      "producerId": "eikehof",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "stony brook": {
+      "producerId": "stony_brook",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "veraison vineyards": {
+      "producerId": "veraison_vineyards",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "terre paisible": {
+      "producerId": "terre_paisible",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "akkerdal wine estate": {
+      "producerId": "akkerdal_wine_estate",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "franschhoek pass winery": {
+      "producerId": "franschhoek_pass_winery",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "klein champagne / mel wines": {
+      "producerId": "klein_champagne_mel_wines",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "la chataigne": {
+      "producerId": "la_chataigne",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "la cotte farm": {
+      "producerId": "la_cotte_farm",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "old road wine co.": {
+      "producerId": "old_road_wine_co",
+      "regionId": "franschhoek",
+      "country": "south_africa",
+      "province": "Franschhoek"
+    },
+    "nederburg": {
+      "producerId": "nederburg",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "brookdale": {
+      "producerId": "brookdale",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "kwv": {
+      "producerId": "kwv",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "perdeberg": {
+      "producerId": "perdeberg",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "rhebokskloof": {
+      "producerId": "rhebokskloof",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "landskroon & survivor": {
+      "producerId": "landskroon_survivor",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "boland cellar": {
+      "producerId": "boland_cellar",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "windmeul": {
+      "producerId": "windmeul",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "ridgeback": {
+      "producerId": "ridgeback",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "dekkersvlei": {
+      "producerId": "dekkersvlei",
+      "regionId": "paarl",
+      "country": "south_africa",
+      "province": "Paarl"
+    },
+    "de wetshof estate": {
+      "producerId": "de_wetshof_estate",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "silverthorn wines": {
+      "producerId": "silverthorn_wines",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "rietvallei wine estate": {
+      "producerId": "rietvallei_wine_estate",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "bon courage estate": {
+      "producerId": "bon_courage_estate",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "weltevrede estate": {
+      "producerId": "weltevrede_estate",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "arendsig": {
+      "producerId": "arendsig",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "paul rené mcc": {
+      "producerId": "paul_rene_mcc",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "excelsior wine estate": {
+      "producerId": "excelsior_wine_estate",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "ashton winery": {
+      "producerId": "ashton_winery",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "tanagra wine & guestfarm": {
+      "producerId": "tanagra_wine_guestfarm",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "viljoensdrift": {
+      "producerId": "viljoensdrift",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "mont blois estate": {
+      "producerId": "mont_blois_estate",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "mimosa wines": {
+      "producerId": "mimosa_wines",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "bonnievale wines": {
+      "producerId": "bonnievale_wines",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "rooiberg winery": {
+      "producerId": "rooiberg_winery",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "kleinhoekkloof": {
+      "producerId": "kleinhoekkloof",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "esona boutique wine estate": {
+      "producerId": "esona_boutique_wine_estate",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "langverwacht winery": {
+      "producerId": "langverwacht_winery",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "rivergold private cellar": {
+      "producerId": "rivergold_private_cellar",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "windfall wine": {
+      "producerId": "windfall_wine",
+      "regionId": "robertson",
+      "country": "south_africa",
+      "province": "Robertson"
+    },
+    "saronsberg cellar": {
+      "producerId": "saronsberg_cellar",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "rijk's wine estate": {
+      "producerId": "rijk_s_wine_estate",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "twee jonge gezellen / krone": {
+      "producerId": "twee_jonge_gezellen_krone",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "montpellier wine estate": {
+      "producerId": "montpellier_wine_estate",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "lemberg wine estate": {
+      "producerId": "lemberg_wine_estate",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "manley wine estate": {
+      "producerId": "manley_wine_estate",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "tulbagh winery": {
+      "producerId": "tulbagh_winery",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "theuniskraal wine estate": {
+      "producerId": "theuniskraal_wine_estate",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "oude compagnies post / swanepoel wines": {
+      "producerId": "oude_compagnies_post_swanepoel_wines",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "oudekloof wine estate": {
+      "producerId": "oudekloof_wine_estate",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "blue crane vineyards": {
+      "producerId": "blue_crane_vineyards",
+      "regionId": "tulbagh",
+      "country": "south_africa",
+      "province": "Tulbagh"
+    },
+    "bosman family vineyards": {
+      "producerId": "bosman_family_vineyards",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "diemersfontein wines": {
+      "producerId": "diemersfontein_wines",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "doolhof wine estate": {
+      "producerId": "doolhof_wine_estate",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "mont du toit kelder": {
+      "producerId": "mont_du_toit_kelder",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "wellington wines": {
+      "producerId": "wellington_wines",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "imbuko wines": {
+      "producerId": "imbuko_wines",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "upland organic wine & brandy estate": {
+      "producerId": "upland_organic_wine_brandy_estate",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "dunstone estate": {
+      "producerId": "dunstone_estate",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "andreas wines": {
+      "producerId": "andreas_wines",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "welgegund": {
+      "producerId": "welgegund",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "wolvenhoek": {
+      "producerId": "wolvenhoek",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "canetsfontein": {
+      "producerId": "canetsfontein",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "jacaranda wine & guest farm": {
+      "producerId": "jacaranda_wine_guest_farm",
+      "regionId": "wellington",
+      "country": "south_africa",
+      "province": "Wellington"
+    },
+    "boplaas family vineyards": {
+      "producerId": "boplaas_family_vineyards",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "de krans wine cellar": {
+      "producerId": "de_krans_wine_cellar",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "joubert-tradauw": {
+      "producerId": "joubert_tradauw",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "joseph barry": {
+      "producerId": "joseph_barry",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "calitzdorp wine cellar": {
+      "producerId": "calitzdorp_wine_cellar",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "montagu wine cellar": {
+      "producerId": "montagu_wine_cellar",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "karusa wines and craft brewery": {
+      "producerId": "karusa_wines_and_craft_brewery",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "drie berge winery": {
+      "producerId": "drie_berge_winery",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "axe hill winery": {
+      "producerId": "axe_hill_winery",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "rietrivier winery": {
+      "producerId": "rietrivier_winery",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "tahlia distillery": {
+      "producerId": "tahlia_distillery",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "domein doornkraal": {
+      "producerId": "domein_doornkraal",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "herold wines": {
+      "producerId": "herold_wines",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "du'swaroo": {
+      "producerId": "du_swaroo",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "peter bayly wines": {
+      "producerId": "peter_bayly_wines",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "grundheim": {
+      "producerId": "grundheim",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "hillock wines": {
+      "producerId": "hillock_wines",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "metanoia distillery": {
+      "producerId": "metanoia_distillery",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "ttt cellars": {
+      "producerId": "ttt_cellars",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
+    },
+    "excelsior vlakteplaas": {
+      "producerId": "excelsior_vlakteplaas",
+      "regionId": "klein_karoo",
+      "country": "south_africa",
+      "province": "Klein Karoo"
     }
   },
   "varietalLookup": {
@@ -118733,11 +122128,11 @@
     "melon": "muscadet"
   },
   "metadata": {
-    "generatedAt": "2026-03-15T03:22:02.016450+00:00",
+    "generatedAt": "2026-03-16T16:21:59.006695+00:00",
     "sourceRows": 129908,
     "countryCount": 19,
     "regionCount": 145,
-    "producerCount": 5230,
+    "producerCount": 5456,
     "varietalCount": 71,
     "minCountryReviews": 100,
     "minRegionReviews": 50,
