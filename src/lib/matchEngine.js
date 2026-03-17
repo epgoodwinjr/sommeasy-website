@@ -547,6 +547,45 @@ export function buildFeedbackSignals(interactions) {
 
 
 // ═══════════════════════════════════════════════════════
+// QUALITY BONUS (from WineMag producer reputation data)
+// ═══════════════════════════════════════════════════════
+
+function getQualityBonus(producerName) {
+  var normalized = producerName.toLowerCase().trim();
+  var lookupEntry = PRODUCER_LOOKUP[normalized];
+
+  if (!lookupEntry) return { bonus: 0, confidence: "unknown" };
+
+  // Two-hop: lookup → regionId → PRODUCERS array → find by producerId
+  var regionProducers = PRODUCERS[lookupEntry.regionId] || [];
+  var producerData = regionProducers.find(function(p) { return p.id === lookupEntry.producerId; });
+
+  if (!producerData) return { bonus: 0, confidence: "unknown" };
+
+  var avgRating = producerData.avgRating || 0;
+  var reviewCount = producerData.reviewCount || 0;
+
+  // Rating-based bonus (tiebreaker, max 2.0)
+  var ratingBonus = 0;
+  if (avgRating >= 95) ratingBonus = 2.0;
+  else if (avgRating >= 93) ratingBonus = 1.5;
+  else if (avgRating >= 90) ratingBonus = 1.0;
+  else if (avgRating >= 87) ratingBonus = 0.5;
+
+  // Confidence modifier based on review count
+  var confidence = "low";
+  var confidenceMultiplier = 0.5;
+  if (reviewCount >= 50) { confidence = "high"; confidenceMultiplier = 1.0; }
+  else if (reviewCount >= 20) { confidence = "medium"; confidenceMultiplier = 0.8; }
+  else if (reviewCount >= 5) { confidence = "low-medium"; confidenceMultiplier = 0.6; }
+
+  var bonus = ratingBonus * confidenceMultiplier;
+
+  return { bonus: Math.round(bonus * 10) / 10, confidence: confidence, avgRating: avgRating, reviewCount: reviewCount };
+}
+
+
+// ═══════════════════════════════════════════════════════
 // SCORING
 // ═══════════════════════════════════════════════════════
 
@@ -687,6 +726,23 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
         matchReasons.push({ type: "feedback_suppress", label: "You didn't enjoy this producer", weight: -3 });
       }
     }
+  }
+
+  // QUALITY BONUS — tiebreaker based on producer reputation (max +2.0)
+  var qualityProducerName = detectedProducerName;
+  if (qualityProducerName) {
+    var quality = getQualityBonus(qualityProducerName);
+    if (quality.bonus > 0) {
+      score += quality.bonus;
+      matchReasons.push({ type: "quality", label: quality.avgRating + " pts (" + quality.reviewCount + " reviews)", weight: quality.bonus });
+    }
+  }
+
+  // ESTATE + REGION COMBO BONUS (+1 when both match)
+  var hasEstateMatch = matchReasons.some(function(r) { return r.type === "estate"; });
+  var hasRegionMatch = matchReasons.some(function(r) { return r.type === "region"; });
+  if (hasEstateMatch && hasRegionMatch) {
+    score += 1;
   }
 
   return {
