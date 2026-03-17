@@ -12,14 +12,15 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - **Auth + Database:** Supabase (Postgres with RLS, auth.users)
 - **Styling:** Inline styles / CSS-in-JS (no Tailwind)
 - **PDF processing:** unpdf with Y-coordinate detection for line breaks
-- **OCR:** Tesseract.js v7 (menus/shelf tags, client-side) + Claude Vision API (bottle labels, server-side)
+- **Menu scanning:** Claude Vision API (claude-sonnet-4-20250514) for photo/PDF wine list extraction via `/api/parse-wine-list`
+- **Bottle label OCR:** Tesseract.js v7, runs entirely client-side in the browser — no API cost
 - **Deployment:** Vercel (auto-deploys from main)
-- **Core flow:** URL/photo/paste → PDF extraction or OCR → wine parsing → DNA matching → budget-filtered curated picks
+- **Core flow:** Scan (photo/PDF) → Vision API or URL fetch → structured wine data or text parsing → DNA matching → budget-filtered curated picks
 
 ## Current State
 
 - Quiz (5 steps), DNA profile with 15 archetypes across 6 scoring dimensions
-- Restaurant recommendation engine: URL fetch, PDF extraction, photo OCR, paste — curated 5-pick output
+- Restaurant recommendation engine: scan (Claude Vision), URL fetch, PDF extraction, paste — two-card input UX, curated 5-pick output with post-scan filtering
 - Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings
 - Log a Bottle: Claude Vision API for label OCR (via `/api/scan-label`), saves to journal + influences DNA
 - Supabase tables: profiles, wine_interactions
@@ -88,40 +89,24 @@ You don't need to ask permission for individual code changes. Make the call, shi
 - profileEngine.js generates up to 20 wine recommendations across 4 matching passes; pre-seeds exclusion list with user's named specific wines
 - Supabase client (supabase.js) stubs gracefully when env vars are absent during Vercel build-time pre-rendering
 - wineAutocomplete.json (140KB) lazy-loads on quiz Step 5 only — doesn't affect initial load
+- `/api/parse-wine-list` accepts base64 image or PDF, calls Claude Vision, returns `{ wines: [...] }` (Path A: structured JSON → direct to match engine) or `{ rawText }` (Path B: fallback to text parser). Both converge at `runAnalysis()` in the recommend page
+- `ANTHROPIC_API_KEY` is required in Vercel environment variables for Vision scanning to work
 
 ## Priorities (Current)
 
-1. Filter by-the-glass wines from bottle recommendations
-2. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
-3. MVP polish and stability
+1. Restaurant input Phase 1 — two-card scan/link UX with Claude Vision (in progress)
+2. Multi-page wine list accumulation (fast-follow to Phase 1)
+3. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
+4. Rate limiting and cost tracking for Vision API
+5. MVP polish and stability
 
-## Image Processing & OCR
+## API Usage
 
-Sommeasy handles three types of image inputs. Always route to the correct
-processing path — do NOT use a single approach for all image types:
+The Anthropic API (Claude Vision) is used for wine list scanning via `/api/parse-wine-list`. This is the only paid API in the app. Estimated cost: ~$0.01-0.03 per scan.
 
-| Source | Tool | Reason |
-|---|---|---|
-| Wine bottle labels | Claude Vision API (`claude-sonnet-4-6`) | Decorative fonts, curved surfaces, complex backgrounds — Tesseract fails here |
-| Restaurant wine lists / menus | Tesseract.js (client-side) | Clean printed text, free, no API cost |
-| Wine shop shelf tags / price cards | Tesseract.js (client-side) | Simple high-contrast text, Tesseract handles well |
-
-**Key rules:**
-
-- Never call the Anthropic API directly from the browser. Always proxy through a Next.js API route (`/app/api/scan-label/route.ts`) to keep the API key server-side.
-- Never put `NEXT_PUBLIC_` prefix on `ANTHROPIC_API_KEY` — that would expose it to the browser.
-- Both paths must output the shared `WineExtraction` schema before any database matching.
-- Tesseract must always run client-side in a `'use client'` component — never on the server.
-- Always preprocess images before Tesseract (greyscale + contrast boost).
-- The full implementation patterns, component code, and prompt template live in: `.claude/skills/sommeasy-image-processing/`
-
-## API Cost Constraint
-
-Claude Vision is allowed **only** for bottle label scanning (via `/api/scan-label`). All other features must use free, client-side alternatives.
-
-- Menu/shelf OCR uses Tesseract.js running in the browser (zero cost)
-- Do not introduce new paid API calls beyond the label-scanning route without discussion
-- If a feature would require a paid external API, flag it for discussion rather than implementing it
+- The `/api/ocr` and `/api/ocr-bottle` routes are legacy dead code — do not call them
+- Bottle label OCR still uses free client-side Tesseract.js
+- If a feature would require a new paid API beyond Vision scanning, flag it for discussion
 
 ## What NOT to Do
 
@@ -129,4 +114,4 @@ Claude Vision is allowed **only** for bottle label scanning (via `/api/scan-labe
 - Don't introduce new dependencies without a strong reason
 - Don't change the brand voice or visual identity without discussion
 - Don't optimize prematurely — get it working, then get it fast
-- Don't use paid APIs beyond the approved bottle-label route — see API Cost Constraint above
+- Don't add new paid API integrations without discussion — Claude Vision for scanning is the one approved exception

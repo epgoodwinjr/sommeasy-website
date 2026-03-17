@@ -2,14 +2,52 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName, buildFeedbackSignals } from "@/lib/matchEngine";
-import { compressImage, preprocessForOCR } from "@/lib/image-utils";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName } from "@/lib/matchEngine";
 
-// ─── Input mode constants ───
-const MODES = [
-  { id: "paste", label: "Paste Text", icon: "📋" },
-  { id: "photo", label: "Snap Photo", icon: "📷" },
-  { id: "url", label: "Paste URL", icon: "🔗" },
+// ─── Image compression utility ───
+// Returns a compressed JPEG Blob (max 2048px, 0.85 quality, handles HEIC/HEIF)
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 2048;
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > MAX || h > MAX) {
+        if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error("Compression failed")); return; }
+        resolve(blob);
+      }, "image/jpeg", 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
+    img.src = url;
+  });
+}
+
+// ─── Base64 encoding utility ───
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ─── Loading message rotation ───
+const LOADING_MESSAGES = [
+  "Reading the wine list...",
+  "Matching wines to your palate...",
+  "Finding your perfect picks...",
 ];
 
 // ─── Photo source types ───
@@ -28,14 +66,14 @@ export default function RecommendPage() {
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [picks, setPicks] = useState(null);
+  const [scoredEntries, setScoredEntries] = useState(null);
   const [totalParsed, setTotalParsed] = useState(0);
   const [totalMatched, setTotalMatched] = useState(0);
-  const [inputMode, setInputMode] = useState("paste");
+  const [showPasteMode, setShowPasteMode] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processingMsg, setProcessingMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [menuUrl, setMenuUrl] = useState("");
-  const [photoPreview, setPhotoPreview] = useState(null);
   const [extractedFrom, setExtractedFrom] = useState(null);
   const [pickRatings, setPickRatings] = useState({});
   const [ratingPick, setRatingPick] = useState(null);
@@ -43,12 +81,18 @@ export default function RecommendPage() {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [photoSource, setPhotoSource] = useState("wine-list"); // "wine-list" | "shelf-tag" | "bottle-label"
-  const [interactions, setInteractions] = useState([]);
+  const loadingInterval = useRef(null);
   const supabase = createClient();
 
   useEffect(() => {
     setIsMobile(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  }, []);
+
+  // Clean up loading interval on unmount
+  useEffect(() => {
+    return () => {
+      if (loadingInterval.current) clearInterval(loadingInterval.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -70,112 +114,165 @@ export default function RecommendPage() {
     init();
   }, []);
 
-  // ─── Photo handling (hybrid: Tesseract for lists/tags, Vision for labels) ───
-  const handlePhotoSelect = async (e) => {
+  // ─── Rotating loading messages ───
+  const startLoadingMessages = () => {
+    let idx = 0;
+    setProcessingMsg(LOADING_MESSAGES[0]);
+    loadingInterval.current = setInterval(() => {
+      idx = (idx + 1) % LOADING_MESSAGES.length;
+      setProcessingMsg(LOADING_MESSAGES[idx]);
+    }, 2500);
+  };
+
+  const stopLoadingMessages = () => {
+    if (loadingInterval.current) {
+      clearInterval(loadingInterval.current);
+      loadingInterval.current = null;
+    }
+    setProcessingMsg("");
+  };
+
+  // ─── Core analysis (called with explicit values to avoid React batching issues) ───
+  const runAnalysis = (entries, minP, maxP, colorP) => {
+    if (!profile) return;
+    setTotalParsed(entries.length);
+    const dna = {
+      countries: profile.countries || [],
+      regions: profile.regions || {},
+      estates: profile.estates || {},
+      varietals: profile.varietals || [],
+      specificWines: profile.specific_wines || [],
+    };
+    const scored = matchWinesAgainstDNA(entries, dna);
+    setScoredEntries(scored);
+    const matched = scored.filter(e => e.score > 0);
+    setTotalMatched(matched.length);
+    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP });
+    setPicks(curated);
+  };
+
+  // ─── Re-filter picks without re-scoring (called when filters change in results view) ───
+  const handleRefilter = (newColorPref, newMinPrice, newMaxPrice) => {
+    if (!scoredEntries) return;
+    const curated = curatePicks(scoredEntries, {
+      minPrice: newMinPrice ? parseFloat(newMinPrice) : null,
+      maxPrice: newMaxPrice ? parseFloat(newMaxPrice) : null,
+      colorPreference: newColorPref,
+    });
+    setPicks(curated);
+  };
+
+  // ─── Text analysis (paste mode fallback) ───
+  const handleAnalyze = () => {
+    if (!wineListText.trim() || !profile) return;
+    setErrorMsg("");
+    const entries = parseWineList(wineListText);
+    const min = minPrice ? parseFloat(minPrice) : null;
+    const max = maxPrice ? parseFloat(maxPrice) : null;
+    runAnalysis(entries, min, max, colorPref);
+  };
+
+  // ─── Vision scan (photo or PDF) ───
+  const handleVisionScan = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    e.target.value = ""; // allow re-selecting the same file
+    e.target.value = "";
     setErrorMsg("");
 
-    const previewUrl = URL.createObjectURL(file);
-    setPhotoPreview(previewUrl);
+    // Client-side size check
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMsg("That file is too large (max 10MB). Try a photo at lower resolution, or photograph one page at a time.");
+      return;
+    }
 
     setProcessing(true);
-    setProcessingMsg("Preparing...");
+    startLoadingMessages();
 
     try {
-      if (photoSource === "bottle-label") {
-        // ── Claude Vision path for bottle labels ──
-        setProcessingMsg("Reading your bottle label...");
-        const blob = await compressImage(file);
+      let payload;
 
-        const formData = new FormData();
-        formData.append("image", blob, "label.jpg");
-
-        const res = await fetch("/api/scan-label", {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await res.json();
-
-        if (!res.ok || data.error) {
-          setErrorMsg(data.error || "Couldn't read the label. Try a clearer photo.");
-          setProcessing(false);
-          setProcessingMsg("");
-          return;
-        }
-
-        // Build a text representation to feed into the wine list parser
-        const parts = [data.producer, data.name].filter(Boolean);
-        if (data.vintage) parts.push(String(data.vintage));
-        if (data.region) parts.push(data.region);
-
-        const labelText = parts.join(" ");
-        if (labelText.length < 3) {
-          setErrorMsg("Couldn't make out the wine details. Try a clearer photo.");
-          setProcessing(false);
-          setProcessingMsg("");
-          return;
-        }
-
-        setWineListText(labelText);
-        setExtractedFrom("photo");
-        setProcessingMsg("");
-        setProcessing(false);
-        setInputMode("paste");
+      if (file.type === "application/pdf") {
+        const base64 = await blobToBase64(file);
+        payload = { pdfBase64: base64 };
       } else {
-        // ── Tesseract path for wine lists and shelf tags ──
-        setProcessingMsg(photoSource === "shelf-tag" ? "Reading your shelf tag..." : "Reading your wine list...");
-        const processedDataUrl = await preprocessForOCR(file);
-
-        const { createWorker } = await import("tesseract.js");
-        const worker = await createWorker("eng");
-        try {
-          const { data: { text, confidence } } = await worker.recognize(processedDataUrl);
-
-          if (confidence < 70) {
-            setErrorMsg("The image was too hard to read (low confidence). Try a clearer, well-lit photo.");
-            setProcessing(false);
-            setProcessingMsg("");
-            return;
-          }
-
-          if (!text || text.trim().length < 10) {
-            setErrorMsg("Couldn't read any text from this photo. Try a clearer, well-lit image.");
-            setProcessing(false);
-            setProcessingMsg("");
-            return;
-          }
-
-          setWineListText(text.trim());
-          setExtractedFrom("photo");
-          setProcessingMsg("");
-          setProcessing(false);
-          setInputMode("paste");
-        } finally {
-          await worker.terminate();
-        }
+        const blob = await compressImage(file);
+        const base64 = await blobToBase64(blob);
+        payload = { imageBase64: base64, mimeType: "image/jpeg" };
       }
-    } catch (err) {
-      setErrorMsg("Failed to process photo. Please try again.");
+
+      const res = await fetch("/api/parse-wine-list", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (data.error) {
+        setErrorMsg(data.error);
+        setProcessing(false);
+        stopLoadingMessages();
+        return;
+      }
+
+      // Path A: structured wines from Vision → direct to match engine
+      if (data.wines && Array.isArray(data.wines) && data.wines.length > 0) {
+        const entries = data.wines.map(w => ({
+          name: w.name || "",
+          price: typeof w.price === "number" ? w.price : null,
+          originalLine: w.name || "",
+          isByTheGlass: w.is_btg || false,
+          sectionColor: w.color || null,
+          sectionVarietal: null,
+        }));
+
+        setWineListText(data.rawText || "");
+        setExtractedFrom("scan");
+        runAnalysis(entries, null, null, "all");
+        setProcessing(false);
+        stopLoadingMessages();
+        return;
+      }
+
+      // Path B: raw text fallback → show paste mode for review
+      if (data.rawText) {
+        setWineListText(data.rawText);
+        setExtractedFrom("scan");
+        setShowPasteMode(true);
+        setProcessing(false);
+        stopLoadingMessages();
+        return;
+      }
+
+      setErrorMsg("Couldn't read any wines from this image. Try a clearer photo.");
       setProcessing(false);
-      setProcessingMsg("");
+      stopLoadingMessages();
+    } catch (err) {
+      setErrorMsg("Failed to process your wine list. Please try again.");
+      setProcessing(false);
+      stopLoadingMessages();
     }
   };
 
   // ─── URL handling ───
   const handleUrlFetch = async () => {
-    if (!menuUrl.trim()) return;
+    const trimmed = menuUrl.trim();
+    if (!trimmed) return;
+
+    // Basic URL validation
+    if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+      setErrorMsg("Please enter a valid URL starting with https://");
+      return;
+    }
+
     setErrorMsg("");
     setProcessing(true);
-    setProcessingMsg("Fetching wine list from website...");
+    setProcessingMsg("Fetching the wine list...");
 
     try {
       const res = await fetch("/api/fetch-menu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: menuUrl.trim() }),
+        body: JSON.stringify({ url: trimmed }),
       });
       const data = await res.json();
 
@@ -186,53 +283,29 @@ export default function RecommendPage() {
         return;
       }
 
-      setWineListText(data.text || "");
+      const text = data.text || "";
+      setWineListText(text);
       setExtractedFrom("url");
-      setProcessingMsg("");
+
+      // Run analysis directly — go straight to results
+      const entries = parseWineList(text);
+      if (entries.length === 0) {
+        setShowPasteMode(true);
+        setProcessing(false);
+        setProcessingMsg("");
+        setErrorMsg("Found the page but couldn't spot a wine list. Try editing the text below, or scan a photo instead.");
+        return;
+      }
+
+      setProcessingMsg("Finding your perfect picks...");
+      runAnalysis(entries, null, null, "all");
       setProcessing(false);
-      setInputMode("paste");
+      setProcessingMsg("");
     } catch (err) {
-      setErrorMsg("Failed to fetch that URL. Please try again.");
+      setErrorMsg("Failed to fetch that URL. Check the address and try again.");
       setProcessing(false);
       setProcessingMsg("");
     }
-  };
-
-  // ─── Analysis ───
-  const handleAnalyze = () => {
-    if (!wineListText.trim() || !profile) return;
-    setErrorMsg("");
-
-    const entries = parseWineList(wineListText);
-    setTotalParsed(entries.length);
-
-    const dna = {
-      countries: profile.countries || [],
-      regions: profile.regions || {},
-      estates: profile.estates || {},
-      varietals: profile.varietals || [],
-      specificWines: profile.specific_wines || [],
-    };
-
-    // Build feedback signals from past ratings (loved/liked/not_for_me)
-    const feedbackSignals = interactions.length > 0
-      ? buildFeedbackSignals(interactions)
-      : null;
-
-    const scored = matchWinesAgainstDNA(entries, dna, feedbackSignals);
-    const matched = scored.filter(e => e.score > 0);
-    setTotalMatched(matched.length);
-
-    const min = minPrice ? parseFloat(minPrice) : null;
-    const max = maxPrice ? parseFloat(maxPrice) : null;
-
-    const curated = curatePicks(scored, {
-      minPrice: min,
-      maxPrice: max,
-      colorPreference: colorPref,
-    });
-
-    setPicks(curated);
   };
 
   // ─── Pick rating ───
@@ -243,8 +316,6 @@ export default function RecommendPage() {
     setTimeout(() => setRatingToast(null), 2500);
 
     try {
-      await fetch("/api/auth/callback", { method: "GET" }); // ensure session
-      const supabase = createClient();
       await supabase.from("wine_interactions").upsert({
         user_id: user.id,
         wine_name: wineName,
@@ -259,18 +330,22 @@ export default function RecommendPage() {
 
   const handleReset = () => {
     setPicks(null);
+    setScoredEntries(null);
     setWineListText("");
     setTotalParsed(0);
     setTotalMatched(0);
     setErrorMsg("");
-    setPhotoPreview(null);
     setMenuUrl("");
     setExtractedFrom(null);
-    setPhotoSource("wine-list");
+    setShowPasteMode(false);
+    setColorPref("all");
+    setMinPrice("");
+    setMaxPrice("");
   };
 
   const loadExample = () => {
     setExtractedFrom(null);
+    setShowPasteMode(true);
     setWineListText(`WHITES
 Cloudy Bay Sauvignon Blanc, Marlborough 2022............$52
 Domaine William Fèvre Chablis Premier Cru 2021.........$78
@@ -337,10 +412,10 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // ═══════════════════════════════════════════════════
   if (picks) {
     const RATING_OPTIONS = [
-      { id: "loved", emoji: "❤️", label: "Loved it" },
-      { id: "liked", emoji: "👍", label: "Liked it" },
-      { id: "fine", emoji: "😐", label: "It was fine" },
-      { id: "not_for_me", emoji: "👎", label: "Not for me" },
+      { id: "loved", emoji: "\u2764\uFE0F", label: "Loved it" },
+      { id: "liked", emoji: "\uD83D\uDC4D", label: "Liked it" },
+      { id: "fine", emoji: "\uD83D\uDE10", label: "It was fine" },
+      { id: "not_for_me", emoji: "\uD83D\uDC4E", label: "Not for me" },
     ];
 
     return (
@@ -380,15 +455,14 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </div>
         )}
         {ratingToast && (
-          <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px", borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, zIndex: 90, boxShadow: "0 4px 20px rgba(27,61,47,0.3)" }}>✓ {ratingToast}</div>
+          <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px", borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, zIndex: 90, boxShadow: "0 4px 20px rgba(27,61,47,0.3)" }}>{ratingToast}</div>
         )}
-        <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
+        <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(16px)", zIndex: 10 }}>
           <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: "10px", letterSpacing: "-0.01em" }}><img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />Sommeasy</a>
           <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
         </div>
 
-        <div style={{ textAlign: "center", padding: "28px 0 24px" }}>
-          <div style={{ fontSize: "32px", marginBottom: 10 }}>✨</div>
+        <div style={{ textAlign: "center", padding: "28px 0 20px" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", color: "#1B3D2F", margin: "0 0 10px", fontWeight: 700, letterSpacing: "-0.01em" }}>
             {picks.length === 0 ? "No matches found" : `Your ${picks.length} picks`}
           </h2>
@@ -397,6 +471,38 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               ? `Curated from ${totalMatched} matches across ${totalParsed} wines on the list`
               : `We parsed ${totalParsed} wines but couldn't find matches for your DNA. Try refining your profile.`}
           </p>
+        </div>
+
+        {/* ─── Filters (in results view for post-scan refinement) ─── */}
+        <div style={{ background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "16px", border: "1px solid rgba(27,61,47,0.08)", marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: 12 }}>
+            {[
+              { id: "all", label: "All wines" },
+              { id: "red", label: "Red" },
+              { id: "white", label: "White" },
+            ].map(opt => (
+              <button key={opt.id} onClick={() => { setColorPref(opt.id); handleRefilter(opt.id, minPrice, maxPrice); }} style={{
+                flex: 1, padding: "8px 6px", borderRadius: "10px", cursor: "pointer",
+                border: colorPref === opt.id ? "2px solid #1B3D2F" : "2px solid rgba(27,61,47,0.1)",
+                background: colorPref === opt.id ? "rgba(27,61,47,0.06)" : "transparent",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: colorPref === opt.id ? 600 : 400,
+                color: "#1B3D2F",
+              }}>{opt.label}</button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <div style={{ flex: 1, position: "relative" }}>
+              <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
+              <input type="number" placeholder="Min" value={minPrice} onChange={(e) => { setMinPrice(e.target.value); handleRefilter(colorPref, e.target.value, maxPrice); }}
+                style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
+            </div>
+            <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.3 }}>to</span>
+            <div style={{ flex: 1, position: "relative" }}>
+              <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
+              <input type="number" placeholder="Max" value={maxPrice} onChange={(e) => { setMaxPrice(e.target.value); handleRefilter(colorPref, minPrice, e.target.value); }}
+                style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
+            </div>
+          </div>
         </div>
 
         {picks.length > 0 && (
@@ -492,7 +598,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                         fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
                         color: "#1B3D2F", opacity: 0.6,
                       }}>
-                        <span>{{ loved: "❤️", liked: "👍", fine: "😐", not_for_me: "👎" }[pickRatings[pick.name]]}</span>
+                        <span>{{ loved: "\u2764\uFE0F", liked: "\uD83D\uDC4D", fine: "\uD83D\uDE10", not_for_me: "\uD83D\uDC4E" }[pickRatings[pick.name]]}</span>
                         <span>{{ loved: "Loved it", liked: "Liked it", fine: "It was fine", not_for_me: "Not for me" }[pickRatings[pick.name]]}</span>
                         <button onClick={() => setRatingPick(pick.name)} style={{
                           fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
@@ -508,7 +614,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                         fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
                         color: "#8B2332", fontWeight: 600, cursor: "pointer",
                         width: "100%", justifyContent: "center",
-                      }}>🍷 Had this wine? Rate it</button>
+                      }}>Had this wine? Rate it</button>
                     )}
                   </div>
                 </div>
@@ -534,7 +640,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           <a href="/journal" style={{
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
             color: "#1B3D2F", opacity: 0.4, textDecoration: "underline",
-          }}>View Wine Journal →</a>
+          }}>View Wine Journal</a>
         </div>
       </div>
     );
@@ -545,50 +651,130 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // ═══════════════════════════════════════════════════
   return (
     <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
+      {/* Hidden file inputs */}
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleVisionScan} style={{ display: "none" }} />
+      <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleVisionScan} style={{ display: "none" }} />
+
       {/* Header */}
-      <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.9)", backdropFilter: "blur(12px)", zIndex: 10 }}>
+      <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(16px)", zIndex: 10 }}>
         <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: "10px", letterSpacing: "-0.01em" }}><img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />Sommeasy</a>
         <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
       </div>
 
       {/* Title */}
-      <div style={{ textAlign: "center", padding: "32px 0 24px" }}>
+      <div style={{ textAlign: "center", padding: "32px 0 28px" }}>
         <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", color: "#1B3D2F", margin: "0 0 10px", fontWeight: 700, letterSpacing: "-0.01em" }}>Get your picks</h2>
         <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.5, margin: 0, maxWidth: 340, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
           Share a wine list and we&#39;ll find your best matches.
         </p>
       </div>
 
-      {/* Input mode tabs */}
-      <div style={{ display: "flex", gap: "6px", marginBottom: 16, background: "rgba(27,61,47,0.04)", borderRadius: "12px", padding: "4px" }}>
-        {MODES.map(m => (
-          <button key={m.id} onClick={() => { setInputMode(m.id); setErrorMsg(""); }} style={{
-            flex: 1, padding: "10px 8px", borderRadius: "10px", border: "none", cursor: "pointer",
-            background: inputMode === m.id ? "rgba(255,255,255,0.9)" : "transparent",
-            boxShadow: inputMode === m.id ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            fontWeight: inputMode === m.id ? 600 : 400,
-            color: inputMode === m.id ? "#1B3D2F" : "rgba(27,61,47,0.5)",
-            transition: "all 0.2s ease",
-          }}>
-            <span style={{ marginRight: 4 }}>{m.icon}</span> {m.label}
-          </button>
-        ))}
-      </div>
+      {/* ─── PROCESSING STATE ─── */}
+      {processing && (
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "56px 24px", borderRadius: "18px",
+          border: "1px solid rgba(139,35,50,0.1)", background: "rgba(255,255,255,0.6)",
+          marginBottom: 20,
+        }}>
+          <div style={{ width: 36, height: 36, border: "3px solid rgba(139,35,50,0.15)", borderTopColor: "#8B2332", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 20 }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#1B3D2F", fontWeight: 600, margin: 0, textAlign: "center" }}>{processingMsg}</p>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.4, margin: "10px 0 0", textAlign: "center" }}>Usually takes 5-10 seconds</p>
+        </div>
+      )}
 
-      {/* ─── PASTE MODE ─── */}
-      {inputMode === "paste" && (
+      {/* ─── TWO-CARD INPUT (hidden during processing) ─── */}
+      {!processing && !showPasteMode && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: 20 }}>
+          {/* CARD 1: Scan the List */}
+          <button onClick={() => fileInputRef.current?.click()} style={{
+            width: "100%", padding: "32px 24px", borderRadius: "18px",
+            border: "2px solid rgba(139,35,50,0.15)", background: "rgba(255,255,255,0.7)",
+            cursor: "pointer", textAlign: "center",
+            boxShadow: "0 4px 16px rgba(139,35,50,0.08)",
+            transition: "all 0.15s ease",
+          }}>
+            <div style={{ fontSize: "36px", marginBottom: 12 }}>{"\uD83D\uDCF8"}</div>
+            <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3D2F", fontWeight: 700, marginBottom: 6 }}>Scan the List</div>
+            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.5, lineHeight: 1.4 }}>
+              Take a photo or upload a picture of the wine list
+            </div>
+          </button>
+
+          {/* Mobile camera shortcut */}
+          {isMobile && (
+            <button onClick={() => cameraInputRef.current?.click()} style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+              padding: "14px 20px", borderRadius: "12px",
+              border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.03)",
+              cursor: "pointer",
+            }}>
+              <span style={{ fontSize: "18px" }}>{"\uD83D\uDCF7"}</span>
+              <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#8B2332", fontWeight: 600 }}>Open Camera</span>
+            </button>
+          )}
+
+          {/* CARD 2: Paste a Link */}
+          <div style={{
+            padding: "28px 24px", borderRadius: "18px",
+            border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.55)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: 16 }}>
+              <span style={{ fontSize: "24px" }}>{"\uD83D\uDD17"}</span>
+              <div>
+                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#1B3D2F", fontWeight: 700 }}>Paste a Link</div>
+                <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>Got a link to the wine list? Drop it here</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <input
+                type="url"
+                value={menuUrl}
+                onChange={(e) => setMenuUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleUrlFetch()}
+                placeholder="https://..."
+                style={{
+                  flex: 1, padding: "14px 16px", borderRadius: "12px",
+                  border: "2px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.7)",
+                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F",
+                  outline: "none", boxSizing: "border-box",
+                }}
+              />
+              <button onClick={handleUrlFetch} disabled={!menuUrl.trim()} style={{
+                padding: "14px 24px", borderRadius: "12px", border: "none",
+                background: menuUrl.trim() ? "linear-gradient(135deg, #8B2332, #7A1E2C)" : "rgba(139,35,50,0.15)",
+                color: menuUrl.trim() ? "#F5F0E8" : "rgba(139,35,50,0.3)",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600,
+                cursor: menuUrl.trim() ? "pointer" : "default", whiteSpace: "nowrap",
+                boxShadow: menuUrl.trim() ? "0 4px 16px rgba(139,35,50,0.2)" : "none",
+              }}>Get My Picks</button>
+            </div>
+          </div>
+
+          {/* Subtle paste text fallback */}
+          <div style={{ textAlign: "center", marginTop: 4 }}>
+            <button onClick={() => setShowPasteMode(true)} style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F",
+              opacity: 0.35, background: "none", border: "none", cursor: "pointer",
+              textDecoration: "underline",
+            }}>or paste text manually</button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── PASTE MODE (fallback / Path B review) ─── */}
+      {!processing && showPasteMode && (
         <div style={{ marginBottom: 20 }}>
-          {/* Extracted text indicator */}
           {extractedFrom && wineListText && (
             <div style={{
               padding: "8px 14px", borderRadius: "10px", marginBottom: 10,
               background: "rgba(107,143,94,0.08)", border: "1px solid rgba(107,143,94,0.15)",
               display: "flex", alignItems: "center", gap: "8px",
             }}>
-              <span style={{ fontSize: "14px" }}>{extractedFrom === "photo" ? "📸" : "🔗"}</span>
+              <span style={{ fontSize: "14px" }}>{extractedFrom === "scan" ? "\uD83D\uDCF8" : extractedFrom === "url" ? "\uD83D\uDD17" : "\uD83D\uDCCB"}</span>
               <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", margin: 0, opacity: 0.7, flex: 1 }}>
-                {extractedFrom === "photo" ? "Extracted from your photo" : "Extracted from URL"} — review and edit if needed.
+                {extractedFrom === "scan" ? "Extracted from your photo" : extractedFrom === "url" ? "Extracted from URL" : "Paste your wine list below"} — review and edit if needed.
               </p>
             </div>
           )}
@@ -604,141 +790,29 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               resize: "vertical", outline: "none", boxSizing: "border-box", lineHeight: 1.6,
             }}
           />
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
+            <button onClick={() => { setShowPasteMode(false); setWineListText(""); setExtractedFrom(null); }} style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F",
+              background: "none", border: "none", cursor: "pointer", opacity: 0.4,
+            }}>Back to scan/link</button>
             <button onClick={loadExample} style={{
               fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B2332",
               background: "none", border: "none", cursor: "pointer", textDecoration: "underline", opacity: 0.6,
             }}>Try an example list</button>
           </div>
-        </div>
-      )}
 
-      {/* ─── PHOTO MODE ─── */}
-      {inputMode === "photo" && (
-        <div style={{ marginBottom: 20 }}>
-          {/* Camera input — opens rear camera directly on mobile */}
-          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelect} style={{ display: "none" }} />
-          {/* Gallery/upload input — opens photo picker or file dialog */}
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoSelect} style={{ display: "none" }} />
-
-          {processing ? (
-            <div style={{
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              padding: "40px 24px", borderRadius: "16px", border: "2px dashed rgba(139,35,50,0.2)",
-              background: "rgba(139,35,50,0.03)",
-            }}>
-              {photoPreview && (
-                <img src={photoPreview} alt="Wine list photo" style={{
-                  width: "100%", maxHeight: 180, objectFit: "cover", borderRadius: "10px", marginBottom: 20, opacity: 0.6,
-                }} />
-              )}
-              <div style={{ width: 32, height: 32, border: "3px solid rgba(139,35,50,0.2)", borderTopColor: "#8B2332", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 16 }} />
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#8B2332", fontWeight: 600, margin: 0 }}>{processingMsg}</p>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "8px 0 0" }}>May take up to 30 seconds on first use</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {/* Photo source type selector */}
-              <div style={{
-                display: "flex", borderRadius: "10px", overflow: "hidden",
-                border: "1px solid rgba(27,61,47,0.1)", marginBottom: 4,
-              }}>
-                {PHOTO_SOURCES.map((src) => (
-                  <button
-                    key={src.id}
-                    onClick={() => setPhotoSource(src.id)}
-                    style={{
-                      flex: 1, padding: "9px 6px",
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-                      fontWeight: photoSource === src.id ? 600 : 400,
-                      color: photoSource === src.id ? "#8B2332" : "#1B3D2F",
-                      background: photoSource === src.id ? "rgba(139,35,50,0.06)" : "transparent",
-                      border: "none", cursor: "pointer",
-                      borderRight: "1px solid rgba(27,61,47,0.06)",
-                      transition: "all 0.15s ease",
-                    }}
-                  >{src.label}</button>
-                ))}
-              </div>
-              {isMobile && (
-                <button onClick={() => cameraInputRef.current?.click()} style={{
-                  width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
-                  padding: "20px 24px", borderRadius: "16px",
-                  border: "2px solid rgba(139,35,50,0.2)", background: "rgba(139,35,50,0.04)",
-                  cursor: "pointer", transition: "all 0.2s ease",
-                }}>
-                  <span style={{ fontSize: "28px" }}>📷</span>
-                  <div style={{ textAlign: "left" }}>
-                    <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#8B2332", fontWeight: 600, margin: 0 }}>Take a Photo</p>
-                    <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5, margin: "2px 0 0" }}>Opens your camera</p>
-                  </div>
-                </button>
-              )}
-              <button onClick={() => fileInputRef.current?.click()} style={{
-                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
-                padding: "20px 24px", borderRadius: "16px",
-                border: "2px dashed rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.5)",
-                cursor: "pointer", transition: "all 0.2s ease",
-              }}>
-                <span style={{ fontSize: "28px" }}>🖼</span>
-                <div style={{ textAlign: "left" }}>
-                  <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", fontWeight: 600, margin: 0 }}>
-                    {isMobile ? "Choose from Library" : "Upload a Photo"}
-                  </p>
-                  <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5, margin: "2px 0 0" }}>
-                    {isMobile ? "Pick from your photos" : "Select an image file from your computer"}
-                  </p>
-                </div>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── URL MODE ─── */}
-      {inputMode === "url" && (
-        <div style={{ marginBottom: 20 }}>
-          {processing ? (
-            <div style={{
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              padding: "48px 24px", borderRadius: "16px", border: "2px solid rgba(27,61,47,0.08)",
-              background: "rgba(255,255,255,0.5)",
-            }}>
-              <div style={{ width: 32, height: 32, border: "3px solid rgba(27,61,47,0.15)", borderTopColor: "#1B3D2F", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 16 }} />
-              <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", fontWeight: 600, margin: 0 }}>{processingMsg}</p>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "8px 0 0" }}>Fetching and analyzing the page...</p>
-            </div>
-          ) : (
-            <div>
-              <div style={{ display: "flex", gap: "8px", marginBottom: 8 }}>
-                <input
-                  type="url"
-                  value={menuUrl}
-                  onChange={(e) => setMenuUrl(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleUrlFetch()}
-                  placeholder="https://restaurant.com/wine-list"
-                  style={{
-                    flex: 1, padding: "14px 16px", borderRadius: "12px",
-                    border: "2px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.6)",
-                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F",
-                    outline: "none", boxSizing: "border-box",
-                  }}
-                />
-                <button onClick={handleUrlFetch} disabled={!menuUrl.trim()} style={{
-                  padding: "14px 20px", borderRadius: "12px", border: "none",
-                  background: menuUrl.trim() ? "#1B3D2F" : "rgba(27,61,47,0.1)",
-                  color: menuUrl.trim() ? "#F5F0E8" : "rgba(27,61,47,0.3)",
-                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600,
-                  cursor: menuUrl.trim() ? "pointer" : "default", whiteSpace: "nowrap",
-                }}>Fetch</button>
-              </div>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "4px 0 0 4px", lineHeight: 1.4 }}>
-                Paste a link to the restaurant&#39;s wine list or drinks menu page. Also works with PDF links.
-              </p>
-            </div>
-          )}
+          <button
+            onClick={handleAnalyze}
+            disabled={!wineListText.trim()}
+            style={{
+              width: "100%", padding: "17px", borderRadius: "14px", border: "none",
+              background: wineListText.trim() ? "linear-gradient(135deg, #8B2332, #7A1E2C)" : "rgba(139,35,50,0.2)",
+              color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px",
+              fontWeight: 600, cursor: wineListText.trim() ? "pointer" : "not-allowed",
+              boxShadow: wineListText.trim() ? "0 6px 24px rgba(139,35,50,0.25)" : "none",
+              marginTop: 16, transition: "all 0.15s ease",
+            }}
+          >Find My Wines</button>
         </div>
       )}
 
@@ -752,66 +826,6 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             {errorMsg}
           </p>
         </div>
-      )}
-
-      {/* Filters — show when in paste mode */}
-      {inputMode === "paste" && (
-        <div style={{ background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "18px", border: "1px solid rgba(27,61,47,0.08)", marginBottom: 20 }}>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.1em", color: "#1B3D2F", opacity: 0.5, marginBottom: 8, fontWeight: 600 }}>Color preference</div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              {[
-                { id: "all", label: "All wines" },
-                { id: "red", label: "🔴 Red" },
-                { id: "white", label: "⚪ White" },
-              ].map(opt => (
-                <button key={opt.id} onClick={() => setColorPref(opt.id)} style={{
-                  flex: 1, padding: "10px 8px", borderRadius: "10px", cursor: "pointer",
-                  border: colorPref === opt.id ? "2px solid #1B3D2F" : "2px solid rgba(27,61,47,0.1)",
-                  background: colorPref === opt.id ? "rgba(27,61,47,0.06)" : "transparent",
-                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: colorPref === opt.id ? 600 : 400,
-                  color: "#1B3D2F",
-                }}>{opt.label}</button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.1em", color: "#1B3D2F", opacity: 0.5, marginBottom: 8, fontWeight: 600 }}>Budget range (optional)</div>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <div style={{ flex: 1, position: "relative" }}>
-                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
-                <input type="number" placeholder="Min" value={minPrice} onChange={(e) => setMinPrice(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px 10px 26px", borderRadius: "10px", border: "2px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
-              </div>
-              <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.3 }}>to</span>
-              <div style={{ flex: 1, position: "relative" }}>
-                <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
-                <input type="number" placeholder="Max" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px 10px 26px", borderRadius: "10px", border: "2px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
-              </div>
-            </div>
-            <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#1B3D2F", opacity: 0.35, margin: "6px 0 0", lineHeight: 1.4 }}>
-              Leave blank for any price. Budget helps us pick your Value and Splurge options.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Analyze button */}
-      {inputMode === "paste" && (
-        <button
-          onClick={handleAnalyze}
-          disabled={!wineListText.trim()}
-          style={{
-            width: "100%", padding: "17px", borderRadius: "14px", border: "none",
-            background: wineListText.trim() ? "linear-gradient(135deg, #8B2332, #7A1E2C)" : "rgba(139,35,50,0.2)",
-            color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px",
-            fontWeight: 600, cursor: wineListText.trim() ? "pointer" : "not-allowed",
-            boxShadow: wineListText.trim() ? "0 6px 24px rgba(139,35,50,0.25)" : "none",
-            marginBottom: 40, transition: "all 0.15s ease",
-          }}
-        >Find My Wines</button>
       )}
     </div>
   );
