@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
-export const maxDuration = 45;
+export const maxDuration = 60;
 
 const EXTRACTION_PROMPT = `You are analyzing a restaurant wine list. Extract every wine entry into a structured format.
 
@@ -62,35 +62,46 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { imageBase64, mimeType, pdfBase64 } = body;
+    const { imageBase64, mimeType, pdfBase64, textContent } = body;
 
-    if (!imageBase64 && !pdfBase64) {
-      return NextResponse.json({ error: "No image or PDF provided" }, { status: 400 });
+    if (!imageBase64 && !pdfBase64 && !textContent) {
+      return NextResponse.json({ error: "No image, PDF, or text provided" }, { status: 400 });
     }
 
-    // Build the content block for the API call
-    let contentBlock;
-    if (pdfBase64) {
-      contentBlock = {
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: "application/pdf",
-          data: pdfBase64,
+    // Build the message content for the API call
+    let messageContent;
+    if (textContent) {
+      // Text-only path: send scraped text for structured extraction (URL path)
+      messageContent = [
+        { type: "text", text: `Here is the raw text extracted from a restaurant wine list webpage:\n\n---\n${textContent.substring(0, 15000)}\n---\n\n${EXTRACTION_PROMPT}` },
+      ];
+    } else if (pdfBase64) {
+      messageContent = [
+        {
+          type: "document",
+          source: {
+            type: "base64",
+            media_type: "application/pdf",
+            data: pdfBase64,
+          },
         },
-      };
+        { type: "text", text: EXTRACTION_PROMPT },
+      ];
     } else {
-      contentBlock = {
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: mimeType || "image/jpeg",
-          data: imageBase64,
+      messageContent = [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: mimeType || "image/jpeg",
+            data: imageBase64,
+          },
         },
-      };
+        { type: "text", text: EXTRACTION_PROMPT },
+      ];
     }
 
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({ apiKey, timeout: 55000 });
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -98,10 +109,7 @@ export async function POST(request) {
       messages: [
         {
           role: "user",
-          content: [
-            contentBlock,
-            { type: "text", text: EXTRACTION_PROMPT },
-          ],
+          content: messageContent,
         },
       ],
     });
@@ -131,6 +139,18 @@ export async function POST(request) {
         });
       }
 
+      // ── DIAGNOSTIC LOGGING ── Vision raw output per wine ──
+      const inputType = textContent ? "TEXT" : pdfBase64 ? "PDF" : "IMAGE";
+      console.log(`[parse-wine-list] ═══ ${inputType} RAW OUTPUT (${parsed.wines.length} wines) ═══`);
+      parsed.wines.forEach((w, i) => {
+        console.log(`[wine ${String(i + 1).padStart(2, "0")}] name: "${w.name}" | color: ${w.color} | variety: ${w.variety} | region: ${w.region} | country: ${w.country} | producer: ${w.producer} | section: ${w.section} | price: ${w.price} | vintage: ${w.vintage}`);
+      });
+      if (parsed.metadata) {
+        console.log(`[parse-wine-list] metadata: ${JSON.stringify(parsed.metadata)}`);
+      }
+      console.log(`[parse-wine-list] ═══ END ${inputType} RAW OUTPUT ═══`);
+      // ── END DIAGNOSTIC LOGGING ──
+
       return NextResponse.json({
         wines: parsed.wines,
         metadata: parsed.metadata || {},
@@ -155,6 +175,12 @@ export async function POST(request) {
     console.error("parse-wine-list route error:", err);
 
     // Handle specific Anthropic API errors
+    if (err.name === "APIConnectionTimeoutError" || err.code === "ETIMEDOUT" || err.message?.includes("timed out")) {
+      return NextResponse.json(
+        { error: "That wine list took too long to read. Try photographing one page at a time, or use a smaller image.", errorType: "timeout" },
+        { status: 504 }
+      );
+    }
     if (err.status === 429) {
       return NextResponse.json(
         { error: "Sommeasy is busy right now. Try again in a moment.", errorType: "rate_limit" },

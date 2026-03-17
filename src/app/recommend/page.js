@@ -5,18 +5,17 @@ import { createClient } from "@/lib/supabase";
 import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 
 // ─── Image compression utility ───
-// Returns a compressed JPEG Blob (max 2048px, 0.85 quality, handles HEIC/HEIF)
-function compressImage(file) {
+// Returns a compressed JPEG Blob (default: max 2048px, 0.85 quality)
+function compressImage(file, maxDim = 2048, quality = 0.85) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 2048;
       let w = img.naturalWidth;
       let h = img.naturalHeight;
-      if (w > MAX || h > MAX) {
-        if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else { w = Math.round(w * maxDim / h); h = maxDim; }
       }
       const canvas = document.createElement("canvas");
       canvas.width = w;
@@ -26,7 +25,7 @@ function compressImage(file) {
       canvas.toBlob((blob) => {
         if (!blob) { reject(new Error("Compression failed")); return; }
         resolve(blob);
-      }, "image/jpeg", 0.85);
+      }, "image/jpeg", quality);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image load failed")); };
     img.src = url;
@@ -79,16 +78,14 @@ export default function RecommendPage() {
   const [pickRatings, setPickRatings] = useState({});
   const [ratingPick, setRatingPick] = useState(null);
   const [ratingToast, setRatingToast] = useState(null);
+  const [pageCount, setPageCount] = useState(0);
+  const [scanningAdditionalPage, setScanningAdditionalPage] = useState(false);
   const fileInputRef = useRef(null);
-  const cameraInputRef = useRef(null);
+  const addPageInputRef = useRef(null);
   const userDNARef = useRef(null);
-  const [isMobile, setIsMobile] = useState(false);
+  const accumulatedEntriesRef = useRef([]);
   const loadingInterval = useRef(null);
   const supabase = createClient();
-
-  useEffect(() => {
-    setIsMobile(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
-  }, []);
 
   // Clean up loading interval on unmount
   useEffect(() => {
@@ -185,7 +182,7 @@ export default function RecommendPage() {
   // ─── Vision scan (photo or PDF) ───
   const handleVisionScan = async (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) { setScanningAdditionalPage(false); return; }
     e.target.value = "";
     setErrorMsg("");
 
@@ -206,27 +203,51 @@ export default function RecommendPage() {
         payload = { pdfBase64: base64 };
       } else {
         const blob = await compressImage(file);
-        const base64 = await blobToBase64(blob);
+        // Safety check: if compressed image is still > 4MB, reduce quality further
+        let finalBlob = blob;
+        if (blob.size > 4 * 1024 * 1024) {
+          const reBlob = await compressImage(file, 1600, 0.7);
+          finalBlob = reBlob;
+        }
+        const base64 = await blobToBase64(finalBlob);
         payload = { imageBase64: base64, mimeType: "image/jpeg" };
       }
 
-      const res = await fetch("/api/parse-wine-list", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const controller = new AbortController();
+      const clientTimeout = setTimeout(() => controller.abort(), 58000);
+
+      let res;
+      try {
+        res = await fetch("/api/parse-wine-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      } catch (fetchErr) {
+        clearTimeout(clientTimeout);
+        if (fetchErr.name === "AbortError") {
+          setErrorMsg("That wine list took too long to read. Try photographing one page at a time.");
+          setProcessing(false);
+          stopLoadingMessages();
+          return;
+        }
+        throw fetchErr;
+      }
+      clearTimeout(clientTimeout);
       const data = await res.json();
 
       if (data.error) {
         setErrorMsg(data.error);
         setProcessing(false);
+        setScanningAdditionalPage(false);
         stopLoadingMessages();
         return;
       }
 
       // Path A: structured wines from Vision → direct to match engine
       if (data.wines && Array.isArray(data.wines) && data.wines.length > 0) {
-        const entries = data.wines.map(w => ({
+        const newEntries = data.wines.map(w => ({
           name: w.name || "",
           price: typeof w.price === "number" ? w.price : null,
           originalLine: w.name || "",
@@ -245,12 +266,17 @@ export default function RecommendPage() {
           },
         }));
 
+        // Accumulate entries across pages
+        accumulatedEntriesRef.current = [...accumulatedEntriesRef.current, ...newEntries];
+        setPageCount(prev => prev + 1);
+
         setWineListText(data.rawText || "");
         setExtractedFrom("scan");
         const min = minPrice ? parseFloat(minPrice) : null;
         const max = maxPrice ? parseFloat(maxPrice) : null;
-        runAnalysis(entries, min, max, colorPref);
+        runAnalysis(accumulatedEntriesRef.current, min, max, colorPref);
         setProcessing(false);
+        setScanningAdditionalPage(false);
         stopLoadingMessages();
         return;
       }
@@ -261,16 +287,19 @@ export default function RecommendPage() {
         setExtractedFrom("scan");
         setShowPasteMode(true);
         setProcessing(false);
+        setScanningAdditionalPage(false);
         stopLoadingMessages();
         return;
       }
 
       setErrorMsg("Couldn't read any wines from this image. Try a clearer photo.");
       setProcessing(false);
+      setScanningAdditionalPage(false);
       stopLoadingMessages();
     } catch (err) {
       setErrorMsg("Failed to process your wine list. Please try again.");
       setProcessing(false);
+      setScanningAdditionalPage(false);
       stopLoadingMessages();
     }
   };
@@ -288,47 +317,120 @@ export default function RecommendPage() {
 
     setErrorMsg("");
     setProcessing(true);
-    setProcessingMsg("Fetching the wine list...");
+    startLoadingMessages();
 
     try {
-      const res = await fetch("/api/fetch-menu", {
+      // Step 1: Fetch the page text
+      const fetchRes = await fetch("/api/fetch-menu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
       });
-      const data = await res.json();
+      const fetchData = await fetchRes.json();
 
-      if (data.error && !data.text) {
-        setErrorMsg(data.error);
+      if (fetchData.error && !fetchData.text) {
+        setErrorMsg(fetchData.error);
         setProcessing(false);
-        setProcessingMsg("");
+        stopLoadingMessages();
         return;
       }
 
-      const text = data.text || "";
+      const text = fetchData.text || "";
       setWineListText(text);
       setExtractedFrom("url");
 
-      // Run analysis directly — go straight to results
-      const entries = parseWineList(text);
-      if (entries.length === 0) {
+      if (text.length < 30) {
         setShowPasteMode(true);
         setProcessing(false);
-        setProcessingMsg("");
+        stopLoadingMessages();
         setErrorMsg("Found the page but couldn't spot a wine list. Try editing the text below, or scan a photo instead.");
         return;
       }
 
-      setProcessingMsg("Finding your perfect picks...");
+      // Step 2: Send text to Claude for structured extraction (same prompt as photo path)
+      const controller = new AbortController();
+      const clientTimeout = setTimeout(() => controller.abort(), 58000);
+
+      let extractRes;
+      try {
+        extractRes = await fetch("/api/parse-wine-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ textContent: text }),
+          signal: controller.signal,
+        });
+      } catch (fetchErr) {
+        clearTimeout(clientTimeout);
+        if (fetchErr.name === "AbortError") {
+          // Timeout fallback: use regex parser
+          const entries = parseWineList(text);
+          if (entries.length > 0) {
+            const min = minPrice ? parseFloat(minPrice) : null;
+            const max = maxPrice ? parseFloat(maxPrice) : null;
+            runAnalysis(entries, min, max, colorPref);
+          } else {
+            setShowPasteMode(true);
+            setErrorMsg("Extraction timed out. Try editing the text below.");
+          }
+          setProcessing(false);
+          stopLoadingMessages();
+          return;
+        }
+        throw fetchErr;
+      }
+      clearTimeout(clientTimeout);
+      const extractData = await extractRes.json();
+
+      // Path A: structured wines from Claude extraction
+      if (extractData.wines && Array.isArray(extractData.wines) && extractData.wines.length > 0) {
+        const entries = extractData.wines.map(w => ({
+          name: w.name || "",
+          price: typeof w.price === "number" ? w.price : null,
+          originalLine: w.name || "",
+          section: w.section || null,
+          isByTheGlass: w.is_btg || false,
+          sectionColor: w.color || null,
+          sectionVarietal: null,
+          vintage: w.vintage || null,
+          visionData: {
+            color: w.color || null,
+            variety: w.variety || null,
+            region: w.region || null,
+            country: w.country || null,
+            producer: w.producer || null,
+            vintage: w.vintage || null,
+          },
+        }));
+
+        accumulatedEntriesRef.current = entries;
+        setPageCount(1);
+        const min = minPrice ? parseFloat(minPrice) : null;
+        const max = maxPrice ? parseFloat(maxPrice) : null;
+        runAnalysis(entries, min, max, colorPref);
+        setProcessing(false);
+        stopLoadingMessages();
+        return;
+      }
+
+      // Fallback: Claude couldn't extract structured data, try regex parser
+      const entries = parseWineList(text);
+      if (entries.length === 0) {
+        setShowPasteMode(true);
+        setProcessing(false);
+        stopLoadingMessages();
+        setErrorMsg("Found the page but couldn't spot a wine list. Try editing the text below, or scan a photo instead.");
+        return;
+      }
+
       const min = minPrice ? parseFloat(minPrice) : null;
       const max = maxPrice ? parseFloat(maxPrice) : null;
       runAnalysis(entries, min, max, colorPref);
       setProcessing(false);
-      setProcessingMsg("");
+      stopLoadingMessages();
     } catch (err) {
       setErrorMsg("Failed to fetch that URL. Check the address and try again.");
       setProcessing(false);
-      setProcessingMsg("");
+      stopLoadingMessages();
     }
   };
 
@@ -364,6 +466,9 @@ export default function RecommendPage() {
     setMenuUrl("");
     setExtractedFrom(null);
     setShowPasteMode(false);
+    setPageCount(0);
+    setScanningAdditionalPage(false);
+    accumulatedEntriesRef.current = [];
   };
 
   const loadExample = () => {
@@ -485,16 +590,45 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>
         </div>
 
+        {/* Hidden file input for additional page scans */}
+        <input ref={addPageInputRef} type="file" accept="image/*,application/pdf" onChange={handleVisionScan} style={{ display: "none" }} />
+
         <div style={{ textAlign: "center", padding: "28px 0 20px" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", color: "#1B3D2F", margin: "0 0 10px", fontWeight: 700, letterSpacing: "-0.01em" }}>
             {picks.length === 0 ? "No matches found" : "Your picks"}
           </h2>
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, margin: 0, lineHeight: 1.5 }}>
             {picks.length > 0
-              ? `${totalParsed} wines on this list — ${picks.length > 5 ? `here are your top ${picks.length}` : "here's where to start"}`
+              ? `${totalParsed} wines${pageCount > 1 ? ` across ${pageCount} pages` : ""} — ${picks.length > 5 ? `here are your top ${picks.length}` : "here's where to start"}`
               : `We scanned ${totalParsed} wines but couldn't find matches for your DNA. Try adjusting your filters or updating your profile.`}
           </p>
         </div>
+
+        {/* ─── Scan another page ─── */}
+        {extractedFrom === "scan" && (
+          <div style={{ marginBottom: 16 }}>
+            {scanningAdditionalPage ? (
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "12px",
+                padding: "16px 20px", borderRadius: "14px",
+                border: "1px solid rgba(139,35,50,0.1)", background: "rgba(139,35,50,0.03)",
+              }}>
+                <div style={{ width: 18, height: 18, border: "2px solid rgba(139,35,50,0.15)", borderTopColor: "#8B2332", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#8B2332", fontWeight: 600 }}>Scanning page {pageCount + 1}...</span>
+              </div>
+            ) : (
+              <button onClick={() => { setScanningAdditionalPage(true); addPageInputRef.current?.click(); }} style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
+                padding: "16px 20px", borderRadius: "14px",
+                border: "2px solid rgba(139,35,50,0.15)", background: "rgba(255,255,255,0.7)",
+                cursor: "pointer", boxShadow: "0 2px 8px rgba(139,35,50,0.06)",
+              }}>
+                <span style={{ fontSize: "20px" }}>{"\uD83D\uDCF8"}</span>
+                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#8B2332", fontWeight: 600 }}>Scan another page</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* ─── Filters (refine without rescanning) ─── */}
         <div style={{ background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "16px", border: "1px solid rgba(27,61,47,0.08)", marginBottom: 20 }}>
@@ -662,8 +796,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // ═══════════════════════════════════════════════════
   return (
     <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
-      {/* Hidden file inputs */}
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleVisionScan} style={{ display: "none" }} />
+      {/* Hidden file input */}
       <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleVisionScan} style={{ display: "none" }} />
 
       {/* Header */}
@@ -740,19 +873,6 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               Take a photo or upload a picture of the wine list
             </div>
           </button>
-
-          {/* Mobile camera shortcut */}
-          {isMobile && (
-            <button onClick={() => cameraInputRef.current?.click()} style={{
-              width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
-              padding: "14px 20px", borderRadius: "12px",
-              border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.03)",
-              cursor: "pointer",
-            }}>
-              <span style={{ fontSize: "18px" }}>{"\uD83D\uDCF7"}</span>
-              <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#8B2332", fontWeight: 600 }}>Open Camera</span>
-            </button>
-          )}
 
           {/* CARD 2: Paste a Link */}
           <div style={{
