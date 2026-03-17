@@ -827,10 +827,50 @@ export function curatePicks(scoredEntries, options) {
   const picks = [];
   const used = new Set();
 
+  function wouldViolateDiversity(candidate, existingPicks) {
+    var candidateVarietals = candidate.detectedVarietalIds || [];
+    var candidateRegions = candidate.detectedRegionIds || [];
+    var candidateProducer = (candidate.detectedProducer || "").toLowerCase();
+
+    var varietalOverlap = 0;
+    var regionOverlap = 0;
+    var producerMatch = false;
+
+    for (var i = 0; i < existingPicks.length; i++) {
+      var pick = existingPicks[i];
+      if (candidateVarietals.some(function(v) { return (pick.detectedVarietalIds || []).indexOf(v) >= 0; })) {
+        varietalOverlap++;
+      }
+      if (candidateRegions.some(function(r) { return (pick.detectedRegionIds || []).indexOf(r) >= 0; })) {
+        regionOverlap++;
+      }
+      var pickProducer = (pick.detectedProducer || "").toLowerCase();
+      if (candidateProducer && pickProducer && candidateProducer === pickProducer) {
+        producerMatch = true;
+      }
+    }
+
+    return varietalOverlap >= 2 || regionOverlap >= 2 || producerMatch;
+  }
+
   function pickFrom(subset, type) {
+    // First pass: respect diversity constraints
     for (var i = 0; i < subset.length; i++) {
-      const idx = matched.indexOf(subset[i]);
-      if (idx >= 0 && !used.has(idx)) { used.add(idx); picks.push(Object.assign({}, subset[i], { pickType: type })); return true; }
+      var idx = matched.indexOf(subset[i]);
+      if (idx >= 0 && !used.has(idx) && !wouldViolateDiversity(subset[i], picks)) {
+        used.add(idx);
+        picks.push(Object.assign({}, subset[i], { pickType: type }));
+        return true;
+      }
+    }
+    // Fallback: if ALL candidates violate diversity, take the best one
+    for (var i = 0; i < subset.length; i++) {
+      var idx = matched.indexOf(subset[i]);
+      if (idx >= 0 && !used.has(idx)) {
+        used.add(idx);
+        picks.push(Object.assign({}, subset[i], { pickType: type }));
+        return true;
+      }
     }
     return false;
   }
@@ -877,10 +917,21 @@ export function curatePicks(scoredEntries, options) {
   }).sort(function(a, b) { return b.score - a.score; });
   pickFrom(adv, "adventure");
 
-  // 5. WILDCARD — fill remaining slots from budget pool
+  // 5. WILDCARD — fill remaining slots from budget pool, respecting diversity
   for (var i = 0; i < mainPool.length && picks.length < maxPicks; i++) {
     var idx = matched.indexOf(mainPool[i]);
-    if (idx >= 0 && !used.has(idx)) { used.add(idx); picks.push(Object.assign({}, mainPool[i], { pickType: "wildcard" })); }
+    if (idx >= 0 && !used.has(idx) && !wouldViolateDiversity(mainPool[i], picks)) {
+      used.add(idx);
+      picks.push(Object.assign({}, mainPool[i], { pickType: "wildcard" }));
+    }
+  }
+  // Second pass fallback: if diversity prevented filling, allow duplicates
+  for (var i = 0; i < mainPool.length && picks.length < maxPicks; i++) {
+    var idx = matched.indexOf(mainPool[i]);
+    if (idx >= 0 && !used.has(idx)) {
+      used.add(idx);
+      picks.push(Object.assign({}, mainPool[i], { pickType: "wildcard" }));
+    }
   }
 
   return picks.slice(0, maxPicks);
