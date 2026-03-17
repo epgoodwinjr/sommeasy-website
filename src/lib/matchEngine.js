@@ -139,7 +139,7 @@ function termMatchesInText(term, text) {
 // PARSE WINE LIST
 // ═══════════════════════════════════════════════════════
 
-function smartTitleCase(name) {
+export function smartTitleCase(name) {
   const letters = name.replace(/[^a-zA-Z]/g, "");
   const upperRatio = letters.length > 0 ? (letters.replace(/[^A-Z]/g, "").length / letters.length) : 0;
   if (upperRatio < 0.7) return name;
@@ -151,6 +151,17 @@ function smartTitleCase(name) {
     if (word.startsWith("l'") || word.startsWith("d'")) return word.charAt(0).toUpperCase() + "'" + word.charAt(2).toUpperCase() + word.slice(3);
     return word.charAt(0).toUpperCase() + word.slice(1);
   }).join("");
+}
+
+export function formatWineName(name) {
+  if (!name) return "";
+  let formatted = smartTitleCase(name);
+  const abbreviations = ["AOC", "DOC", "DOCG", "IGT", "AVA", "MCC"];
+  for (const abbr of abbreviations) {
+    const regex = new RegExp("\\b" + abbr.toLowerCase() + "\\b", "gi");
+    formatted = formatted.replace(regex, abbr);
+  }
+  return formatted;
 }
 
 // Detect tasting note / description lines (should not be parsed as wine entries)
@@ -677,6 +688,8 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
     detectedRegionIds: Array.from(detectedRegionIds),
     detectedCountryIds: Array.from(detectedCountryIds),
     detectedCountry: detectedCountryIds.size > 0 ? Array.from(detectedCountryIds)[0] : null,
+    detectedVarietalId: attrs.varietalIds.size > 0 ? Array.from(attrs.varietalIds)[0] : null,
+    vintage: entry.vintage || null,
   };
 }
 
@@ -685,14 +698,25 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
 // CURATE 5 PICKS
 // ═══════════════════════════════════════════════════════
 
+export function getPickCount(totalWines, colorFilter) {
+  if (colorFilter && colorFilter !== "all") return 5;
+  var count = Math.max(5, Math.floor(totalWines / 30));
+  return Math.min(count, 10);
+}
+
 export function curatePicks(scoredEntries, options) {
   const minPrice = options.minPrice;
   const maxPrice = options.maxPrice;
   const colorPreference = options.colorPreference;
+  const maxPicks = options.maxPicks || 5;
 
   var pool = scoredEntries;
   if (colorPreference && colorPreference !== "all") {
-    const filtered = pool.filter(function(e) { return !e.detectedColor || e.detectedColor === colorPreference; });
+    const filtered = pool.filter(function(e) {
+      if (!e.detectedColor) return true;
+      if (colorPreference === "white") return e.detectedColor === "white";
+      return e.detectedColor === colorPreference;
+    });
     if (filtered.length >= 3) pool = filtered;
   }
 
@@ -763,12 +787,12 @@ export function curatePicks(scoredEntries, options) {
   pickFrom(adv, "adventure");
 
   // 5. WILDCARD — fill remaining slots from budget pool
-  for (var i = 0; i < mainPool.length && picks.length < 5; i++) {
+  for (var i = 0; i < mainPool.length && picks.length < maxPicks; i++) {
     var idx = matched.indexOf(mainPool[i]);
     if (idx >= 0 && !used.has(idx)) { used.add(idx); picks.push(Object.assign({}, mainPool[i], { pickType: "wildcard" })); }
   }
 
-  return picks.slice(0, 5);
+  return picks.slice(0, maxPicks);
 }
 
 
@@ -843,4 +867,23 @@ export function getCountryFlag(countryId) {
 
 export function getCountryName(countryId) {
   return COUNTRY_NAMES[countryId] || "";
+}
+
+export function getRegionDisplayName(regionId, countryId) {
+  if (!regionId) return null;
+  if (countryId && REGIONS[countryId]) {
+    const region = REGIONS[countryId].find(function(r) { return r.id === regionId; });
+    if (region) return region.name;
+  }
+  for (const cId of Object.keys(REGIONS)) {
+    const region = REGIONS[cId].find(function(r) { return r.id === regionId; });
+    if (region) return region.name;
+  }
+  return null;
+}
+
+export function getVarietalDisplayName(varietalId) {
+  if (!varietalId) return null;
+  const varietal = VARIETALS.find(function(v) { return v.id === varietalId; });
+  return varietal ? varietal.name : null;
 }
