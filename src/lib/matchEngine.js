@@ -589,7 +589,7 @@ function getQualityBonus(producerName) {
 // SCORING
 // ═══════════════════════════════════════════════════════
 
-function scoreEntry(entry, userDNA, feedbackSignals) {
+function scoreEntryFromText(entry, userDNA, feedbackSignals) {
   const text = " " + entry.name.toLowerCase() + " ";
   var score = 0;
   const matchReasons = [];
@@ -763,6 +763,176 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
     vintage: entry.vintage || null,
     visionData: entry.visionData || null,
   };
+}
+
+function scoreEntryFromVision(entry, userDNA, feedbackSignals) {
+  var score = 0;
+  var matchReasons = [];
+  var vd = entry.visionData;
+
+  // PRODUCER (weight: 5) — use visionData.producer against estateNames
+  var detectedProducerName = vd.producer || null;
+  var detectedProducerId = null;
+  if (detectedProducerName) {
+    var prodNorm = detectedProducerName.toLowerCase().trim();
+    var prodLookup = PRODUCER_LOOKUP[prodNorm];
+    if (prodLookup) {
+      detectedProducerId = prodLookup.producerId;
+    }
+    // userDNA.estateNames is a Set of lowercase name strings (e.g., "kanonkop")
+    if (userDNA.estateNames.has(prodNorm)) {
+      score += 5;
+      matchReasons.push({ type: "estate", label: detectedProducerName, weight: 5 });
+    }
+  }
+
+  // REGION (weight: 3 direct, 1 adjacent)
+  var detectedRegionIds = [];
+  var detectedCountryIds = [];
+  if (vd.region) {
+    var regionNorm = vd.region.toLowerCase().trim();
+    var regionEntry = REGION_LOOKUP[regionNorm];
+    if (regionEntry) {
+      detectedRegionIds.push(regionEntry.regionId);
+      detectedCountryIds.push(regionEntry.country);
+      if (userDNA.regions.has(regionEntry.regionId)) {
+        score += 3;
+        matchReasons.push({ type: "region", label: regionEntry.regionId, weight: 3 });
+      } else if (userDNA.countries.has(regionEntry.country)) {
+        score += 1;
+        var cName = COUNTRIES.find(function(c) { return c.id === regionEntry.country; });
+        matchReasons.push({ type: "country_region", label: regionNorm + " (you like " + (cName ? cName.name : regionEntry.country) + ")", weight: 1 });
+      }
+    }
+  }
+
+  // COUNTRY (weight: 1, only if no region already scored)
+  if (vd.country) {
+    var countryNorm = vd.country.toLowerCase().trim();
+    var countryObj = COUNTRIES.find(function(c) { return c.name.toLowerCase() === countryNorm || c.id === countryNorm; });
+    var countryId = countryObj ? countryObj.id : countryNorm;
+    if (detectedCountryIds.indexOf(countryId) < 0) detectedCountryIds.push(countryId);
+    if (!matchReasons.some(function(r) { return r.type === "region" || r.type === "country_region"; })) {
+      if (userDNA.countries.has(countryId)) {
+        score += 1;
+        matchReasons.push({ type: "country", label: countryObj ? countryObj.name : countryId, weight: 1 });
+      }
+    }
+  }
+
+  // VARIETAL (weight: 2) — handle blends by splitting
+  var detectedVarietalIds = [];
+  if (vd.variety) {
+    var varietyLower = vd.variety.toLowerCase().trim();
+    var varietyTerms = [varietyLower];
+    if (varietyLower.indexOf("blend") >= 0) {
+      var parts = varietyLower.replace(/\s*blend\s*/g, "").split(/[-,\/]/);
+      for (var vi = 0; vi < parts.length; vi++) {
+        var pt = parts[vi].trim();
+        if (pt.length >= 3) varietyTerms.push(pt);
+      }
+    }
+    for (var vi = 0; vi < varietyTerms.length; vi++) {
+      var vTerm = varietyTerms[vi];
+      var varLookup = VARIETAL_LOOKUP[vTerm];
+      var varId = varLookup || null;
+      if (!varId) {
+        var foundVar = VARIETALS.find(function(v) { return v.name.toLowerCase() === vTerm; });
+        if (foundVar) varId = foundVar.id;
+      }
+      if (varId && detectedVarietalIds.indexOf(varId) < 0) {
+        detectedVarietalIds.push(varId);
+        if (userDNA.varietals.has(varId)) {
+          score += 2;
+          var varEntry = VARIETALS.find(function(v) { return v.id === varId; });
+          matchReasons.push({ type: "varietal", label: varEntry ? varEntry.name : varId, weight: 2 });
+        }
+      }
+    }
+  }
+
+  // FAVORITE WINE (weight: 10) — scan name
+  var text = " " + entry.name.toLowerCase() + " ";
+  for (var fi = 0; fi < userDNA.specificWines.length; fi++) {
+    var fav = userDNA.specificWines[fi];
+    if (fav.length >= 4 && text.indexOf(fav.toLowerCase()) >= 0) {
+      score += 10;
+      matchReasons.push({ type: "favorite", label: fav, weight: 10 });
+    }
+  }
+
+  // FEEDBACK SIGNALS
+  if (feedbackSignals) {
+    for (var si = 0; si < feedbackSignals.suppressedWineNames.length; si++) {
+      var suppressed = feedbackSignals.suppressedWineNames[si];
+      if (suppressed.length >= 4 && text.indexOf(suppressed.toLowerCase()) >= 0) {
+        var favIdx = matchReasons.findIndex(function(r) { return r.type === "favorite"; });
+        if (favIdx >= 0) { score -= matchReasons[favIdx].weight; matchReasons.splice(favIdx, 1); }
+        score -= 5;
+        matchReasons.push({ type: "feedback_suppress", label: "You didn't enjoy this wine", weight: -5 });
+      }
+    }
+    for (var ri = 0; ri < detectedRegionIds.length; ri++) {
+      var regId = detectedRegionIds[ri];
+      var rBoost = feedbackSignals.boostedRegions.get(regId);
+      if (rBoost) { score += rBoost.weight; matchReasons.push({ type: "feedback_boost", label: "You " + (rBoost.weight >= 2 ? "loved" : "liked") + " wines from this region", weight: rBoost.weight }); }
+      if (feedbackSignals.suppressedRegions.has(regId)) { score -= 2; matchReasons.push({ type: "feedback_suppress", label: "Similar region to a wine you didn't enjoy", weight: -2 }); }
+    }
+    for (var vsi = 0; vsi < detectedVarietalIds.length; vsi++) {
+      var varIdFb = detectedVarietalIds[vsi];
+      var vBoost = feedbackSignals.boostedVarietals.get(varIdFb);
+      if (vBoost) { score += vBoost.weight; matchReasons.push({ type: "feedback_boost", label: "You " + (vBoost.weight >= 2 ? "loved" : "liked") + " wines with this grape", weight: vBoost.weight }); }
+      if (feedbackSignals.suppressedVarietals.has(varIdFb)) { score -= 2; matchReasons.push({ type: "feedback_suppress", label: "Similar grape to a wine you didn't enjoy", weight: -2 }); }
+    }
+    if (detectedProducerName) {
+      var pTerm = detectedProducerName.toLowerCase().trim();
+      var pBoost = feedbackSignals.boostedProducers.get(pTerm);
+      if (pBoost) { score += pBoost.weight; matchReasons.push({ type: "feedback_boost", label: "You've enjoyed this producer before", weight: pBoost.weight }); }
+      if (feedbackSignals.suppressedProducers.has(pTerm)) { score -= 3; matchReasons.push({ type: "feedback_suppress", label: "You didn't enjoy this producer", weight: -3 }); }
+    }
+  }
+
+  // QUALITY BONUS
+  if (detectedProducerName) {
+    var quality = getQualityBonus(detectedProducerName);
+    if (quality.bonus > 0) {
+      score += quality.bonus;
+      matchReasons.push({ type: "quality", label: quality.avgRating + " pts (" + quality.reviewCount + " reviews)", weight: quality.bonus });
+    }
+  }
+
+  // ESTATE + REGION COMBO
+  var hasEstate = matchReasons.some(function(r) { return r.type === "estate"; });
+  var hasRegion = matchReasons.some(function(r) { return r.type === "region"; });
+  if (hasEstate && hasRegion) score += 1;
+
+  var detectedColor = vd.color || entry.sectionColor || null;
+
+  return {
+    name: entry.name,
+    price: entry.price,
+    originalLine: entry.originalLine,
+    section: entry.section || null,
+    score: score,
+    matchReasons: matchReasons.sort(function(a, b) { return (b.weight || 0) - (a.weight || 0); }),
+    detectedColor: detectedColor,
+    detectedRegionIds: detectedRegionIds,
+    detectedCountryIds: detectedCountryIds,
+    detectedCountry: detectedCountryIds.length > 0 ? detectedCountryIds[0] : null,
+    detectedVarietalId: detectedVarietalIds.length > 0 ? detectedVarietalIds[0] : null,
+    detectedVarietalIds: detectedVarietalIds,
+    detectedProducer: detectedProducerName,
+    detectedProducerId: detectedProducerId,
+    vintage: (vd.vintage || entry.vintage || null),
+    visionData: entry.visionData,
+  };
+}
+
+function scoreEntry(entry, userDNA, feedbackSignals) {
+  if (entry.visionData && entry.visionData.region) {
+    return scoreEntryFromVision(entry, userDNA, feedbackSignals);
+  }
+  return scoreEntryFromText(entry, userDNA, feedbackSignals);
 }
 
 
