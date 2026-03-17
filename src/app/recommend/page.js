@@ -50,6 +50,14 @@ const LOADING_MESSAGES = [
   "Finding your perfect picks...",
 ];
 
+// ─── Filter options ───
+const COLOR_OPTIONS = [
+  { id: "all", label: "All wines" },
+  { id: "red", label: "Red" },
+  { id: "white", label: "White" },
+  { id: "sparkling", label: "Sparkling" },
+];
+
 export default function RecommendPage() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -219,7 +227,9 @@ export default function RecommendPage() {
 
         setWineListText(data.rawText || "");
         setExtractedFrom("scan");
-        runAnalysis(entries, null, null, "all");
+        const min = minPrice ? parseFloat(minPrice) : null;
+        const max = maxPrice ? parseFloat(maxPrice) : null;
+        runAnalysis(entries, min, max, colorPref);
         setProcessing(false);
         stopLoadingMessages();
         return;
@@ -290,7 +300,9 @@ export default function RecommendPage() {
       }
 
       setProcessingMsg("Finding your perfect picks...");
-      runAnalysis(entries, null, null, "all");
+      const min = minPrice ? parseFloat(minPrice) : null;
+      const max = maxPrice ? parseFloat(maxPrice) : null;
+      runAnalysis(entries, min, max, colorPref);
       setProcessing(false);
       setProcessingMsg("");
     } catch (err) {
@@ -465,16 +477,12 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </p>
         </div>
 
-        {/* ─── Filters (in results view for post-scan refinement) ─── */}
+        {/* ─── Filters (refine without rescanning) ─── */}
         <div style={{ background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "16px", border: "1px solid rgba(27,61,47,0.08)", marginBottom: 20 }}>
-          <div style={{ display: "flex", gap: "8px", marginBottom: 12 }}>
-            {[
-              { id: "all", label: "All wines" },
-              { id: "red", label: "Red" },
-              { id: "white", label: "White" },
-            ].map(opt => (
+          <div style={{ display: "flex", gap: "6px", marginBottom: 12 }}>
+            {COLOR_OPTIONS.map(opt => (
               <button key={opt.id} onClick={() => { setColorPref(opt.id); handleRefilter(opt.id, minPrice, maxPrice); }} style={{
-                flex: 1, padding: "8px 6px", borderRadius: "10px", cursor: "pointer",
+                flex: 1, padding: "8px 4px", borderRadius: "10px", cursor: "pointer",
                 border: colorPref === opt.id ? "2px solid #1B3D2F" : "2px solid rgba(27,61,47,0.1)",
                 background: colorPref === opt.id ? "rgba(27,61,47,0.06)" : "transparent",
                 fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: colorPref === opt.id ? 600 : 400,
@@ -659,6 +667,34 @@ Barolo, Giacomo Conterno 2018.........................$210`);
         <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.5, margin: 0, maxWidth: 340, marginLeft: "auto", marginRight: "auto", lineHeight: 1.5 }}>
           Share a wine list and we&#39;ll find your best matches.
         </p>
+      </div>
+
+      {/* ─── Filters ─── */}
+      <div style={{ background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "16px", border: "1px solid rgba(27,61,47,0.08)", marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: "6px", marginBottom: 12 }}>
+          {COLOR_OPTIONS.map(opt => (
+            <button key={opt.id} onClick={() => setColorPref(opt.id)} style={{
+              flex: 1, padding: "8px 4px", borderRadius: "10px", cursor: "pointer",
+              border: colorPref === opt.id ? "2px solid #1B3D2F" : "2px solid rgba(27,61,47,0.1)",
+              background: colorPref === opt.id ? "rgba(27,61,47,0.06)" : "transparent",
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: colorPref === opt.id ? 600 : 400,
+              color: "#1B3D2F",
+            }}>{opt.label}</button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <div style={{ flex: 1, position: "relative" }}>
+            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
+            <input type="number" placeholder="Min" value={minPrice} onChange={(e) => setMinPrice(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
+          </div>
+          <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.3 }}>to</span>
+          <div style={{ flex: 1, position: "relative" }}>
+            <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
+            <input type="number" placeholder="Max" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}
+              style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
+          </div>
+        </div>
       </div>
 
       {/* ─── PROCESSING STATE ─── */}
