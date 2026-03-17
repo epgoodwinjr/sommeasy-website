@@ -230,10 +230,19 @@ export default function RecommendPage() {
           name: w.name || "",
           price: typeof w.price === "number" ? w.price : null,
           originalLine: w.name || "",
+          section: w.section || null,
           isByTheGlass: w.is_btg || false,
           sectionColor: w.color || null,
           sectionVarietal: null,
           vintage: w.vintage || null,
+          visionData: {
+            color: w.color || null,
+            variety: w.variety || null,
+            region: w.region || null,
+            country: w.country || null,
+            producer: w.producer || null,
+            vintage: w.vintage || null,
+          },
         }));
 
         setWineListText(data.rawText || "");
@@ -336,6 +345,8 @@ export default function RecommendPage() {
         wine_name: wineName,
         interaction_type: "had",
         rating: rating,
+        source_url: extractedFrom === "url" ? menuUrl : (extractedFrom === "scan" ? "photo_scan" : "text_paste"),
+        source_label: null,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id, wine_name" });
     } catch (err) {
