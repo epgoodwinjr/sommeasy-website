@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (max 2048px, 0.85 quality, handles HEIC/HEIF)
@@ -150,20 +150,23 @@ export default function RecommendPage() {
     setScoredEntries(scored);
     const matched = scored.filter(e => e.score > 0);
     setTotalMatched(matched.length);
+    const menuCtx = buildMenuContext(matched);
     const pickCount = getPickCount(entries.length, colorP);
-    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount, userDNA: userDNARef.current });
+    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount, menuContext: menuCtx, userDNA: userDNARef.current });
     setPicks(curated);
   };
 
   // ─── Re-filter picks without re-scoring (called when filters change in results view) ───
   const handleRefilter = (newColorPref, newMinPrice, newMaxPrice) => {
     if (!scoredEntries) return;
+    const menuCtx = buildMenuContext(scoredEntries.filter(e => e.score > 0));
     const pickCount = getPickCount(totalParsed, newColorPref);
     const curated = curatePicks(scoredEntries, {
       minPrice: newMinPrice ? parseFloat(newMinPrice) : null,
       maxPrice: newMaxPrice ? parseFloat(newMaxPrice) : null,
       colorPreference: newColorPref,
       maxPicks: pickCount,
+      menuContext: menuCtx,
       userDNA: userDNARef.current,
     });
     setPicks(curated);

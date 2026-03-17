@@ -776,6 +776,23 @@ export function getPickCount(totalWines, colorFilter) {
   return Math.min(count, 10);
 }
 
+export function buildMenuContext(scoredEntries) {
+  var countries = new Set();
+  var regions = new Set();
+  for (var i = 0; i < scoredEntries.length; i++) {
+    var entry = scoredEntries[i];
+    (entry.detectedCountryIds || []).forEach(function(c) { countries.add(c); });
+    (entry.detectedRegionIds || []).forEach(function(r) { regions.add(r); });
+  }
+  return {
+    totalWines: scoredEntries.length,
+    distinctCountries: countries.size,
+    distinctRegions: regions.size,
+    countrySet: countries,
+    regionSet: regions,
+  };
+}
+
 export function curatePicks(scoredEntries, options) {
   const minPrice = options.minPrice;
   const maxPrice = options.maxPrice;
