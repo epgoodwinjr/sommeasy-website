@@ -1,0 +1,166 @@
+import { NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+
+export const maxDuration = 45;
+
+const EXTRACTION_PROMPT = `You are analyzing a restaurant wine list. Extract every wine entry into a structured format.
+
+For each wine, extract:
+- name: The full wine name as it appears (producer + wine name + any designation + vintage if shown)
+- vintage: The year if shown (null if not)
+- price: The price as a number (null if not visible)
+- section: The section header this wine falls under (e.g., "Red Wine", "White Wine", "Sparkling", "By the Glass", "France", "Pinot Noir")
+- is_btg: true if this wine is in a "by the glass" section, false otherwise
+- color: "red", "white", "rosé", "sparkling", or null if unclear
+
+Important instructions:
+- Preserve the original language and spelling of wine names (French accents, German umlauts, etc.)
+- Include ALL wines, even if partially obscured or hard to read
+- Section headers are not wines — don't include them as entries
+- If a wine has both glass and bottle prices, create one entry with is_btg: false and use the bottle price
+- Bin numbers (e.g., "101", "#42") are not prices — ignore them
+- If you cannot read a wine name clearly, include your best guess
+
+Respond ONLY with a JSON object in this exact format, no other text:
+{
+  "wines": [
+    {
+      "name": "Château Margaux, Margaux 2015",
+      "vintage": "2015",
+      "price": 450,
+      "section": "Bordeaux",
+      "is_btg": false,
+      "color": "red"
+    }
+  ],
+  "metadata": {
+    "total_wines": 45,
+    "sections": ["Sparkling", "White Wine", "Red Wine"],
+    "has_btg_section": true,
+    "image_quality": "good"
+  }
+}`;
+
+export async function POST(request) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "Vision service not configured. Try pasting a link instead." },
+      { status: 503 }
+    );
+  }
+
+  try {
+    const body = await request.json();
+    const { imageBase64, mimeType, pdfBase64 } = body;
+
+    if (!imageBase64 && !pdfBase64) {
+      return NextResponse.json({ error: "No image or PDF provided" }, { status: 400 });
+    }
+
+    // Build the content block for the API call
+    let contentBlock;
+    if (pdfBase64) {
+      contentBlock = {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: pdfBase64,
+        },
+      };
+    } else {
+      contentBlock = {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: mimeType || "image/jpeg",
+          data: imageBase64,
+        },
+      };
+    }
+
+    const client = new Anthropic({ apiKey });
+
+    const response = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: [
+            contentBlock,
+            { type: "text", text: EXTRACTION_PROMPT },
+          ],
+        },
+      ],
+    });
+
+    const rawText = response.content
+      .filter((block) => block.type === "text")
+      .map((block) => block.text)
+      .join("");
+
+    // Log usage for cost visibility
+    if (response.usage) {
+      console.log(
+        `[parse-wine-list] tokens: ${response.usage.input_tokens} in / ${response.usage.output_tokens} out`
+      );
+    }
+
+    // Try to parse structured JSON (Path A)
+    const cleanJson = rawText.replace(/```json\n?|```\n?/g, "").trim();
+    try {
+      const parsed = JSON.parse(cleanJson);
+
+      if (!parsed.wines || !Array.isArray(parsed.wines) || parsed.wines.length === 0) {
+        return NextResponse.json({
+          error: "Couldn't find any wines in this image. Make sure you're photographing the wine list — not the food menu or the cover.",
+          errorType: "no_wines",
+          rawText,
+        });
+      }
+
+      return NextResponse.json({
+        wines: parsed.wines,
+        metadata: parsed.metadata || {},
+        rawText,
+        source: "vision",
+      });
+    } catch {
+      // Path B fallback: JSON parsing failed, return raw text for parseWineList
+      if (rawText.length < 20) {
+        return NextResponse.json({
+          error: "Couldn't read any wines from this image. Try a clearer, well-lit photo.",
+          errorType: "no_wines",
+        });
+      }
+
+      return NextResponse.json({
+        rawText,
+        source: "vision_text",
+      });
+    }
+  } catch (err) {
+    console.error("parse-wine-list route error:", err);
+
+    // Handle specific Anthropic API errors
+    if (err.status === 429) {
+      return NextResponse.json(
+        { error: "Sommeasy is busy right now. Try again in a moment.", errorType: "rate_limit" },
+        { status: 429 }
+      );
+    }
+    if (err.status === 400) {
+      return NextResponse.json(
+        { error: "That file couldn't be processed. Try a different photo or a smaller file.", errorType: "bad_input" },
+        { status: 422 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: "Something went wrong reading your wine list. Please try again.", errorType: "api_error" },
+      { status: 500 }
+    );
+  }
+}
