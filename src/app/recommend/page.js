@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (max 2048px, 0.85 quality, handles HEIC/HEIF)
@@ -147,17 +147,20 @@ export default function RecommendPage() {
     setScoredEntries(scored);
     const matched = scored.filter(e => e.score > 0);
     setTotalMatched(matched.length);
-    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP });
+    const pickCount = getPickCount(entries.length, colorP);
+    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount });
     setPicks(curated);
   };
 
   // ─── Re-filter picks without re-scoring (called when filters change in results view) ───
   const handleRefilter = (newColorPref, newMinPrice, newMaxPrice) => {
     if (!scoredEntries) return;
+    const pickCount = getPickCount(totalParsed, newColorPref);
     const curated = curatePicks(scoredEntries, {
       minPrice: newMinPrice ? parseFloat(newMinPrice) : null,
       maxPrice: newMaxPrice ? parseFloat(newMaxPrice) : null,
       colorPreference: newColorPref,
+      maxPicks: pickCount,
     });
     setPicks(curated);
   };
@@ -223,6 +226,7 @@ export default function RecommendPage() {
           isByTheGlass: w.is_btg || false,
           sectionColor: w.color || null,
           sectionVarietal: null,
+          vintage: w.vintage || null,
         }));
 
         setWineListText(data.rawText || "");
@@ -342,9 +346,6 @@ export default function RecommendPage() {
     setMenuUrl("");
     setExtractedFrom(null);
     setShowPasteMode(false);
-    setColorPref("all");
-    setMinPrice("");
-    setMaxPrice("");
   };
 
   const loadExample = () => {
@@ -468,12 +469,12 @@ Barolo, Giacomo Conterno 2018.........................$210`);
 
         <div style={{ textAlign: "center", padding: "28px 0 20px" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", color: "#1B3D2F", margin: "0 0 10px", fontWeight: 700, letterSpacing: "-0.01em" }}>
-            {picks.length === 0 ? "No matches found" : `Your ${picks.length} picks`}
+            {picks.length === 0 ? "No matches found" : "Your picks"}
           </h2>
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, margin: 0, lineHeight: 1.5 }}>
             {picks.length > 0
-              ? `Curated from ${totalMatched} matches across ${totalParsed} wines on the list`
-              : `We parsed ${totalParsed} wines but couldn't find matches for your DNA. Try refining your profile.`}
+              ? `${totalParsed} wines on this list — ${picks.length > 5 ? `here are your top ${picks.length}` : "here's where to start"}`
+              : `We scanned ${totalParsed} wines but couldn't find matches for your DNA. Try adjusting your filters or updating your profile.`}
           </p>
         </div>
 
@@ -505,10 +506,30 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </div>
         </div>
 
+        {/* Category legend */}
+        {picks.length > 0 && (
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.45, margin: 0, lineHeight: 1.8 }}>
+              🏆 Top Pick  ·  ✨ Splurge  ·  💰 Great Value  ·  🧭 Adventure  ·  🍷 Worth Trying
+            </p>
+          </div>
+        )}
+
         {picks.length > 0 && (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: 32 }}>
             {picks.map((pick, i) => {
               const typeInfo = getPickTypeInfo(pick.pickType);
+              const displayName = formatWineName(pick.name);
+              const vintageFromName = pick.name.match(/((?:19|20)\d{2})/);
+              const vintage = pick.vintage || (vintageFromName ? vintageFromName[1] : null);
+              const nameHasVintage = vintage && displayName.includes(vintage);
+              const regionName = pick.detectedRegionIds && pick.detectedRegionIds.length > 0
+                ? getRegionDisplayName(pick.detectedRegionIds[0], pick.detectedCountry)
+                : null;
+              const varietalName = pick.detectedVarietalId
+                ? getVarietalDisplayName(pick.detectedVarietalId)
+                : null;
+
               return (
                 <div key={i} style={{
                   background: "rgba(255,255,255,0.7)", borderRadius: "18px", padding: "20px",
@@ -534,7 +555,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   <h3 style={{
                     fontFamily: "'Playfair Display', Georgia, serif", fontSize: i === 0 ? "20px" : "17px",
                     color: "#1B3D2F", margin: "0 0 10px", lineHeight: 1.3, fontWeight: 600,
-                  }}>{pick.name}</h3>
+                  }}>
+                    {displayName}{vintage && !nameHasVintage ? ` ${vintage}` : ""}
+                  </h3>
 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
                     {pick.detectedCountry && (
@@ -543,49 +566,19 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                         color: "#1B3D2F", opacity: 0.6, background: "rgba(27,61,47,0.04)",
                         padding: "3px 10px", borderRadius: "100px",
                       }}>
-                        {getCountryFlag(pick.detectedCountry)} {getCountryName(pick.detectedCountry)}
+                        {getCountryFlag(pick.detectedCountry)} {getCountryName(pick.detectedCountry)}{regionName ? ` — ${regionName}` : ""}
                       </span>
                     )}
-                    {pick.matchReasons.map((reason, j) => {
-                      const icons = { estate: "\u{1F3DB}\uFE0F", region: "\u{1F4CD}", varietal: "\u{1F347}", country: "\u{1F30D}", country_region: "\u{1F30D}", favorite: "\u2764\uFE0F" };
-                      if (reason.type === "country") return null;
-                      return (
-                        <span key={j} style={{
-                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-                          color: "#1B3D2F", opacity: 0.6, background: "rgba(27,61,47,0.04)",
-                          padding: "3px 10px", borderRadius: "100px",
-                        }}>
-                          {icons[reason.type] || "\u{1F377}"} {reason.label}
-                        </span>
-                      );
-                    })}
+                    {varietalName && (
+                      <span style={{
+                        fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+                        color: "#1B3D2F", opacity: 0.6, background: "rgba(27,61,47,0.04)",
+                        padding: "3px 10px", borderRadius: "100px",
+                      }}>
+                        🍇 {varietalName}
+                      </span>
+                    )}
                   </div>
-
-                  {pick.producerMatch && (
-                    <div style={{
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F",
-                      opacity: 0.45, marginTop: 8, lineHeight: 1.5,
-                    }}>
-                      {pick.producerMatch.name} · {pick.producerMatch.subregion || pick.producerMatch.region}, {pick.producerMatch.country}
-                      {pick.producerMatch.varieties?.length > 0 && ` · ${pick.producerMatch.varieties.slice(0, 2).join(", ")}`}
-                    </div>
-                  )}
-
-                  {pick.pickType === "adventure" && (
-                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B6914", marginTop: 10, fontStyle: "italic", opacity: 0.7 }}>
-                      Something new — matches your grape preferences from a different region
-                    </div>
-                  )}
-                  {pick.pickType === "value" && (
-                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#6B8F5E", marginTop: 10, fontStyle: "italic", opacity: 0.7 }}>
-                      Best match in the lower price range
-                    </div>
-                  )}
-                  {pick.pickType === "splurge" && (
-                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", marginTop: 10, fontStyle: "italic", opacity: 0.7 }}>
-                      Worth the stretch — strong DNA match at a higher price point
-                    </div>
-                  )}
 
                   {/* Rating section */}
                   <div style={{
@@ -623,24 +616,12 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "12px", marginBottom: 12 }}>
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
           <button onClick={handleReset} style={{
-            flex: 1, padding: "14px 20px", borderRadius: "14px",
+            padding: "14px 40px", borderRadius: "14px",
             border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)",
             color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, cursor: "pointer",
-          }}>Try Another List</button>
-          <a href="/" style={{
-            flex: 1, padding: "14px 20px", borderRadius: "14px",
-            border: "2px solid rgba(139,35,50,0.15)", background: "rgba(255,255,255,0.7)",
-            color: "#8B2332", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600,
-            textDecoration: "none", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center",
-          }}>Update My DNA</a>
-        </div>
-        <div style={{ textAlign: "center", paddingBottom: 40 }}>
-          <a href="/journal" style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            color: "#1B3D2F", opacity: 0.4, textDecoration: "underline",
-          }}>View Wine Journal</a>
+          }}>Scan Again</button>
         </div>
       </div>
     );
