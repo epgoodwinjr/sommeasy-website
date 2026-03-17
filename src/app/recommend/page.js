@@ -81,6 +81,7 @@ export default function RecommendPage() {
   const [ratingToast, setRatingToast] = useState(null);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const userDNARef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
   const loadingInterval = useRef(null);
   const supabase = createClient();
@@ -143,12 +144,14 @@ export default function RecommendPage() {
       varietals: profile.varietals || [],
       specificWines: profile.specific_wines || [],
     };
-    const scored = matchWinesAgainstDNA(entries, dna);
+    const matchResult = matchWinesAgainstDNA(entries, dna);
+    const scored = matchResult.scoredEntries;
+    userDNARef.current = matchResult.userDNA;
     setScoredEntries(scored);
     const matched = scored.filter(e => e.score > 0);
     setTotalMatched(matched.length);
     const pickCount = getPickCount(entries.length, colorP);
-    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount });
+    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount, userDNA: userDNARef.current });
     setPicks(curated);
   };
 
@@ -161,6 +164,7 @@ export default function RecommendPage() {
       maxPrice: newMaxPrice ? parseFloat(newMaxPrice) : null,
       colorPreference: newColorPref,
       maxPicks: pickCount,
+      userDNA: userDNARef.current,
     });
     setPicks(curated);
   };

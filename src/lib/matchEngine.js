@@ -725,6 +725,8 @@ export function curatePicks(scoredEntries, options) {
   const maxPrice = options.maxPrice;
   const colorPreference = options.colorPreference;
   const maxPicks = options.maxPicks || 5;
+  const menuContext = options.menuContext || null;
+  const userDNA = options.userDNA || null;
 
   var pool = scoredEntries;
   if (colorPreference && colorPreference !== "all") {
@@ -817,7 +819,7 @@ export function curatePicks(scoredEntries, options) {
 // ═══════════════════════════════════════════════════════
 
 export function matchWinesAgainstDNA(entries, dnaProfile, feedbackSignals) {
-  if (!dnaProfile || !entries.length) return [];
+  if (!dnaProfile || !entries.length) return { scoredEntries: [], userDNA: null };
   const estateNames = new Set();
   const allEstates = dnaProfile.estates || {};
   for (const regionId of Object.keys(allEstates)) {
@@ -847,7 +849,8 @@ export function matchWinesAgainstDNA(entries, dnaProfile, feedbackSignals) {
     estateNames: estateNames,
   };
   const bottleEntries = entries.filter(function(entry) { return !entry.isByTheGlass; });
-  return bottleEntries.map(function(entry) { return scoreEntry(entry, userDNA, feedbackSignals || null); });
+  const scored = bottleEntries.map(function(entry) { return scoreEntry(entry, userDNA, feedbackSignals || null); });
+  return { scoredEntries: scored, userDNA: userDNA };
 }
 
 export function getPickTypeInfo(pickType) {
