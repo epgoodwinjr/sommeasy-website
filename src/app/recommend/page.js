@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (max 2048px, 0.85 quality, handles HEIC/HEIF)
@@ -81,6 +81,7 @@ export default function RecommendPage() {
   const [ratingToast, setRatingToast] = useState(null);
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
+  const userDNARef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
   const loadingInterval = useRef(null);
   const supabase = createClient();
@@ -143,24 +144,30 @@ export default function RecommendPage() {
       varietals: profile.varietals || [],
       specificWines: profile.specific_wines || [],
     };
-    const scored = matchWinesAgainstDNA(entries, dna);
+    const matchResult = matchWinesAgainstDNA(entries, dna);
+    const scored = matchResult.scoredEntries;
+    userDNARef.current = matchResult.userDNA;
     setScoredEntries(scored);
     const matched = scored.filter(e => e.score > 0);
     setTotalMatched(matched.length);
+    const menuCtx = buildMenuContext(matched);
     const pickCount = getPickCount(entries.length, colorP);
-    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount });
+    const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount, menuContext: menuCtx, userDNA: userDNARef.current });
     setPicks(curated);
   };
 
   // ─── Re-filter picks without re-scoring (called when filters change in results view) ───
   const handleRefilter = (newColorPref, newMinPrice, newMaxPrice) => {
     if (!scoredEntries) return;
+    const menuCtx = buildMenuContext(scoredEntries.filter(e => e.score > 0));
     const pickCount = getPickCount(totalParsed, newColorPref);
     const curated = curatePicks(scoredEntries, {
       minPrice: newMinPrice ? parseFloat(newMinPrice) : null,
       maxPrice: newMaxPrice ? parseFloat(newMaxPrice) : null,
       colorPreference: newColorPref,
       maxPicks: pickCount,
+      menuContext: menuCtx,
+      userDNA: userDNARef.current,
     });
     setPicks(curated);
   };
@@ -223,10 +230,19 @@ export default function RecommendPage() {
           name: w.name || "",
           price: typeof w.price === "number" ? w.price : null,
           originalLine: w.name || "",
+          section: w.section || null,
           isByTheGlass: w.is_btg || false,
           sectionColor: w.color || null,
           sectionVarietal: null,
           vintage: w.vintage || null,
+          visionData: {
+            color: w.color || null,
+            variety: w.variety || null,
+            region: w.region || null,
+            country: w.country || null,
+            producer: w.producer || null,
+            vintage: w.vintage || null,
+          },
         }));
 
         setWineListText(data.rawText || "");
@@ -329,6 +345,8 @@ export default function RecommendPage() {
         wine_name: wineName,
         interaction_type: "had",
         rating: rating,
+        source_url: extractedFrom === "url" ? menuUrl : (extractedFrom === "scan" ? "photo_scan" : "text_paste"),
+        source_label: null,
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id, wine_name" });
     } catch (err) {
