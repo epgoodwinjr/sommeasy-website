@@ -12,6 +12,10 @@ For each wine, extract:
 - section: The section header this wine falls under (e.g., "Red Wine", "White Wine", "Sparkling", "By the Glass", "France", "Pinot Noir")
 - is_btg: true if this wine is in a "by the glass" section, false otherwise
 - color: "red", "white", "rosé", "sparkling", or null if unclear
+- variety: Primary grape variety if identifiable (e.g., "Pinot Noir", "Chardonnay"). For blends, state "blend" or list components if known (e.g., "Cabernet Sauvignon-Merlot blend"). null if unknown.
+- region: Specific wine region if identifiable (e.g., "Bordeaux", "Napa Valley", "Stellenbosch"). null if unknown.
+- country: Country of origin if identifiable. null if unknown.
+- producer: Producer/winery/estate name, separated from the wine name where possible. null if not distinguishable.
 
 Important instructions:
 - Preserve the original language and spelling of wine names (French accents, German umlauts, etc.)
@@ -32,7 +36,11 @@ Respond ONLY with a JSON object in this exact format, no other text:
       "price": 450,
       "section": "Bordeaux",
       "is_btg": false,
-      "color": "red"
+      "color": "red",
+      "variety": "Cabernet Sauvignon blend",
+      "region": "Bordeaux",
+      "country": "France",
+      "producer": "Château Margaux"
     }
   ],
   "metadata": {
@@ -86,7 +94,7 @@ export async function POST(request) {
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [
         {
           role: "user",
