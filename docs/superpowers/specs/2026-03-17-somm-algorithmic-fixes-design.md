@@ -89,9 +89,11 @@ function selectAdventure(matched, userDNA, menuContext, picks) {
 }
 ```
 
-**Implementation note:** `userDNA` is built inside `matchWinesAgainstDNA` (lines 826-832). The `countries`, `regions`, and `varietals` fields must be verified as Sets for the `.has()` calls to work. If they're arrays, convert to Sets.
+**Implementation note — threading `userDNA` into curation:** `userDNA` is built inside `matchWinesAgainstDNA` (lines 826-832) as `{ countries: Set, regions: Set, varietals: Set, estates: Set, wines: Set }`. It is currently local to that function and NOT passed to `curatePicks`. To make it available for Adventure selection, `matchWinesAgainstDNA` must return `userDNA` alongside scored entries, and the recommend page must pass it through as `options.userDNA` when calling `curatePicks`. Alternatively, `curatePicks` can accept `dnaProfile` in options and reconstruct the Sets internally.
 
-**Implementation note:** `detectedVarietalIds` (plural array) does not currently exist on scored entries — only `detectedVarietalId` (singular). Must expose `Array.from(attrs.varietalIds)` as `detectedVarietalIds` on the scoreEntry return object while keeping the singular field for Workstream 1 backward compatibility.
+**Implementation note — `detectedVarietalIds`:** The plural array does not currently exist on scored entries — only `detectedVarietalId` (singular). Must expose `Array.from(attrs.varietalIds)` as `detectedVarietalIds` on the `scoreEntry` return object while keeping the singular field for Workstream 1 backward compatibility.
+
+**Implementation note — `pickWithDiversity`:** This is `pickFrom` (from Fix 2) applied to the adventure pool. Once Fix 2's diversity-aware `pickFrom` is in place, `selectAdventure` simply calls `pickFrom(pool.sort((a,b) => b.score - a.score), "adventure")`. The `pickWithDiversity` name in the pseudocode above is conceptual — the actual implementation uses the same `pickFrom` function that all other slots use.
 
 ---
 
@@ -134,7 +136,25 @@ function wouldViolateDiversity(candidate, existingPicks) {
 }
 ```
 
-**Implementation note:** `detectedProducer` does not currently exist on scored entries. Producer terms are detected internally by `detectWineAttributes()` but discarded from the return object. Must add `detectedProducer` (matched producer name string) and `detectedProducerId` to `scoreEntry`'s return object.
+**Implementation note — extracting producer for return object:** `detectedProducer` does not currently exist on scored entries. `detectWineAttributes()` returns `producerTerms` as a Set of lowercase strings (e.g., `"kanonkop"`). To populate `detectedProducer` and `detectedProducerId` on the return object:
+
+```js
+// In scoreEntry, after calling detectWineAttributes:
+let detectedProducerName = null;
+let detectedProducerId = null;
+if (attrs.producerTerms.size > 0) {
+  const term = Array.from(attrs.producerTerms)[0]; // First matched term
+  // Look up canonical name from SEARCH_INDEX
+  const searchEntry = SEARCH_INDEX.producerTerms.find(p => p.term === term);
+  detectedProducerName = searchEntry ? searchEntry.name : term;
+  // Look up producerId from PRODUCER_LOOKUP
+  const lookupEntry = PRODUCER_LOOKUP[term];
+  detectedProducerId = lookupEntry ? lookupEntry.producerId : null;
+}
+// Add to return object:
+// detectedProducer: detectedProducerName,
+// detectedProducerId: detectedProducerId,
+```
 
 ### Integration into pickFrom
 
@@ -173,14 +193,20 @@ Sparkling wines aren't reliably tagged, especially Champagne listed under "White
 
 ### Multi-Signal Detection
 
+**Implementation note — `section` field availability:** The `section` field from Vision output is currently dropped during entry mapping in recommend/page.js. Text-parsed entries also don't carry `section` — they use `sectionColor` instead. The entry mapping (Fix 4) must include `section: w.section` on the entry object so sparkling detection can use section headers. For text-parsed entries, `parseWineList` should also expose the section header string.
+
+Additionally, `detectedColor` on scored entries already incorporates `sectionColor`, so checking `entry.detectedColor === "sparkling"` catches the text-parser path. The `entry.section` check is primarily for Vision-path wines where the section name provides a strong signal.
+
 ```js
 function isSparklingWine(entry) {
   const name = (entry.name || "").toLowerCase();
-  const section = (entry.section || "").toLowerCase();
+  const section = (entry.section || "").toLowerCase();  // From Vision data or text parser
   const variety = (entry.detectedVariety || entry.visionData?.variety || "").toLowerCase();
   const visionColor = (entry.visionData?.color || "").toLowerCase();
+  const detectedColor = (entry.detectedColor || "").toLowerCase();
 
-  // Vision explicitly tagged it
+  // Already detected as sparkling by scorer or Vision
+  if (detectedColor === "sparkling") return true;
   if (visionColor === "sparkling") return true;
 
   // Section header indicates sparkling
@@ -270,9 +296,11 @@ When the recommend page builds entries from Vision output:
 const entries = visionResult.wines.map(w => ({
   name: w.name,
   price: w.price,
-  section: w.section,
+  originalLine: w.name || "",
+  section: w.section || null,        // NEW: preserved for isSparklingWine detection
   isByTheGlass: w.is_btg,
   sectionColor: w.color || null,
+  sectionVarietal: null,
   vintage: w.vintage || null,
   visionData: {
     color: w.color,
@@ -296,9 +324,108 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
 }
 ```
 
-`scoreEntryFromVision` uses direct field matching (region string → regionLookup → regionId → check against userDNA) rather than scanning the wine name for keyword matches. More accurate for wines where the name alone doesn't reveal the region or grape.
-
 `scoreEntryFromText` is the existing `scoreEntry` logic, renamed.
+
+`scoreEntryFromVision` uses direct field matching instead of scanning the wine name. Skeleton:
+
+```js
+function scoreEntryFromVision(entry, userDNA, feedbackSignals) {
+  let score = 0;
+  const matchReasons = [];
+  const vd = entry.visionData;
+
+  // 1. Producer match — use visionData.producer directly against PRODUCER_LOOKUP
+  let detectedProducerName = vd.producer || null;
+  let detectedProducerId = null;
+  if (detectedProducerName) {
+    const lookupEntry = PRODUCER_LOOKUP[detectedProducerName.toLowerCase().trim()];
+    if (lookupEntry) {
+      detectedProducerId = lookupEntry.producerId;
+      // Check against userDNA.estates
+      if (userDNA.estates.has(lookupEntry.producerId)) {
+        score += 5;
+        matchReasons.push({ type: "estate", label: detectedProducerName, weight: 5 });
+      }
+    }
+  }
+
+  // 2. Region match — use visionData.region against REGION_LOOKUP
+  const detectedRegionIds = [];
+  const detectedCountryIds = [];
+  if (vd.region) {
+    const regionEntry = REGION_LOOKUP[vd.region.toLowerCase().trim()];
+    if (regionEntry) {
+      detectedRegionIds.push(regionEntry.regionId);
+      detectedCountryIds.push(regionEntry.country);
+      if (userDNA.regions.has(regionEntry.regionId)) {
+        score += 3;
+        matchReasons.push({ type: "region", label: regionEntry.regionId, weight: 3 });
+      }
+    }
+  }
+
+  // 3. Country match — use visionData.country or inferred from region
+  if (vd.country) {
+    const countryId = vd.country.toLowerCase().trim();
+    if (!detectedCountryIds.includes(countryId)) detectedCountryIds.push(countryId);
+    // Only add country score if no region matched
+    if (matchReasons.every(r => r.type !== "region") && userDNA.countries.has(countryId)) {
+      score += 1;
+      matchReasons.push({ type: "country", label: countryId, weight: 1 });
+    }
+  }
+
+  // 4. Varietal match — use visionData.variety against VARIETAL_LOOKUP + varietals array
+  const detectedVarietalIds = [];
+  if (vd.variety) {
+    const varietyLower = vd.variety.toLowerCase().trim();
+    // Check varietal lookup for synonyms, then varietals array for direct match
+    const varLookup = VARIETAL_LOOKUP[varietyLower];
+    const varId = varLookup ? varLookup.varietalId
+      : VARIETALS.find(v => v.name.toLowerCase() === varietyLower)?.id || null;
+    if (varId) {
+      detectedVarietalIds.push(varId);
+      if (userDNA.varietals.has(varId)) {
+        score += 2;
+        matchReasons.push({ type: "varietal", label: varId, weight: 2 });
+      }
+    }
+  }
+
+  // 5. Favorite wine match (same as text path — scan name against userDNA.wines)
+  // ... same logic as scoreEntryFromText ...
+
+  // 6. Feedback signals (same as text path)
+  // ... same logic as scoreEntryFromText ...
+
+  // 7. Quality bonus + Estate+Region combo (Fixes 7 & 8)
+  // ... applied after DNA signals, same as text path ...
+
+  // 8. Color detection — prefer visionData.color, fall back to detectedColor logic
+  const detectedColor = vd.color || entry.sectionColor || null;
+
+  return {
+    name: entry.name,
+    price: entry.price,
+    originalLine: entry.originalLine,
+    section: entry.section || null,
+    score,
+    matchReasons,
+    detectedColor,
+    detectedRegionIds,
+    detectedCountryIds,
+    detectedCountry: detectedCountryIds[0] || null,
+    detectedVarietalId: detectedVarietalIds[0] || null,
+    detectedVarietalIds,
+    detectedProducer: detectedProducerName,
+    detectedProducerId,
+    vintage: vd.vintage || entry.vintage || null,
+    visionData: entry.visionData,
+  };
+}
+```
+
+**Fallback behavior:** When Vision returns `null` for the new fields (variety, region, country, producer), the `scoreEntry` router checks `entry.visionData && entry.visionData.region`. If region is null, the entry falls back to `scoreEntryFromText` which scans the wine name string. This is intentional — partial Vision data gracefully degrades to text parsing.
 
 ---
 
@@ -335,7 +462,7 @@ await supabase.from("wine_interactions").upsert({
 });
 ```
 
-**Implementation note:** `menuUrl` exists as state on the page (line 77), but no `restaurantName` is tracked. For `source_url`, use the existing `menuUrl` state. For `source_label`, pass `null` for now — restaurant name detection is a future workstream. For photo scans with no URL, store `"photo_scan"` as source_url.
+**Implementation note:** `menuUrl` exists as state on the page (line 77), and `extractedFrom` state tracks `"scan"` vs `"url"` vs `"paste"`. For `source_url`: if `extractedFrom === "url"`, use `menuUrl`; if `extractedFrom === "scan"`, store `"photo_scan"`; if `extractedFrom === "paste"`, store `"text_paste"`. For `source_label`, pass `null` for now — restaurant name detection is a future workstream.
 
 ---
 
@@ -457,17 +584,18 @@ Example: Kanonkop (estate +5) in Stellenbosch (region +3) with Cabernet (varieta
 
 ## Implementation Order
 
-1. Expose `detectedVarietalIds` (plural array) and `detectedProducer`/`detectedProducerId` on `scoreEntry` return
-2. Build `buildMenuContext` and wire into `curatePicks` via `options.menuContext`
-3. Replace Adventure logic with tiered `selectAdventure`
+1. Expose `detectedVarietalIds` (plural array), `detectedProducer`, `detectedProducerId`, and `section` on `scoreEntry` return
+2. Thread `userDNA` out of `matchWinesAgainstDNA` (return alongside scored entries) and pass through `options.userDNA` to `curatePicks`; build `buildMenuContext` and wire into `curatePicks` via `options.menuContext`
+3. Replace Adventure logic with tiered selection using diversity-aware `pickFrom`
 4. Add `wouldViolateDiversity` and integrate into `pickFrom`
 5. Add `isSparklingWine` and replace color filter logic in `curatePicks`
-6. Update Vision prompt to extract variety, region, country, producer
-7. Build `scoreEntryFromVision` (rename existing logic to `scoreEntryFromText`)
-8. Add `getQualityBonus` and integrate into both scoring paths
-9. Add estate+region combo bonus
-10. Add `source_url`/`source_label` to wine interaction saves + Supabase migration
-11. Test against real wine lists
+6. Update Vision prompt to extract variety, region, country, producer; update JSON example
+7. Update recommend page Vision entry mapping to include `section` and `visionData` fields
+8. Build `scoreEntryFromVision` (rename existing logic to `scoreEntryFromText`)
+9. Add `getQualityBonus` and integrate into both scoring paths
+10. Add estate+region combo bonus
+11. Add `source_url`/`source_label` to wine interaction saves + Supabase migration
+12. Test against real wine lists
 
 ---
 
