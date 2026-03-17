@@ -793,6 +793,38 @@ export function buildMenuContext(scoredEntries) {
   };
 }
 
+export function isSparklingWine(entry) {
+  var name = (entry.name || "").toLowerCase();
+  var section = (entry.section || "").toLowerCase();
+  var variety = (entry.visionData && entry.visionData.variety ? entry.visionData.variety : "").toLowerCase();
+  var visionColor = (entry.visionData && entry.visionData.color ? entry.visionData.color : "").toLowerCase();
+  var detectedColor = (entry.detectedColor || "").toLowerCase();
+
+  // Already detected as sparkling by scorer or Vision
+  if (detectedColor === "sparkling") return true;
+  if (visionColor === "sparkling") return true;
+
+  // Section header indicates sparkling
+  if (/sparkling|champagne|bubbles|fizz|pétillant|spumante|mousseux/.test(section)) return true;
+
+  // Name contains sparkling indicators
+  var sparklingTerms = [
+    "champagne", "cava", "prosecco", "crémant", "cremant",
+    "brut", "blanc de blancs", "blanc de noirs",
+    "méthode traditionnelle", "methode cap classique", "mcc",
+    "sekt", "spumante", "franciacorta", "asti",
+    "pétillant naturel", "pet-nat", "ancestrale"
+  ];
+  for (var i = 0; i < sparklingTerms.length; i++) {
+    if (name.indexOf(sparklingTerms[i]) >= 0) return true;
+  }
+
+  // Variety indicates sparkling
+  if (/champagne blend|sparkling/.test(variety)) return true;
+
+  return false;
+}
+
 export function curatePicks(scoredEntries, options) {
   const minPrice = options.minPrice;
   const maxPrice = options.maxPrice;
@@ -803,11 +835,19 @@ export function curatePicks(scoredEntries, options) {
 
   var pool = scoredEntries;
   if (colorPreference && colorPreference !== "all") {
-    const filtered = pool.filter(function(e) {
-      if (!e.detectedColor) return true;
-      if (colorPreference === "white") return e.detectedColor === "white";
-      return e.detectedColor === colorPreference;
-    });
+    var filtered;
+    if (colorPreference === "sparkling") {
+      filtered = pool.filter(function(e) { return isSparklingWine(e); });
+    } else if (colorPreference === "white") {
+      filtered = pool.filter(function(e) { return !isSparklingWine(e) && (!e.detectedColor || e.detectedColor === "white"); });
+    } else if (colorPreference === "red") {
+      filtered = pool.filter(function(e) { return !isSparklingWine(e) && (!e.detectedColor || e.detectedColor === "red"); });
+    } else {
+      filtered = pool.filter(function(e) {
+        if (!e.detectedColor) return true;
+        return e.detectedColor === colorPreference;
+      });
+    }
     if (filtered.length >= 3) pool = filtered;
   }
 
