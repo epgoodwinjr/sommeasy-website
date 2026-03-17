@@ -546,7 +546,19 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 : null;
               const varietalName = pick.detectedVarietalId
                 ? getVarietalDisplayName(pick.detectedVarietalId)
-                : null;
+                : (function() {
+                    // Fallback: infer display varietal from Vision data or color
+                    if (pick.visionData && pick.visionData.variety) {
+                      // Vision provided a variety string but it didn't map to a known ID
+                      var v = pick.visionData.variety.trim();
+                      if (v.length > 0 && v.toLowerCase() !== "null") return v.split(" ").map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); }).join(" ");
+                    }
+                    // Contextual fallback by color
+                    var color = pick.detectedColor || (pick.visionData && pick.visionData.color) || null;
+                    if (color === "sparkling") return "Sparkling Blend";
+                    if (color === "rosé") return "Rosé Blend";
+                    return null;
+                  })();
 
               return (
                 <div key={i} style={{
