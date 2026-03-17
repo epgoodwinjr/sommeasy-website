@@ -50,13 +50,6 @@ const LOADING_MESSAGES = [
   "Finding your perfect picks...",
 ];
 
-// ─── Photo source types ───
-const PHOTO_SOURCES = [
-  { id: "wine-list", label: "Wine List / Menu" },
-  { id: "shelf-tag", label: "Shelf Tag / Price Card" },
-  { id: "bottle-label", label: "Bottle Label" },
-];
-
 export default function RecommendPage() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -97,17 +90,16 @@ export default function RecommendPage() {
 
   useEffect(() => {
     async function init() {
-      const { data: { session } } = await supabase.auth.getSession();
-      const u = session?.user || null;
-      setUser(u);
-      if (u) {
-        // Fetch profile and interactions in parallel
-        const [profileResult, interactionsResult] = await Promise.all([
-          supabase.from("wine_profiles").select("*").eq("user_id", u.id).single(),
-          supabase.from("wine_interactions").select("*").eq("user_id", u.id),
-        ]);
-        if (profileResult.data) setProfile(profileResult.data);
-        if (interactionsResult.data) setInteractions(interactionsResult.data);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const u = session?.user || null;
+        setUser(u);
+        if (u) {
+          const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", u.id).single();
+          if (data) setProfile(data);
+        }
+      } catch (err) {
+        console.error("Init error:", err);
       }
       setLoading(false);
     }
@@ -547,8 +539,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                       </span>
                     )}
                     {pick.matchReasons.map((reason, j) => {
-                      const icons = { estate: "\u{1F3DB}\uFE0F", region: "\u{1F4CD}", varietal: "\u{1F347}", country: "\u{1F30D}", country_region: "\u{1F30D}", favorite: "\u2764\uFE0F", feedback_boost: "\u{1F4C8}" };
-                      if (reason.type === "country" || reason.type === "feedback_suppress") return null;
+                      const icons = { estate: "\u{1F3DB}\uFE0F", region: "\u{1F4CD}", varietal: "\u{1F347}", country: "\u{1F30D}", country_region: "\u{1F30D}", favorite: "\u2764\uFE0F" };
+                      if (reason.type === "country") return null;
                       return (
                         <span key={j} style={{
                           fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
