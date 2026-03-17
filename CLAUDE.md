@@ -22,7 +22,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - Quiz (5 steps), DNA profile with 15 archetypes across 6 scoring dimensions
 - Restaurant recommendation engine: scan (Claude Vision), URL fetch, PDF extraction, paste — two-card input UX, curated 5-pick output with post-scan filtering
 - Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings
-- Log a Bottle: Tesseract.js client-side OCR on label photos, saves to journal + influences DNA
+- Log a Bottle: Claude Vision API for label OCR (via `/api/scan-label`), saves to journal + influences DNA
 - Supabase tables: profiles, wine_interactions
 
 ## Brand & Design
@@ -84,7 +84,8 @@ You don't need to ask permission for individual code changes. Make the call, shi
 
 - PDF text extraction uses Y-coordinate detection (transform[5]) to preserve line breaks — naive extraction merges everything into one blob and breaks the parser
 - Wine name cleanup handles: dot leaders, bin numbers, broken accent characters, section headers misidentified as wine entries, US state abbreviations
-- matchEngine.js uses wineReference-lookup.json (processed from 130k WineMag reviews): 1,097 regions, 2,000 producers, 488 varietals, 43 countries
+- **Unified data architecture:** Single `wineUnified.json` (built by `scripts/build_quiz_data.py` from 130k WineMag reviews) powers all engines — quiz, profile, match. Contains 19 countries, 145 regions, 5,230 producers, 71 varietals, plus regionLookup (992), producerLookup (8,882), and varietalLookup (31 synonym mappings). Old `wineData.js` and `wineReference-lookup.json` are deleted.
+- matchEngine.js uses wineUnified.json lookups directly — no mapping dictionaries needed since all IDs come from the same data source
 - profileEngine.js generates up to 20 wine recommendations across 4 matching passes; pre-seeds exclusion list with user's named specific wines
 - Supabase client (supabase.js) stubs gracefully when env vars are absent during Vercel build-time pre-rendering
 - wineAutocomplete.json (140KB) lazy-loads on quiz Step 5 only — doesn't affect initial load

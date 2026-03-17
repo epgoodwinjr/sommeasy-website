@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { COUNTRIES, REGIONS, ESTATES, VARIETALS } from "@/lib/wineData";
+import wineUnified from "@/lib/wineUnified.json";
 import { generateDNAProfile } from "@/lib/profileEngine";
+
+const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DATA, varietals: VARIETALS_RAW } = wineUnified;
 
 // ─── Small UI components ───
 
@@ -88,66 +90,250 @@ function ProfileSection({ label, items }) {
 // ─── Quiz Steps ───
 
 function CountryStep({ selected, onToggle }) {
+  const oldWorld = COUNTRIES_RAW.filter(c => c.world === "old")
+    .sort((a, b) => b.reviewCount - a.reviewCount);
+  const newWorld = COUNTRIES_RAW.filter(c => c.world === "new")
+    .sort((a, b) => b.reviewCount - a.reviewCount);
+
+  const renderGroup = (label, countries) => (
+    <div style={{ marginBottom: 20 }}>
+      <p style={{
+        fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+        textTransform: "uppercase", letterSpacing: "0.15em",
+        color: "#1B3D2F", opacity: 0.4, margin: "0 0 10px 4px", fontWeight: 600,
+      }}>{label}</p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+        {countries.map(c => (
+          <Chip key={c.id} label={c.name} emoji={c.emoji}
+            selected={selected.includes(c.id)}
+            onClick={() => onToggle(c.id)} />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div>
-      <StepHeader number="01" title="Where in the world?" subtitle="Select the countries whose wines you enjoy. Pick as many as you like." />
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", justifyContent: "center", padding: "0 8px" }}>
-        {COUNTRIES.map(c => <Chip key={c.id} label={c.name} emoji={c.emoji} selected={selected.includes(c.id)} onClick={() => onToggle(c.id)} />)}
-      </div>
+      <StepHeader number="01" title="Where in the world?"
+        subtitle="Select the countries whose wines you enjoy. Pick as many as you like." />
+      {renderGroup("Old World", oldWorld)}
+      {renderGroup("New World", newWorld)}
     </div>
   );
 }
 
 function RegionStep({ selectedCountries, regions, onToggle }) {
+  const [expandedCountries, setExpandedCountries] = useState({});
+  const INITIAL_SHOW = 12;
+
   const items = selectedCountries
-    .map(cId => ({ id: cId, country: COUNTRIES.find(c => c.id === cId), regions: REGIONS[cId] || [] }))
+    .map(cId => {
+      const country = COUNTRIES_RAW.find(c => c.id === cId);
+      const countryRegions = (REGIONS_DATA[cId] || [])
+        .slice()
+        .sort((a, b) => b.reviewCount - a.reviewCount);
+      return { id: cId, country, regions: countryRegions };
+    })
     .filter(i => i.regions.length > 0);
+
   return (
     <div>
-      <StepHeader number="02" title="Let's get more specific" subtitle="For each country, do you have favorite regions? Select any you know and love — or skip to like the country broadly." />
+      <StepHeader number="02" title="Let's get more specific"
+        subtitle="For each country, do you have favorite regions? Select any you know and love — or skip to like the country broadly." />
       <Accordion items={items} defaultOpen={items[0]?.id}
         getLabel={i => `${i.country.emoji} ${i.country.name}`}
         getCount={i => (regions[i.id] || []).length}
-        renderContent={i => i.regions.map(r => <Chip key={r.id} label={r.name} selected={(regions[i.id] || []).includes(r.id)} onClick={() => onToggle(i.id, r.id)} small />)} />
+        renderContent={i => {
+          const isExpanded = expandedCountries[i.id];
+          const visible = isExpanded ? i.regions : i.regions.slice(0, INITIAL_SHOW);
+          const remaining = i.regions.length - INITIAL_SHOW;
+          return (
+            <>
+              {visible.map(r => (
+                <Chip key={r.id} label={r.name}
+                  selected={(regions[i.id] || []).includes(r.id)}
+                  onClick={() => onToggle(i.id, r.id)} small />
+              ))}
+              {!isExpanded && remaining > 0 && (
+                <button onClick={() => setExpandedCountries(p => ({ ...p, [i.id]: true }))}
+                  style={{
+                    width: "100%", padding: "8px", marginTop: 4,
+                    background: "none", border: "1px dashed rgba(27,61,47,0.2)",
+                    borderRadius: "8px", cursor: "pointer",
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                    color: "#8B2332", fontWeight: 500,
+                  }}>
+                  Show {remaining} more regions
+                </button>
+              )}
+            </>
+          );
+        }}
+      />
     </div>
   );
 }
 
-function EstateStep({ regions, estates, onToggle }) {
-  const items = Object.entries(regions).flatMap(([countryId, regionIds]) =>
-    regionIds.filter(rId => ESTATES[rId]).map(rId => ({
-      id: rId,
-      region: Object.values(REGIONS).flat().find(r => r.id === rId),
-      country: COUNTRIES.find(c => c.id === countryId),
-      estateList: ESTATES[rId] || [],
-    }))
-  );
-  if (items.length === 0) return <div><StepHeader number="03" title="Favorite producers?" subtitle="We don't have estates listed for your selected regions yet — no worries! You can add specific wines in the next step." /></div>;
-  return (
-    <div>
-      <StepHeader number="03" title="Any favorite producers?" subtitle="Know specific estates or wineries you love? Select them — totally fine to skip." />
-      <Accordion items={items} defaultOpen={items[0]?.id}
-        getLabel={i => `${i.country.emoji} ${i.region.name}`}
-        getCount={i => (estates[i.id] || []).length}
-        renderContent={i => i.estateList.map(e => <Chip key={e.id} label={e.name} selected={(estates[i.id] || []).includes(e.id)} onClick={() => onToggle(i.id, e.id)} small />)} />
-    </div>
-  );
-}
+function ProducerStep({ selectedRegions, estates, onToggle }) {
+  const [expandedRegions, setExpandedRegions] = useState({});
+  const PAGE_SIZE = 15;
 
-function VarietalStep({ selected, onToggle }) {
-  const reds = VARIETALS.filter(v => v.color === "red");
-  const whites = VARIETALS.filter(v => v.color === "white");
-  return (
-    <div>
-      <StepHeader number="04" title="Which grapes do you love?" subtitle="These are your preferences regardless of origin. A Pinot Noir lover is a Pinot Noir lover, whether Burgundy or Oregon." />
-      <div style={{ marginBottom: 20 }}>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#8B2332", margin: "0 0 10px 4px", fontWeight: 600 }}>Red Varietals</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>{reds.map(v => <Chip key={v.id} label={v.name} color="#8B2332" selected={selected.includes(v.id)} onClick={() => onToggle(v.id)} small />)}</div>
-      </div>
+  const items = Object.entries(selectedRegions).flatMap(([countryId, regionIds]) =>
+    regionIds
+      .filter(rId => PRODUCERS_DATA[rId] && PRODUCERS_DATA[rId].length > 0)
+      .map(rId => {
+        const region = (REGIONS_DATA[countryId] || []).find(r => r.id === rId);
+        const country = COUNTRIES_RAW.find(c => c.id === countryId);
+        return {
+          id: rId,
+          region,
+          country,
+          producers: PRODUCERS_DATA[rId] || [],
+        };
+      })
+  );
+
+  if (items.length === 0) {
+    return (
       <div>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#6B8F5E", margin: "0 0 10px 4px", fontWeight: 600 }}>White Varietals</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>{whites.map(v => <Chip key={v.id} label={v.name} color="#6B8F5E" selected={selected.includes(v.id)} onClick={() => onToggle(v.id)} small />)}</div>
+        <StepHeader number="03" title="Any favorite producers?"
+          subtitle="No producers found for your selected regions — no worries! You can add specific wines in the next step." />
       </div>
+    );
+  }
+
+  return (
+    <div>
+      <StepHeader number="03" title="Any favorite producers?"
+        subtitle="Know specific estates or wineries you love? Select them — totally fine to skip this step." />
+      <Accordion items={items} defaultOpen={items[0]?.id}
+        getLabel={i => `${i.country?.emoji || ""} ${i.region?.name || i.id}`}
+        getCount={i => (estates[i.id] || []).length}
+        renderContent={i => {
+          const showCount = expandedRegions[i.id] || PAGE_SIZE;
+          const visible = i.producers.slice(0, showCount);
+          const remaining = i.producers.length - showCount;
+          return (
+            <>
+              {visible.map(p => (
+                <Chip key={p.id} label={p.name}
+                  selected={(estates[i.id] || []).includes(p.id)}
+                  onClick={() => onToggle(i.id, p.id)} small />
+              ))}
+              {remaining > 0 && (
+                <button onClick={() => setExpandedRegions(p => ({
+                  ...p, [i.id]: showCount + PAGE_SIZE,
+                }))}
+                  style={{
+                    width: "100%", padding: "8px", marginTop: 4,
+                    background: "none", border: "1px dashed rgba(27,61,47,0.2)",
+                    borderRadius: "8px", cursor: "pointer",
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                    color: "#8B2332", fontWeight: 500,
+                  }}>
+                  Show {Math.min(remaining, PAGE_SIZE)} more producers
+                </button>
+              )}
+            </>
+          );
+        }}
+      />
+    </div>
+  );
+}
+
+function VarietalStep({ selected, onToggle, selectedRegions, selectedEstates }) {
+  // Compute relevance scores: regionMatches * 3 + producerMatches * 1 (per spec 2E)
+  const scores = {};
+
+  // Region signal: each selected region's topVarietals get +3
+  Object.entries(selectedRegions || {}).forEach(([countryId, regionIds]) => {
+    regionIds.forEach(rId => {
+      const region = (REGIONS_DATA[countryId] || []).find(r => r.id === rId);
+      if (region && region.topVarietals) {
+        region.topVarietals.forEach(vId => {
+          scores[vId] = (scores[vId] || 0) + 3;
+        });
+      }
+    });
+  });
+
+  // Producer signal: each selected producer's topVarietals get +1
+  Object.entries(selectedEstates || {}).forEach(([rId, pIds]) => {
+    const producers = PRODUCERS_DATA[rId] || [];
+    pIds.forEach(pId => {
+      const producer = producers.find(p => p.id === pId);
+      if (producer && producer.topVarietals) {
+        producer.topVarietals.forEach(vId => {
+          scores[vId] = (scores[vId] || 0) + 1;
+        });
+      }
+    });
+  });
+
+  const hasSelections = Object.keys(scores).length > 0;
+
+  const sorted = VARIETALS_RAW.slice().sort((a, b) => {
+    const sa = scores[a.id] || 0;
+    const sb = scores[b.id] || 0;
+    if (sa !== sb) return sb - sa;
+    return b.reviewCount - a.reviewCount;
+  });
+
+  const relevant = hasSelections ? sorted.filter(v => scores[v.id]) : [];
+  const other = hasSelections ? sorted.filter(v => !scores[v.id]) : sorted;
+
+  const renderGroup = (varietals, colorLabel, colorHex) => {
+    const filtered = varietals.filter(v => v.color === colorLabel);
+    if (filtered.length === 0) return null;
+    return (
+      <div style={{ marginBottom: 12 }}>
+        <p style={{
+          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+          textTransform: "uppercase", letterSpacing: "0.12em",
+          color: colorHex, margin: "0 0 8px 4px", fontWeight: 600,
+        }}>{colorLabel === "red" ? "Red" : "White"}</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+          {filtered.map(v => (
+            <Chip key={v.id} label={v.name} color={colorHex}
+              selected={selected.includes(v.id)}
+              onClick={() => onToggle(v.id)} small />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSection = (label, varietals) => {
+    if (varietals.length === 0) return null;
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <p style={{
+          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+          textTransform: "uppercase", letterSpacing: "0.15em",
+          color: "#1B3D2F", opacity: 0.4, margin: "0 0 12px 4px", fontWeight: 600,
+        }}>{label}</p>
+        {renderGroup(varietals, "red", "#8B2332")}
+        {renderGroup(varietals, "white", "#6B8F5E")}
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <StepHeader number="04" title="Which grapes do you love?"
+        subtitle="These are your preferences regardless of origin. A Pinot Noir lover is a Pinot Noir lover, whether Burgundy or Oregon." />
+      {hasSelections ? (
+        <>
+          {renderSection("Based on your selections", relevant)}
+          {renderSection("Other varietals", other)}
+        </>
+      ) : (
+        <>
+          {renderGroup(sorted, "red", "#8B2332")}
+          {renderGroup(sorted, "white", "#6B8F5E")}
+        </>
+      )}
     </div>
   );
 }
@@ -156,7 +342,7 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
   // Derive tappable suggestions from Step 4 estate selections
   const estateSuggestions = Object.entries(selectedEstates || {})
     .flatMap(([rId, eIds]) =>
-      (ESTATES[rId] || []).filter(e => eIds.includes(e.id)).map(e => e.name)
+      (PRODUCERS_DATA[rId] || []).filter(p => eIds.includes(p.id)).map(p => p.name)
     )
     .filter(name => !wines.includes(name))
     .slice(0, 8);
@@ -188,11 +374,8 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
   };
 
   const selectSuggestion = (item) => {
-    const label = item.w + (item.r ? ", " + item.r : "");
-    if (!wines.includes(label)) {
-      onAdd(label);
-    }
-    setVal("");
+    // Fill input with producer name + trailing space so user can continue typing wine/vintage
+    setVal(item.w + " ");
     setSuggestions([]);
     setShowSuggestions(false);
     ref.current?.focus();
@@ -202,13 +385,13 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
 
   return (
     <div>
-      <StepHeader number="05" title="Any specific favorites?" subtitle="Got a wine you would order again in a heartbeat? Type it here — name, vintage, whatever you remember. Totally optional." />
+      <StepHeader number="05" title="Any specific favorites?" subtitle="Name a wine you'd order again in a heartbeat — producer, wine name, vintage, whatever you remember." />
       <div style={{ position: "relative" }}>
         <div style={{ display: "flex", gap: "8px", marginBottom: showSuggestions ? 0 : 16 }}>
           <input ref={ref} type="text" value={val} onChange={e => handleChange(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); if (e.key === "Escape") { setSuggestions([]); setShowSuggestions(false); } }}
             onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-            placeholder='e.g. "Kanonkop" or "Chablis"'
+            placeholder='e.g. "Kanonkop Paul Sauer 2019" or "Cloudy Bay Sauvignon Blanc"'
             autoComplete="off"
             style={{ flex: 1, padding: "12px 16px", borderRadius: "12px", border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", outline: "none", transition: "border-color 0.2s ease" }}
           />
@@ -255,7 +438,7 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "0 0 10px 2px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>From your producers</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {estateSuggestions.map((name) => (
-              <button key={name} onClick={() => onAdd(name)} style={{
+              <button key={name} onClick={() => { setVal(name + " "); ref.current?.focus(); }} style={{
                 display: "inline-flex", alignItems: "center", gap: "6px",
                 padding: "8px 16px", borderRadius: "100px",
                 border: "1px solid rgba(139,35,50,0.2)",
@@ -450,8 +633,8 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
       <div style={{ flex: 1, padding: "20px 20px 120px", opacity: anim ? 0 : 1, transform: anim ? "translateX(20px)" : "translateX(0)", transition: "all 0.2s ease" }}>
         {step === 0 && <CountryStep selected={answers.countries} onToggle={id => setAnswers(p => ({ ...p, countries: toggle(p.countries, id) }))} />}
         {step === 1 && <RegionStep selectedCountries={answers.countries} regions={answers.regions} onToggle={(cId, rId) => setAnswers(p => ({ ...p, regions: { ...p.regions, [cId]: toggle(p.regions[cId] || [], rId) } }))} />}
-        {step === 2 && <EstateStep regions={answers.regions} estates={answers.estates} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
-        {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} />}
+        {step === 2 && <ProducerStep selectedRegions={answers.regions} estates={answers.estates} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
+        {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} selectedRegions={answers.regions} selectedEstates={answers.estates} />}
         {step === 4 && <SpecificWineStep wines={answers.specificWines} onAdd={w => setAnswers(p => ({ ...p, specificWines: [...p.specificWines, w] }))} onRemove={i => setAnswers(p => ({ ...p, specificWines: p.specificWines.filter((_, j) => j !== i) }))} selectedEstates={answers.estates} />}
         {step === 99 && profile && <DNAProfileCard profile={profile} onStartOver={restart} onSave={handleSave} saving={saving} user={user} />}
       </div>
