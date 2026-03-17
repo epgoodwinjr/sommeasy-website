@@ -18,8 +18,12 @@
   regionDisplayName: "Bordeaux" | null,     // Quiz-level region name, title-cased
   varietalDisplayName: "Grenache" | null,    // Canonical name from varietals array
   vintageYear: "2019" | null,               // Regex from name or Vision vintage field
+  detectedVarietalId: "grenache" | null,    // NEW — first resolved varietal ID (for display lookup)
 }
 ```
+
+**scoreEntry return object changes:**
+Currently `scoreEntry` returns `detectedRegionIds`, `detectedCountryIds`, `detectedCountry`, etc. but does NOT include varietal IDs. We must add `detectedVarietalId` (the first resolved varietal from `attrs.varietalIds`) to the return object, mirroring how regions are already surfaced. This is required for varietal display name resolution.
 
 **Region display name resolution:**
 - `detectWineAttributes()` resolves sub-appellations via `regionLookup` → `regionId` + `country`
@@ -28,9 +32,9 @@
 - If a sub-appellation doesn't resolve, `regionDisplayName` is null (don't show raw sub-appellation)
 
 **Varietal display name:**
-- `detectWineAttributes()` already resolves varietal IDs
+- `scoreEntry` now exposes `detectedVarietalId` (first entry from `attrs.varietalIds`)
 - Look up the canonical varietal object from `varietals` array → use `.name` field
-- Example: `varietalId: "grenache"` → `varietals.find(v => v.id === "grenache").name` → `"Grenache"`
+- Example: `detectedVarietalId: "grenache"` → `varietals.find(v => v.id === "grenache").name` → `"Grenache"`
 
 **Vintage extraction:**
 - Regex: `/((?:19|20)\d{2})/` on the wine name string
@@ -59,18 +63,27 @@ function getPickCount(totalWines, colorFilter) {
 | 300+        | All    | 10    |
 | Any         | Red/White/Sparkling | 5 |
 
-`curatePicks` gains an optional `maxPicks` parameter (default 5):
+`curatePicks` gains an optional `maxPicks` via `options.maxPicks` (default 5):
 - Slots 1–5: Top, Splurge, Value, Adventure, Wildcard (unchanged logic)
-- Slots 6–maxPicks: Next-highest-scoring unused wines, each labeled `pickType: "worth_trying"`
+- Slots 6–maxPicks: Next-highest-scoring unused wines, each labeled `pickType: "wildcard"` (reuses existing type — `getPickTypeInfo` already maps `"wildcard"` → "🍷 Worth Trying")
+- Integration points: the wildcard fill loop (currently `while picks.length < 5`) changes to `while picks.length < maxPicks`, and the final `return picks.slice(0, 5)` changes to `return picks.slice(0, maxPicks)`
 
 ### 1c. Sparkling Filter Fix in curatePicks
 
-When `colorPreference === "white"`, exclude wines with `detectedColor === "sparkling"`:
+Current filter logic: `pool.filter(e => !e.detectedColor || e.detectedColor === colorPreference)` — wines with no detected color (`null`/`undefined`) pass through all filters.
+
+New behavior:
+- Wines with `detectedColor === null` continue to pass through any color filter (existing behavior, unchanged)
+- `colorPreference === "white"`: match `detectedColor === "white"` OR null, but **exclude** `detectedColor === "sparkling"`
+- `colorPreference === "sparkling"`: match `detectedColor === "sparkling"` OR null
+- `colorPreference === "red"`: match `detectedColor === "red"` OR null (unchanged)
 
 ```js
-// Current: filter to detectedColor === colorPref
-// New: if colorPref === "white", also exclude "sparkling"
-// if colorPref === "sparkling", match only "sparkling"
+const filtered = pool.filter(e => {
+  if (!e.detectedColor) return true; // No color detected — include in any filter
+  if (colorPreference === "white") return e.detectedColor === "white";
+  return e.detectedColor === colorPreference;
+});
 ```
 
 Fallback behavior unchanged: if filtered pool < 3 wines, fall back to full pool.
@@ -99,10 +112,11 @@ Add to prompt:
 
 New utility function `formatWineName(name)`:
 - Title-cases all words
-- Preserves wine abbreviations uppercase: AOC, DOC, DOCG, IGT, AVA, CRU, MCC
-- Keeps French articles lowercase when mid-name: de, du, des, le, la, les, l'
-- Handles `d'` contractions: "d'Aqueria" not "D'aqueria"
-- Preserves accented characters (é, è, ê, ë, ô, ü, etc.)
+**Note:** `matchEngine.js` already has a `smartTitleCase()` function (lines 142–154) that handles French articles, `d'`/`l'` contractions, and accent preservation. Rather than creating a duplicate, export `smartTitleCase` from the match engine and extend it with wine-abbreviation handling. The page component imports and uses the extended version.
+
+Extensions beyond existing `smartTitleCase`:
+- Preserves wine abbreviations uppercase: AOC, DOC, DOCG, IGT, AVA, MCC
+- "Cru" is title-cased (not uppercase) — it's conventionally written "Cru Classé", "Grand Cru"
 - Applied at render time on `pick.name` — does not mutate data
 
 Edge cases:
@@ -177,7 +191,7 @@ Your picks
 
 **Keep (renamed):**
 - Single centered button: **"Scan Again"** (was "Try Another List")
-- `handleReset` preserves filter state (colorPref, minPrice, maxPrice) so the input view remembers preferences
+- **Behavioral change:** `handleReset` currently clears all filter state (`colorPref → "all"`, `minPrice → ""`, `maxPrice → ""`). Change it to preserve filter state so the input view remembers the user's color and budget preferences when they go back to scan again. Only reset picks, scoredEntries, wineListText, and extraction-related state.
 
 ### 3h. Dynamic Result Count Integration
 
