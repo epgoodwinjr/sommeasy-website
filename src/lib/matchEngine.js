@@ -559,6 +559,17 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
   const detectedCountryIds = attrs.countryIds;
   var detectedColor = attrs.color;
 
+  // Extract producer name and ID for diversity checks and quality bonus
+  var detectedProducerName = null;
+  var detectedProducerId = null;
+  if (attrs.producerTerms.size > 0) {
+    var firstProdTerm = Array.from(attrs.producerTerms)[0];
+    var prodSearchEntry = SEARCH_INDEX.producerTerms.find(function(p) { return p.term === firstProdTerm; });
+    detectedProducerName = prodSearchEntry ? prodSearchEntry.name : firstProdTerm;
+    var prodLookupEntry = PRODUCER_LOOKUP[firstProdTerm];
+    detectedProducerId = prodLookupEntry ? prodLookupEntry.producerId : null;
+  }
+
   // PRODUCER (weight: 5)
   for (const prodTerm of attrs.producerTerms) {
     if (userDNA.estateNames.has(prodTerm)) {
@@ -682,6 +693,7 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
     name: entry.name,
     price: entry.price,
     originalLine: entry.originalLine,
+    section: entry.section || null,
     score: score,
     matchReasons: matchReasons.sort(function(a, b) { return (b.weight || 0) - (a.weight || 0); }),
     detectedColor: detectedColor || entry.sectionColor || null,
@@ -689,7 +701,11 @@ function scoreEntry(entry, userDNA, feedbackSignals) {
     detectedCountryIds: Array.from(detectedCountryIds),
     detectedCountry: detectedCountryIds.size > 0 ? Array.from(detectedCountryIds)[0] : null,
     detectedVarietalId: attrs.varietalIds.size > 0 ? Array.from(attrs.varietalIds)[0] : null,
+    detectedVarietalIds: Array.from(attrs.varietalIds),
+    detectedProducer: detectedProducerName,
+    detectedProducerId: detectedProducerId,
     vintage: entry.vintage || null,
+    visionData: entry.visionData || null,
   };
 }
 
