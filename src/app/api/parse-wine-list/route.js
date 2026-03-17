@@ -131,6 +131,17 @@ export async function POST(request) {
         });
       }
 
+      // ── DIAGNOSTIC LOGGING ── Vision raw output per wine ──
+      console.log(`[parse-wine-list] ═══ VISION RAW OUTPUT (${parsed.wines.length} wines) ═══`);
+      parsed.wines.forEach((w, i) => {
+        console.log(`[wine ${String(i + 1).padStart(2, "0")}] name: "${w.name}" | color: ${w.color} | variety: ${w.variety} | region: ${w.region} | country: ${w.country} | producer: ${w.producer} | section: ${w.section} | price: ${w.price} | vintage: ${w.vintage}`);
+      });
+      if (parsed.metadata) {
+        console.log(`[parse-wine-list] metadata: ${JSON.stringify(parsed.metadata)}`);
+      }
+      console.log(`[parse-wine-list] ═══ END VISION RAW OUTPUT ═══`);
+      // ── END DIAGNOSTIC LOGGING ──
+
       return NextResponse.json({
         wines: parsed.wines,
         metadata: parsed.metadata || {},
