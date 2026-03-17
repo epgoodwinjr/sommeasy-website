@@ -374,11 +374,8 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
   };
 
   const selectSuggestion = (item) => {
-    const label = item.w + (item.r ? ", " + item.r : "");
-    if (!wines.includes(label)) {
-      onAdd(label);
-    }
-    setVal("");
+    // Fill input with producer name + trailing space so user can continue typing wine/vintage
+    setVal(item.w + " ");
     setSuggestions([]);
     setShowSuggestions(false);
     ref.current?.focus();
@@ -388,13 +385,13 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
 
   return (
     <div>
-      <StepHeader number="05" title="Any specific favorites?" subtitle="Got a wine you would order again in a heartbeat? Type it here — name, vintage, whatever you remember. Totally optional." />
+      <StepHeader number="05" title="Any specific favorites?" subtitle="Name a wine you'd order again in a heartbeat — producer, wine name, vintage, whatever you remember." />
       <div style={{ position: "relative" }}>
         <div style={{ display: "flex", gap: "8px", marginBottom: showSuggestions ? 0 : 16 }}>
           <input ref={ref} type="text" value={val} onChange={e => handleChange(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); if (e.key === "Escape") { setSuggestions([]); setShowSuggestions(false); } }}
             onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-            placeholder='e.g. "Kanonkop" or "Chablis"'
+            placeholder='e.g. "Kanonkop Paul Sauer 2019" or "Cloudy Bay Sauvignon Blanc"'
             autoComplete="off"
             style={{ flex: 1, padding: "12px 16px", borderRadius: "12px", border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", outline: "none", transition: "border-color 0.2s ease" }}
           />
@@ -441,7 +438,7 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.4, margin: "0 0 10px 2px", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>From your producers</p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {estateSuggestions.map((name) => (
-              <button key={name} onClick={() => onAdd(name)} style={{
+              <button key={name} onClick={() => { setVal(name + " "); ref.current?.focus(); }} style={{
                 display: "inline-flex", alignItems: "center", gap: "6px",
                 padding: "8px 16px", borderRadius: "100px",
                 border: "1px solid rgba(139,35,50,0.2)",
