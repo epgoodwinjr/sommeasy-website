@@ -20,6 +20,8 @@ Important instructions:
 - If a wine has both glass and bottle prices, create one entry with is_btg: false and use the bottle price
 - Bin numbers (e.g., "101", "#42") are not prices — ignore them
 - If you cannot read a wine name clearly, include your best guess
+- Always extract the vintage year when visible, even if it appears in a separate column, in small print, or after the wine name
+- For the color field, use "sparkling" for any sparkling wine (Champagne, Cava, Prosecco, Crémant, Brut, Méthode Traditionnelle, Spumante, Sekt, MCC, etc.), even if it would otherwise be classified as white or rosé
 
 Respond ONLY with a JSON object in this exact format, no other text:
 {
