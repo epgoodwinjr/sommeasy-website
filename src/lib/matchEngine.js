@@ -949,13 +949,50 @@ export function curatePicks(scoredEntries, options) {
     pickFrom(valuePool, "value");
   }
 
-  // 4. ADVENTURE — matches varietal but not direct region, within budget
-  const adv = mainPool.filter(function(e) {
-    const hasVarietal = e.matchReasons.some(function(r) { return r.type === "varietal"; });
-    const hasDirectRegion = e.matchReasons.some(function(r) { return r.type === "region"; });
-    return e.score >= 1 && hasVarietal && !hasDirectRegion;
-  }).sort(function(a, b) { return b.score - a.score; });
-  pickFrom(adv, "adventure");
+  // 4. ADVENTURE — context-aware tiered selection
+  if (userDNA && menuContext) {
+    var adventureFound = false;
+
+    // Tier 1: Diverse international menu (5+ countries) → different country
+    if (!adventureFound && menuContext.distinctCountries >= 5) {
+      var advTier1 = mainPool.filter(function(e) {
+        if (e.score < 1) return false;
+        var fromUserCountry = (e.detectedCountryIds || []).some(function(cId) { return userDNA.countries.has(cId); });
+        return !fromUserCountry && e.matchReasons.length > 0;
+      }).sort(function(a, b) { return b.score - a.score; });
+      if (advTier1.length > 0) adventureFound = pickFrom(advTier1, "adventure");
+    }
+
+    // Tier 2: Limited country diversity (2-4) → different region
+    if (!adventureFound && menuContext.distinctCountries >= 2) {
+      var advTier2 = mainPool.filter(function(e) {
+        if (e.score < 1) return false;
+        var fromUserRegion = (e.detectedRegionIds || []).some(function(rId) { return userDNA.regions.has(rId); });
+        return !fromUserRegion && e.matchReasons.length > 0;
+      }).sort(function(a, b) { return b.score - a.score; });
+      if (advTier2.length > 0) adventureFound = pickFrom(advTier2, "adventure");
+    }
+
+    // Tier 3: Single-country menu → different varietal
+    if (!adventureFound && menuContext.distinctCountries === 1) {
+      var advTier3 = mainPool.filter(function(e) {
+        if (e.score < 1) return false;
+        var fromUserVarietal = (e.detectedVarietalIds || []).some(function(vId) { return userDNA.varietals.has(vId); });
+        return !fromUserVarietal;
+      }).sort(function(a, b) { return b.score - a.score; });
+      if (advTier3.length > 0) adventureFound = pickFrom(advTier3, "adventure");
+    }
+
+    // Tier 4: Skip adventure if nothing qualifies
+  } else {
+    // Fallback: original logic if no userDNA/menuContext
+    var adv = mainPool.filter(function(e) {
+      var hasVarietal = e.matchReasons.some(function(r) { return r.type === "varietal"; });
+      var hasDirectRegion = e.matchReasons.some(function(r) { return r.type === "region"; });
+      return e.score >= 1 && hasVarietal && !hasDirectRegion;
+    }).sort(function(a, b) { return b.score - a.score; });
+    pickFrom(adv, "adventure");
+  }
 
   // 5. WILDCARD — fill remaining slots from budget pool, respecting diversity
   for (var i = 0; i < mainPool.length && picks.length < maxPicks; i++) {
