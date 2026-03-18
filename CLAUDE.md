@@ -12,16 +12,17 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - **Auth + Database:** Supabase (Postgres with RLS, auth.users)
 - **Styling:** Inline styles / CSS-in-JS (no Tailwind)
 - **PDF processing:** unpdf with Y-coordinate detection for line breaks
-- **OCR:** Tesseract.js v7, runs entirely client-side in the browser — no API cost
+- **Menu scanning:** Claude Vision API (claude-sonnet-4-20250514) for photo/PDF wine list extraction via `/api/parse-wine-list`
+- **Bottle label OCR:** Tesseract.js v7, runs entirely client-side in the browser — no API cost
 - **Deployment:** Vercel (auto-deploys from main)
-- **Core flow:** URL/photo/paste → PDF extraction or OCR → wine parsing → DNA matching → budget-filtered curated picks
+- **Core flow:** Scan (photo/PDF) → Vision API or URL fetch → structured wine data or text parsing → DNA matching → budget-filtered curated picks
 
 ## Current State
 
 - Quiz (5 steps), DNA profile with 15 archetypes across 6 scoring dimensions
-- Restaurant recommendation engine: URL fetch, PDF extraction, photo OCR, paste — curated 5-pick output
+- Restaurant recommendation engine: scan (Claude Vision), URL fetch, PDF extraction, paste — two-card input UX, curated 5-pick output with post-scan filtering
 - Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings
-- Log a Bottle: Tesseract.js client-side OCR on label photos, saves to journal + influences DNA
+- Log a Bottle: Claude Vision API for label OCR (via `/api/scan-label`), saves to journal + influences DNA
 - Supabase tables: profiles, wine_interactions
 
 ## Brand & Design
@@ -83,24 +84,30 @@ You don't need to ask permission for individual code changes. Make the call, shi
 
 - PDF text extraction uses Y-coordinate detection (transform[5]) to preserve line breaks — naive extraction merges everything into one blob and breaks the parser
 - Wine name cleanup handles: dot leaders, bin numbers, broken accent characters, section headers misidentified as wine entries, US state abbreviations
-- matchEngine.js uses wineReference-lookup.json (processed from 130k WineMag reviews): 1,097 regions, 2,000 producers, 488 varietals, 43 countries
+- **Unified data architecture:** Single `wineUnified.json` (built by `scripts/build_quiz_data.py` from 130k WineMag reviews) powers all engines — quiz, profile, match. Contains 19 countries, 145 regions, 5,230 producers, 71 varietals, plus regionLookup (992), producerLookup (8,882), and varietalLookup (31 synonym mappings). Old `wineData.js` and `wineReference-lookup.json` are deleted.
+- matchEngine.js uses wineUnified.json lookups directly — no mapping dictionaries needed since all IDs come from the same data source
 - profileEngine.js generates up to 20 wine recommendations across 4 matching passes; pre-seeds exclusion list with user's named specific wines
 - Supabase client (supabase.js) stubs gracefully when env vars are absent during Vercel build-time pre-rendering
 - wineAutocomplete.json (140KB) lazy-loads on quiz Step 5 only — doesn't affect initial load
+- `/api/parse-wine-list` accepts base64 image or PDF, calls Claude Vision, returns `{ wines: [...] }` (Path A: structured JSON → direct to match engine) or `{ rawText }` (Path B: fallback to text parser). Both converge at `runAnalysis()` in the recommend page
+- `ANTHROPIC_API_KEY` is required in Vercel environment variables for Vision scanning to work
 
 ## Priorities (Current)
 
-1. Filter by-the-glass wines from bottle recommendations
-2. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
-3. MVP polish and stability
+1. Restaurant input Phase 1 — two-card scan/link UX with Claude Vision (in progress)
+2. Multi-page wine list accumulation (fast-follow to Phase 1)
+3. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
+4. Rate limiting and cost tracking for Vision API
+5. MVP polish and stability
 
 ## API Usage
 
-The Anthropic API (Claude) is used in this app for features like bottle label OCR (Claude Vision) and wine parsing. This is intentional and approved.
+The Anthropic API (Claude Vision) is a core part of this product. It is used for:
 
-- Tesseract.js is used for client-side OCR where appropriate (zero cost)
-- Claude Vision is used server-side for bottle label recognition and other features that benefit from advanced AI
-- When adding new API-consuming features, be mindful of cost but don't avoid the Anthropic API — it's a core part of the product
+- **Wine list scanning** via `/api/parse-wine-list` — estimated cost ~$0.01-0.03 per scan
+- **Bottle label OCR** via `/api/scan-label` — Claude Vision for label recognition
+- The `/api/ocr` and `/api/ocr-bottle` routes are legacy dead code — do not call them
+- When adding new API-consuming features, be mindful of cost but don't avoid the Anthropic API — it's approved and encouraged
 
 ## What NOT to Do
 
@@ -108,4 +115,4 @@ The Anthropic API (Claude) is used in this app for features like bottle label OC
 - Don't introduce new dependencies without a strong reason
 - Don't change the brand voice or visual identity without discussion
 - Don't optimize prematurely — get it working, then get it fast
-- Don't use paid APIs other than Anthropic without discussion
+- Don't add new paid API integrations without discussion — Anthropic API is the approved exception
