@@ -101,7 +101,7 @@ export async function POST(request) {
       ];
     }
 
-    const client = new Anthropic({ apiKey, timeout: 55000 });
+    const client = new Anthropic({ apiKey, timeout: 50000 });
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",

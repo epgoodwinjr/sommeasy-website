@@ -5,8 +5,8 @@ import { createClient } from "@/lib/supabase";
 import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 
 // ─── Image compression utility ───
-// Returns a compressed JPEG Blob (default: max 2048px, 0.85 quality)
-function compressImage(file, maxDim = 2048, quality = 0.85) {
+// Returns a compressed JPEG Blob (default: max 1200px, 0.7 quality — wine list text stays readable)
+function compressImage(file, maxDim = 1200, quality = 0.7) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -203,10 +203,10 @@ export default function RecommendPage() {
         payload = { pdfBase64: base64 };
       } else {
         const blob = await compressImage(file);
-        // Safety check: if compressed image is still > 4MB, reduce quality further
+        // Safety check: if compressed image is still > 2MB, reduce further
         let finalBlob = blob;
-        if (blob.size > 4 * 1024 * 1024) {
-          const reBlob = await compressImage(file, 1600, 0.7);
+        if (blob.size > 2 * 1024 * 1024) {
+          const reBlob = await compressImage(file, 1024, 0.6);
           finalBlob = reBlob;
         }
         const base64 = await blobToBase64(finalBlob);
@@ -214,7 +214,7 @@ export default function RecommendPage() {
       }
 
       const controller = new AbortController();
-      const clientTimeout = setTimeout(() => controller.abort(), 58000);
+      const clientTimeout = setTimeout(() => controller.abort(), 55000);
 
       let res;
       try {
@@ -317,120 +317,47 @@ export default function RecommendPage() {
 
     setErrorMsg("");
     setProcessing(true);
-    startLoadingMessages();
+    setProcessingMsg("Fetching the wine list...");
 
     try {
-      // Step 1: Fetch the page text
-      const fetchRes = await fetch("/api/fetch-menu", {
+      const res = await fetch("/api/fetch-menu", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
       });
-      const fetchData = await fetchRes.json();
+      const data = await res.json();
 
-      if (fetchData.error && !fetchData.text) {
-        setErrorMsg(fetchData.error);
+      if (data.error && !data.text) {
+        setErrorMsg(data.error);
         setProcessing(false);
-        stopLoadingMessages();
+        setProcessingMsg("");
         return;
       }
 
-      const text = fetchData.text || "";
+      const text = data.text || "";
       setWineListText(text);
       setExtractedFrom("url");
 
-      if (text.length < 30) {
-        setShowPasteMode(true);
-        setProcessing(false);
-        stopLoadingMessages();
-        setErrorMsg("Found the page but couldn't spot a wine list. Try editing the text below, or scan a photo instead.");
-        return;
-      }
-
-      // Step 2: Send text to Claude for structured extraction (same prompt as photo path)
-      const controller = new AbortController();
-      const clientTimeout = setTimeout(() => controller.abort(), 58000);
-
-      let extractRes;
-      try {
-        extractRes = await fetch("/api/parse-wine-list", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ textContent: text }),
-          signal: controller.signal,
-        });
-      } catch (fetchErr) {
-        clearTimeout(clientTimeout);
-        if (fetchErr.name === "AbortError") {
-          // Timeout fallback: use regex parser
-          const entries = parseWineList(text);
-          if (entries.length > 0) {
-            const min = minPrice ? parseFloat(minPrice) : null;
-            const max = maxPrice ? parseFloat(maxPrice) : null;
-            runAnalysis(entries, min, max, colorPref);
-          } else {
-            setShowPasteMode(true);
-            setErrorMsg("Extraction timed out. Try editing the text below.");
-          }
-          setProcessing(false);
-          stopLoadingMessages();
-          return;
-        }
-        throw fetchErr;
-      }
-      clearTimeout(clientTimeout);
-      const extractData = await extractRes.json();
-
-      // Path A: structured wines from Claude extraction
-      if (extractData.wines && Array.isArray(extractData.wines) && extractData.wines.length > 0) {
-        const entries = extractData.wines.map(w => ({
-          name: w.name || "",
-          price: typeof w.price === "number" ? w.price : null,
-          originalLine: w.name || "",
-          section: w.section || null,
-          isByTheGlass: w.is_btg || false,
-          sectionColor: w.color || null,
-          sectionVarietal: null,
-          vintage: w.vintage || null,
-          visionData: {
-            color: w.color || null,
-            variety: w.variety || null,
-            region: w.region || null,
-            country: w.country || null,
-            producer: w.producer || null,
-            vintage: w.vintage || null,
-          },
-        }));
-
-        accumulatedEntriesRef.current = entries;
-        setPageCount(1);
-        const min = minPrice ? parseFloat(minPrice) : null;
-        const max = maxPrice ? parseFloat(maxPrice) : null;
-        runAnalysis(entries, min, max, colorPref);
-        setProcessing(false);
-        stopLoadingMessages();
-        return;
-      }
-
-      // Fallback: Claude couldn't extract structured data, try regex parser
+      // Run analysis directly with text parser — instant, no API call
       const entries = parseWineList(text);
       if (entries.length === 0) {
         setShowPasteMode(true);
         setProcessing(false);
-        stopLoadingMessages();
+        setProcessingMsg("");
         setErrorMsg("Found the page but couldn't spot a wine list. Try editing the text below, or scan a photo instead.");
         return;
       }
 
+      setProcessingMsg("Finding your perfect picks...");
       const min = minPrice ? parseFloat(minPrice) : null;
       const max = maxPrice ? parseFloat(maxPrice) : null;
       runAnalysis(entries, min, max, colorPref);
       setProcessing(false);
-      stopLoadingMessages();
+      setProcessingMsg("");
     } catch (err) {
       setErrorMsg("Failed to fetch that URL. Check the address and try again.");
       setProcessing(false);
-      stopLoadingMessages();
+      setProcessingMsg("");
     }
   };
 
