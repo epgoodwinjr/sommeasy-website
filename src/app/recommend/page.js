@@ -518,10 +518,10 @@ Barolo, Giacomo Conterno 2018.........................$210`);
         </div>
 
         {/* Hidden file input for additional page scans */}
-        <input ref={addPageInputRef} type="file" accept="image/*,application/pdf" onChange={handleVisionScan} style={{ display: "none" }} />
+        <input ref={addPageInputRef} type="file" accept="image/*,application/pdf" onChange={handleVisionScan} style={{ display: "none" }} data-testid="file-input-add-page" />
 
         <div style={{ textAlign: "center", padding: "28px 0 20px" }}>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", color: "#1B3D2F", margin: "0 0 10px", fontWeight: 700, letterSpacing: "-0.01em" }}>
+          <h2 data-testid="results-heading" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", color: "#1B3D2F", margin: "0 0 10px", fontWeight: 700, letterSpacing: "-0.01em" }}>
             {picks.length === 0 ? "No matches found" : "Your picks"}
           </h2>
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, margin: 0, lineHeight: 1.5 }}>
@@ -595,7 +595,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
         )}
 
         {picks.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: 32 }}>
+          <div data-testid="picks-container" style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: 32 }}>
             {picks.map((pick, i) => {
               const typeInfo = getPickTypeInfo(pick.pickType);
               const displayName = formatWineName(pick.name);
@@ -622,7 +622,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   })();
 
               return (
-                <div key={i} style={{
+                <div key={i} data-testid="pick-card" style={{
                   background: "rgba(255,255,255,0.7)", borderRadius: "18px", padding: "20px",
                   border: "1px solid rgba(27,61,47,0.08)", position: "relative", overflow: "hidden",
                   boxShadow: i === 0 ? "0 4px 20px rgba(139,35,50,0.12)" : "0 2px 8px rgba(0,0,0,0.04)",
@@ -708,7 +708,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
         )}
 
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <button onClick={handleReset} style={{
+          <button data-testid="scan-again-button" onClick={handleReset} style={{
             padding: "14px 40px", borderRadius: "14px",
             border: "2px solid rgba(27,61,47,0.15)", background: "rgba(255,255,255,0.7)",
             color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, cursor: "pointer",
@@ -724,7 +724,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   return (
     <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
       {/* Hidden file input */}
-      <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleVisionScan} style={{ display: "none" }} />
+      <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleVisionScan} style={{ display: "none" }} data-testid="file-input-scan" />
 
       {/* Header */}
       <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(16px)", zIndex: 10 }}>
@@ -770,7 +770,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
 
       {/* ─── PROCESSING STATE ─── */}
       {processing && (
-        <div style={{
+        <div data-testid="processing-spinner" style={{
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           padding: "56px 24px", borderRadius: "18px",
           border: "1px solid rgba(139,35,50,0.1)", background: "rgba(255,255,255,0.6)",
@@ -787,7 +787,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
       {!processing && !showPasteMode && (
         <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: 20 }}>
           {/* CARD 1: Scan the List */}
-          <button onClick={() => fileInputRef.current?.click()} style={{
+          <button data-testid="scan-button" onClick={() => fileInputRef.current?.click()} style={{
             width: "100%", padding: "32px 24px", borderRadius: "18px",
             border: "2px solid rgba(139,35,50,0.15)", background: "rgba(255,255,255,0.7)",
             cursor: "pointer", textAlign: "center",
@@ -815,6 +815,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
               <input
+                data-testid="url-input"
                 type="url"
                 value={menuUrl}
                 onChange={(e) => setMenuUrl(e.target.value)}
@@ -827,7 +828,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   outline: "none", boxSizing: "border-box",
                 }}
               />
-              <button onClick={handleUrlFetch} disabled={!menuUrl.trim()} style={{
+              <button data-testid="url-fetch-button" onClick={handleUrlFetch} disabled={!menuUrl.trim()} style={{
                 padding: "14px 24px", borderRadius: "12px", border: "none",
                 background: menuUrl.trim() ? "linear-gradient(135deg, #8B2332, #7A1E2C)" : "rgba(139,35,50,0.15)",
                 color: menuUrl.trim() ? "#F5F0E8" : "rgba(139,35,50,0.3)",
@@ -840,7 +841,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
 
           {/* Subtle paste text fallback */}
           <div style={{ textAlign: "center", marginTop: 4 }}>
-            <button onClick={() => setShowPasteMode(true)} style={{
+            <button data-testid="paste-mode-toggle" onClick={() => setShowPasteMode(true)} style={{
               fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F",
               opacity: 0.35, background: "none", border: "none", cursor: "pointer",
               textDecoration: "underline",
@@ -865,6 +866,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             </div>
           )}
           <textarea
+            data-testid="wine-list-textarea"
             value={wineListText}
             onChange={(e) => setWineListText(e.target.value)}
             placeholder={"Paste wine list here...\n\ne.g.\nCloudy Bay Sauvignon Blanc, Marlborough 2022...$52\nKanonkop Pinotage, Stellenbosch 2019...$68"}
@@ -888,6 +890,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </div>
 
           <button
+            data-testid="analyze-button"
             onClick={handleAnalyze}
             disabled={!wineListText.trim()}
             style={{
@@ -904,7 +907,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
 
       {/* Error message */}
       {errorMsg && (
-        <div style={{
+        <div data-testid="error-message" style={{
           padding: "12px 16px", borderRadius: "12px", marginBottom: 16,
           background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.15)",
         }}>

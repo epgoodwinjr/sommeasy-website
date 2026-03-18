@@ -442,9 +442,9 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
 
       {/* ─── Log a Bottle ─── */}
       {/* Camera input — opens rear camera directly on mobile */}
-      <input ref={bottleInputRef} type="file" accept="image/*" capture="environment" onChange={handleBottlePhoto} style={{ display: "none" }} />
+      <input ref={bottleInputRef} type="file" accept="image/*" capture="environment" onChange={handleBottlePhoto} style={{ display: "none" }} data-testid="bottle-camera-input" />
       {/* Gallery/upload input — opens photo picker or file dialog */}
-      <input ref={bottleGalleryRef} type="file" accept="image/*" onChange={handleBottlePhoto} style={{ display: "none" }} />
+      <input ref={bottleGalleryRef} type="file" accept="image/*" onChange={handleBottlePhoto} style={{ display: "none" }} data-testid="bottle-gallery-input" />
 
       {bottleStep === null && (
         <div style={{ marginBottom: 24 }}>
@@ -491,7 +491,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       )}
 
       {bottleStep === "processing" && (
-        <div style={{
+        <div data-testid="bottle-processing" style={{
           padding: "32px 24px", borderRadius: "18px", marginBottom: 24,
           border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.5)",
           textAlign: "center",
@@ -520,7 +520,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
           border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.5)",
         }}>
           {bottleError && (
-            <div style={{
+            <div data-testid="bottle-error" style={{
               padding: "12px 16px", borderRadius: "12px", marginBottom: 16,
               background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.12)",
             }}>
@@ -544,7 +544,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       )}
 
       {bottleStep === "confirm" && (
-        <div style={{
+        <div data-testid="bottle-confirm" style={{
           padding: "24px", borderRadius: "18px", marginBottom: 24,
           border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.6)",
         }}>
@@ -554,6 +554,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
             color: "#1B3D2F", opacity: 0.4, marginBottom: 12, fontWeight: 600,
           }}>We detected this wine</div>
           <textarea
+            data-testid="bottle-wine-name"
             value={bottleName}
             onChange={(e) => {
               setBottleName(e.target.value);
