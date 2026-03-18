@@ -102,11 +102,12 @@ You don't need to ask permission for individual code changes. Make the call, shi
 
 ## API Usage
 
-The Anthropic API (Claude Vision) is used for wine list scanning via `/api/parse-wine-list`. This is the only paid API in the app. Estimated cost: ~$0.01-0.03 per scan.
+The Anthropic API (Claude Vision) is a core part of this product. It is used for:
 
+- **Wine list scanning** via `/api/parse-wine-list` — estimated cost ~$0.01-0.03 per scan
+- **Bottle label OCR** via `/api/scan-label` — Claude Vision for label recognition
 - The `/api/ocr` and `/api/ocr-bottle` routes are legacy dead code — do not call them
-- Bottle label OCR still uses free client-side Tesseract.js
-- If a feature would require a new paid API beyond Vision scanning, flag it for discussion
+- When adding new API-consuming features, be mindful of cost but don't avoid the Anthropic API — it's approved and encouraged
 
 ## What NOT to Do
 
@@ -114,4 +115,4 @@ The Anthropic API (Claude Vision) is used for wine list scanning via `/api/parse
 - Don't introduce new dependencies without a strong reason
 - Don't change the brand voice or visual identity without discussion
 - Don't optimize prematurely — get it working, then get it fast
-- Don't add new paid API integrations without discussion — Claude Vision for scanning is the one approved exception
+- Don't add new paid API integrations without discussion — Anthropic API is the approved exception
