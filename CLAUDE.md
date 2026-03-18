@@ -94,13 +94,13 @@ You don't need to ask permission for individual code changes. Make the call, shi
 2. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
 3. MVP polish and stability
 
-## API Cost Constraint
+## API Usage
 
-**Do NOT use the Anthropic API (Claude) anywhere in this app.** The site is pre-monetization and cannot absorb per-call API costs. All AI/ML features must use free, client-side, or self-hosted alternatives.
+The Anthropic API (Claude) is used in this app for features like bottle label OCR (Claude Vision) and wine parsing. This is intentional and approved.
 
-- OCR uses Tesseract.js running in the browser (zero cost)
-- The `/api/ocr` and `/api/ocr-bottle` routes exist in the codebase but are NOT called — do not reintroduce calls to them
-- If a feature would require a paid external API, flag it for discussion rather than implementing it
+- Tesseract.js is used for client-side OCR where appropriate (zero cost)
+- Claude Vision is used server-side for bottle label recognition and other features that benefit from advanced AI
+- When adding new API-consuming features, be mindful of cost but don't avoid the Anthropic API — it's a core part of the product
 
 ## What NOT to Do
 
@@ -108,4 +108,4 @@ You don't need to ask permission for individual code changes. Make the call, shi
 - Don't introduce new dependencies without a strong reason
 - Don't change the brand voice or visual identity without discussion
 - Don't optimize prematurely — get it working, then get it fast
-- Don't use any paid API (Anthropic, OpenAI, Google Vision, etc.) — see API Cost Constraint above
+- Don't use paid APIs other than Anthropic without discussion
