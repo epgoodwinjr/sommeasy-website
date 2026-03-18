@@ -1075,15 +1075,30 @@ export function curatePicks(scoredEntries, options) {
 
   var pool = scoredEntries;
   if (colorPreference && colorPreference !== "all") {
+    // Helper: does this entry have Vision-provided color metadata?
+    var hasVisionColor = function(e) { return e.visionData && e.visionData.color; };
+
     var filtered;
     if (colorPreference === "sparkling") {
       filtered = pool.filter(function(e) { return isSparklingWine(e); });
     } else if (colorPreference === "white") {
-      filtered = pool.filter(function(e) { return !isSparklingWine(e) && (!e.detectedColor || e.detectedColor === "white"); });
-    } else if (colorPreference === "red") {
-      filtered = pool.filter(function(e) { return !isSparklingWine(e) && (!e.detectedColor || e.detectedColor === "red"); });
-    } else {
       filtered = pool.filter(function(e) {
+        if (isSparklingWine(e)) return false;
+        // Vision entries: require explicit color match
+        if (hasVisionColor(e)) return e.detectedColor === "white";
+        // Text entries: include if color matches or is unknown
+        return !e.detectedColor || e.detectedColor === "white";
+      });
+    } else if (colorPreference === "red") {
+      filtered = pool.filter(function(e) {
+        if (isSparklingWine(e)) return false;
+        if (hasVisionColor(e)) return e.detectedColor === "red";
+        return !e.detectedColor || e.detectedColor === "red";
+      });
+    } else {
+      // rosé or other color
+      filtered = pool.filter(function(e) {
+        if (hasVisionColor(e)) return e.detectedColor === colorPreference;
         if (!e.detectedColor) return true;
         return e.detectedColor === colorPreference;
       });

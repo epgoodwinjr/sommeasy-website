@@ -52,6 +52,7 @@ Respond ONLY with a JSON object in this exact format, no other text:
 }`;
 
 export async function POST(request) {
+  console.log(`[parse-wine-list] Function started at ${new Date().toISOString()}`);
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
