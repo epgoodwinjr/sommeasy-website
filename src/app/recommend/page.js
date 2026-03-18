@@ -214,7 +214,7 @@ export default function RecommendPage() {
       }
 
       const controller = new AbortController();
-      const clientTimeout = setTimeout(() => controller.abort(), 55000);
+      const clientTimeout = setTimeout(() => controller.abort(), 130000);
 
       let res;
       try {
