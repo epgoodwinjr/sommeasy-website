@@ -651,8 +651,8 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
       {recs.length > 0 && (
         <div style={{ marginBottom: 28 }}>
           <button onClick={() => setShowWines(!showWines)} style={{
-            width: "100%", display: "flex", alignItems: "baseline", justifyContent: "space-between",
-            marginBottom: showWines ? 14 : 0, padding: "0 2px",
+            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: showWines ? 14 : 0, padding: "12px 2px",
             background: "none", border: "none", cursor: "pointer", textAlign: "left",
           }}>
             <h3 style={{
@@ -783,7 +783,7 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
 
       {/* Footer */}
       <div style={{ textAlign: "center", marginTop: 24, paddingBottom: 48 }}>
-        <button onClick={onRetake} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.3, textDecoration: "underline" }}>Start fresh &amp; retake quiz</button>
+        <button onClick={onRetake} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.3, textDecoration: "underline", padding: "14px 12px" }}>Start fresh &amp; retake quiz</button>
       </div>
     </div>
   );

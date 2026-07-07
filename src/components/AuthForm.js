@@ -115,7 +115,7 @@ export default function AuthForm({ mode }) {
               width: "100%", padding: "15px 18px", borderRadius: "14px",
               border: "1px solid rgba(27,61,47,0.1)",
               background: "rgba(255,255,255,0.55)",
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px",
               color: "#1B3D2F", outline: "none", boxSizing: "border-box",
               transition: "border-color 0.2s ease, box-shadow 0.2s ease",
             }}
@@ -133,7 +133,7 @@ export default function AuthForm({ mode }) {
               width: "100%", padding: "15px 18px", borderRadius: "14px",
               border: "1px solid rgba(27,61,47,0.1)",
               background: "rgba(255,255,255,0.55)",
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px",
               color: "#1B3D2F", outline: "none", boxSizing: "border-box",
               transition: "border-color 0.2s ease, box-shadow 0.2s ease",
             }}
@@ -191,6 +191,7 @@ export default function AuthForm({ mode }) {
           {isLogin ? "Don't have an account? " : "Already have an account? "}
           <a href={isLogin ? "/signup" : "/login"} style={{
             color: "#8B2332", fontWeight: 600,
+            display: "inline-block", padding: "12px 8px", margin: "-12px 0",
           }}>
             {isLogin ? "Sign up" : "Sign in"}
           </a>

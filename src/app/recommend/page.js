@@ -680,14 +680,32 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             <div style={{ flex: 1, position: "relative" }}>
               <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
               <input type="number" placeholder="Min" value={minPrice} onChange={(e) => { setMinPrice(e.target.value); handleRefilter(colorPref, e.target.value, maxPrice); }}
-                style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
+                style={{ width: "100%", padding: "11px 10px 11px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
             </div>
             <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.3 }}>to</span>
             <div style={{ flex: 1, position: "relative" }}>
               <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
               <input type="number" placeholder="Max" value={maxPrice} onChange={(e) => { setMaxPrice(e.target.value); handleRefilter(colorPref, minPrice, e.target.value); }}
-                style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
+                style={{ width: "100%", padding: "11px 10px 11px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
             </div>
+          </div>
+          {/* Occasion also editable here — scanned-first users shouldn't have
+              to rescan just to tell The Somm it's steak night */}
+          <div style={{ marginTop: 10 }}>
+            <input
+              data-testid="occasion-input-results"
+              type="text"
+              maxLength={200}
+              value={occasion}
+              onChange={(e) => setOccasion(e.target.value)}
+              placeholder="What's the occasion? (optional — then ask the Somm again)"
+              style={{
+                width: "100%", padding: "12px", borderRadius: "8px",
+                border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F",
+                outline: "none", boxSizing: "border-box",
+              }}
+            />
           </div>
           {/* Re-fire curation against the refiltered pool (rate limit self-polices) */}
           <div style={{ marginTop: 10, textAlign: "center" }}>
@@ -723,7 +741,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
         {picks.length > 0 && (
           <div style={{ textAlign: "center", marginBottom: 16 }}>
             <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.45, margin: 0, lineHeight: 1.8 }}>
-              🏆 Top Pick  ·  ✨ Splurge  ·  💰 Great Value  ·  🧭 Adventure  ·  🍷 Worth Trying
+              <span style={{ whiteSpace: "nowrap" }}>🏆 Top Pick</span>  ·  <span style={{ whiteSpace: "nowrap" }}>✨ Splurge</span>  ·  <span style={{ whiteSpace: "nowrap" }}>💰 Great Value</span>  ·  <span style={{ whiteSpace: "nowrap" }}>🧭 Adventure</span>  ·  <span style={{ whiteSpace: "nowrap" }}>🍷 Worth Trying</span>
             </p>
           </div>
         )}
@@ -932,13 +950,13 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           <div style={{ flex: 1, position: "relative" }}>
             <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
             <input type="number" placeholder="Min" value={minPrice} onChange={(e) => setMinPrice(e.target.value)}
-              style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
+              style={{ width: "100%", padding: "11px 10px 11px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
           </div>
           <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.3 }}>to</span>
           <div style={{ flex: 1, position: "relative" }}>
             <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.4 }}>$</span>
             <input type="number" placeholder="Max" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}
-              style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
+              style={{ width: "100%", padding: "11px 10px 11px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
           </div>
         </div>
 
@@ -952,9 +970,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             onChange={(e) => setOccasion(e.target.value)}
             placeholder="What's the occasion? Steak night, first date, Tuesday… (optional)"
             style={{
-              width: "100%", padding: "10px 12px", borderRadius: "8px",
+              width: "100%", padding: "12px", borderRadius: "8px",
               border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)",
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F",
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F",
               outline: "none", boxSizing: "border-box",
             }}
           />
@@ -1015,9 +1033,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 onKeyDown={(e) => e.key === "Enter" && handleUrlFetch()}
                 placeholder="https://..."
                 style={{
-                  flex: 1, padding: "14px 16px", borderRadius: "12px",
+                  flex: 1, minWidth: 0, padding: "14px 16px", borderRadius: "12px",
                   border: "2px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.7)",
-                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F",
+                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F",
                   outline: "none", boxSizing: "border-box",
                 }}
               />
@@ -1038,6 +1056,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F",
               opacity: 0.35, background: "none", border: "none", cursor: "pointer",
               textDecoration: "underline",
+              padding: "12px 16px",
             }}>or paste text manually</button>
           </div>
         </div>

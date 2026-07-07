@@ -333,14 +333,14 @@ export default function JournalPage() {
                       </div>
                       <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
                         <button onClick={() => { setRatingWine(wine.wine_name); setRatingCurrent(wine.rating); }} style={{
-                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
                           color: "#8B2332", background: "none", border: "1px solid rgba(139,35,50,0.15)",
-                          borderRadius: "8px", padding: "5px 10px", cursor: "pointer",
+                          borderRadius: "8px", padding: "10px 14px", cursor: "pointer",
                         }}>Edit</button>
                         <button onClick={() => handleDelete(wine.wine_name)} style={{
-                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
                           color: "#1B3D2F", opacity: 0.35, background: "none", border: "1px solid rgba(27,61,47,0.08)",
-                          borderRadius: "8px", padding: "5px 10px", cursor: "pointer",
+                          borderRadius: "8px", padding: "10px 14px", cursor: "pointer",
                         }}>×</button>
                       </div>
                     </div>
@@ -393,9 +393,9 @@ export default function JournalPage() {
                       borderRadius: "10px", padding: "7px 14px", cursor: "pointer", fontWeight: 600,
                     }}>🍷 Tried it!</button>
                     <button onClick={() => handleDelete(wine.wine_name)} style={{
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
                       color: "#1B3D2F", opacity: 0.35, background: "none", border: "1px solid rgba(27,61,47,0.08)",
-                      borderRadius: "8px", padding: "5px 10px", cursor: "pointer",
+                      borderRadius: "8px", padding: "10px 14px", cursor: "pointer",
                     }}>×</button>
                   </div>
                 </div>

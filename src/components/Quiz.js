@@ -616,7 +616,7 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               {onCancel && (
-                <button onClick={onCancel} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.5, padding: "4px 0" }}>← Back</button>
+                <button onClick={onCancel} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.5, padding: "14px 16px 14px 0" }}>← Back</button>
               )}
               <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", fontWeight: 700, display: "flex", alignItems: "center", gap: "10px", letterSpacing: "-0.01em" }}>
                 {!isRefineMode && <img src="/protea-icon.png" alt="" style={{ height: 34, width: "auto" }} />}
