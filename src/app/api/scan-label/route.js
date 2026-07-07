@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseLabelResponse } from "@/lib/wineExtraction";
+import { checkRateLimit, getClientIp, logVisionUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const maxDuration = 30;
 
@@ -29,6 +30,15 @@ Return ONLY the JSON object, no explanation or markdown:
 }`;
 
 export async function POST(req) {
+  // Rate limit before anything else — this is a paid route
+  const rate = checkRateLimit("scan-label", getClientIp(req));
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: RATE_LIMIT_MESSAGE },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSec) } }
+    );
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -52,6 +62,7 @@ export async function POST(req) {
 
     const client = new Anthropic({ apiKey });
 
+    const visionStart = Date.now();
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 512,
@@ -75,6 +86,9 @@ export async function POST(req) {
         },
       ],
     });
+
+    // Structured cost log — Vercel logs are the cost dashboard for now
+    logVisionUsage("scan-label", response.usage, Date.now() - visionStart);
 
     const textContent = response.content.find((b) => b.type === "text");
     if (!textContent || textContent.type !== "text") {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkRateLimit, getClientIp, logVisionUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const maxDuration = 300;
 
@@ -53,6 +54,16 @@ Respond ONLY with a JSON object in this exact format, no other text:
 
 export async function POST(request) {
   console.log(`[parse-wine-list] Function started at ${new Date().toISOString()}`);
+
+  // Rate limit before anything else — this is the expensive route
+  const rate = checkRateLimit("parse-wine-list", getClientIp(request));
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: RATE_LIMIT_MESSAGE, errorType: "rate_limited" },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSec) } }
+    );
+  }
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -129,12 +140,8 @@ export async function POST(request) {
       .map((block) => block.text)
       .join("");
 
-    // Log usage for cost visibility
-    if (response.usage) {
-      console.log(
-        `[parse-wine-list] tokens: ${response.usage.input_tokens} in / ${response.usage.output_tokens} out`
-      );
-    }
+    // Structured cost log — Vercel logs are the cost dashboard for now
+    logVisionUsage("parse-wine-list", response.usage, apiElapsed);
 
     // Try to parse structured JSON (Path A)
     const cleanJson = rawText.replace(/```json\n?|```\n?/g, "").trim();
