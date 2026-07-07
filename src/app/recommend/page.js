@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (default: max 1200px, 0.7 quality — wine list text stays readable)
@@ -83,6 +83,7 @@ export default function RecommendPage() {
   const fileInputRef = useRef(null);
   const addPageInputRef = useRef(null);
   const userDNARef = useRef(null);
+  const ratedInteractionsRef = useRef([]);
   const accumulatedEntriesRef = useRef([]);
   const loadingInterval = useRef(null);
   const supabase = createClient();
@@ -103,6 +104,13 @@ export default function RecommendPage() {
         if (u) {
           const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", u.id).single();
           if (data) setProfile(data);
+          // Rated journal entries feed both feedback-aware scoring and the somm payload
+          const { data: rated } = await supabase
+            .from("wine_interactions")
+            .select("wine_name, rating, interaction_type, resolved_varietal, resolved_region")
+            .eq("user_id", u.id)
+            .not("rating", "is", null);
+          ratedInteractionsRef.current = rated || [];
         }
       } catch (err) {
         console.error("Init error:", err);
@@ -141,7 +149,10 @@ export default function RecommendPage() {
       varietals: profile.varietals || [],
       specificWines: profile.specific_wines || [],
     };
-    const matchResult = matchWinesAgainstDNA(entries, dna);
+    const feedbackSignals = ratedInteractionsRef.current.length > 0
+      ? buildFeedbackSignals(ratedInteractionsRef.current)
+      : null;
+    const matchResult = matchWinesAgainstDNA(entries, dna, feedbackSignals);
     const scored = matchResult.scoredEntries;
     userDNARef.current = matchResult.userDNA;
     setScoredEntries(scored);
