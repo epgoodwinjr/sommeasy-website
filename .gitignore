@@ -4,3 +4,7 @@ node_modules/
 .env*.local
 .vercel
 data/external/
+test-results/
+playwright-report/
+e2e/fixtures/images/
+e2e/.auth/
