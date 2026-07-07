@@ -2,28 +2,42 @@
 
 ## What This Project Is
 
-Sommeasy is a wine recommendation app that helps users find wines from restaurant menus matching their taste preferences. A user provides a restaurant menu URL (or PDF), sets their taste preferences and budget, and Sommeasy recommends specific bottles from that menu.
+Sommeasy is a wine recommendation app that helps users find wines from restaurant menus matching their taste preferences. A user provides a restaurant menu (photo, PDF, URL, or pasted text), sets their taste preferences and budget, and Sommeasy recommends specific bottles from that menu — with personalized sommelier notes from The Somm.
 
-This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendation engine, wine journal, and bottle logging.
+This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendation engine with LLM storytelling, wine journal, and bottle logging.
+
+**Naming:** The Palate = the DNA profile system. The Somm = the matching/recommendation system (and its voice).
 
 ## Tech Stack
 
 - **Framework:** Next.js 14 (App Router)
-- **Auth + Database:** Supabase (Postgres with RLS, auth.users)
+- **Auth + Database:** Supabase (Postgres with RLS, auth.users) — project `zugunlctgpytgyxftllv`; a daily Vercel cron hits `/api/keepalive` (09:00 UTC) so the free-tier project never auto-pauses again (the March 2026 pause killed the original database)
 - **Styling:** Inline styles / CSS-in-JS (no Tailwind)
 - **PDF processing:** unpdf with Y-coordinate detection for line breaks
-- **Menu scanning:** Claude Vision API (claude-sonnet-4-6) for photo/PDF wine list extraction via `/api/parse-wine-list`
-- **Bottle label OCR:** Tesseract.js v7, runs entirely client-side in the browser — no API cost
+- **Claude model:** one constant — `CLAUDE_MODEL` in `src/lib/anthropicConfig.js` (default `claude-sonnet-4-6`, override with the `ANTHROPIC_MODEL` env var). Never hardcode a model ID in a route; a retired hardcoded ID silently killed prod scanning for three weeks in June 2026
+- **Menu scanning:** Claude Vision via `/api/parse-wine-list` (photo/PDF/scraped text)
+- **Bottle label OCR:** Claude Vision via `/api/scan-label` (tesseract.js was removed — it was a declared-but-never-called dependency)
+- **Somm curation:** `/api/somm-picks` — one Claude call turning scored candidates into curated picks + notes
 - **Deployment:** Vercel (auto-deploys from main)
-- **Core flow:** Scan (photo/PDF) → Vision API or URL fetch → structured wine data or text parsing → DNA matching → budget-filtered curated picks
+- **Core flow:** Scan/URL/paste → structured wine data → DNA matching (with journal feedback signals) → algorithmic curated picks render instantly → The Somm re-curates with storytelling in the background
 
-## Current State
+## Current State (July 2026)
 
 - Quiz (5 steps), DNA profile with 15 archetypes across 6 scoring dimensions
-- Restaurant recommendation engine: scan (Claude Vision), URL fetch, PDF extraction, paste — two-card input UX, curated 5-pick output with post-scan filtering
-- Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings
-- Log a Bottle: Claude Vision API for label OCR (via `/api/scan-label`), saves to journal + influences DNA
-- Supabase tables: profiles, wine_interactions
+- Restaurant recommendation engine: scan (Claude Vision), URL fetch, PDF extraction, paste — two-card input UX with optional occasion field (also editable in results)
+- **The Somm is live:** LLM curation + 2–3 sentence pairing-first notes per pick + a list-level summary, in brand voice. Strict server-side validation; ANY failure returns `{fallback:true}` and the UI silently keeps algorithmic picks — The Somm is progressive enhancement, never load-bearing
+- **DNA feedback loop is wired:** rated journal entries (loved/not_for_me) boost and suppress scores in `matchWinesAgainstDNA` and feed the somm payload
+- Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings + DNA Timeline
+- Log a Bottle: Claude Vision label extraction, saves to journal + evolves DNA (accumulation/promotion/demotion engine in `dnaEvolution.js`)
+- Rate limiting: in-memory sliding window, 10 requests/hour/IP per paid route (`src/lib/rateLimit.js`); cost logging: one `{"type":"claude_usage",...}` JSON line per Claude call — Vercel logs are the cost dashboard
+- Supabase tables: wine_profiles, wine_interactions, dna_accumulation, dna_timeline
+
+### Tests (run all before shipping)
+
+- `node src/lib/__tests__/dnaEvolution.test.js` — 42 tests, DNA evolution pipeline (inlined mirror of resolver + engine)
+- `node src/lib/__tests__/countryAttribution.test.js` — 14 tests, country-misattribution regression suite (the Cassis→US / Gimonnet→Italy / Crozes→Portugal class)
+- `node src/lib/__tests__/sommPicks.test.js` — 20 tests, somm payload builder + response validator (tests the real module via dynamic import)
+- `npm run test:e2e` — 25 Playwright specs. Fixture images are gitignored; regenerate with `python3 e2e/fixtures/generate-fixtures.py` or the suite silently collects 0 tests. Includes a hard fail-if-no-picks spec — keep it; outcome-tolerant specs masked a dead integration for weeks once
 
 ## Brand & Design
 
@@ -41,7 +55,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - Clean, uncluttered layouts with generous whitespace
 - Visual hierarchy should guide the eye naturally — don't rely on users reading everything
 - Photography and imagery should feel warm, real, inviting (not stock-photo sterile)
-- Mobile-first — most users will hit the site from phones
+- Mobile-first — most users will hit the site from phones. Form inputs stay ≥16px font (iOS auto-zoom) and tap targets ≥40px
 
 ## Voice & Tone
 
@@ -52,6 +66,8 @@ Sommeasy's voice is:
 
 Bad: "Leveraging AI-powered algorithms to curate optimal wine pairings"
 Good: "Tell us what you like. We'll find it on the menu."
+
+Every error and empty state follows this voice: warm, no raw error strings, always tells the user what to do next.
 
 ## How I Work With You (Claude Code)
 
@@ -84,29 +100,31 @@ You don't need to ask permission for individual code changes. Make the call, shi
 
 - PDF text extraction uses Y-coordinate detection (transform[5]) to preserve line breaks — naive extraction merges everything into one blob and breaks the parser
 - Wine name cleanup handles: dot leaders, bin numbers, broken accent characters, section headers misidentified as wine entries, US state abbreviations
-- **Unified data architecture:** Single `wineUnified.json` (built by `scripts/build_quiz_data.py` from 130k WineMag reviews) powers all engines — quiz, profile, match. Contains 19 countries, 145 regions, 5,230 producers, 71 varietals, plus regionLookup (992), producerLookup (8,882), and varietalLookup (31 synonym mappings). Old `wineData.js` and `wineReference-lookup.json` are deleted.
-- matchEngine.js uses wineUnified.json lookups directly — no mapping dictionaries needed since all IDs come from the same data source
-- profileEngine.js generates up to 20 wine recommendations across 4 matching passes; pre-seeds exclusion list with user's named specific wines
-- Supabase client (supabase.js) stubs gracefully when env vars are absent during Vercel build-time pre-rendering
+- **Unified data architecture:** Single `wineUnified.json` (built by `scripts/build_quiz_data.py` from 130k WineMag reviews) powers all engines — quiz, profile, match. Contains countries, regions, producers, varietals, plus regionLookup, producerLookup (9,135), and varietalLookup (31 synonym mappings)
+- **Matching is word-boundary based, never raw substring.** Producers named "Cass"/"Pier"/"Rozès" used to match inside "Cassis"/"Pierre"/"Crozes-Hermitage" and misattribute countries. `termMatchesInText` (matchEngine) and `containsTerm` (wineResolver) enforce boundaries; the countryAttribution suite guards this permanently
+- Varietal names in wineUnified are combined ("Syrah / Shiraz") — the indexes split them into separately matchable aliases and include varietalLookup synonyms; producer terms index "&"/"et"/"and" conjunction variants
+- dnaEvolution.test.js and countryAttribution.test.js inline mirrors of production logic (ESM/JSON-import constraints) — if you change matching logic in matchEngine/wineResolver, update the mirrors; sommPicks.js is dependency-free specifically so its tests hit the real module
+- Supabase client (supabase.js) stubs gracefully when env vars are absent during Vercel build-time pre-rendering; it uses cookie-based sessions via `@supabase/ssr`
 - wineAutocomplete.json (140KB) lazy-loads on quiz Step 5 only — doesn't affect initial load
-- `/api/parse-wine-list` accepts base64 image or PDF, calls Claude Vision, returns `{ wines: [...] }` (Path A: structured JSON → direct to match engine) or `{ rawText }` (Path B: fallback to text parser). Both converge at `runAnalysis()` in the recommend page
-- `ANTHROPIC_API_KEY` is required in Vercel environment variables for Vision scanning to work
+- `/api/parse-wine-list` accepts base64 image, PDF, or scraped text; returns `{ wines: [...] }` (Path A: structured JSON → match engine) or `{ rawText }` (Path B: text parser). Both converge at `runAnalysis()` in the recommend page
+- API GET routes that must run per-request (like `/api/keepalive`) need `export const dynamic = "force-dynamic"` or Next statically prerenders them into no-ops
+- `ANTHROPIC_API_KEY` is required in Vercel env vars; without it all three Claude routes degrade gracefully (scan errors are friendly, somm falls back silently)
 
 ## Priorities (Current)
 
-1. Restaurant input Phase 1 — two-card scan/link UX with Claude Vision (in progress)
-2. Multi-page wine list accumulation (fast-follow to Phase 1)
-3. DNA feedback loop — wines rated "Loved" in journal becoming positive signals in matching
-4. Rate limiting and cost tracking for Vision API
-5. MVP polish and stability
+1. Somm-note persistence to the journal (attach the note to the saved interaction)
+2. Anonymous-user teaser flow (quiz → partial reveal → signup, without losing results)
+3. Multi-page scan UX polish
+4. Durable rate limiting (Redis/KV) when traffic justifies it
 
 ## API Usage
 
-The Anthropic API (Claude Vision) is a core part of this product. It is used for:
+The Anthropic API is a core part of this product. Three routes, all using `CLAUDE_MODEL` and sharing the rate limiter + cost logging:
 
-- **Wine list scanning** via `/api/parse-wine-list` — estimated cost ~$0.01-0.03 per scan
-- **Bottle label OCR** via `/api/scan-label` — Claude Vision for label recognition
-- The `/api/ocr` and `/api/ocr-bottle` routes are legacy dead code — do not call them
+- **Wine list scanning** via `/api/parse-wine-list` — measured ~$0.009/scan (text path; images somewhat higher)
+- **Bottle label extraction** via `/api/scan-label`
+- **Somm curation** via `/api/somm-picks` — measured ~$0.015/curation (~1.6k in / 0.7k out tokens, 5–15s)
+- Worst-case engaged session ≈ ≤$0.12
 - When adding new API-consuming features, be mindful of cost but don't avoid the Anthropic API — it's approved and encouraged
 
 ## What NOT to Do
@@ -116,3 +134,5 @@ The Anthropic API (Claude Vision) is a core part of this product. It is used for
 - Don't change the brand voice or visual identity without discussion
 - Don't optimize prematurely — get it working, then get it fast
 - Don't add new paid API integrations without discussion — Anthropic API is the approved exception
+- Don't hardcode Claude model IDs anywhere — use `CLAUDE_MODEL` from anthropicConfig.js
+- Don't write outcome-tolerant tests for critical paths — at least one spec must hard-fail when the happy path breaks
