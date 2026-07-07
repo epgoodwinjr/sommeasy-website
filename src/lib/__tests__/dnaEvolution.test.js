@@ -168,6 +168,14 @@ function normalize(text) {
 }
 function tokenize(text) { return normalize(text).split(/\s+/).filter(t => t.length >= 2); }
 
+// Mirrors wineResolver.containsTerm — boundary-aware containment so short
+// producer norms ("cass", "rozes") can't match inside longer words
+function containsTerm(haystack, needle) {
+  if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[\\s'.])${escaped}(?:[\\s'.]|$)`).test(haystack);
+}
+
 const BLEND_PATTERNS = [/\bred\s+blend\b/i, /\bwhite\s+blend\b/i, /\bbordeaux.style\b/i, /\brhone.style\b/i, /\bgms\b/i, /\bmeritage\b/i];
 function isBlend(v) {
   if (!v) return false;
@@ -266,7 +274,7 @@ function matchProducer(normInput, inputTokens) {
   let bestMatch = null, bestScore = 0;
   for (const prod of producerIndex) {
     let score = 0;
-    if (normInput.includes(prod.norm) && prod.norm.length >= 4) {
+    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm)) {
       score = 0.5 + (prod.norm.length / normInput.length * 0.5);
     } else {
       const overlap = tokenOverlap(inputTokens, prod.tokens);

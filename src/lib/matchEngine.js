@@ -44,6 +44,15 @@ function buildSearchIndex() {
     idx.producerTerms.push({
       term: name.toLowerCase(), name, dnaCountryId: data.country || null,
     });
+    // Menus write "& Fils" where WineMag writes "et Fils" (and vice versa) —
+    // index conjunction variants so both spellings match
+    const variants = [];
+    if (name.includes(" et ")) variants.push(name.replace(/ et /g, " & "));
+    if (name.includes(" and ")) variants.push(name.replace(/ and /g, " & "));
+    if (name.includes(" & ")) variants.push(name.replace(/ & /g, " et "), name.replace(/ & /g, " and "));
+    for (const v of variants) {
+      idx.producerTerms.push({ term: v.toLowerCase(), name, dnaCountryId: data.country || null });
+    }
   }
   idx.producerTerms.sort((a, b) => b.term.length - a.term.length);
 
@@ -448,11 +457,13 @@ function detectWineAttributes(wineName) {
   var color = null;
   const claimed = new Set();
 
-  // Producer detection
+  // Producer detection — word-boundary matching, NOT raw substring:
+  // producers named "Cass"/"Pier"/"Rozès" must not hit inside
+  // "Cassis"/"Pierre"/"Crozes-Hermitage" (the country-misattribution bugs)
   for (var pi = 0; pi < SEARCH_INDEX.producerTerms.length; pi++) {
     const prod = SEARCH_INDEX.producerTerms[pi];
     if (prod.term.length < 4) continue;
-    if (text.includes(prod.term)) {
+    if (termMatchesInText(prod.term, text)) {
       producerTerms.add(prod.term);
       if (prod.dnaCountryId) countryIds.add(prod.dnaCountryId);
       claimed.add(prod.term);
@@ -472,10 +483,11 @@ function detectWineAttributes(wineName) {
     }
   }
 
-  // Varietal detection
+  // Varietal detection — word-boundary matching ("Port" must not hit
+  // inside "Portugal"/"Porto" and force a wrong color)
   for (var vi = 0; vi < SEARCH_INDEX.varietyTerms.length; vi++) {
     const v = SEARCH_INDEX.varietyTerms[vi];
-    if (text.includes(v.term)) {
+    if (termMatchesInText(v.term, text)) {
       if (v.dnaVarietalId) varietalIds.add(v.dnaVarietalId);
       if (v.color && !color) color = v.color;
       claimed.add(v.term);

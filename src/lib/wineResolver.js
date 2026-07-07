@@ -56,6 +56,18 @@ function normalize(text) {
     .trim();
 }
 
+/**
+ * Boundary-aware containment over normalized text (charset [a-z0-9\s'.-]).
+ * Single-token needles must sit on word boundaries — a producer normalized
+ * to "cass" or "rozes" must not match inside "cassis" or "crozes-hermitage".
+ * Multi-word/hyphenated needles keep plain substring semantics.
+ */
+function containsTerm(haystack, needle) {
+  if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|[\\s'.])${escaped}(?:[\\s'.]|$)`).test(haystack);
+}
+
 function tokenize(text) {
   return normalize(text).split(/\s+/).filter(t => t.length >= 2);
 }
@@ -270,8 +282,8 @@ function matchProducer(normInput, inputTokens) {
   for (const prod of producers) {
     let score = 0;
 
-    // Strategy 1: Exact substring match (strongest signal)
-    if (normInput.includes(prod.norm) && prod.norm.length >= 4) {
+    // Strategy 1: Boundary-aware substring match (strongest signal)
+    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm)) {
       // Score based on what fraction of the input the producer name covers
       const coverage = prod.norm.length / normInput.length;
       score = 0.5 + (coverage * 0.5); // 0.5–1.0 range
