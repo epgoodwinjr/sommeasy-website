@@ -12,7 +12,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - **Auth + Database:** Supabase (Postgres with RLS, auth.users)
 - **Styling:** Inline styles / CSS-in-JS (no Tailwind)
 - **PDF processing:** unpdf with Y-coordinate detection for line breaks
-- **Menu scanning:** Claude Vision API (claude-sonnet-4-20250514) for photo/PDF wine list extraction via `/api/parse-wine-list`
+- **Menu scanning:** Claude Vision API (claude-sonnet-4-6) for photo/PDF wine list extraction via `/api/parse-wine-list`
 - **Bottle label OCR:** Tesseract.js v7, runs entirely client-side in the browser — no API cost
 - **Deployment:** Vercel (auto-deploys from main)
 - **Core flow:** Scan (photo/PDF) → Vision API or URL fetch → structured wine data or text parsing → DNA matching → budget-filtered curated picks

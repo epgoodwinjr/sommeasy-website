@@ -122,7 +122,10 @@ export async function POST(request) {
 
     console.log(`[parse-wine-list] Calling Anthropic API... (${Date.now() - startTime}ms since start)`);
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      // claude-sonnet-4-20250514 was retired June 2026 (API 404s on it);
+      // claude-sonnet-4-6 is the active Sonnet at identical pricing and is
+      // what /api/scan-label already uses
+      model: "claude-sonnet-4-6",
       max_tokens: 8192,
       messages: [
         {
