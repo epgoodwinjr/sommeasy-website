@@ -50,7 +50,7 @@ function normalize(text) {
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // strip accents
     .replace(/[''`]/g, "'")        // normalize quotes
     .replace(/\b(19|20)\d{2}\b/g, "")  // strip vintage years
-    .replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, "")
+    .replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, "")
     .replace(/[^a-z0-9\s'.-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -106,18 +106,25 @@ function getProducerIndex() {
       name: displayName,
       norm,
       tokens: new Set(tokenize(name)),
-      country: data.country,
+      country: getCountryDisplayName(data.country), // display name; the DNA id lives in dnaCountryId
       province: data.province || "",
       dnaCountryId: data.country,      // Direct — already a DNA country ID
       dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
     });
   }
 
-  // Also include producers from PRODUCERS (keyed by regionId) not already in PRODUCER_LOOKUP
+  // Also include producers from PRODUCERS (keyed by regionId) —
+  // merge dnaEstateId into existing WineMag entries instead of skipping them
   for (const [regionId, producers] of Object.entries(PRODUCERS)) {
     for (const producer of producers) {
       const norm = normalize(producer.name);
-      if (_producerIndex.some(p => p.norm === norm)) continue;
+      const existing = _producerIndex.find(p => p.norm === norm);
+      if (existing) {
+        // Producer exists in WineMag — enrich with DNA estate ID
+        existing.dnaEstateId = producer.id;
+        if (!existing.dnaRegionId) existing.dnaRegionId = regionId;
+        continue;
+      }
       // Find the country for this region
       let countryId = null;
       for (const [cId, regionList] of Object.entries(REGIONS)) {
@@ -154,15 +161,38 @@ function getVarietalIndex() {
   if (_varietalIndex) return _varietalIndex;
 
   _varietalIndex = [];
+  const seen = new Set();
+
+  // Combined names ("Syrah / Shiraz") can never substring-match a wine name —
+  // index each alias separately, all pointing at the canonical DNA id
   for (const v of VARIETALS) {
-    const norm = normalize(v.name);
-    if (norm.length < 3) continue;
+    for (const alias of v.name.split("/")) {
+      const norm = normalize(alias);
+      if (norm.length < 3 || seen.has(norm)) continue;
+      seen.add(norm);
+      _varietalIndex.push({
+        name: alias.trim(),
+        norm,
+        color: v.color,
+        dnaId: v.id,
+        count: v.reviewCount || 0,
+      });
+    }
+  }
+
+  // Synonyms from VARIETAL_LOOKUP (e.g. "garnacha" → grenache) must also be
+  // matchable, not just translatable
+  for (const [synonym, canonicalId] of Object.entries(VARIETAL_LOOKUP)) {
+    const norm = normalize(synonym);
+    if (norm.length < 3 || seen.has(norm)) continue;
+    seen.add(norm);
+    const canonical = VARIETALS.find(v => v.id === canonicalId);
     _varietalIndex.push({
-      name: v.name,
+      name: canonical ? canonical.name.split("/")[0].trim() : synonym,
       norm,
-      color: v.color,
-      dnaId: v.id,
-      count: v.reviewCount || 0,
+      color: canonical ? canonical.color : null,
+      dnaId: canonicalId,
+      count: canonical ? canonical.reviewCount || 0 : 0,
     });
   }
 
@@ -187,7 +217,7 @@ function getRegionIndex() {
     if (key.length < 4 || ["other", "america", "europe"].includes(key)) continue;
     _regionIndex.push({
       term: key,
-      country: data.country,
+      country: getCountryDisplayName(data.country), // display name; the DNA id lives in dnaCountryId
       province: "",
       subregion: "",
       dnaCountryId: data.country,      // Direct — already a DNA country ID
