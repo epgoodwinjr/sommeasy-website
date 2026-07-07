@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseLabelResponse } from "@/lib/wineExtraction";
 import { checkRateLimit, getClientIp, logVisionUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
 
 export const maxDuration = 30;
 
@@ -64,7 +65,7 @@ export async function POST(req) {
 
     const visionStart = Date.now();
     const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: CLAUDE_MODEL,
       max_tokens: 512,
       messages: [
         {

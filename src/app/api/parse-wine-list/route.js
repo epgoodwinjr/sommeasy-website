@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit, getClientIp, logVisionUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
 
 export const maxDuration = 300;
 
@@ -122,10 +123,7 @@ export async function POST(request) {
 
     console.log(`[parse-wine-list] Calling Anthropic API... (${Date.now() - startTime}ms since start)`);
     const response = await client.messages.create({
-      // claude-sonnet-4-20250514 was retired June 2026 (API 404s on it);
-      // claude-sonnet-4-6 is the active Sonnet at identical pricing and is
-      // what /api/scan-label already uses
-      model: "claude-sonnet-4-6",
+      model: CLAUDE_MODEL,
       max_tokens: 8192,
       messages: [
         {
