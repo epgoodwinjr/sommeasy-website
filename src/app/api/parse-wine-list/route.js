@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const EXTRACTION_PROMPT = `You are analyzing a restaurant wine list. Extract every wine entry into a structured format.
 
@@ -52,6 +52,7 @@ Respond ONLY with a JSON object in this exact format, no other text:
 }`;
 
 export async function POST(request) {
+  console.log(`[parse-wine-list] Function started at ${new Date().toISOString()}`);
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -67,6 +68,11 @@ export async function POST(request) {
     if (!imageBase64 && !pdfBase64 && !textContent) {
       return NextResponse.json({ error: "No image, PDF, or text provided" }, { status: 400 });
     }
+
+    const inputType = textContent ? "TEXT" : pdfBase64 ? "PDF" : "IMAGE";
+    const inputSize = textContent ? textContent.length : pdfBase64 ? pdfBase64.length : imageBase64.length;
+    const startTime = Date.now();
+    console.log(`[parse-wine-list] Start: ${inputType} input, ${inputSize} chars, ${new Date().toISOString()}`);
 
     // Build the message content for the API call
     let messageContent;
@@ -101,8 +107,9 @@ export async function POST(request) {
       ];
     }
 
-    const client = new Anthropic({ apiKey, timeout: 50000 });
+    const client = new Anthropic({ apiKey, timeout: 120000 });
 
+    console.log(`[parse-wine-list] Calling Anthropic API... (${Date.now() - startTime}ms since start)`);
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 8192,
@@ -113,6 +120,9 @@ export async function POST(request) {
         },
       ],
     });
+
+    const apiElapsed = Date.now() - startTime;
+    console.log(`[parse-wine-list] Anthropic responded in ${apiElapsed}ms`);
 
     const rawText = response.content
       .filter((block) => block.type === "text")
@@ -140,8 +150,7 @@ export async function POST(request) {
       }
 
       // ── DIAGNOSTIC LOGGING ── Vision raw output per wine ──
-      const inputType = textContent ? "TEXT" : pdfBase64 ? "PDF" : "IMAGE";
-      console.log(`[parse-wine-list] ═══ ${inputType} RAW OUTPUT (${parsed.wines.length} wines) ═══`);
+      console.log(`[parse-wine-list] ═══ ${inputType} RAW OUTPUT (${parsed.wines.length} wines, ${apiElapsed}ms) ═══`);
       parsed.wines.forEach((w, i) => {
         console.log(`[wine ${String(i + 1).padStart(2, "0")}] name: "${w.name}" | color: ${w.color} | variety: ${w.variety} | region: ${w.region} | country: ${w.country} | producer: ${w.producer} | section: ${w.section} | price: ${w.price} | vintage: ${w.vintage}`);
       });

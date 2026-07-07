@@ -189,6 +189,7 @@ export default function RecommendPage() {
     // Client-side size check
     if (file.size > 10 * 1024 * 1024) {
       setErrorMsg("That file is too large (max 10MB). Try a photo at lower resolution, or photograph one page at a time.");
+      setScanningAdditionalPage(false);
       return;
     }
 
@@ -214,7 +215,7 @@ export default function RecommendPage() {
       }
 
       const controller = new AbortController();
-      const clientTimeout = setTimeout(() => controller.abort(), 55000);
+      const clientTimeout = setTimeout(() => controller.abort(), 180000);
 
       let res;
       try {
@@ -544,7 +545,23 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#8B2332", fontWeight: 600 }}>Scanning page {pageCount + 1}...</span>
               </div>
             ) : (
-              <button onClick={() => { setScanningAdditionalPage(true); addPageInputRef.current?.click(); }} style={{
+              <button onClick={() => {
+                setScanningAdditionalPage(true);
+                const input = addPageInputRef.current;
+                if (input) {
+                  // Modern browsers: cancel event fires when picker is dismissed
+                  input.addEventListener("cancel", () => setScanningAdditionalPage(false), { once: true });
+                  // Fallback for older browsers: check after window regains focus
+                  const handleFocusBack = () => {
+                    setTimeout(() => {
+                      if (!input.files || input.files.length === 0) setScanningAdditionalPage(false);
+                    }, 500);
+                    window.removeEventListener("focus", handleFocusBack);
+                  };
+                  window.addEventListener("focus", handleFocusBack);
+                  input.click();
+                }
+              }} style={{
                 width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px",
                 padding: "16px 20px", borderRadius: "14px",
                 border: "2px solid rgba(139,35,50,0.15)", background: "rgba(255,255,255,0.7)",
