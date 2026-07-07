@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { checkRateLimit, getClientIp, logVisionUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp, logClaudeUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
 
 export const maxDuration = 300;
@@ -142,7 +142,7 @@ export async function POST(request) {
       .join("");
 
     // Structured cost log — Vercel logs are the cost dashboard for now
-    logVisionUsage("parse-wine-list", response.usage, apiElapsed);
+    logClaudeUsage("parse-wine-list", response.usage, apiElapsed);
 
     // Try to parse structured JSON (Path A)
     const cleanJson = rawText.replace(/```json\n?|```\n?/g, "").trim();

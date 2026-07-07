@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { parseLabelResponse } from "@/lib/wineExtraction";
-import { checkRateLimit, getClientIp, logVisionUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp, logClaudeUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
 
 export const maxDuration = 30;
@@ -89,7 +89,7 @@ export async function POST(req) {
     });
 
     // Structured cost log — Vercel logs are the cost dashboard for now
-    logVisionUsage("scan-label", response.usage, Date.now() - visionStart);
+    logClaudeUsage("scan-label", response.usage, Date.now() - visionStart);
 
     const textContent = response.content.find((b) => b.type === "text");
     if (!textContent || textContent.type !== "text") {

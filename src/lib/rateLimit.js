@@ -52,16 +52,16 @@ export function checkRateLimit(route, ip) {
 }
 
 /**
- * One structured log line per Vision call — Vercel logs are the cost
+ * One structured log line per Claude call — Vercel logs are the cost
  * dashboard for now. Sonnet-class pricing: $3/MTok in, $15/MTok out.
  */
-export function logVisionUsage(route, usage, ms) {
+export function logClaudeUsage(route, usage, ms) {
   if (!usage) return;
   const inputTokens = usage.input_tokens || 0;
   const outputTokens = usage.output_tokens || 0;
   const estCostUSD =
     Math.round((inputTokens * 3 + outputTokens * 15) / 1e6 * 1e6) / 1e6;
   console.log(
-    JSON.stringify({ type: "vision_usage", route, inputTokens, outputTokens, estCostUSD, ms })
+    JSON.stringify({ type: "claude_usage", route, inputTokens, outputTokens, estCostUSD, ms })
   );
 }

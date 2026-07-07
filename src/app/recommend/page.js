@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
+import { buildSommPayload } from "@/lib/sommPicks";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (default: max 1200px, 0.7 quality — wine list text stays readable)
@@ -80,6 +81,11 @@ export default function RecommendPage() {
   const [ratingToast, setRatingToast] = useState(null);
   const [pageCount, setPageCount] = useState(0);
   const [scanningAdditionalPage, setScanningAdditionalPage] = useState(false);
+  const [occasion, setOccasion] = useState("");
+  const [sommState, setSommState] = useState("idle"); // idle | pending | done | fallback
+  const [sommNotes, setSommNotes] = useState({});     // wineKey → note
+  const [sommSummary, setSommSummary] = useState("");
+  const sommSeqRef = useRef(0);
   const fileInputRef = useRef(null);
   const addPageInputRef = useRef(null);
   const userDNARef = useRef(null);
@@ -162,11 +168,24 @@ export default function RecommendPage() {
     const pickCount = getPickCount(entries.length, colorP);
     const curated = curatePicks(scored, { minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount, menuContext: menuCtx, userDNA: userDNARef.current });
     setPicks(curated);
+
+    // The Somm (progressive enhancement): algorithmic picks are already on
+    // screen; ask for curation + notes in the background
+    setSommNotes({});
+    setSommSummary("");
+    setSommState("idle");
+    if (curated.length > 0) {
+      askTheSomm({ scored, curated, pickCount, totalWines: entries.length, minP, maxP, colorP });
+    }
   };
 
   // ─── Re-filter picks without re-scoring (called when filters change in results view) ───
   const handleRefilter = (newColorPref, newMinPrice, newMaxPrice) => {
     if (!scoredEntries) return;
+    // Instant algorithmic re-curation; surviving picks keep their notes.
+    // Invalidate any in-flight somm request so it can't overwrite this state.
+    sommSeqRef.current++;
+    if (sommState === "pending") setSommState("idle");
     const menuCtx = buildMenuContext(scoredEntries.filter(e => e.score > 0));
     const pickCount = getPickCount(totalParsed, newColorPref);
     const curated = curatePicks(scoredEntries, {
@@ -178,6 +197,61 @@ export default function RecommendPage() {
       userDNA: userDNARef.current,
     });
     setPicks(curated);
+  };
+
+  const wineKey = (w) => `${w.name}::${w.price}`;
+
+  // ─── Ask The Somm: LLM curation + notes. Any failure = silent fallback ───
+  const askTheSomm = async ({ scored, curated, pickCount, totalWines, minP, maxP, colorP }) => {
+    const seq = ++sommSeqRef.current;
+    const payload = buildSommPayload({
+      scoredEntries: scored,
+      algorithmicPicks: curated,
+      pickCount,
+      profile,
+      ratedInteractions: ratedInteractionsRef.current,
+      totalParsed: totalWines,
+      budget: { min: minP ?? null, max: maxP ?? null },
+      color: colorP === "all" ? null : colorP,
+      occasion: occasion.trim() || null,
+      display: { varietal: getVarietalDisplayName, region: getRegionDisplayName, country: getCountryName },
+    });
+    if (payload.candidates.length === 0 || !pickCount) return;
+
+    setSommState("pending");
+    try {
+      const res = await fetch("/api/somm-picks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (sommSeqRef.current !== seq) return; // a refilter superseded this request
+      if (!res.ok) { setSommState("fallback"); return; }
+      const data = await res.json();
+      if (sommSeqRef.current !== seq) return;
+      if (data.fallback || !Array.isArray(data.picks) || data.picks.length === 0) {
+        setSommState("fallback");
+        return;
+      }
+
+      // Map candidate indices back to full scored entries; role drives the badge
+      const notes = {};
+      const sommPicks = [];
+      for (const p of data.picks) {
+        const cand = payload.candidates[p.i];
+        const entry = cand && scored.find((e) => e.name === cand.name && e.price === cand.price);
+        if (!entry) continue;
+        sommPicks.push({ ...entry, pickType: p.role });
+        notes[wineKey(entry)] = p.note;
+      }
+      if (sommPicks.length === 0) { setSommState("fallback"); return; }
+      setPicks(sommPicks);
+      setSommNotes(notes);
+      setSommSummary(data.sommSummary || "");
+      setSommState("done");
+    } catch {
+      if (sommSeqRef.current === seq) setSommState("fallback");
+    }
   };
 
   // ─── Text analysis (paste mode fallback) ───
@@ -408,6 +482,10 @@ export default function RecommendPage() {
     setPageCount(0);
     setScanningAdditionalPage(false);
     accumulatedEntriesRef.current = [];
+    sommSeqRef.current++;
+    setSommNotes({});
+    setSommSummary("");
+    setSommState("idle");
   };
 
   const loadExample = () => {
@@ -611,6 +689,34 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
             </div>
           </div>
+          {/* Re-fire curation against the refiltered pool (rate limit self-polices) */}
+          <div style={{ marginTop: 10, textAlign: "center" }}>
+            <button
+              data-testid="ask-somm-again"
+              disabled={sommState === "pending"}
+              onClick={() => {
+                if (!scoredEntries || !picks) return;
+                askTheSomm({
+                  scored: scoredEntries,
+                  curated: picks,
+                  pickCount: getPickCount(totalParsed, colorPref),
+                  totalWines: totalParsed,
+                  minP: minPrice ? parseFloat(minPrice) : null,
+                  maxP: maxPrice ? parseFloat(maxPrice) : null,
+                  colorP: colorPref,
+                });
+              }}
+              style={{
+                padding: "8px 18px", borderRadius: "100px",
+                border: "1px solid rgba(139,35,50,0.2)",
+                background: sommState === "pending" ? "rgba(139,35,50,0.05)" : "rgba(255,255,255,0.7)",
+                color: "#8B2332", fontFamily: "'Source Sans 3', sans-serif",
+                fontSize: "13px", fontWeight: 600,
+                cursor: sommState === "pending" ? "default" : "pointer",
+                opacity: sommState === "pending" ? 0.5 : 1,
+              }}
+            >🍷 Ask the Somm again</button>
+          </div>
         </div>
 
         {/* Category legend */}
@@ -618,6 +724,29 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           <div style={{ textAlign: "center", marginBottom: 16 }}>
             <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.45, margin: 0, lineHeight: 1.8 }}>
               🏆 Top Pick  ·  ✨ Splurge  ·  💰 Great Value  ·  🧭 Adventure  ·  🍷 Worth Trying
+            </p>
+          </div>
+        )}
+
+        {/* The Somm's framing of the list */}
+        {picks.length > 0 && sommSummary && (
+          <div data-testid="somm-summary" style={{
+            padding: "16px 20px", borderRadius: "14px", marginBottom: 16,
+            background: "#F5F0E8", border: "1px solid rgba(139,35,50,0.12)",
+          }}>
+            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", fontWeight: 700, color: "#8B2332", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+              🍷 The Somm says
+            </div>
+            <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", fontStyle: "italic", color: "#1B3D2F", margin: 0, lineHeight: 1.55 }}>
+              {sommSummary}
+            </p>
+          </div>
+        )}
+        {picks.length > 0 && sommState === "pending" && (
+          <div data-testid="somm-thinking" style={{ textAlign: "center", marginBottom: 16 }}>
+            <style>{`@keyframes sommPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.8; } }`}</style>
+            <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "14px", fontStyle: "italic", color: "#8B2332", margin: 0, animation: "sommPulse 1.6s ease-in-out infinite" }}>
+              The Somm is thinking…
             </p>
           </div>
         )}
@@ -698,6 +827,24 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                       </span>
                     )}
                   </div>
+
+                  {/* The Somm's note (or a shimmer while it thinks) */}
+                  {sommNotes[wineKey(pick)] ? (
+                    <div data-testid="somm-note" style={{
+                      marginTop: 12, padding: "12px 14px", borderRadius: "10px",
+                      background: "#F5F0E8", borderLeft: "3px solid #8B2332",
+                    }}>
+                      <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "14px", color: "#1B3D2F", margin: 0, lineHeight: 1.55 }}>
+                        {sommNotes[wineKey(pick)]}
+                      </p>
+                    </div>
+                  ) : sommState === "pending" ? (
+                    <div style={{
+                      marginTop: 12, height: 38, borderRadius: "10px",
+                      background: "rgba(139,35,50,0.06)",
+                      animation: "sommPulse 1.6s ease-in-out infinite",
+                    }} />
+                  ) : null}
 
                   {/* Rating section */}
                   <div style={{
@@ -793,6 +940,24 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             <input type="number" placeholder="Max" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}
               style={{ width: "100%", padding: "8px 10px 8px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
           </div>
+        </div>
+
+        {/* Occasion (optional) — feeds The Somm's pairing-first notes */}
+        <div style={{ marginTop: 12 }}>
+          <input
+            data-testid="occasion-input"
+            type="text"
+            maxLength={200}
+            value={occasion}
+            onChange={(e) => setOccasion(e.target.value)}
+            placeholder="What's the occasion? Steak night, first date, Tuesday… (optional)"
+            style={{
+              width: "100%", padding: "10px 12px", borderRadius: "8px",
+              border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)",
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F",
+              outline: "none", boxSizing: "border-box",
+            }}
+          />
         </div>
       </div>
 
