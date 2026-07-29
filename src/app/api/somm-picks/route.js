@@ -25,9 +25,9 @@ You receive a JSON payload with:
 
 Your task:
 1. Choose exactly pickCount wines FROM THE NUMBERED CANDIDATES ONLY. Never invent a wine. Never use an index that isn't in candidates.
-2. Assign each pick a role: "top", "value", "adventure", "splurge", or "wildcard". Use each of top/value/adventure at most once; any pick beyond the four core roles is "wildcard".
-3. Budget is a hard constraint: never pick a wine priced above budget.max — EXCEPT the single "splurge" role, which may go up to 2x budget.max when the bottle earns it.
-4. Write a 2–3 sentence note for each pick. Every note must connect to THIS user's actual palate: their archetype, a wine they loved, a region or grape from their DNA. Speak to them, not about wine in general.
+2. Assign each pick a role: "top", "value", "adventure", "splurge", or "wildcard". Use each of top/value/adventure/splurge at most once; any pick beyond the four core roles is "wildcard".
+3. Budget is a hard constraint: at most ONE pick may be priced above budget.max, and that pick MUST carry the "splurge" role (never above 2x budget.max). Every other pick must be at or under budget.max — check each price against the budget before you commit to it.
+4. Write a 2–3 sentence note for each pick — under 450 characters, never longer. Every note must connect to THIS user's actual palate: their archetype, a wine they loved, a region or grape from their DNA. Speak to them, not about wine in general.
 5. If "occasion" is present, lead the notes with the pairing rationale — the food and moment come first, the grape second. Be honest about pairing traps: if a candidate fights the food (a low-acid oaky white against tomato dishes, a tannic monster against delicate fish), say so plainly in whichever note it affects, or steer the selection around it.
 6. Write one "sommSummary" of at most 2 sentences framing the list as a whole — what tonight's list is good at for this palate.
 
@@ -58,42 +58,76 @@ export async function POST(request) {
     }
 
     const client = new Anthropic({ apiKey, timeout: 60000 });
-    const start = Date.now();
-    const response = await client.messages.create({
-      model: CLAUDE_MODEL,
-      max_tokens: 2000,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: JSON.stringify(payload) }],
-    });
-    const ms = Date.now() - start;
 
-    logClaudeUsage("somm-picks", response.usage, ms);
+    // One shot + one corrective retry. Validation salvages what it can
+    // (sommPicks.js); when it still hard-fails, we hand the model its own
+    // output and the specific rule it broke — a targeted fix, not a re-roll.
+    const baseMessages = [{ role: "user", content: JSON.stringify(payload) }];
+    let messages = baseMessages;
+    let lastReason = null;
 
-    const rawText = response.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const start = Date.now();
+      const response = await client.messages.create({
+        model: CLAUDE_MODEL,
+        max_tokens: 3000,
+        system: SYSTEM_PROMPT,
+        messages,
+      });
+      const ms = Date.now() - start;
 
-    let parsed;
-    try {
-      parsed = JSON.parse(extractJson(rawText));
-    } catch {
-      console.error("[somm-picks] LLM returned unparseable JSON");
-      return fallback();
+      logClaudeUsage("somm-picks", response.usage, ms);
+
+      const rawText = response.content
+        .filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join("");
+
+      let reason = null;
+      if (response.stop_reason === "max_tokens") {
+        reason = "response truncated at max_tokens — be more concise";
+      } else {
+        let parsed = null;
+        try {
+          parsed = JSON.parse(extractJson(rawText));
+        } catch {
+          reason = "output was not parseable JSON";
+        }
+        if (parsed) {
+          const result = validateSommResponse(parsed, {
+            candidates: payload.candidates,
+            pickCount: payload.pickCount,
+            budget: payload.budget,
+          });
+          if (result.valid) {
+            if (attempt > 0) console.log("[somm-picks] retry recovered");
+            return NextResponse.json({ picks: result.picks, sommSummary: result.sommSummary });
+          }
+          reason = result.reason;
+        }
+      }
+
+      lastReason = reason;
+      if (attempt === 0) {
+        console.log(`[somm-picks] retrying after: ${reason}`);
+        messages = [
+          ...baseMessages,
+          { role: "assistant", content: rawText || "(empty)" },
+          {
+            role: "user",
+            content:
+              `Your previous response was rejected: ${reason}. ` +
+              `Reply with ONLY the corrected JSON object in the exact required shape. ` +
+              `Rules to satisfy: exactly pickCount picks; every "i" must be a candidate index with no duplicates; ` +
+              `every pick needs a "note" of 2-3 sentences under 450 characters; ` +
+              `at most one pick may be priced above budget.max and it must have role "splurge" (never above 2x budget.max).`,
+          },
+        ];
+      }
     }
 
-    const result = validateSommResponse(parsed, {
-      candidates: payload.candidates,
-      pickCount: payload.pickCount,
-      budget: payload.budget,
-    });
-
-    if (!result.valid) {
-      console.error(`[somm-picks] validation failed: ${result.reason}`);
-      return fallback();
-    }
-
-    return NextResponse.json({ picks: result.picks, sommSummary: result.sommSummary });
+    console.error(`[somm-picks] validation failed: ${lastReason}`);
+    return fallback();
   } catch (err) {
     console.error("[somm-picks] error:", err?.message || err);
     return fallback();

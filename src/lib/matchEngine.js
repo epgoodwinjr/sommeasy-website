@@ -179,8 +179,27 @@ export function formatWineName(name) {
     }).join("-");
   });
 
+  // Fix all-lowercase words too (OCR and pasted menus often emit "chateau
+  // margaux 2015"): capitalize any word that starts with a lowercase letter,
+  // leaving connector words (de, du, des…) lowercase except at the start.
+  // Words that already contain an uppercase letter are left alone.
+  var isFirstWord = true;
+  formatted = formatted.split(/([\s\-]+)/).map(function(word) {
+    if (/^[\s\-]*$/.test(word)) return word;
+    var first = isFirstWord;
+    isFirstWord = false;
+    if (!first && lowerWords.has(word)) return word;
+    if (/^[a-zà-öù-ý]/.test(word)) {
+      if (word.startsWith("l'") || word.startsWith("d'")) {
+        return word.charAt(0).toUpperCase() + "'" + (word.length > 2 ? word.charAt(2).toUpperCase() + word.slice(3) : "");
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    }
+    return word;
+  }).join("");
+
   // Restore known abbreviations
-  const abbreviations = ["AOC", "DOC", "DOCG", "IGT", "AVA", "MCC"];
+  const abbreviations = ["AOC", "DOC", "DOCG", "IGT", "AVA", "MCC", "NV"];
   for (const abbr of abbreviations) {
     const regex = new RegExp("\\b" + abbr.toLowerCase() + "\\b", "gi");
     formatted = formatted.replace(regex, abbr);
@@ -1381,4 +1400,10 @@ export function getVarietalDisplayName(varietalId) {
   if (!varietalId) return null;
   const varietal = VARIETALS.find(function(v) { return v.id === varietalId; });
   return varietal ? varietal.name : null;
+}
+
+export function getVarietalColor(varietalId) {
+  if (!varietalId) return null;
+  const varietal = VARIETALS.find(function(v) { return v.id === varietalId; });
+  return varietal && varietal.color && varietal.color !== "unknown" ? varietal.color : null;
 }

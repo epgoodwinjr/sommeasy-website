@@ -135,22 +135,46 @@ export function extractJson(text) {
 }
 
 /**
+ * Clip an overlong note to the cap, preferring a sentence boundary so we
+ * never ship a note that trails off mid-thought.
+ */
+function clipNote(note) {
+  if (note.length <= NOTE_MAX_CHARS) return note;
+  const head = note.slice(0, NOTE_MAX_CHARS);
+  const lastStop = Math.max(head.lastIndexOf(". "), head.lastIndexOf("! "), head.lastIndexOf("? "));
+  if (lastStop > NOTE_MAX_CHARS * 0.4) return head.slice(0, lastStop + 1);
+  const lastSpace = head.lastIndexOf(" ");
+  const base = lastSpace > 0 ? head.slice(0, lastSpace) : head.slice(0, NOTE_MAX_CHARS - 1);
+  return base.replace(/[,;:\s]+$/, "") + "…";
+}
+
+/**
  * Validate + normalize the LLM response against the request that produced it.
  * Returns { valid: true, picks, sommSummary } or { valid: false, reason }.
- * ANY hard failure means the client keeps the algorithmic picks.
+ *
+ * Salvage before rejecting: the failure mode here is silent fallback, so
+ * discarding six good notes over one fixable slip is the worst outcome.
+ * Salvageable (normalized in place): overlong notes → clipped at a sentence
+ * boundary; extra picks beyond pickCount → trimmed; an over-budget pick the
+ * model forgot to label → promoted to "splurge" when that's legal (≤2x max,
+ * splurge slot unused). Hard failures (caller retries, then falls back):
+ * missing/empty notes, bad or duplicate indices, too few picks, and budget
+ * breaks no relabeling can fix.
  */
 export function validateSommResponse(parsed, { candidates, pickCount, budget }) {
   if (!parsed || typeof parsed !== "object") return { valid: false, reason: "not an object" };
   if (!Array.isArray(parsed.picks)) return { valid: false, reason: "picks not an array" };
-  if (parsed.picks.length !== pickCount) {
-    return { valid: false, reason: `pick count ${parsed.picks.length} != ${pickCount}` };
+  if (parsed.picks.length < pickCount) {
+    return { valid: false, reason: `pick count ${parsed.picks.length} < ${pickCount}` };
   }
+  // More picks than asked for: keep the first pickCount rather than rejecting
+  const rawPicks = parsed.picks.slice(0, pickCount);
 
   const seen = new Set();
   const coreUsed = new Set();
   const picks = [];
 
-  for (const raw of parsed.picks) {
+  for (const raw of rawPicks) {
     const i = raw?.i;
     if (!Number.isInteger(i) || i < 0 || i >= candidates.length) {
       return { valid: false, reason: `index ${i} not in candidates` };
@@ -158,9 +182,9 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
     if (seen.has(i)) return { valid: false, reason: `duplicate index ${i}` };
     seen.add(i);
 
-    const note = typeof raw.note === "string" ? raw.note.trim() : "";
-    if (!note || note.length > NOTE_MAX_CHARS) {
-      return { valid: false, reason: `note invalid for index ${i}` };
+    const note = typeof raw.note === "string" ? clipNote(raw.note.trim()) : "";
+    if (!note) {
+      return { valid: false, reason: `note missing for index ${i}` };
     }
 
     // Role normalization (not a failure): unknown roles → wildcard;
@@ -176,7 +200,14 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
       if (role === "splurge") {
         if (price > budget.max * 2) return { valid: false, reason: `splurge ${price} > 2x max` };
       } else if (price > budget.max) {
-        return { valid: false, reason: `non-splurge ${price} > budget max` };
+        // Over-budget wine without the splurge label. If it's a legal splurge
+        // and the slot is free, that's clearly what the model meant.
+        if (price <= budget.max * 2 && !coreUsed.has("splurge")) {
+          role = "splurge";
+          coreUsed.add("splurge");
+        } else {
+          return { valid: false, reason: `non-splurge ${price} > budget max` };
+        }
       }
     }
 

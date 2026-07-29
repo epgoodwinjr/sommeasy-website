@@ -157,9 +157,18 @@ async function main() {
     assert(r.picks.length === 3 && r.sommSummary === "A strong list.", JSON.stringify(r));
   });
 
-  test("rejects wrong pick count", () => {
+  test("rejects too few picks", () => {
     const r = validateSommResponse({ picks: goodPicks.slice(0, 2) }, ctx);
     assert(!r.valid, "should fail");
+  });
+
+  test("trims extra picks beyond pickCount instead of rejecting", () => {
+    const r = validateSommResponse(
+      { picks: [...goodPicks, { i: 1, role: "adventure", note: "A fourth pick that should be dropped." }], sommSummary: "s" },
+      ctx
+    );
+    assert(r.valid, r.reason);
+    assert(r.picks.length === 3 && r.picks.every((p) => p.i !== 1), JSON.stringify(r.picks.map((p) => p.i)));
   });
 
   test("rejects out-of-range index", () => {
@@ -172,10 +181,21 @@ async function main() {
     assert(!r.valid && /duplicate/.test(r.reason), r.reason);
   });
 
-  test("rejects non-splurge above budget max", () => {
+  test("promotes an unlabeled over-budget pick to splurge when the slot is free", () => {
+    // C is $90 with max $60 — legal splurge territory, but the model said "top"
     const r = validateSommResponse(
-      { picks: [{ i: 2, role: "top", note: "Over budget but tasty." }, goodPicks[0], { i: 3, role: "value", note: "ok note" }].map((p, idx) => ({ ...p, i: [2, 0, 3][idx] })) },
+      { picks: [{ i: 2, role: "top", note: "Over budget but tasty." }, goodPicks[0], { i: 3, role: "value", note: "ok note" }] },
       ctx
+    );
+    assert(r.valid, r.reason);
+    assert(r.picks[0].role === "splurge", JSON.stringify(r.picks.map((p) => p.role)));
+  });
+
+  test("rejects a second over-budget pick when the splurge slot is taken", () => {
+    // max 50: B ($60) and C ($90) are both over; C takes splurge, B can't be saved
+    const r = validateSommResponse(
+      { picks: [{ i: 2, role: "splurge", note: "Worth it." }, { i: 1, role: "top", note: "Also over budget." }, { i: 3, role: "value", note: "ok note" }] },
+      { candidates, pickCount: 3, budget: { min: null, max: 50 } }
     );
     assert(!r.valid && /budget/.test(r.reason), r.reason);
   });
@@ -188,10 +208,25 @@ async function main() {
     assert(!r.valid && /splurge/.test(r.reason), r.reason);
   });
 
-  test("rejects empty note and >500 char note", () => {
+  test("rejects empty/missing note", () => {
     const empty = validateSommResponse({ picks: [{ i: 0, role: "top", note: "  " }, goodPicks[1], goodPicks[2]] }, ctx);
-    const long = validateSommResponse({ picks: [{ i: 0, role: "top", note: "x".repeat(501) }, goodPicks[1], goodPicks[2]] }, ctx);
-    assert(!empty.valid && !long.valid, `${empty.valid}/${long.valid}`);
+    const missing = validateSommResponse({ picks: [{ i: 0, role: "top" }, goodPicks[1], goodPicks[2]] }, ctx);
+    assert(!empty.valid && !missing.valid, `${empty.valid}/${missing.valid}`);
+  });
+
+  test("clips an overlong note at a sentence boundary instead of rejecting", () => {
+    const sentence = "This wine sings with the bright cherry fruit you loved in that Barossa Syrah. ";
+    const longNote = sentence.repeat(9); // ~700 chars of real sentences
+    const r = validateSommResponse({ picks: [{ i: 0, role: "top", note: longNote }, goodPicks[1], goodPicks[2]] }, ctx);
+    assert(r.valid, r.reason);
+    assert(r.picks[0].note.length <= 500, `len ${r.picks[0].note.length}`);
+    assert(/\.$/.test(r.picks[0].note), `should end on a sentence: "...${r.picks[0].note.slice(-20)}"`);
+  });
+
+  test("clips a degenerate no-space overlong note to the cap", () => {
+    const r = validateSommResponse({ picks: [{ i: 0, role: "top", note: "x".repeat(700) }, goodPicks[1], goodPicks[2]] }, ctx);
+    assert(r.valid, r.reason);
+    assert(r.picks[0].note.length <= 500, `len ${r.picks[0].note.length}`);
   });
 
   test("coerces unknown roles and duplicate core roles to wildcard", () => {

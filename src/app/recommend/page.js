@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, getVarietalColor, formatWineName, getPickCount } from "@/lib/matchEngine";
 import { buildSommPayload } from "@/lib/sommPicks";
 
 // ─── Image compression utility ───
@@ -795,6 +795,17 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                     if (color === "rosé") return "Rosé Blend";
                     return null;
                   })();
+              // Chip emoji follows the wine's color — Unicode's only grape
+              // emoji (🍇) is purple, which reads wrong next to Chardonnay
+              const wineColor = (pick.detectedVarietalId && getVarietalColor(pick.detectedVarietalId))
+                || pick.detectedColor
+                || (pick.visionData && pick.visionData.color)
+                || null;
+              const varietalEmoji =
+                wineColor === "white" ? "🥂"
+                : wineColor === "sparkling" ? "🍾"
+                : wineColor === "rosé" || wineColor === "rose" ? "🌸"
+                : "🍇";
 
               return (
                 <div key={i} data-testid="pick-card" style={{
@@ -841,7 +852,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                         color: "#1B3D2F", opacity: 0.6, background: "rgba(27,61,47,0.04)",
                         padding: "3px 10px", borderRadius: "100px",
                       }}>
-                        🍇 {varietalName}
+                        {varietalEmoji} {varietalName}
                       </span>
                     )}
                   </div>
