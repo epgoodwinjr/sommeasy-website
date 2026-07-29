@@ -126,7 +126,7 @@ The Anthropic API is a core part of this product. Three routes, all using `CLAUD
 - **Wine list scanning** via `/api/parse-wine-list` — measured ~$0.009/scan (text path; images somewhat higher)
 - **Bottle label extraction** via `/api/scan-label`
 - **Somm curation** via `/api/somm-picks` — measured $0.021–0.025/curation with feedback-rich payloads (3.4–3.6k in / 0.7–0.9k out tokens, 12–20s)
-- **Palate narrative refresh** via `/api/palate-narrative` — regenerates the profile narrative only when the palate genuinely moved (a dna_timeline event, or ≥5 newly rated bottles since `narrative_updated_at`); cookie-session auth via `@supabase/ssr` `createServerClient`; ANY failure silently keeps the existing narrative
+- **Palate narrative refresh** via `/api/palate-narrative` — regenerates the profile narrative only when the palate genuinely moved (a dna_timeline event, or ≥5 newly rated bottles since `narrative_updated_at`); cookie-session auth via `@supabase/ssr` `createServerClient`; ANY failure silently keeps the existing narrative — measured ~$0.006/regeneration (0.8k in / 0.2k out tokens, ~6s)
 - Worst-case engaged session ≈ ≤$0.12
 - When adding new API-consuming features, be mindful of cost but don't avoid the Anthropic API — it's approved and encouraged
 
