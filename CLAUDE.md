@@ -36,8 +36,8 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 
 - `node src/lib/__tests__/dnaEvolution.test.js` — 42 tests, DNA evolution pipeline (inlined mirror of resolver + engine)
 - `node src/lib/__tests__/countryAttribution.test.js` — 14 tests, country-misattribution regression suite (the Cassis→US / Gimonnet→Italy / Crozes→Portugal class)
-- `node src/lib/__tests__/sommPicks.test.js` — 20 tests, somm payload builder + response validator (tests the real module via dynamic import)
-- `npm run test:e2e` — 25 Playwright specs. Fixture images are gitignored; regenerate with `python3 e2e/fixtures/generate-fixtures.py` or the suite silently collects 0 tests. Includes a hard fail-if-no-picks spec — keep it; outcome-tolerant specs masked a dead integration for weeks once
+- `node src/lib/__tests__/sommPicks.test.js` — 24 tests, somm payload builder + response validator (tests the real module via dynamic import)
+- `npm run test:e2e` — 27 Playwright specs. Fixture images are gitignored; regenerate with `python3 e2e/fixtures/generate-fixtures.py` or the suite silently collects 0 tests. Includes two permanent hard-fail guards — fail-if-no-picks and no-raw-internal-IDs (raw-ids.spec.ts) — keep both; outcome-tolerant specs masked a dead integration for weeks once
 
 ## Brand & Design
 
@@ -112,7 +112,7 @@ You don't need to ask permission for individual code changes. Make the call, shi
 
 ## Priorities (Current)
 
-1. Somm-note persistence to the journal (attach the note to the saved interaction)
+1. The Palate, Act II — profile redesign per `docs/palate-act-ii-brief.md` (Session 1 wiring shipped July 29: somm-note persistence, no-raw-IDs fix, salvage logging; Session 2 is the design work)
 2. Anonymous-user teaser flow (quiz → partial reveal → signup, without losing results)
 3. Multi-page scan UX polish
 4. Durable rate limiting (Redis/KV) when traffic justifies it

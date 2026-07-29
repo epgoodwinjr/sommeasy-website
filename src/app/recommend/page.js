@@ -455,7 +455,7 @@ export default function RecommendPage() {
     setTimeout(() => setRatingToast(null), 2500);
 
     try {
-      await supabase.from("wine_interactions").upsert({
+      const row = {
         user_id: user.id,
         wine_name: wineName,
         interaction_type: "had",
@@ -463,7 +463,21 @@ export default function RecommendPage() {
         source_url: extractedFrom === "url" ? menuUrl : (extractedFrom === "scan" ? "photo_scan" : "text_paste"),
         source_label: null,
         updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id, wine_name" });
+      };
+      // When the rated wine is a current Somm pick, its note and role travel
+      // with the rating into the journal. Fields are only included when we
+      // have values — the upsert replaces included columns on conflict, so
+      // sending nulls here would erase a note saved at the restaurant if the
+      // user later re-rates without somm context.
+      const pick = (picks || []).find((p) => p.name === wineName);
+      const note = pick ? sommNotes[wineKey(pick)] : null;
+      if (note) {
+        row.somm_note = note;
+        if (pick.pickType) row.somm_pick_role = pick.pickType;
+      }
+      const occ = occasion.trim();
+      if (occ) row.occasion = occ;
+      await supabase.from("wine_interactions").upsert(row, { onConflict: "user_id, wine_name" });
     } catch (err) {
       console.error("Rating save error:", err);
     }

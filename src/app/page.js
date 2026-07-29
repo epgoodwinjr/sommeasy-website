@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-utils";
 import { resolveAndAccumulate, syncQuizSelections } from "@/lib/dnaEvolution";
+// Display helpers only — Quiz already imports wineUnified.json statically,
+// so these add no new weight to the home bundle
+import { getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, getVarietalColor, formatWineName } from "@/lib/matchEngine";
 import Quiz from "@/components/Quiz";
 
 // ─── Rating Modal ───
@@ -774,10 +777,10 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
               </div>
             </div>
           )}
-          <ProfileTagSection label="Countries" items={profile.countries || []} />
-          <ProfileTagSection label="Regions" items={Object.values(profile.regions || {}).flat()} />
-          <ProfileTagSection label="Varietals" items={profile.varietals || []} />
-          <ProfileTagSection label="Specific Wines" items={profile.specific_wines || []} />
+          <ProfileTagSection label="Countries" items={(profile.countries || []).map(displayCountry)} />
+          <ProfileRegionSection regions={profile.regions || {}} />
+          <ProfileTagSection label="Varietals" items={(profile.varietals || []).map(displayVarietal)} />
+          <ProfileTagSection label="Specific Wines" items={(profile.specific_wines || []).map(formatWineName)} />
         </div>
       )}
 
@@ -789,6 +792,32 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   );
 }
 
+// Never show an internal ID: last-resort prettifier for anything the display
+// helpers don't know ("hemel_en_aarde_walker_bay" → "Hemel En Aarde Walker Bay")
+function prettifyId(id) {
+  if (!id || typeof id !== "string") return "";
+  return id.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
+function displayCountry(countryId) {
+  const name = getCountryName(countryId) || prettifyId(countryId);
+  const flag = getCountryFlag(countryId);
+  return flag ? `${flag} ${name}` : name;
+}
+
+function displayVarietal(varietalId) {
+  const name = getVarietalDisplayName(varietalId) || prettifyId(varietalId);
+  // Same color-aware emoji mapping as the pick cards — 🍇 is purple, which
+  // reads wrong next to Chardonnay
+  const color = getVarietalColor(varietalId);
+  const emoji =
+    color === "white" ? "🥂"
+    : color === "sparkling" ? "🍾"
+    : color === "rosé" || color === "rose" ? "🌸"
+    : "🍇";
+  return `${emoji} ${name}`;
+}
+
 function ProfileTagSection({ label, items }) {
   if (!items || items.length === 0) return null;
   return (
@@ -796,6 +825,34 @@ function ProfileTagSection({ label, items }) {
       <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.35, marginBottom: 10, fontWeight: 600 }}>{label}</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
         {items.map((item, i) => <span key={i} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "rgba(27,61,47,0.05)", padding: "5px 14px", borderRadius: "100px" }}>{item}</span>)}
+      </div>
+    </div>
+  );
+}
+
+// Regions grouped under their countries — profile.regions is already shaped
+// {countryId: [regionIds]}, so this is presentation, not plumbing
+function ProfileRegionSection({ regions }) {
+  const entries = Object.entries(regions || {}).filter(([, ids]) => ids && ids.length > 0);
+  if (entries.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.4)", borderRadius: "16px", padding: "16px 20px", border: "1px solid rgba(27,61,47,0.06)" }}>
+      <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.35, marginBottom: 10, fontWeight: 600 }}>Regions</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {entries.map(([countryId, regionIds]) => (
+          <div key={countryId}>
+            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", fontWeight: 600, color: "#1B3D2F", opacity: 0.55, marginBottom: 6 }}>
+              {displayCountry(countryId)}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {regionIds.map((rid) => (
+                <span key={rid} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "rgba(27,61,47,0.05)", padding: "5px 14px", borderRadius: "100px" }}>
+                  {getRegionDisplayName(rid, countryId) || prettifyId(rid)}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

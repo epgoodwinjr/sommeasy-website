@@ -11,6 +11,17 @@ const RATING_DISPLAY = {
   not_for_me: { emoji: "👎", label: "Not for me" },
 };
 
+// Local mirror of getPickTypeInfo's labels — deliberately NOT imported from
+// matchEngine, which would drag the 2.9MB wineUnified.json into this bundle
+// just for five badge strings.
+const SOMM_ROLE_DISPLAY = {
+  top: { emoji: "🏆", label: "Top Pick" },
+  splurge: { emoji: "✨", label: "Splurge" },
+  value: { emoji: "💰", label: "Great Value" },
+  adventure: { emoji: "🧭", label: "Adventure" },
+  wildcard: { emoji: "🍷", label: "Worth Trying" },
+};
+
 function RatingModal({ wine, currentRating, onRate, onClose }) {
   const ratings = [
     { id: "loved", emoji: "❤️", label: "Loved it" },
@@ -331,6 +342,46 @@ export default function JournalPage() {
                             color: "#1B3D2F", opacity: 0.3,
                           }}>{formatDate(wine.updated_at)}</span>
                         </div>
+                        {/* What The Somm said the night this wine was picked */}
+                        {wine.somm_note && (() => {
+                          const role = SOMM_ROLE_DISPLAY[wine.somm_pick_role];
+                          return (
+                            <div data-testid="journal-somm-note" style={{
+                              marginTop: 10, padding: "12px 14px", borderRadius: "10px",
+                              background: "#F5F0E8", borderLeft: "3px solid #8B2332",
+                            }}>
+                              <div style={{
+                                display: "flex", alignItems: "center", gap: "8px",
+                                flexWrap: "wrap", marginBottom: 6,
+                              }}>
+                                <span style={{
+                                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
+                                  fontWeight: 700, color: "#8B2332",
+                                  textTransform: "uppercase", letterSpacing: "0.08em",
+                                }}>🍷 The Somm said</span>
+                                {role && (
+                                  <span style={{
+                                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "10px",
+                                    fontWeight: 700, color: "#8B2332",
+                                    textTransform: "uppercase", letterSpacing: "0.08em",
+                                    background: "rgba(139,35,50,0.08)",
+                                    padding: "2px 8px", borderRadius: "100px",
+                                  }}>{role.emoji} {role.label}</span>
+                                )}
+                              </div>
+                              <p style={{
+                                fontFamily: "'Playfair Display', Georgia, serif", fontSize: "14px",
+                                fontStyle: "italic", color: "#1B3D2F", margin: 0, lineHeight: 1.55,
+                              }}>{wine.somm_note}</p>
+                              {wine.occasion && (
+                                <div style={{
+                                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+                                  color: "#1B3D2F", opacity: 0.5, marginTop: 6,
+                                }}>The occasion: {wine.occasion}</div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
                         <button onClick={() => { setRatingWine(wine.wine_name); setRatingCurrent(wine.rating); }} style={{

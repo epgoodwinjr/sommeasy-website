@@ -151,10 +151,11 @@ async function main() {
     { i: 2, role: "splurge", note: "Worth the stretch tonight." },
   ];
 
-  test("accepts a good response", () => {
+  test("accepts a good response with empty salvaged", () => {
     const r = validateSommResponse({ picks: goodPicks, sommSummary: "A strong list." }, ctx);
     assert(r.valid, r.reason);
     assert(r.picks.length === 3 && r.sommSummary === "A strong list.", JSON.stringify(r));
+    assert(Array.isArray(r.salvaged) && r.salvaged.length === 0, JSON.stringify(r.salvaged));
   });
 
   test("rejects too few picks", () => {
@@ -169,6 +170,7 @@ async function main() {
     );
     assert(r.valid, r.reason);
     assert(r.picks.length === 3 && r.picks.every((p) => p.i !== 1), JSON.stringify(r.picks.map((p) => p.i)));
+    assert(r.salvaged.includes("trimmed 1 extra pick"), JSON.stringify(r.salvaged));
   });
 
   test("rejects out-of-range index", () => {
@@ -189,6 +191,7 @@ async function main() {
     );
     assert(r.valid, r.reason);
     assert(r.picks[0].role === "splurge", JSON.stringify(r.picks.map((p) => p.role)));
+    assert(r.salvaged.includes("promoted splurge i=2"), JSON.stringify(r.salvaged));
   });
 
   test("rejects a second over-budget pick when the splurge slot is taken", () => {
@@ -221,6 +224,7 @@ async function main() {
     assert(r.valid, r.reason);
     assert(r.picks[0].note.length <= 500, `len ${r.picks[0].note.length}`);
     assert(/\.$/.test(r.picks[0].note), `should end on a sentence: "...${r.picks[0].note.slice(-20)}"`);
+    assert(r.salvaged.includes("clipped note i=0"), JSON.stringify(r.salvaged));
   });
 
   test("clips a degenerate no-space overlong note to the cap", () => {

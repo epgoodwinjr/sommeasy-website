@@ -101,6 +101,9 @@ export async function POST(request) {
           });
           if (result.valid) {
             if (attempt > 0) console.log("[somm-picks] retry recovered");
+            if (result.salvaged.length > 0) {
+              console.log(`[somm-picks] salvaged: ${result.salvaged.join(", ")}`);
+            }
             return NextResponse.json({ picks: result.picks, sommSummary: result.sommSummary });
           }
           reason = result.reason;

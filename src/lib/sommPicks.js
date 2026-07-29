@@ -150,7 +150,10 @@ function clipNote(note) {
 
 /**
  * Validate + normalize the LLM response against the request that produced it.
- * Returns { valid: true, picks, sommSummary } or { valid: false, reason }.
+ * Returns { valid: true, picks, sommSummary, salvaged } or
+ * { valid: false, reason }. `salvaged` lists each silent repair as a short
+ * description ("clipped note i=2") so the route can log what was fixed —
+ * salvage keeps the feature alive, but it shouldn't be invisible.
  *
  * Salvage before rejecting: the failure mode here is silent fallback, so
  * discarding six good notes over one fixable slip is the worst outcome.
@@ -167,8 +170,13 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
   if (parsed.picks.length < pickCount) {
     return { valid: false, reason: `pick count ${parsed.picks.length} < ${pickCount}` };
   }
+  const salvaged = [];
   // More picks than asked for: keep the first pickCount rather than rejecting
   const rawPicks = parsed.picks.slice(0, pickCount);
+  if (parsed.picks.length > pickCount) {
+    const extra = parsed.picks.length - pickCount;
+    salvaged.push(`trimmed ${extra} extra pick${extra === 1 ? "" : "s"}`);
+  }
 
   const seen = new Set();
   const coreUsed = new Set();
@@ -182,10 +190,12 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
     if (seen.has(i)) return { valid: false, reason: `duplicate index ${i}` };
     seen.add(i);
 
-    const note = typeof raw.note === "string" ? clipNote(raw.note.trim()) : "";
+    const rawNote = typeof raw.note === "string" ? raw.note.trim() : "";
+    const note = clipNote(rawNote);
     if (!note) {
       return { valid: false, reason: `note missing for index ${i}` };
     }
+    if (note !== rawNote) salvaged.push(`clipped note i=${i}`);
 
     // Role normalization (not a failure): unknown roles → wildcard;
     // top/value/adventure/splurge at most once each, extras → wildcard
@@ -205,6 +215,7 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
         if (price <= budget.max * 2 && !coreUsed.has("splurge")) {
           role = "splurge";
           coreUsed.add("splurge");
+          salvaged.push(`promoted splurge i=${i}`);
         } else {
           return { valid: false, reason: `non-splurge ${price} > budget max` };
         }
@@ -217,5 +228,5 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
   const sommSummary =
     typeof parsed.sommSummary === "string" ? parsed.sommSummary.trim().slice(0, NOTE_MAX_CHARS) : "";
 
-  return { valid: true, picks, sommSummary };
+  return { valid: true, picks, sommSummary, salvaged };
 }
