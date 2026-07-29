@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import wineUnified from "@/lib/wineUnified.json";
 import { generateDNAProfile } from "@/lib/profileEngine";
+import WineRecList from "@/components/WineRecList";
 
 const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DATA, varietals: VARIETALS_RAW } = wineUnified;
 
@@ -72,17 +73,6 @@ function Accordion({ items, renderContent, getLabel, getCount, defaultOpen }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function ProfileSection({ label, items }) {
-  return (
-    <div style={{ marginBottom: 12, background: "rgba(255,255,255,0.5)", borderRadius: "14px", padding: "14px 18px", border: "1px solid rgba(27,61,47,0.08)" }}>
-      <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.5, marginBottom: 8, fontWeight: 600 }}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-        {items.map((item, i) => <span key={i} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "rgba(27,61,47,0.06)", padding: "4px 12px", borderRadius: "100px" }}>{item}</span>)}
-      </div>
     </div>
   );
 }
@@ -459,126 +449,123 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
   );
 }
 
-// ─── DNA Profile Card ───
-function DNAProfileCard({ profile, onStartOver, onSave, saving, user }) {
-  const [tab, setTab] = useState("recs");
+// ─── The Reveal (The Reveal session) ───
+//
+// Quiz completion is a moment, not a page: the archetype lands, the palate is
+// already saved (auto-save — there is no unsaved state for a signed-in user),
+// and the room it opens onto is /palate. Identity detail lives ONLY in
+// PalateView — no Full Profile tab, no stat counts here.
+
+function RevealReading() {
+  return (
+    <div data-testid="reveal-reading" style={{ minHeight: "70vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "20px", textAlign: "center", padding: "0 24px" }}>
+      <style>{`@keyframes revealPulse { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.06); } }`}</style>
+      <img src="/protea-icon.png" alt="" style={{ height: 64, width: "auto", animation: "revealPulse 1.6s ease-in-out infinite" }} />
+      <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "19px", fontStyle: "italic", color: "#1B3D2F", opacity: 0.7, margin: 0, lineHeight: 1.5 }}>
+        The Somm is reading your palate…
+      </p>
+    </div>
+  );
+}
+
+function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Staged entrance: each block fades up in sequence so the archetype lands
+  // as a moment, not a form submit. Settled transform must be "none", not
+  // translateY(0) — a non-none transform makes the wrapper the containing
+  // block for position:fixed descendants (the rating modal, toasts)
+  const stage = (delay) => ({
+    opacity: mounted ? 1 : 0,
+    transform: mounted ? "none" : "translateY(14px)",
+    transition: `opacity 0.7s ease ${delay}ms, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
+  });
+
   return (
     <div>
-      {/* Hero */}
-      <div style={{ background: "linear-gradient(145deg, #1B3D2F 0%, #2A5540 50%, #1B3D2F 100%)", borderRadius: "24px", padding: "32px 24px 28px", color: "#F5F0E8", marginBottom: 20, boxShadow: "0 16px 48px rgba(27,61,47,0.4)", position: "relative", overflow: "hidden", textAlign: "center" }}>
+      {/* Hero — the payoff */}
+      <div style={{ background: "linear-gradient(145deg, #1B3D2F 0%, #2A5540 50%, #1B3D2F 100%)", borderRadius: "24px", padding: "36px 24px 32px", color: "#F5F0E8", marginBottom: 20, boxShadow: "0 16px 48px rgba(27,61,47,0.4)", position: "relative", overflow: "hidden", textAlign: "center" }}>
         <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(139,35,50,0.1)" }} />
         <div style={{ position: "absolute", bottom: -30, left: -30, width: 100, height: 100, borderRadius: "50%", background: "rgba(107,143,94,0.08)" }} />
         <div style={{ position: "relative" }}>
-          <div style={{ fontSize: "48px", marginBottom: 12 }}>{profile.archetypeEmoji}</div>
-          <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", opacity: 0.5, marginBottom: 8 }}>Your Wine DNA</div>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "32px", margin: "0 0 16px 0", fontWeight: 700, lineHeight: 1.1 }}>{profile.archetype}</h2>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", lineHeight: 1.65, opacity: 0.8, maxWidth: 360, margin: "0 auto" }}>{profile.narrative}</p>
-          <div style={{ display: "flex", justifyContent: "center", gap: "24px", marginTop: 24, paddingTop: 20, borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-            {[{ n: profile.countries.length, l: "Countries" }, { n: profile.regions.length, l: "Regions" }, { n: profile.varietals.length, l: "Grapes" }, { n: profile.estates.length + profile.specificWines.length, l: "Favorites" }].map((s, i) => (
-              <div key={i} style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "22px", fontWeight: 700 }}>{s.n}</div>
-                <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.5, marginTop: 2 }}>{s.l}</div>
-              </div>
-            ))}
-          </div>
+          <div style={{ ...stage(100), fontSize: "52px", marginBottom: 12, transform: mounted ? "scale(1)" : "scale(0.6)", transition: `opacity 0.7s ease 100ms, transform 0.8s cubic-bezier(0.34, 1.4, 0.64, 1) 100ms` }}>{profile.archetypeEmoji}</div>
+          <div style={{ ...stage(500), fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", opacity: mounted ? 0.5 : 0, marginBottom: 8 }}>Your Wine DNA</div>
+          <h2 data-testid="reveal-archetype" style={{ ...stage(700), fontFamily: "'Playfair Display', Georgia, serif", fontSize: "32px", margin: "0 0 16px 0", fontWeight: 700, lineHeight: 1.1 }}>{profile.archetype}</h2>
+          <p style={{ ...stage(1100), fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", lineHeight: 1.65, opacity: mounted ? 0.8 : 0, maxWidth: 360, margin: "0 auto" }}>{profile.narrative}</p>
         </div>
       </div>
 
-      {/* Save prompt */}
-      {!user && (
-        <div style={{ background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "20px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 16, textAlign: "center" }}>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#1B3D2F", marginBottom: 8, lineHeight: 1.3 }}>
-            {profile.archetypeEmoji} You&apos;re <em>{profile.archetype}</em>.
+      {saveFailed && user && (
+        <div style={{ ...stage(1300), background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "18px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 16, textAlign: "center" }}>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 14px", lineHeight: 1.55, opacity: 0.75 }}>
+            We couldn&apos;t save your palate just now — one more try should do it.
+          </p>
+          <button onClick={onRetry} style={{ padding: "12px 32px", borderRadius: "100px", border: "none", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!saveFailed && user && (
+        <div style={{ ...stage(1500), textAlign: "center", marginBottom: 28 }}>
+          <div data-testid="reveal-saved" style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#6B8F5E", fontWeight: 600, marginBottom: 14 }}>
+            ✓ Saved to your palate
           </div>
+          <a href="/palate" data-testid="reveal-palate-cta" style={{ display: "inline-block", padding: "15px 44px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none", boxShadow: "0 6px 24px rgba(139,35,50,0.3)" }}>
+            Meet your palate →
+          </a>
+        </div>
+      )}
+
+      {!user && (
+        <div style={{ ...stage(1500), background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "20px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 28, textAlign: "center" }}>
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 16px 0", lineHeight: 1.55, opacity: 0.7 }}>
             Save your profile free — then paste any restaurant wine list and get your picks matched to your taste in seconds.
           </p>
           <a href="/signup" style={{ display: "inline-block", padding: "12px 32px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, textDecoration: "none", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>Save My Profile →</a>
         </div>
       )}
-      {user && onSave && (
-        <button onClick={onSave} disabled={saving} style={{ width: "100%", padding: "14px", borderRadius: "14px", border: "none", background: saving ? "rgba(27,61,47,0.3)" : "#1B3D2F", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, cursor: saving ? "not-allowed" : "pointer", marginBottom: 16, transition: "all 0.2s ease" }}>
-          {saving ? "Saving..." : "💾 Save My Wine DNA"}
-        </button>
-      )}
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: "4px", marginBottom: 16, background: "rgba(27,61,47,0.06)", borderRadius: "12px", padding: "4px" }}>
-        {[{ id: "recs", label: `Wines to Try (${profile.recommendations.length})` }, { id: "profile", label: "Full Profile" }].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: "10px 12px", borderRadius: "10px", border: "none", background: tab === t.id ? "#fff" : "transparent", color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: tab === t.id ? 600 : 400, cursor: "pointer", transition: "all 0.2s ease", boxShadow: tab === t.id ? "0 2px 8px rgba(0,0,0,0.06)" : "none" }}>{t.label}</button>
-        ))}
-      </div>
-
-      {/* Recs */}
-      {tab === "recs" && (
-        <div>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.6, textAlign: "center", margin: "0 0 16px 0", lineHeight: 1.5 }}>Based on your DNA, here are wines we think you would love.</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {profile.recommendations.map((rec, i) => (
-              <div key={i} style={{ background: "rgba(255,255,255,0.6)", borderRadius: "16px", padding: "18px 20px", border: "1px solid rgba(27,61,47,0.08)" }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "14px" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #8B2332, #6B1D2A)", display: "flex", alignItems: "center", justifyContent: "center", color: "#F5F0E8", fontFamily: "'Playfair Display', serif", fontSize: "14px", fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{i + 1}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", color: "#1B3D2F", lineHeight: 1.3, marginBottom: 4 }}>{rec.wine}</div>
-                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.55, lineHeight: 1.4 }}>{rec.why}</div>
-                    <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", color: "#8B2332", opacity: 0.7, marginTop: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                      {rec.matchType === "region + grape" ? "📍 Region + grape match" : rec.matchType === "grape" ? "🍇 Grape match" : "🧭 Discovery pick"}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* Ratable recs — the highest-signal moment: recognition becomes rated
+          evidence, and "Building now" is alive from minute one */}
+      {profile.recommendations?.length > 0 && (
+        <div data-testid="reveal-recs" style={stage(1900)}>
+          <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", color: "#1B3D2F", fontWeight: 600, margin: "0 0 6px" }}>Start it off</h3>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.55, margin: "0 0 14px", lineHeight: 1.5 }}>
+            Rate the ones you know — every answer sharpens your palate.
+          </p>
+          <WineRecList recs={profile.recommendations} user={user} limit={5} />
         </div>
       )}
 
-      {/* Profile */}
-      {tab === "profile" && (
-        <div>
-          {(profile.redCount > 0 || profile.whiteCount > 0) && (
-            <div style={{ marginBottom: 12, background: "rgba(255,255,255,0.5)", borderRadius: "14px", padding: "16px 18px", border: "1px solid rgba(27,61,47,0.08)" }}>
-              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.5, marginBottom: 10, fontWeight: 600 }}>Red vs White</div>
-              <div style={{ display: "flex", height: 8, borderRadius: 4, overflow: "hidden", gap: 2 }}>
-                <div style={{ flex: profile.redCount || 0.01, background: "#8B2332", borderRadius: "4px 0 0 4px" }} />
-                <div style={{ flex: profile.whiteCount || 0.01, background: "#6B8F5E", borderRadius: "0 4px 4px 0" }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B2332", fontWeight: 600 }}>{profile.redCount} red</span>
-                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#6B8F5E", fontWeight: 600 }}>{profile.whiteCount} white</span>
-              </div>
-            </div>
-          )}
-          {profile.countries.length > 0 && <ProfileSection label="Countries" items={profile.countries} />}
-          {profile.regions.length > 0 && <ProfileSection label="Regions" items={profile.regions} />}
-          {profile.estates.length > 0 && <ProfileSection label="Estates" items={profile.estates} />}
-          {profile.varietals.length > 0 && <ProfileSection label="Varietals" items={profile.varietals} />}
-          {profile.specificWines.length > 0 && <ProfileSection label="Specific Wines" items={profile.specificWines} />}
-        </div>
-      )}
-
-      <div style={{ textAlign: "center", marginTop: 28, paddingBottom: 20 }}>
-        {user && (
-          <a href="/recommend" style={{
-            display: "inline-block", padding: "14px 32px", borderRadius: "100px",
-            background: "#1B3D2F", color: "#F5F0E8",
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600,
-            textDecoration: "none", boxShadow: "0 4px 16px rgba(27,61,47,0.25)",
-            marginBottom: 12,
-          }}>📋 I'm at a Restaurant</a>
+      <div style={{ textAlign: "center", marginTop: 28, paddingBottom: 40 }}>
+        {user && onGoHome && (
+          <button onClick={onGoHome} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.4, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: "12px 16px" }}>
+            I&apos;ll explore later — take me home
+          </button>
         )}
-        <br />
-        <button onClick={onStartOver} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#8B2332", background: "none", border: "1px solid rgba(139,35,50,0.3)", borderRadius: "100px", padding: "10px 28px", cursor: "pointer", marginTop: 8 }}>Retake Quiz</button>
       </div>
     </div>
   );
 }
 
 // ─── Main Quiz Component ───
-export default function Quiz({ user, onProfileGenerated, initialAnswers, onCancel }) {
+
+// The "reading" moment is anticipation, not fake loading — the save genuinely
+// runs behind it. This floor just keeps it from flashing when the save is fast.
+const MIN_READING_MS = 1400;
+
+export default function Quiz({ user, onProfileGenerated, initialAnswers, onCancel, onDone }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState(initialAnswers || { countries: [], regions: {}, estates: {}, varietals: [], specificWines: [] });
   const [profile, setProfile] = useState(null);
-  const [saving, setSaving] = useState(false);
+  // Reveal phase: "reading" (save in flight) | "revealed" | "error"
+  const [phase, setPhase] = useState(null);
+  const [savedRow, setSavedRow] = useState(null);
   const [anim, setAnim] = useState(false);
   const scrollRef = useRef(null);
   const totalSteps = 5;
@@ -587,26 +574,45 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
   const go = (n) => { setAnim(true); setTimeout(() => { setStep(n); setAnim(false); window.scrollTo({ top: 0, behavior: "smooth" }); }, 200); };
   const toggle = (arr, item) => arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
 
+  // Auto-save: completing the quiz IS saving it. A signed-in user never sees
+  // an unsaved profile — the reveal renders what the save returned (the
+  // merged palate), so what they meet is exactly what persisted.
+  const runSave = async (dna) => {
+    setPhase("reading");
+    const started = Date.now();
+    const row = await onProfileGenerated(dna);
+    const remaining = MIN_READING_MS - (Date.now() - started);
+    if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+    if (row) {
+      setSavedRow(row);
+      setPhase("revealed");
+    } else {
+      setPhase("error");
+    }
+  };
+
   const finish = () => {
     const dna = generateDNAProfile(answers);
     setProfile(dna);
     go(99);
-  };
-
-  const restart = () => {
-    setAnswers({ countries: [], regions: {}, estates: {}, varietals: [], specificWines: [] });
-    setProfile(null);
-    setStep(0);
-  };
-
-  const handleSave = async () => {
-    if (!user || !profile || !onProfileGenerated) return;
-    setSaving(true);
-    await onProfileGenerated(profile);
-    setSaving(false);
+    if (user && onProfileGenerated) {
+      runSave(dna);
+    } else {
+      setPhase("revealed");
+    }
   };
 
   const canProceed = step === 0 ? answers.countries.length > 0 : true;
+
+  // The reveal shows the saved truth when there is one (merge can add earned
+  // DNA the local computation doesn't know about), the local computation
+  // otherwise (anonymous users, or a failed save awaiting retry)
+  const revealProfile = savedRow ? {
+    archetype: savedRow.archetype,
+    archetypeEmoji: savedRow.archetype_emoji,
+    narrative: savedRow.narrative,
+    recommendations: savedRow.recommendations || [],
+  } : profile;
 
   return (
     <div ref={scrollRef} style={{ maxWidth: 520, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
@@ -630,13 +636,24 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, padding: "20px 20px 120px", opacity: anim ? 0 : 1, transform: anim ? "translateX(20px)" : "translateX(0)", transition: "all 0.2s ease" }}>
+      {/* Settled transform is "none" so fixed-position children (rating modal,
+          toasts) anchor to the viewport, not this wrapper */}
+      <div style={{ flex: 1, padding: "20px 20px 120px", opacity: anim ? 0 : 1, transform: anim ? "translateX(20px)" : "none", transition: "all 0.2s ease" }}>
         {step === 0 && <CountryStep selected={answers.countries} onToggle={id => setAnswers(p => ({ ...p, countries: toggle(p.countries, id) }))} />}
         {step === 1 && <RegionStep selectedCountries={answers.countries} regions={answers.regions} onToggle={(cId, rId) => setAnswers(p => ({ ...p, regions: { ...p.regions, [cId]: toggle(p.regions[cId] || [], rId) } }))} />}
         {step === 2 && <ProducerStep selectedRegions={answers.regions} estates={answers.estates} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
         {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} selectedRegions={answers.regions} selectedEstates={answers.estates} />}
         {step === 4 && <SpecificWineStep wines={answers.specificWines} onAdd={w => setAnswers(p => ({ ...p, specificWines: [...p.specificWines, w] }))} onRemove={i => setAnswers(p => ({ ...p, specificWines: p.specificWines.filter((_, j) => j !== i) }))} selectedEstates={answers.estates} />}
-        {step === 99 && profile && <DNAProfileCard profile={profile} onStartOver={restart} onSave={handleSave} saving={saving} user={user} />}
+        {step === 99 && phase === "reading" && <RevealReading />}
+        {step === 99 && (phase === "revealed" || phase === "error") && revealProfile && (
+          <Reveal
+            profile={revealProfile}
+            user={user}
+            saveFailed={phase === "error"}
+            onRetry={() => runSave(profile)}
+            onGoHome={onDone}
+          />
+        )}
       </div>
 
       {/* Navigation */}

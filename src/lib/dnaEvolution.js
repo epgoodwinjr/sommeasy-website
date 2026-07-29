@@ -686,13 +686,16 @@ export async function syncQuizSelections(supabase, userId, quizAnswers) {
   for (const item of items) {
     const { data: existing } = await supabase
       .from("dna_accumulation")
-      .select("id, source")
+      .select("id, source, promoted")
       .eq("user_id", userId)
       .eq("dimension", item.dimension)
       .eq("dimension_value", item.dimensionValue)
       .single();
 
     if (existing) {
+      // A row already earned by ratings keeps its provenance — the quiz
+      // agreeing with the palate doesn't turn earned DNA into founding DNA
+      if (existing.promoted && existing.source === "auto") continue;
       // Only update source to quiz — don't reset points
       await supabase.from("dna_accumulation").update({
         source: "quiz",
@@ -714,6 +717,113 @@ export async function syncQuizSelections(supabase, userId, quizAnswers) {
         source: "quiz",
         mappable: true,
       });
+    }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+// QUIZ MERGE — quiz selections ∪ earned DNA
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Merge quiz answers with DNA earned from rated bottles.
+ *
+ * The quiz manages founding DNA; ratings manage earned DNA. Saving a refined
+ * quiz must never erase what real bottles proved (the session invariant), so
+ * every promoted source='auto' accumulation row is unioned back into the
+ * arrays the profile save will write. Unchecking an earned item in the quiz
+ * therefore does NOT remove it — earned DNA leaves only through negative
+ * rating evidence (demotion) or a deliberate "Start fresh" wipe.
+ *
+ * @param {object} supabase - Supabase client
+ * @param {string} userId - Current user ID
+ * @param {object} quizRaw - { countries, regions, estates, varietals, specificWines }
+ * @returns {object} merged raw arrays, same shape as quizRaw
+ */
+export async function mergeQuizWithEarnedDna(supabase, userId, quizRaw) {
+  const merged = {
+    countries: [...(quizRaw.countries || [])],
+    regions: {},
+    estates: {},
+    varietals: [...(quizRaw.varietals || [])],
+    specificWines: [...(quizRaw.specificWines || [])],
+  };
+  for (const [k, v] of Object.entries(quizRaw.regions || {})) merged.regions[k] = [...v];
+  for (const [k, v] of Object.entries(quizRaw.estates || {})) merged.estates[k] = [...v];
+
+  const { data: earnedRows } = await supabase
+    .from("dna_accumulation")
+    .select("dimension, dimension_value")
+    .eq("user_id", userId)
+    .eq("promoted", true)
+    .eq("source", "auto")
+    .eq("mappable", true);
+
+  for (const row of earnedRows || []) {
+    const value = row.dimension_value;
+    if (row.dimension === "country") {
+      if (isValidDnaCountry(value) && !merged.countries.includes(value)) {
+        merged.countries.push(value);
+      }
+    } else if (row.dimension === "varietal") {
+      if (isValidDnaVarietal(value) && !merged.varietals.includes(value)) {
+        merged.varietals.push(value);
+      }
+    } else if (row.dimension === "region") {
+      const countryId = findCountryForRegion(value);
+      if (countryId) {
+        const list = merged.regions[countryId] || (merged.regions[countryId] = []);
+        if (!list.includes(value)) list.push(value);
+      }
+    } else if (row.dimension === "estate") {
+      let estateRegion = null;
+      for (const [regionId, estateList] of Object.entries(PRODUCERS)) {
+        if (estateList.some((e) => e.id === value)) { estateRegion = regionId; break; }
+      }
+      if (estateRegion) {
+        const list = merged.estates[estateRegion] || (merged.estates[estateRegion] = []);
+        if (!list.includes(value)) list.push(value);
+      }
+    }
+  }
+
+  return merged;
+}
+
+/**
+ * After a quiz save, un-flag promoted accumulation rows that are no longer in
+ * the saved DNA. Without this, a removed item stays promoted=true forever and
+ * checkPromotions can never promote it again, even with fresh rating evidence.
+ *
+ * On a refine save the merged arrays contain every earned row by construction,
+ * so only deliberately removed founding items are touched. On a "Start fresh"
+ * save the quiz answers ARE the arrays, so stale earned rows get un-flagged
+ * too — points survive (the bottles were real), so continued love re-promotes.
+ *
+ * Deliberate user edits, not rating evidence — so no dna_timeline events.
+ */
+export async function reconcileQuizPromotions(supabase, userId, savedRaw) {
+  const inDna = {
+    country: new Set(savedRaw.countries || []),
+    region: new Set(Object.values(savedRaw.regions || {}).flat()),
+    estate: new Set(Object.values(savedRaw.estates || {}).flat()),
+    varietal: new Set(savedRaw.varietals || []),
+  };
+
+  const { data: promoted } = await supabase
+    .from("dna_accumulation")
+    .select("id, dimension, dimension_value")
+    .eq("user_id", userId)
+    .eq("promoted", true);
+
+  for (const row of promoted || []) {
+    const set = inDna[row.dimension];
+    if (set && !set.has(row.dimension_value)) {
+      await supabase.from("dna_accumulation").update({
+        promoted: false,
+        demoted_at: new Date().toISOString(),
+      }).eq("id", row.id);
     }
   }
 }

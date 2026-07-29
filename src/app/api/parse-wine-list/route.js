@@ -5,6 +5,28 @@ import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
 
 export const maxDuration = 300;
 
+// Pull the first balanced JSON object out of model output that may carry
+// prose before/after it. String-aware so braces inside wine names can't
+// derail the depth count.
+function extractFirstJsonObject(text) {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0, inString = false, escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) { escaped = false; continue; }
+    if (ch === "\\") { if (inString) escaped = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 const EXTRACTION_PROMPT = `You are analyzing a restaurant wine list. Extract every wine entry into a structured format.
 
 For each wine, extract:
@@ -146,9 +168,25 @@ export async function POST(request) {
 
     // Try to parse structured JSON (Path A)
     const cleanJson = rawText.replace(/```json\n?|```\n?/g, "").trim();
+    let parsed = null;
     try {
-      const parsed = JSON.parse(cleanJson);
+      parsed = JSON.parse(cleanJson);
+    } catch {
+      // The model occasionally appends a prose note after the closing fence
+      // ("> Note: the image appears to be…"), which breaks a whole-string
+      // parse. Rescue the first balanced JSON object — but only trust it
+      // when it carries our schema (a wines array), so genuine raw-text
+      // responses still take Path B untouched.
+      const candidate = extractFirstJsonObject(cleanJson);
+      if (candidate) {
+        try {
+          const p = JSON.parse(candidate);
+          if (p && Array.isArray(p.wines)) parsed = p;
+        } catch {}
+      }
+    }
 
+    if (parsed) {
       if (!parsed.wines || !Array.isArray(parsed.wines) || parsed.wines.length === 0) {
         return NextResponse.json({
           error: "Couldn't find any wines in this image. Make sure you're photographing the wine list — not the food menu or the cover.",
@@ -174,20 +212,20 @@ export async function POST(request) {
         rawText,
         source: "vision",
       });
-    } catch {
-      // Path B fallback: JSON parsing failed, return raw text for parseWineList
-      if (rawText.length < 20) {
-        return NextResponse.json({
-          error: "Couldn't read any wines from this image. Try a clearer, well-lit photo.",
-          errorType: "no_wines",
-        });
-      }
+    }
 
+    // Path B fallback: JSON parsing failed, return raw text for parseWineList
+    if (rawText.length < 20) {
       return NextResponse.json({
-        rawText,
-        source: "vision_text",
+        error: "Couldn't read any wines from this image. Try a clearer, well-lit photo.",
+        errorType: "no_wines",
       });
     }
+
+    return NextResponse.json({
+      rawText,
+      source: "vision_text",
+    });
   } catch (err) {
     console.error("parse-wine-list route error:", err);
 

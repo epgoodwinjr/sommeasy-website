@@ -24,6 +24,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 ## Current State (July 2026)
 
 - Quiz (5 steps), DNA profile with 15 archetypes across 6 scoring dimensions
+- **The Reveal is live (July 29):** quiz completion AUTO-SAVES (no Save button — a signed-in user never has an unsaved completed quiz), then stages the archetype reveal and hands off to /palate ("Meet your palate →"). Post-quiz recs are ratable via the shared `WineRecList` component — the ONE implementation of Had it / Want to try / Not for me, used by both the reveal and home's Wines to Try, wired to the full rating → dnaEvolution path. **Merge semantics:** a refine save writes quiz selections ∪ earned-promoted DNA (`mergeQuizWithEarnedDna`) — retaking the quiz never erases what rated bottles proved; unchecking an earned item does NOT remove it (earned DNA leaves only via demotion or "Start fresh", the one deliberate wipe). `reconcileQuizPromotions` un-flags promoted accumulation rows removed from the DNA (no timeline events — user edits aren't rating evidence), and `syncQuizSelections` preserves `source='auto'` on earned rows so the ✦ mark survives a refine. Specific-wine names are normalized with `formatWineName` at save. The narrative regenerates from the merged palate on every quiz save; `narrative_updated_at` is left untouched so `/api/palate-narrative` re-evolves it under its usual staleness gate
 - Restaurant recommendation engine: scan (Claude Vision), URL fetch, PDF extraction, paste — two-card input UX with optional occasion field (also editable in results)
 - **The Somm is live:** LLM curation + 2–3 sentence pairing-first notes per pick + a list-level summary, in brand voice. Strict server-side validation; ANY failure returns `{fallback:true}` and the UI silently keeps algorithmic picks — The Somm is progressive enhancement, never load-bearing
 - **DNA feedback loop is wired:** rated journal entries (loved/not_for_me) boost and suppress scores in `matchWinesAgainstDNA` and feed the somm payload
@@ -35,10 +36,10 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 
 ### Tests (run all before shipping)
 
-- `node src/lib/__tests__/dnaEvolution.test.js` — 42 tests, DNA evolution pipeline (inlined mirror of resolver + engine)
+- `node src/lib/__tests__/dnaEvolution.test.js` — 49 tests, DNA evolution pipeline (inlined mirror of resolver + engine, incl. Suite 9 quiz-merge invariants)
 - `node src/lib/__tests__/countryAttribution.test.js` — 14 tests, country-misattribution regression suite (the Cassis→US / Gimonnet→Italy / Crozes→Portugal class)
 - `node src/lib/__tests__/sommPicks.test.js` — 24 tests, somm payload builder + response validator (tests the real module via dynamic import)
-- `npm run test:e2e` — 30 Playwright specs. Fixture images are gitignored; regenerate with `python3 e2e/fixtures/generate-fixtures.py` or the suite silently collects 0 tests. Includes three permanent hard-fail guards — fail-if-no-picks, no-raw-internal-IDs (raw-ids.spec.ts, covers home/palate/journal), and the Palate-view render guard (palate.spec.ts) — keep all; outcome-tolerant specs masked a dead integration for weeks once
+- `npm run test:e2e` — 31 Playwright specs. Fixture images are gitignored; regenerate with `python3 e2e/fixtures/generate-fixtures.py` or the suite silently collects 0 tests. Includes four permanent hard-fail guards — fail-if-no-picks, no-raw-internal-IDs (raw-ids.spec.ts, covers home/palate/journal), the Palate-view render guard (palate.spec.ts), and the quiz-completion Reveal guard (quiz-completion.spec.ts: auto-save with NO save button, ratable recs, rating succeeds; it rates "It was fine" = 0 points and deletes the row via the journal UI so the seeded account never drifts) — keep all; outcome-tolerant specs masked a dead integration for weeks once
 
 ## Brand & Design
 
@@ -89,6 +90,7 @@ You don't need to ask permission for individual code changes. Make the call, shi
 - Code should be clean and readable, but don't over-engineer for hypothetical future needs
 - Every change should have a clear reason — no changes for the sake of changes
 - Test your work. If something could break, verify it doesn't
+- **Production verification must never leave derived state behind.** Anything seeded into real user data during verification must be fully reverted INCLUDING downstream artifacts — regenerated narratives, dna_accumulation points/flags, dna_timeline rows — not just the seeded rows themselves. If a full revert isn't practical, verify with the TEST_USER account instead of real data
 - Commit messages should be descriptive: what changed and why, not just "update files"
 
 ### Session Workflow

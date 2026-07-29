@@ -617,13 +617,77 @@ async function syncQuizSelections(supabase, userId, quizAnswers) {
   for (const [rId, eIds] of Object.entries(estates || {})) { for (const eId of eIds) { const el = ESTATES[rId] || []; const e = el.find(x => x.id === eId); if (e) items.push({ dimension: "estate", dimensionValue: eId, displayName: e.name }); } }
   for (const vId of (varietals || [])) { if (isValidDnaVarietal(vId)) items.push({ dimension: "varietal", dimensionValue: vId, displayName: DNA_TO_VARIETY_NAME[vId] || vId }); }
   for (const item of items) {
-    const { data: existing } = await supabase.from("dna_accumulation").select("id, source")
+    const { data: existing } = await supabase.from("dna_accumulation").select("id, source, promoted")
       .eq("user_id", userId).eq("dimension", item.dimension).eq("dimension_value", item.dimensionValue).single();
     if (existing) {
+      // Earned rows keep their provenance — quiz agreement isn't founding
+      if (existing.promoted && existing.source === "auto") continue;
       await supabase.from("dna_accumulation").update({ source: "quiz", promoted: true, promoted_at: new Date().toISOString(), display_name: item.displayName, mappable: true }).eq("id", existing.id);
     } else {
       await supabase.from("dna_accumulation").insert({ user_id: userId, dimension: item.dimension, dimension_value: item.dimensionValue,
         display_name: item.displayName, points: 0, interaction_count: 0, promoted: true, promoted_at: new Date().toISOString(), source: "quiz", mappable: true });
+    }
+  }
+}
+
+// Mirror of mergeQuizWithEarnedDna (dnaEvolution.js) — quiz ∪ earned DNA
+async function mergeQuizWithEarnedDna(supabase, userId, quizRaw) {
+  const merged = {
+    countries: [...(quizRaw.countries || [])],
+    regions: {},
+    estates: {},
+    varietals: [...(quizRaw.varietals || [])],
+    specificWines: [...(quizRaw.specificWines || [])],
+  };
+  for (const [k, v] of Object.entries(quizRaw.regions || {})) merged.regions[k] = [...v];
+  for (const [k, v] of Object.entries(quizRaw.estates || {})) merged.estates[k] = [...v];
+
+  const { data: earnedRows } = await supabase.from("dna_accumulation")
+    .select("dimension, dimension_value")
+    .eq("user_id", userId).eq("promoted", true).eq("source", "auto").eq("mappable", true);
+
+  for (const row of earnedRows || []) {
+    const value = row.dimension_value;
+    if (row.dimension === "country") {
+      if (isValidDnaCountry(value) && !merged.countries.includes(value)) merged.countries.push(value);
+    } else if (row.dimension === "varietal") {
+      if (isValidDnaVarietal(value) && !merged.varietals.includes(value)) merged.varietals.push(value);
+    } else if (row.dimension === "region") {
+      const countryId = findCountryForRegion(value);
+      if (countryId) {
+        const list = merged.regions[countryId] || (merged.regions[countryId] = []);
+        if (!list.includes(value)) list.push(value);
+      }
+    } else if (row.dimension === "estate") {
+      let estateRegion = null;
+      for (const [regionId, estateList] of Object.entries(ESTATES)) {
+        if (estateList.some(e => e.id === value)) { estateRegion = regionId; break; }
+      }
+      if (estateRegion) {
+        const list = merged.estates[estateRegion] || (merged.estates[estateRegion] = []);
+        if (!list.includes(value)) list.push(value);
+      }
+    }
+  }
+  return merged;
+}
+
+// Mirror of reconcileQuizPromotions (dnaEvolution.js)
+async function reconcileQuizPromotions(supabase, userId, savedRaw) {
+  const inDna = {
+    country: new Set(savedRaw.countries || []),
+    region: new Set(Object.values(savedRaw.regions || {}).flat()),
+    estate: new Set(Object.values(savedRaw.estates || {}).flat()),
+    varietal: new Set(savedRaw.varietals || []),
+  };
+  const { data: promoted } = await supabase.from("dna_accumulation")
+    .select("id, dimension, dimension_value").eq("user_id", userId).eq("promoted", true);
+  for (const row of promoted || []) {
+    const set = inDna[row.dimension];
+    if (set && !set.has(row.dimension_value)) {
+      await supabase.from("dna_accumulation").update({
+        promoted: false, demoted_at: new Date().toISOString(),
+      }).eq("id", row.id);
     }
   }
 }
@@ -1197,8 +1261,8 @@ async function suite6() {
     assert(faiveley && faiveley.source === "quiz", "Faiveley should be source=quiz");
   });
 
-  // 6B: Quiz removal (note: syncQuizSelections doesn't handle removal currently)
-  console.log("  - 6B: Quiz removal overrides (gap noted — syncQuizSelections does not handle item removal)");
+  // 6B: Quiz removal — handled by reconcileQuizPromotions since The Reveal
+  // session (see Suite 9D/9E); syncQuizSelections itself still only adds.
 
   // 6C: Quiz addition preserves accumulated points
   await runTest("Suite 6", "6C: Quiz addition preserves existing auto-accumulated points", async () => {
@@ -1295,6 +1359,129 @@ async function suite7() {
 }
 
 // ═══════════════════════════════════════════════════════
+// SUITE 9: Quiz Merge — refine never clobbers earned DNA
+// (The Reveal session invariant)
+// ═══════════════════════════════════════════════════════
+
+function seedEarnedRow(tables, dimension, dimensionValue, displayName, extra = {}) {
+  tables.dna_accumulation.push({
+    id: genId(), user_id: TEST_USER, dimension, dimension_value: dimensionValue,
+    display_name: displayName, points: 12, interaction_count: 6,
+    promoted: true, promoted_at: new Date().toISOString(),
+    source: "auto", mappable: true, ...extra,
+  });
+}
+
+async function suite9() {
+  console.log("\n═══ Suite 9: Quiz Merge (Reveal invariant) ═══");
+
+  // 9A: Earned varietal survives a refine that doesn't select it
+  await runTest("Suite 9", "9A: Earned varietal unions into refined quiz answers", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    seedEarnedRow(tables, "varietal", "chenin_blanc", "Chenin Blanc");
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, {
+      countries: ["france"], regions: { france: ["burgundy"] }, estates: {}, varietals: ["pinot_noir"], specificWines: [],
+    });
+    assert(merged.varietals.includes("chenin_blanc"), "earned chenin_blanc must survive the refine");
+    assert(merged.varietals.includes("pinot_noir"), "quiz selection must be kept");
+    assert(merged.countries.includes("france"), "quiz country must be kept");
+  });
+
+  // 9B: Earned region merges under its country
+  await runTest("Suite 9", "9B: Earned region lands grouped under its country", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    seedEarnedRow(tables, "region", "burgundy", "Burgundy");
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, {
+      countries: ["south_africa"], regions: { south_africa: ["stellenbosch"] }, estates: {}, varietals: [], specificWines: [],
+    });
+    assert((merged.regions.france || []).includes("burgundy"), "burgundy must be under france");
+    assert((merged.regions.south_africa || []).includes("stellenbosch"), "quiz region must be kept");
+  });
+
+  // 9C: Earned estate merges under its region
+  await runTest("Suite 9", "9C: Earned estate lands under its region", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    const estateList = ESTATES["burgundy"] || [];
+    assert(estateList.length > 0, "test data: burgundy needs producers");
+    const estate = estateList[0];
+    seedEarnedRow(tables, "estate", estate.id, estate.name);
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, {
+      countries: ["france"], regions: {}, estates: {}, varietals: [], specificWines: [],
+    });
+    assert((merged.estates.burgundy || []).includes(estate.id), `earned estate ${estate.id} must be under burgundy`);
+  });
+
+  // 9D: Start fresh un-flags earned rows so they can re-promote later
+  await runTest("Suite 9", "9D: Fresh wipe resets stale promoted flags, keeps points, no timeline spam", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    seedEarnedRow(tables, "varietal", "malbec", "Malbec");
+    // Fresh save: quiz answers only, no merge
+    const freshRaw = { countries: ["france"], regions: {}, estates: {}, varietals: ["pinot_noir"], specificWines: [] };
+    await reconcileQuizPromotions(sb, TEST_USER, freshRaw);
+    const malbec = getAcc(tables, "varietal", "malbec");
+    assert(malbec.promoted === false, "stale earned row must be un-flagged");
+    assert(malbec.demoted_at, "demoted_at should be set");
+    assert(malbec.points === 12, "points must survive — the bottles were real");
+    assert(tables.dna_timeline.length === 0, "a deliberate wipe writes no timeline events");
+  });
+
+  // 9E: Refine removal of a FOUNDING item un-flags its quiz-source row
+  await runTest("Suite 9", "9E: Removing a founding item in refine un-flags its row", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    await syncQuizSelections(sb, TEST_USER, { countries: ["france", "italy"], regions: {}, estates: {}, varietals: [] });
+    // User refines and drops italy; merge has nothing earned to add back
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, {
+      countries: ["france"], regions: {}, estates: {}, varietals: [], specificWines: [],
+    });
+    assert(!merged.countries.includes("italy"), "dropped founding item must not come back via merge");
+    await reconcileQuizPromotions(sb, TEST_USER, merged);
+    const italy = getAcc(tables, "country", "italy");
+    assert(italy.promoted === false, "dropped founding row must be un-flagged");
+    const france = getAcc(tables, "country", "france");
+    assert(france.promoted === true, "kept founding row stays promoted");
+  });
+
+  // 9F: syncQuizSelections preserves earned provenance (the ✦ survives refine)
+  await runTest("Suite 9", "9F: Quiz-selecting an earned item keeps source='auto'", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    seedEarnedRow(tables, "varietal", "malbec", "Malbec");
+    await syncQuizSelections(sb, TEST_USER, { countries: [], regions: {}, estates: {}, varietals: ["malbec"] });
+    const malbec = getAcc(tables, "varietal", "malbec");
+    assert(malbec.source === "auto", "earned provenance must survive quiz agreement");
+    assert(malbec.promoted === true, "still promoted");
+    assert(malbec.points === 12, "points untouched");
+  });
+
+  // 9G: End-to-end — a real promotion, then a refine that ignores it
+  await runTest("Suite 9", "9G: Promoted-by-bottles varietal survives full refine save flow", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    // 5 loved Malbecs → 10 pts → varietal promotion fires
+    for (let i = 0; i < 5; i++) await simulateBottleSave(sb, `Catena Zapata Malbec ${2016 + i}`, "loved");
+    const malbecBefore = getAcc(tables, "varietal", "malbec");
+    assert(malbecBefore.promoted === true, `malbec should be promoted (points: ${malbecBefore.points})`);
+    assert(malbecBefore.source === "auto", "promotion source is auto");
+
+    // Refine save that never mentions malbec — the old code path would
+    // have overwritten varietals wholesale and killed it
+    const quizRaw = { countries: ["france"], regions: { france: ["burgundy"] }, estates: {}, varietals: ["pinot_noir"], specificWines: [] };
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, quizRaw);
+    assert(merged.varietals.includes("malbec"), "earned malbec must be in the merged arrays");
+    await reconcileQuizPromotions(sb, TEST_USER, merged);
+    await syncQuizSelections(sb, TEST_USER, quizRaw);
+    const malbecAfter = getAcc(tables, "varietal", "malbec");
+    assert(malbecAfter.promoted === true, "malbec stays promoted after refine");
+    assert(malbecAfter.source === "auto", "malbec stays earned after refine");
+  });
+}
+
+// ═══════════════════════════════════════════════════════
 // SUITE 8: UI Verification (Manual)
 // ═══════════════════════════════════════════════════════
 
@@ -1328,6 +1515,7 @@ async function main() {
   await suite5();
   await suite6();
   await suite7();
+  await suite9();
   suite8();
 
   // ── Report ──
@@ -1338,7 +1526,7 @@ async function main() {
   const suiteNames = {
     "Suite 1": "Resolver", "Suite 2": "Accumulation", "Suite 3": "Promotion",
     "Suite 4": "Demotion", "Suite 5": "Rating Changes", "Suite 6": "Quiz Sync",
-    "Suite 7": "Edge Cases",
+    "Suite 7": "Edge Cases", "Suite 9": "Quiz Merge",
   };
   for (const [key, label] of Object.entries(suiteNames)) {
     const s = suiteResults[key] || { passed: 0, failed: 0 };

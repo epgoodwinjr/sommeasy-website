@@ -3,149 +3,20 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-utils";
-import { resolveAndAccumulate, syncQuizSelections } from "@/lib/dnaEvolution";
+import { resolveAndAccumulate, syncQuizSelections, mergeQuizWithEarnedDna, reconcileQuizPromotions } from "@/lib/dnaEvolution";
+import { generateDNAProfile } from "@/lib/profileEngine";
+import { formatWineName } from "@/lib/matchEngine";
 import { signatureLine } from "@/lib/palateSignature";
 import Quiz from "@/components/Quiz";
-
-// ─── Rating Modal ───
-function RatingModal({ wine, onRate, onClose }) {
-  const ratings = [
-    { id: "loved", emoji: "❤️", label: "Loved it" },
-    { id: "liked", emoji: "👍", label: "Liked it" },
-    { id: "fine", emoji: "😐", label: "It was fine" },
-    { id: "not_for_me", emoji: "👎", label: "Not for me" },
-  ];
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 100,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: "rgba(27,61,47,0.4)", backdropFilter: "blur(8px)",
-      padding: 24,
-    }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: "#F5F0E8", borderRadius: "24px", padding: "28px 24px",
-        maxWidth: 360, width: "100%",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
-      }}>
-        <div style={{
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-          textTransform: "uppercase", letterSpacing: "0.15em",
-          color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600,
-        }}>You&apos;ve had this wine</div>
-        <div style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px",
-          color: "#1B3D2F", lineHeight: 1.3, marginBottom: 24,
-        }}>{wine}</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {ratings.map((r) => (
-            <button key={r.id} onClick={() => onRate(r.id)} style={{
-              display: "flex", alignItems: "center", gap: "12px",
-              padding: "14px 18px", borderRadius: "14px",
-              border: "1px solid rgba(27,61,47,0.08)",
-              background: "rgba(255,255,255,0.5)",
-              cursor: "pointer", transition: "all 0.15s ease",
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
-              color: "#1B3D2F", fontWeight: 500, width: "100%", textAlign: "left",
-            }}>
-              <span style={{ fontSize: "20px" }}>{r.emoji}</span>
-              {r.label}
-            </button>
-          ))}
-        </div>
-        <button onClick={onClose} style={{
-          marginTop: 16, width: "100%", padding: "10px",
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-          color: "#1B3D2F", opacity: 0.4, background: "none",
-          border: "none", cursor: "pointer",
-        }}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Wine Rec Card with Actions ───
-function WineRecCard({ rec, index, onAction, isActioned }) {
-  const matchLabel = rec.matchType === "region + grape" ? "📍 Region + grape match"
-    : rec.matchType === "grape" ? "🍇 Grape match"
-    : rec.matchType === "region" ? "📍 Region match"
-    : "🧭 Discovery pick";
-
-  if (isActioned) return null;
-
-  return (
-    <div style={{
-      background: "rgba(255,255,255,0.55)", borderRadius: "16px",
-      padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)",
-    }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: "50%",
-          background: index === 0
-            ? "linear-gradient(135deg, #8B2332, #6B1D2A)"
-            : "rgba(27,61,47,0.07)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: index === 0 ? "#F5F0E8" : "#1B3D2F",
-          fontFamily: "'Playfair Display', serif", fontSize: "13px",
-          fontWeight: 700, flexShrink: 0, marginTop: 1,
-          boxShadow: index === 0 ? "0 2px 8px rgba(139,35,50,0.25)" : "none",
-        }}>{index + 1}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
-            color: "#1B3D2F", lineHeight: 1.35, marginBottom: 5,
-          }}>{rec.wine}</div>
-          <div style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            color: "#1B3D2F", opacity: 0.5, lineHeight: 1.5,
-          }}>{rec.why}</div>
-          <div style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "10px",
-            color: "#8B2332", opacity: 0.55, marginTop: 8,
-            textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600,
-          }}>{matchLabel}</div>
-        </div>
-      </div>
-
-      {/* Action buttons */}
-      <div style={{
-        display: "flex", gap: "8px", marginTop: 14, paddingTop: 14,
-        borderTop: "1px solid rgba(27,61,47,0.06)",
-      }}>
-        <button onClick={() => onAction(rec.wine, "had")} style={{
-          flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-          padding: "9px 8px", borderRadius: "10px",
-          border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.04)",
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-          color: "#8B2332", fontWeight: 600, cursor: "pointer",
-          transition: "all 0.15s ease",
-        }}>🍷 Had it</button>
-        <button onClick={() => onAction(rec.wine, "want")} style={{
-          flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-          padding: "9px 8px", borderRadius: "10px",
-          border: "1px solid rgba(27,61,47,0.1)", background: "rgba(27,61,47,0.03)",
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-          color: "#1B3D2F", fontWeight: 500, cursor: "pointer",
-          transition: "all 0.15s ease",
-        }}>📌 Want to try</button>
-        <button onClick={() => onAction(rec.wine, "skip")} style={{
-          flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-          padding: "9px 8px", borderRadius: "10px",
-          border: "1px solid rgba(27,61,47,0.06)", background: "transparent",
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-          color: "#1B3D2F", opacity: 0.4, fontWeight: 500, cursor: "pointer",
-          transition: "all 0.15s ease",
-        }}>👋 Not for me</button>
-      </div>
-    </div>
-  );
-}
+import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
 
 // ─── Saved Profile View ───
 function SavedProfileView({ profile, onRefine, onSignOut, user }) {
   const [showWines, setShowWines] = useState(true);
-  const [interactions, setInteractions] = useState({});
-  const [ratingWine, setRatingWine] = useState(null);
+  // Rec interactions live inside WineRecList (the shared ratable surface);
+  // this view only needs the counts it reports back
+  const [recCounts, setRecCounts] = useState(null);
+  const [hasJournal, setHasJournal] = useState(false);
   const [toast, setToast] = useState(null);
   const [evolutionToasts, setEvolutionToasts] = useState([]);
   // Bottle logging
@@ -167,19 +38,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
     setIsMobile(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
   }, []);
 
-  // Load interactions on mount
   useEffect(() => {
-    async function loadInteractions() {
-      const { data } = await supabase
-        .from("wine_interactions")
-        .select("wine_name, interaction_type, rating")
-        .eq("user_id", user.id);
-      if (data) {
-        const map = {};
-        data.forEach((d) => { map[d.wine_name] = { type: d.interaction_type, rating: d.rating }; });
-        setInteractions(map);
-      }
-    }
     // A whisper of recent evolution on the strip ("Chenin Blanc just joined
     // your DNA") — only when something actually promoted in the last 30 days
     async function loadWhisper() {
@@ -195,7 +54,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
         setWhisper(`${latest.display_name} just joined your DNA`);
       }
     }
-    if (user?.id) { loadInteractions(); loadWhisper(); }
+    if (user?.id) { loadWhisper(); }
   }, [user?.id]);
 
   const showToast = useCallback((msg) => {
@@ -203,38 +62,10 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
     setTimeout(() => setToast(null), 2500);
   }, []);
 
-  // Save interaction
-  const saveInteraction = async (wineName, type, rating) => {
-    setInteractions((prev) => ({ ...prev, [wineName]: { type, rating: rating || null } }));
-
-    const { error } = await supabase.from("wine_interactions").upsert({
-      user_id: user.id,
-      wine_name: wineName,
-      interaction_type: type,
-      rating: rating || null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id, wine_name" });
-
-    if (error) console.error("Interaction save error:", error);
-
-    const labels = { had: "Noted!", want: "Added to your list!", skip: "Removed" };
-    showToast(labels[type] || "Saved!");
-  };
-
-  const handleAction = (wineName, type) => {
-    if (type === "had") {
-      setRatingWine(wineName);
-    } else {
-      saveInteraction(wineName, type);
-    }
-  };
-
-  const handleRate = (rating) => {
-    if (ratingWine) {
-      saveInteraction(ratingWine, "had", rating);
-      setRatingWine(null);
-    }
-  };
+  const handleRecCounts = useCallback(({ interactedRecs, visibleRecs, hasAnyInteractions }) => {
+    setRecCounts({ interactedRecs, visibleRecs });
+    if (hasAnyInteractions) setHasJournal(true);
+  }, []);
 
   // ─── Bottle logging (Claude Vision via /api/scan-label) ───
   const handleBottlePhoto = async (e) => {
@@ -289,11 +120,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
 
   const showEvolutionToasts = useCallback((promotions) => {
     if (!promotions || promotions.length === 0) return;
-    const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
-    const toasts = promotions.map((p) => {
-      const target = dimensionLabels[p.dimension] || "your DNA";
-      return `🧬 Your Wine DNA evolved: ${p.displayName} added to ${target}`;
-    });
+    const toasts = evolutionToastMessages(promotions);
     // Show sequentially with 1s gaps, starting after the standard toast
     toasts.forEach((msg, i) => {
       setTimeout(() => {
@@ -350,7 +177,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
         }
       }
 
-      setInteractions((prev) => ({ ...prev, [name]: { type: "had", rating } }));
+      setHasJournal(true);
       setBottleStep(null);
       setBottleData(null);
       setBottleName("");
@@ -368,21 +195,10 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
     }
   };
 
-  // Filter recs: exclude wines already interacted with
-  const visibleRecs = recs.filter((r) => !interactions[r.wine]);
-  const interactedCount = recs.length - visibleRecs.length;
+  const interactedCount = recCounts?.interactedRecs || 0;
 
   return (
     <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 24px", minHeight: "100vh" }}>
-      {/* Rating modal */}
-      {ratingWine && (
-        <RatingModal
-          wine={ratingWine}
-          onRate={handleRate}
-          onClose={() => setRatingWine(null)}
-        />
-      )}
-
       {/* Toast */}
       {toast && (
         <div style={{
@@ -692,20 +508,12 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
           </button>
 
           {showWines && (
-            <>
-              {visibleRecs.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {visibleRecs.slice(0, 5).map((rec, i) => (
-                    <WineRecCard
-                      key={rec.wine}
-                      rec={rec}
-                      index={i}
-                      onAction={handleAction}
-                      isActioned={false}
-                    />
-                  ))}
-                </div>
-              ) : (
+            <WineRecList
+              recs={recs}
+              user={user}
+              limit={5}
+              onCountsChange={handleRecCounts}
+              emptyState={
                 <div style={{
                   textAlign: "center", padding: "32px 20px",
                   background: "rgba(255,255,255,0.4)", borderRadius: "16px",
@@ -737,23 +545,14 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
                     }}>or adjust your quiz answers</button>
                   </div>
                 </div>
-              )}
-
-              {visibleRecs.length > 5 && (
-                <div style={{ textAlign: "center", marginTop: 12 }}>
-                  <span style={{
-                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-                    color: "#1B3D2F", opacity: 0.35,
-                  }}>{visibleRecs.length - 5} more wines to explore</span>
-                </div>
-              )}
-            </>
+              }
+            />
           )}
         </div>
       )}
 
       {/* Journal link */}
-      {recs.length > 0 && Object.keys(interactions).length > 0 && (
+      {hasJournal && (
         <div style={{ textAlign: "center", marginBottom: 20 }}>
           <a href="/journal" style={{
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
@@ -850,10 +649,19 @@ export default function Home() {
   const [savedProfile, setSavedProfile] = useState(null);
   const [view, setView] = useState("loading");
   const [quizInitial, setQuizInitial] = useState(null);
-  const [savedMessage, setSavedMessage] = useState(null);
+  // "refine" merges quiz answers with earned DNA on save; "fresh" is the one
+  // deliberate wipe (and the mode for a first-ever quiz)
+  const [quizMode, setQuizMode] = useState("fresh");
   const supabase = createClient();
 
   useEffect(() => {
+    // Quiet quiz entry points from the Palate view (?quiz=refine|fresh).
+    // Read from location directly — useSearchParams would force a Suspense
+    // boundary on this statically prerendered page. Read it BEFORE the async
+    // work: in dev, StrictMode runs this effect twice, and the first run's
+    // replaceState below would otherwise erase the param before the second
+    // run (whose state wins) gets to read it.
+    const quizParam = new URLSearchParams(window.location.search).get("quiz");
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
       const currentUser = session?.user || null;
@@ -862,12 +670,9 @@ export default function Home() {
         const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", currentUser.id).single();
         if (data) { setSavedProfile(data); setView("profile"); }
         else { setView("welcome"); }
-        // Quiet quiz entry points from the Palate view (?quiz=refine|fresh).
-        // Read from location directly — useSearchParams would force a
-        // Suspense boundary on this statically prerendered page.
-        const quizParam = new URLSearchParams(window.location.search).get("quiz");
         if (quizParam === "fresh") {
           setQuizInitial(null);
+          setQuizMode("fresh");
           setView("quiz");
         } else if (quizParam === "refine" && data) {
           setQuizInitial({
@@ -875,6 +680,7 @@ export default function Home() {
             estates: data.estates || {}, varietals: data.varietals || [],
             specificWines: data.specific_wines || [],
           });
+          setQuizMode("refine");
           setView("quiz");
         }
         if (quizParam) window.history.replaceState({}, "", "/");
@@ -890,7 +696,7 @@ export default function Home() {
   }, []);
 
   const handleSignOut = async () => { await supabase.auth.signOut(); setSavedProfile(null); setView("welcome"); };
-  const handleStartQuiz = () => { setQuizInitial(null); setView("quiz"); };
+  const handleStartQuiz = () => { setQuizInitial(null); setQuizMode("fresh"); setView("quiz"); };
   const handleRefine = () => {
     if (savedProfile) {
       setQuizInitial({
@@ -899,28 +705,65 @@ export default function Home() {
         specificWines: savedProfile.specific_wines || [],
       });
     }
+    setQuizMode(savedProfile ? "refine" : "fresh");
     setView("quiz");
   };
 
+  // Auto-save on quiz completion. Returns the saved wine_profiles row (the
+  // reveal renders it) or null on failure (the reveal offers a retry).
+  //
+  // MERGE, DON'T CLOBBER: on refine, the arrays written are quiz selections
+  // ∪ earned-promoted DNA — a retaken quiz never erases what real bottles
+  // proved. "Start fresh" is the one deliberate wipe. Journal data
+  // (wine_interactions, accumulation points, timeline) is never touched by
+  // quiz edits. The narrative regenerates from the merged palate so it always
+  // reflects the new founding DNA; narrative_updated_at is left alone so The
+  // Somm re-evolves it on the next /palate visit under the usual staleness
+  // gate.
   const handleSaveProfile = async (profile) => {
-    if (!user) return;
-    const { error } = await supabase.from("wine_profiles").upsert({
-      user_id: user.id, archetype: profile.archetype, archetype_emoji: profile.archetypeEmoji,
-      narrative: profile.narrative, countries: profile.raw.countries, regions: profile.raw.regions,
-      estates: profile.raw.estates, varietals: profile.raw.varietals,
-      specific_wines: profile.raw.specificWines, recommendations: profile.recommendations,
-      red_count: profile.redCount, white_count: profile.whiteCount,
-    }, { onConflict: "user_id" });
-    if (error) { console.error("Save error:", error); alert("Error saving profile. Please try again."); }
-    else {
-      // Sync quiz selections into dna_accumulation with source='quiz'
+    if (!user) return null;
+    try {
+      const quizRaw = {
+        ...profile.raw,
+        // Fix casing at the source ("Meerlust rubicon" → "Meerlust Rubicon")
+        specificWines: (profile.raw.specificWines || []).map(formatWineName),
+      };
+      const merged = quizMode === "refine"
+        ? await mergeQuizWithEarnedDna(supabase, user.id, quizRaw)
+        : quizRaw;
+      const finalProfile = generateDNAProfile(merged);
+
+      const { error } = await supabase.from("wine_profiles").upsert({
+        user_id: user.id,
+        archetype: finalProfile.archetype,
+        archetype_emoji: finalProfile.archetypeEmoji,
+        narrative: finalProfile.narrative,
+        countries: merged.countries,
+        regions: merged.regions,
+        estates: merged.estates,
+        varietals: merged.varietals,
+        specific_wines: merged.specificWines,
+        recommendations: finalProfile.recommendations,
+        red_count: finalProfile.redCount,
+        white_count: finalProfile.whiteCount,
+      }, { onConflict: "user_id" });
+      if (error) { console.error("Save error:", error); return null; }
+
       try {
-        await syncQuizSelections(supabase, user.id, profile.raw);
+        // Un-flag promoted accumulation rows no longer in the DNA, then mark
+        // the declared selections as founding (earned rows keep provenance)
+        await reconcileQuizPromotions(supabase, user.id, merged);
+        await syncQuizSelections(supabase, user.id, quizRaw);
       } catch (syncErr) {
         console.error("Quiz sync error (non-blocking):", syncErr);
       }
+
       const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", user.id).single();
-      if (data) { setSavedProfile(data); setSavedMessage("Profile saved!"); setTimeout(() => setSavedMessage(null), 3000); setView("profile"); }
+      if (data) { setSavedProfile(data); return data; }
+      return null;
+    } catch (err) {
+      console.error("Save error:", err);
+      return null;
     }
   };
 
@@ -935,24 +778,18 @@ export default function Home() {
 
   if (view === "quiz") {
     return (
-      <div style={{ position: "relative" }}>
-        {savedMessage && (
-          <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px", borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, boxShadow: "0 4px 20px rgba(27,61,47,0.3)", zIndex: 100 }}>✓ {savedMessage}</div>
-        )}
-        <Quiz user={user} onProfileGenerated={handleSaveProfile} initialAnswers={quizInitial} onCancel={savedProfile ? () => setView("profile") : null} />
-      </div>
+      <Quiz
+        user={user}
+        onProfileGenerated={handleSaveProfile}
+        initialAnswers={quizInitial}
+        onCancel={savedProfile ? () => setView("profile") : null}
+        onDone={() => setView("profile")}
+      />
     );
   }
 
   if (view === "profile" && savedProfile) {
-    return (
-      <div style={{ position: "relative" }}>
-        {savedMessage && (
-          <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px", borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, boxShadow: "0 4px 20px rgba(27,61,47,0.3)", zIndex: 100 }}>✓ {savedMessage}</div>
-        )}
-        <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} onSignOut={handleSignOut} />
-      </div>
-    );
+    return <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} onSignOut={handleSignOut} />;
   }
 
   return <WelcomeScreen onStart={handleStartQuiz} user={user} onSignOut={handleSignOut} />;
