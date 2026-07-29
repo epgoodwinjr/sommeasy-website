@@ -9,7 +9,7 @@ const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DA
 
 // ─── Small UI components ───
 
-function Chip({ label, selected, onClick, emoji, color, small }) {
+function Chip({ label, selected, onClick, emoji, color, small, earned }) {
   return (
     <button onClick={onClick} style={{
       display: "inline-flex", alignItems: "center", gap: small ? "4px" : "6px",
@@ -24,6 +24,7 @@ function Chip({ label, selected, onClick, emoji, color, small }) {
       {emoji && <span style={{ fontSize: small ? "14px" : "18px" }}>{emoji}</span>}
       {color && <span style={{ width: small ? 8 : 10, height: small ? 8 : 10, borderRadius: "50%", background: color, flexShrink: 0 }} />}
       {label}
+      {earned && <span style={{ color: "#8B2332", fontSize: small ? "10px" : "12px", opacity: 0.85 }}>✦</span>}
       {selected && <span style={{ fontSize: small ? "11px" : "13px", opacity: 0.7 }}>✓</span>}
     </button>
   );
@@ -79,7 +80,7 @@ function Accordion({ items, renderContent, getLabel, getCount, defaultOpen }) {
 
 // ─── Quiz Steps ───
 
-function CountryStep({ selected, onToggle }) {
+function CountryStep({ selected, onToggle, earned }) {
   const oldWorld = COUNTRIES_RAW.filter(c => c.world === "old")
     .sort((a, b) => b.reviewCount - a.reviewCount);
   const newWorld = COUNTRIES_RAW.filter(c => c.world === "new")
@@ -96,6 +97,7 @@ function CountryStep({ selected, onToggle }) {
         {countries.map(c => (
           <Chip key={c.id} label={c.name} emoji={c.emoji}
             selected={selected.includes(c.id)}
+            earned={earned?.has(`country:${c.id}`)}
             onClick={() => onToggle(c.id)} />
         ))}
       </div>
@@ -112,7 +114,7 @@ function CountryStep({ selected, onToggle }) {
   );
 }
 
-function RegionStep({ selectedCountries, regions, onToggle }) {
+function RegionStep({ selectedCountries, regions, onToggle, earned }) {
   const [expandedCountries, setExpandedCountries] = useState({});
   const INITIAL_SHOW = 12;
 
@@ -142,6 +144,7 @@ function RegionStep({ selectedCountries, regions, onToggle }) {
               {visible.map(r => (
                 <Chip key={r.id} label={r.name}
                   selected={(regions[i.id] || []).includes(r.id)}
+                  earned={earned?.has(`region:${r.id}`)}
                   onClick={() => onToggle(i.id, r.id)} small />
               ))}
               {!isExpanded && remaining > 0 && (
@@ -164,7 +167,7 @@ function RegionStep({ selectedCountries, regions, onToggle }) {
   );
 }
 
-function ProducerStep({ selectedRegions, estates, onToggle }) {
+function ProducerStep({ selectedRegions, estates, onToggle, earned }) {
   const [expandedRegions, setExpandedRegions] = useState({});
   const PAGE_SIZE = 15;
 
@@ -208,6 +211,7 @@ function ProducerStep({ selectedRegions, estates, onToggle }) {
               {visible.map(p => (
                 <Chip key={p.id} label={p.name}
                   selected={(estates[i.id] || []).includes(p.id)}
+                  earned={earned?.has(`estate:${p.id}`)}
                   onClick={() => onToggle(i.id, p.id)} small />
               ))}
               {remaining > 0 && (
@@ -232,7 +236,7 @@ function ProducerStep({ selectedRegions, estates, onToggle }) {
   );
 }
 
-function VarietalStep({ selected, onToggle, selectedRegions, selectedEstates }) {
+function VarietalStep({ selected, onToggle, selectedRegions, selectedEstates, earned }) {
   // Compute relevance scores: regionMatches * 3 + producerMatches * 1 (per spec 2E)
   const scores = {};
 
@@ -287,6 +291,7 @@ function VarietalStep({ selected, onToggle, selectedRegions, selectedEstates }) 
           {filtered.map(v => (
             <Chip key={v.id} label={v.name} color={colorHex}
               selected={selected.includes(v.id)}
+              earned={earned?.has(`varietal:${v.id}`)}
               onClick={() => onToggle(v.id)} small />
           ))}
         </div>
@@ -559,7 +564,7 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
 // runs behind it. This floor just keeps it from flashing when the save is fast.
 const MIN_READING_MS = 1400;
 
-export default function Quiz({ user, onProfileGenerated, initialAnswers, onCancel, onDone }) {
+export default function Quiz({ user, onProfileGenerated, initialAnswers, earnedDna, onCancel, onDone }) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState(initialAnswers || { countries: [], regions: {}, estates: {}, varietals: [], specificWines: [] });
   const [profile, setProfile] = useState(null);
@@ -570,6 +575,10 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
   const scrollRef = useRef(null);
   const totalSteps = 5;
   const isRefineMode = !!initialAnswers;
+
+  // "dimension:value" keys of earned-promoted DNA (refine mode only) — these
+  // chips wear the ✦ so an uncheck is an informed choice
+  const earnedSet = new Set(earnedDna || []);
 
   const go = (n) => { setAnim(true); setTimeout(() => { setStep(n); setAnim(false); window.scrollTo({ top: 0, behavior: "smooth" }); }, 200); };
   const toggle = (arr, item) => arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
@@ -632,6 +641,11 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
             <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.5 }}>Step {step + 1} of {totalSteps}</span>
           </div>
           <ProgressBar current={step} total={totalSteps} />
+          {isRefineMode && earnedSet.size > 0 && (
+            <p data-testid="earned-legend" style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F", opacity: 0.55, margin: "10px 4px 0", lineHeight: 1.4 }}>
+              <span style={{ color: "#8B2332" }}>✦</span> earned by your ratings — unchecking one removes it from your palate
+            </p>
+          )}
         </div>
       )}
 
@@ -639,10 +653,10 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, onCance
       {/* Settled transform is "none" so fixed-position children (rating modal,
           toasts) anchor to the viewport, not this wrapper */}
       <div style={{ flex: 1, padding: "20px 20px 120px", opacity: anim ? 0 : 1, transform: anim ? "translateX(20px)" : "none", transition: "all 0.2s ease" }}>
-        {step === 0 && <CountryStep selected={answers.countries} onToggle={id => setAnswers(p => ({ ...p, countries: toggle(p.countries, id) }))} />}
-        {step === 1 && <RegionStep selectedCountries={answers.countries} regions={answers.regions} onToggle={(cId, rId) => setAnswers(p => ({ ...p, regions: { ...p.regions, [cId]: toggle(p.regions[cId] || [], rId) } }))} />}
-        {step === 2 && <ProducerStep selectedRegions={answers.regions} estates={answers.estates} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
-        {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} selectedRegions={answers.regions} selectedEstates={answers.estates} />}
+        {step === 0 && <CountryStep selected={answers.countries} earned={earnedSet} onToggle={id => setAnswers(p => ({ ...p, countries: toggle(p.countries, id) }))} />}
+        {step === 1 && <RegionStep selectedCountries={answers.countries} regions={answers.regions} earned={earnedSet} onToggle={(cId, rId) => setAnswers(p => ({ ...p, regions: { ...p.regions, [cId]: toggle(p.regions[cId] || [], rId) } }))} />}
+        {step === 2 && <ProducerStep selectedRegions={answers.regions} estates={answers.estates} earned={earnedSet} onToggle={(rId, eId) => setAnswers(p => ({ ...p, estates: { ...p.estates, [rId]: toggle(p.estates[rId] || [], eId) } }))} />}
+        {step === 3 && <VarietalStep selected={answers.varietals} onToggle={id => setAnswers(p => ({ ...p, varietals: toggle(p.varietals, id) }))} selectedRegions={answers.regions} selectedEstates={answers.estates} earned={earnedSet} />}
         {step === 4 && <SpecificWineStep wines={answers.specificWines} onAdd={w => setAnswers(p => ({ ...p, specificWines: [...p.specificWines, w] }))} onRemove={i => setAnswers(p => ({ ...p, specificWines: p.specificWines.filter((_, j) => j !== i) }))} selectedEstates={answers.estates} />}
         {step === 99 && phase === "reading" && <RevealReading />}
         {step === 99 && (phase === "revealed" || phase === "error") && revealProfile && (

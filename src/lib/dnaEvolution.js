@@ -726,22 +726,45 @@ export async function syncQuizSelections(supabase, userId, quizAnswers) {
 // QUIZ MERGE — quiz selections ∪ earned DNA
 // ═══════════════════════════════════════════════════════
 
+// Flatten a raw answers object into one Set of values per dimension,
+// matching dna_accumulation's dimension names.
+function collectDimensionValues(raw) {
+  return {
+    country: new Set(raw.countries || []),
+    region: new Set(Object.values(raw.regions || {}).flat()),
+    estate: new Set(Object.values(raw.estates || {}).flat()),
+    varietal: new Set(raw.varietals || []),
+  };
+}
+
 /**
  * Merge quiz answers with DNA earned from rated bottles.
  *
  * The quiz manages founding DNA; ratings manage earned DNA. Saving a refined
- * quiz must never erase what real bottles proved (the session invariant), so
- * every promoted source='auto' accumulation row is unioned back into the
- * arrays the profile save will write. Unchecking an earned item in the quiz
- * therefore does NOT remove it — earned DNA leaves only through negative
- * rating evidence (demotion) or a deliberate "Start fresh" wipe.
+ * quiz must never SILENTLY erase what real bottles proved, so promoted
+ * source='auto' accumulation rows are unioned back into the arrays the
+ * profile save will write — with one deliberate exception (Ed's call,
+ * August 2026): an EXPLICIT deselection is honored. Explicit means the item
+ * was pre-checked when the refine started (present in initialRaw) and is
+ * unchecked at save (absent from quizRaw). The quiz never removes values it
+ * didn't render — deselecting a country leaves its regions in the answers
+ * untouched — so initial-minus-final is exactly the set of chips the user
+ * saw and turned off. Earned items the quiz couldn't display (or that
+ * promoted mid-quiz) are still preserved. Un-flagging the deselected row's
+ * promotion is reconcileQuizPromotions' job; its points survive, so
+ * continued love re-promotes.
  *
  * @param {object} supabase - Supabase client
  * @param {string} userId - Current user ID
  * @param {object} quizRaw - { countries, regions, estates, varietals, specificWines }
+ * @param {object|null} initialRaw - the answers the refine was seeded with
  * @returns {object} merged raw arrays, same shape as quizRaw
  */
-export async function mergeQuizWithEarnedDna(supabase, userId, quizRaw) {
+export async function mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialRaw = null) {
+  const initial = initialRaw ? collectDimensionValues(initialRaw) : null;
+  const final = collectDimensionValues(quizRaw);
+  const explicitlyDeselected = (dimension, value) =>
+    initial ? initial[dimension].has(value) && !final[dimension].has(value) : false;
   const merged = {
     countries: [...(quizRaw.countries || [])],
     regions: {},
@@ -762,6 +785,7 @@ export async function mergeQuizWithEarnedDna(supabase, userId, quizRaw) {
 
   for (const row of earnedRows || []) {
     const value = row.dimension_value;
+    if (explicitlyDeselected(row.dimension, value)) continue;
     if (row.dimension === "country") {
       if (isValidDnaCountry(value) && !merged.countries.includes(value)) {
         merged.countries.push(value);

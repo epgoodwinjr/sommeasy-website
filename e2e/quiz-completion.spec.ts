@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { findRawIdTextNodes } from "./fixtures/raw-id-scan";
+import { testDb, ensureEarnedFixture, readEarnedFixtureRow, EARNED_FIXTURE } from "./fixtures/test-db";
 
 /**
  * Hard-fail guard for the quiz completion flow (The Reveal session).
@@ -81,5 +82,57 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     await journalCard.getByRole("button", { name: "×" }).click();
     await expect(page.getByText("✓ Removed")).toBeVisible();
     await expect(page.getByText(wineName, { exact: true })).toHaveCount(0);
+  });
+
+  /**
+   * The uncheck is honored (Ed's August 2026 decision): an earned item that
+   * was pre-checked at refine start and explicitly unchecked leaves the
+   * profile, its promotion un-flags, and its points survive.
+   *
+   * Self-healing: the earned Chenin Blanc fixture is (re)asserted before the
+   * flow and restored after it, so the account's fixture state is identical
+   * before and after every run — even a crashed one heals on the next pass.
+   */
+  test("refine marks earned DNA with ✦; unchecking it removes it, points survive", async ({ page }) => {
+    const { supabase, userId } = await testDb();
+    await ensureEarnedFixture(supabase, userId);
+
+    await page.goto("/?quiz=refine");
+    await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
+
+    // The legend and the ✦ tell the user what an uncheck costs
+    await expect(page.getByTestId("earned-legend")).toBeVisible();
+
+    for (let step = 2; step <= 4; step++) {
+      await page.getByRole("button", { name: "Continue" }).click();
+      await expect(page.getByText(`Step ${step} of 5`)).toBeVisible();
+    }
+
+    // Step 4 (varietals): the earned chip wears the ✦ and is pre-checked
+    const cheninChip = page.getByRole("button", { name: /Chenin Blanc/ }).first();
+    await expect(cheninChip).toContainText("✦");
+    await expect(cheninChip).toContainText("✓");
+    await cheninChip.click(); // the explicit uncheck
+    await expect(cheninChip).not.toContainText("✓");
+
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Step 5 of 5")).toBeVisible();
+    await page.getByRole("button", { name: "Update My Wine DNA" }).click();
+    await expect(page.getByTestId("reveal-saved")).toBeVisible({ timeout: 30_000 });
+
+    // The uncheck landed: profile no longer carries it, the accumulation row
+    // is un-flagged, and the points survived (continued love re-promotes)
+    const { data: profile } = await supabase
+      .from("wine_profiles").select("varietals").eq("user_id", userId).single();
+    expect(profile!.varietals).not.toContain(EARNED_FIXTURE.value);
+    const row = await readEarnedFixtureRow(supabase, userId);
+    expect(row!.promoted).toBe(false);
+    expect(row!.points).toBe(EARNED_FIXTURE.points);
+    expect(row!.source).toBe("auto");
+
+    // Restore the fixture for the rest of the suite and the next run
+    await ensureEarnedFixture(supabase, userId);
+    const restored = await readEarnedFixtureRow(supabase, userId);
+    expect(restored!.promoted).toBe(true);
   });
 });

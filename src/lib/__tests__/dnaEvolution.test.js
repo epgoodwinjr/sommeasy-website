@@ -630,8 +630,22 @@ async function syncQuizSelections(supabase, userId, quizAnswers) {
   }
 }
 
-// Mirror of mergeQuizWithEarnedDna (dnaEvolution.js) — quiz ∪ earned DNA
-async function mergeQuizWithEarnedDna(supabase, userId, quizRaw) {
+// Mirror of mergeQuizWithEarnedDna (dnaEvolution.js) — quiz ∪ earned DNA,
+// honoring explicit deselections (present in initialRaw, absent from quizRaw)
+function collectDimensionValues(raw) {
+  return {
+    country: new Set(raw.countries || []),
+    region: new Set(Object.values(raw.regions || {}).flat()),
+    estate: new Set(Object.values(raw.estates || {}).flat()),
+    varietal: new Set(raw.varietals || []),
+  };
+}
+
+async function mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialRaw = null) {
+  const initial = initialRaw ? collectDimensionValues(initialRaw) : null;
+  const final = collectDimensionValues(quizRaw);
+  const explicitlyDeselected = (dimension, value) =>
+    initial ? initial[dimension].has(value) && !final[dimension].has(value) : false;
   const merged = {
     countries: [...(quizRaw.countries || [])],
     regions: {},
@@ -648,6 +662,7 @@ async function mergeQuizWithEarnedDna(supabase, userId, quizRaw) {
 
   for (const row of earnedRows || []) {
     const value = row.dimension_value;
+    if (explicitlyDeselected(row.dimension, value)) continue;
     if (row.dimension === "country") {
       if (isValidDnaCountry(value) && !merged.countries.includes(value)) merged.countries.push(value);
     } else if (row.dimension === "varietal") {
@@ -1375,15 +1390,18 @@ function seedEarnedRow(tables, dimension, dimensionValue, displayName, extra = {
 async function suite9() {
   console.log("\n═══ Suite 9: Quiz Merge (Reveal invariant) ═══");
 
-  // 9A: Earned varietal survives a refine that doesn't select it
-  await runTest("Suite 9", "9A: Earned varietal unions into refined quiz answers", async () => {
+  // 9A: Earned item the quiz never presented as checked is preserved.
+  // (Covers a promotion landing mid-quiz, or any item the UI couldn't
+  // display — absent from initialRaw means it can't be an explicit uncheck.)
+  await runTest("Suite 9", "9A: Earned varietal not pre-checked at quiz start is preserved", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
     seedEarnedRow(tables, "varietal", "chenin_blanc", "Chenin Blanc");
+    const initialRaw = { countries: ["france"], regions: { france: ["burgundy"] }, estates: {}, varietals: ["pinot_noir"], specificWines: [] };
     const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, {
       countries: ["france"], regions: { france: ["burgundy"] }, estates: {}, varietals: ["pinot_noir"], specificWines: [],
-    });
-    assert(merged.varietals.includes("chenin_blanc"), "earned chenin_blanc must survive the refine");
+    }, initialRaw);
+    assert(merged.varietals.includes("chenin_blanc"), "earned chenin_blanc absent from initialRaw must be preserved");
     assert(merged.varietals.includes("pinot_noir"), "quiz selection must be kept");
     assert(merged.countries.includes("france"), "quiz country must be kept");
   });
@@ -1435,9 +1453,10 @@ async function suite9() {
     const sb = createMockSupabase(tables);
     await syncQuizSelections(sb, TEST_USER, { countries: ["france", "italy"], regions: {}, estates: {}, varietals: [] });
     // User refines and drops italy; merge has nothing earned to add back
+    const initialRaw = { countries: ["france", "italy"], regions: {}, estates: {}, varietals: [], specificWines: [] };
     const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, {
       countries: ["france"], regions: {}, estates: {}, varietals: [], specificWines: [],
-    });
+    }, initialRaw);
     assert(!merged.countries.includes("italy"), "dropped founding item must not come back via merge");
     await reconcileQuizPromotions(sb, TEST_USER, merged);
     const italy = getAcc(tables, "country", "italy");
@@ -1458,8 +1477,8 @@ async function suite9() {
     assert(malbec.points === 12, "points untouched");
   });
 
-  // 9G: End-to-end — a real promotion, then a refine that ignores it
-  await runTest("Suite 9", "9G: Promoted-by-bottles varietal survives full refine save flow", async () => {
+  // 9G: End-to-end — a real promotion, then a refine that keeps it checked
+  await runTest("Suite 9", "9G: Promoted-by-bottles varietal kept checked survives full refine save", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
     // 5 loved Malbecs → 10 pts → varietal promotion fires
@@ -1468,16 +1487,62 @@ async function suite9() {
     assert(malbecBefore.promoted === true, `malbec should be promoted (points: ${malbecBefore.points})`);
     assert(malbecBefore.source === "auto", "promotion source is auto");
 
-    // Refine save that never mentions malbec — the old code path would
-    // have overwritten varietals wholesale and killed it
-    const quizRaw = { countries: ["france"], regions: { france: ["burgundy"] }, estates: {}, varietals: ["pinot_noir"], specificWines: [] };
-    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, quizRaw);
-    assert(merged.varietals.includes("malbec"), "earned malbec must be in the merged arrays");
+    // Refine seeded from the profile (malbec pre-checked) and left checked.
+    // The pre-Reveal code path overwrote varietals wholesale and killed it.
+    const initialRaw = { countries: ["france"], regions: { france: ["burgundy"] }, estates: {}, varietals: ["pinot_noir", "malbec"], specificWines: [] };
+    const quizRaw = { countries: ["france"], regions: { france: ["burgundy"] }, estates: {}, varietals: ["pinot_noir", "malbec"], specificWines: [] };
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, quizRaw, initialRaw);
+    assert(merged.varietals.includes("malbec"), "kept-checked earned malbec must be in the merged arrays");
     await reconcileQuizPromotions(sb, TEST_USER, merged);
     await syncQuizSelections(sb, TEST_USER, quizRaw);
     const malbecAfter = getAcc(tables, "varietal", "malbec");
     assert(malbecAfter.promoted === true, "malbec stays promoted after refine");
     assert(malbecAfter.source === "auto", "malbec stays earned after refine");
+  });
+
+  // 9H: Ed's August 2026 call — an EXPLICIT uncheck of an earned item is
+  // honored: it leaves the profile, its promotion un-flags, its points
+  // survive (continued love re-promotes), and no timeline event is written.
+  await runTest("Suite 9", "9H: Explicitly unchecked earned item leaves; points survive; no timeline", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    seedEarnedRow(tables, "varietal", "chenin_blanc", "Chenin Blanc");
+    // Refine seeded WITH chenin_blanc pre-checked (it's in the profile);
+    // user unchecks it before saving
+    const initialRaw = { countries: ["france"], regions: {}, estates: {}, varietals: ["pinot_noir", "chenin_blanc"], specificWines: [] };
+    const quizRaw = { countries: ["france"], regions: {}, estates: {}, varietals: ["pinot_noir"], specificWines: [] };
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, quizRaw, initialRaw);
+    assert(!merged.varietals.includes("chenin_blanc"), "explicitly unchecked earned item must not be merged back");
+    await reconcileQuizPromotions(sb, TEST_USER, merged);
+    await syncQuizSelections(sb, TEST_USER, quizRaw);
+    const chenin = getAcc(tables, "varietal", "chenin_blanc");
+    assert(chenin.promoted === false, "unchecked earned row must be un-flagged");
+    assert(chenin.demoted_at, "demoted_at should be set");
+    assert(chenin.points === 12, "points must survive — continued love re-promotes");
+    assert(chenin.source === "auto", "provenance stays earned");
+    assert(tables.dna_timeline.length === 0, "a user edit writes no timeline events");
+  });
+
+  // 9I: The same uncheck via the region dimension — and the quiz's
+  // don't-touch-what-you-didn't-render behavior: deselecting a COUNTRY
+  // leaves its regions in the answers, so they are NOT treated as unchecked.
+  await runTest("Suite 9", "9I: Region uncheck honored; regions under a deselected country preserved", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    seedEarnedRow(tables, "region", "burgundy", "Burgundy");
+    seedEarnedRow(tables, "region", "stellenbosch", "Stellenbosch");
+    // User keeps france selected and unchecks earned burgundy (explicit),
+    // deselects south_africa entirely — stellenbosch stays in the answers
+    // exactly as the quiz UI leaves it (never rendered → never removed)
+    const initialRaw = { countries: ["france", "south_africa"], regions: { france: ["burgundy"], south_africa: ["stellenbosch"] }, estates: {}, varietals: [], specificWines: [] };
+    const quizRaw = { countries: ["france"], regions: { france: [], south_africa: ["stellenbosch"] }, estates: {}, varietals: [], specificWines: [] };
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, quizRaw, initialRaw);
+    assert(!(merged.regions.france || []).includes("burgundy"), "unchecked earned burgundy must leave");
+    assert((merged.regions.south_africa || []).includes("stellenbosch"), "stellenbosch was never rendered as unchecked — preserved");
+    await reconcileQuizPromotions(sb, TEST_USER, merged);
+    assert(getAcc(tables, "region", "burgundy").promoted === false, "burgundy un-flagged");
+    assert(getAcc(tables, "region", "burgundy").points === 12, "burgundy points survive");
+    assert(getAcc(tables, "region", "stellenbosch").promoted === true, "stellenbosch stays promoted");
   });
 }
 

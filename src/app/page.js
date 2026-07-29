@@ -652,15 +652,32 @@ export default function Home() {
   // "refine" merges quiz answers with earned DNA on save; "fresh" is the one
   // deliberate wipe (and the mode for a first-ever quiz)
   const [quizMode, setQuizMode] = useState("fresh");
+  // "dimension:value" keys of earned-promoted DNA, so refine chips can wear
+  // the ✦ and the user knows what an uncheck removes
+  const [quizEarned, setQuizEarned] = useState([]);
   const supabase = createClient();
+
+  const fetchEarnedDna = async (userId) => {
+    const { data } = await supabase
+      .from("dna_accumulation")
+      .select("dimension, dimension_value")
+      .eq("user_id", userId)
+      .eq("promoted", true)
+      .eq("source", "auto");
+    return (data || []).map((r) => `${r.dimension}:${r.dimension_value}`);
+  };
+
+  // StrictMode (dev) runs the mount effect twice. init() must run exactly
+  // once: its async continuation calls setView, and a late second run would
+  // clobber navigation the user made in between (click "Build My Profile" →
+  // quiz view → stale init lands → welcome view). The auth subscription
+  // below stays per-mount — its cleanup handles the double-mount correctly.
+  const initRan = useRef(false);
 
   useEffect(() => {
     // Quiet quiz entry points from the Palate view (?quiz=refine|fresh).
     // Read from location directly — useSearchParams would force a Suspense
-    // boundary on this statically prerendered page. Read it BEFORE the async
-    // work: in dev, StrictMode runs this effect twice, and the first run's
-    // replaceState below would otherwise erase the param before the second
-    // run (whose state wins) gets to read it.
+    // boundary on this statically prerendered page.
     const quizParam = new URLSearchParams(window.location.search).get("quiz");
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
@@ -682,12 +699,16 @@ export default function Home() {
           });
           setQuizMode("refine");
           setView("quiz");
+          fetchEarnedDna(currentUser.id).then(setQuizEarned).catch(() => {});
         }
         if (quizParam) window.history.replaceState({}, "", "/");
       } else { setView("welcome"); }
       setLoading(false);
     }
-    init();
+    if (!initRan.current) {
+      initRan.current = true;
+      init();
+    }
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
       if (!session?.user) { setSavedProfile(null); setView("welcome"); }
@@ -704,6 +725,7 @@ export default function Home() {
         estates: savedProfile.estates || {}, varietals: savedProfile.varietals || [],
         specificWines: savedProfile.specific_wines || [],
       });
+      if (user) fetchEarnedDna(user.id).then(setQuizEarned).catch(() => {});
     }
     setQuizMode(savedProfile ? "refine" : "fresh");
     setView("quiz");
@@ -728,8 +750,10 @@ export default function Home() {
         // Fix casing at the source ("Meerlust rubicon" → "Meerlust Rubicon")
         specificWines: (profile.raw.specificWines || []).map(formatWineName),
       };
+      // initialRaw (the answers the refine was seeded with) lets the merge
+      // honor explicit deselections of earned items — Ed's August 2026 call
       const merged = quizMode === "refine"
-        ? await mergeQuizWithEarnedDna(supabase, user.id, quizRaw)
+        ? await mergeQuizWithEarnedDna(supabase, user.id, quizRaw, quizInitial)
         : quizRaw;
       const finalProfile = generateDNAProfile(merged);
 
@@ -782,6 +806,7 @@ export default function Home() {
         user={user}
         onProfileGenerated={handleSaveProfile}
         initialAnswers={quizInitial}
+        earnedDna={quizEarned}
         onCancel={savedProfile ? () => setView("profile") : null}
         onDone={() => setView("profile")}
       />
