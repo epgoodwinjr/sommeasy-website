@@ -109,7 +109,7 @@ You don't need to ask permission for individual code changes. Make the call, shi
 - wineAutocomplete.json (140KB) lazy-loads on quiz Step 5 only — doesn't affect initial load
 - `/api/parse-wine-list` accepts base64 image, PDF, or scraped text; returns `{ wines: [...] }` (Path A: structured JSON → match engine) or `{ rawText }` (Path B: text parser). Both converge at `runAnalysis()` in the recommend page
 - API GET routes that must run per-request (like `/api/keepalive`) need `export const dynamic = "force-dynamic"` or Next statically prerenders them into no-ops
-- `ANTHROPIC_API_KEY` is required in Vercel env vars; without it all four Claude routes degrade gracefully (scan errors are friendly, somm and palate-narrative fall back silently). Note: local `.env.local` has NO Anthropic key (deliberately commented out), so Claude-powered paths only fully exercise in prod — verify them there after deploy
+- `ANTHROPIC_API_KEY` is required in Vercel env vars; without it all four Claude routes degrade gracefully (scan errors are friendly, somm and palate-narrative fall back silently). Local `.env.local` carries a key too (added July 29, 2026 — verified live), so Claude paths fully exercise in dev. Cost caveat: every local `npm run test:e2e` run now makes real Claude calls (Vision scans + somm), roughly $0.15–0.30/run
 
 ## Priorities (Current)
 
