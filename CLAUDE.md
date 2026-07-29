@@ -27,7 +27,8 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - Restaurant recommendation engine: scan (Claude Vision), URL fetch, PDF extraction, paste — two-card input UX with optional occasion field (also editable in results)
 - **The Somm is live:** LLM curation + 2–3 sentence pairing-first notes per pick + a list-level summary, in brand voice. Strict server-side validation; ANY failure returns `{fallback:true}` and the UI silently keeps algorithmic picks — The Somm is progressive enhancement, never load-bearing
 - **DNA feedback loop is wired:** rated journal entries (loved/not_for_me) boost and suppress scores in `matchWinesAgainstDNA` and feed the somm payload
-- Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings + DNA Timeline
+- **The Palate view (/palate) is live** (Act II, July 29): the home DNA strip is the door (archetype + signature line + evolution whisper); the view holds the palate signature (Old↔New World, Focused↔Wide-ranging, Red↔White rails + concentration phrase via `palateSignature.js`), the narrative, Recently evolved (dna_timeline) and Building now (dna_accumulation progress against the real `dnaThresholds.js` promotion thresholds — never hardcode them), founding-vs-earned ✦ marks, and the full DNA sections. `PalateView.js` is presentation-only (props in) so a teaser variant can reuse it. Quiz entry is only quiet links (`/?quiz=refine|fresh`)
+- Wine Journal (/journal): Tried, Want to Try, Skipped tabs with ratings + DNA Timeline (deep-linkable via `?tab=timeline`)
 - Log a Bottle: Claude Vision label extraction, saves to journal + evolves DNA (accumulation/promotion/demotion engine in `dnaEvolution.js`)
 - Rate limiting: in-memory sliding window, 10 requests/hour/IP per paid route (`src/lib/rateLimit.js`); cost logging: one `{"type":"claude_usage",...}` JSON line per Claude call — Vercel logs are the cost dashboard
 - Supabase tables: wine_profiles, wine_interactions, dna_accumulation, dna_timeline
@@ -37,7 +38,7 @@ This is the full Sommeasy web app — quiz, DNA profile, restaurant recommendati
 - `node src/lib/__tests__/dnaEvolution.test.js` — 42 tests, DNA evolution pipeline (inlined mirror of resolver + engine)
 - `node src/lib/__tests__/countryAttribution.test.js` — 14 tests, country-misattribution regression suite (the Cassis→US / Gimonnet→Italy / Crozes→Portugal class)
 - `node src/lib/__tests__/sommPicks.test.js` — 24 tests, somm payload builder + response validator (tests the real module via dynamic import)
-- `npm run test:e2e` — 27 Playwright specs. Fixture images are gitignored; regenerate with `python3 e2e/fixtures/generate-fixtures.py` or the suite silently collects 0 tests. Includes two permanent hard-fail guards — fail-if-no-picks and no-raw-internal-IDs (raw-ids.spec.ts) — keep both; outcome-tolerant specs masked a dead integration for weeks once
+- `npm run test:e2e` — 30 Playwright specs. Fixture images are gitignored; regenerate with `python3 e2e/fixtures/generate-fixtures.py` or the suite silently collects 0 tests. Includes three permanent hard-fail guards — fail-if-no-picks, no-raw-internal-IDs (raw-ids.spec.ts, covers home/palate/journal), and the Palate-view render guard (palate.spec.ts) — keep all; outcome-tolerant specs masked a dead integration for weeks once
 
 ## Brand & Design
 
@@ -108,14 +109,15 @@ You don't need to ask permission for individual code changes. Make the call, shi
 - wineAutocomplete.json (140KB) lazy-loads on quiz Step 5 only — doesn't affect initial load
 - `/api/parse-wine-list` accepts base64 image, PDF, or scraped text; returns `{ wines: [...] }` (Path A: structured JSON → match engine) or `{ rawText }` (Path B: text parser). Both converge at `runAnalysis()` in the recommend page
 - API GET routes that must run per-request (like `/api/keepalive`) need `export const dynamic = "force-dynamic"` or Next statically prerenders them into no-ops
-- `ANTHROPIC_API_KEY` is required in Vercel env vars; without it all three Claude routes degrade gracefully (scan errors are friendly, somm falls back silently)
+- `ANTHROPIC_API_KEY` is required in Vercel env vars; without it all four Claude routes degrade gracefully (scan errors are friendly, somm and palate-narrative fall back silently). Note: local `.env.local` has NO Anthropic key (deliberately commented out), so Claude-powered paths only fully exercise in prod — verify them there after deploy
 
 ## Priorities (Current)
 
-1. The Palate, Act II — profile redesign per `docs/palate-act-ii-brief.md` (Session 1 wiring shipped July 29: somm-note persistence, no-raw-IDs fix, salvage logging; Session 2 is the design work)
-2. Anonymous-user teaser flow (quiz → partial reveal → signup, without losing results)
-3. Multi-page scan UX polish
-4. Durable rate limiting (Redis/KV) when traffic justifies it
+1. Anonymous-user teaser flow (quiz → partial reveal → signup, without losing results) — `PalateView` is componentized specifically so a partial variant can be derived
+2. Multi-page scan UX polish
+3. Durable rate limiting (Redis/KV) when traffic justifies it
+
+(The Palate, Act II shipped July 29, 2026 — both sessions of `docs/palate-act-ii-brief.md`, including the Pillar 5 evolving narrative.)
 
 ## API Usage
 
@@ -123,7 +125,8 @@ The Anthropic API is a core part of this product. Three routes, all using `CLAUD
 
 - **Wine list scanning** via `/api/parse-wine-list` — measured ~$0.009/scan (text path; images somewhat higher)
 - **Bottle label extraction** via `/api/scan-label`
-- **Somm curation** via `/api/somm-picks` — measured ~$0.015/curation (~1.6k in / 0.7k out tokens, 5–15s)
+- **Somm curation** via `/api/somm-picks` — measured $0.021–0.025/curation with feedback-rich payloads (3.4–3.6k in / 0.7–0.9k out tokens, 12–20s)
+- **Palate narrative refresh** via `/api/palate-narrative` — regenerates the profile narrative only when the palate genuinely moved (a dna_timeline event, or ≥5 newly rated bottles since `narrative_updated_at`); cookie-session auth via `@supabase/ssr` `createServerClient`; ANY failure silently keeps the existing narrative
 - Worst-case engaged session ≈ ≤$0.12
 - When adding new API-consuming features, be mindful of cost but don't avoid the Anthropic API — it's approved and encouraged
 

@@ -4,9 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-utils";
 import { resolveAndAccumulate, syncQuizSelections } from "@/lib/dnaEvolution";
-// Display helpers only — Quiz already imports wineUnified.json statically,
-// so these add no new weight to the home bundle
-import { getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, getVarietalColor, formatWineName } from "@/lib/matchEngine";
+import { signatureLine } from "@/lib/palateSignature";
 import Quiz from "@/components/Quiz";
 
 // ─── Rating Modal ───
@@ -144,8 +142,7 @@ function WineRecCard({ rec, index, onAction, isActioned }) {
 }
 
 // ─── Saved Profile View ───
-function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
-  const [showProfile, setShowProfile] = useState(false);
+function SavedProfileView({ profile, onRefine, onSignOut, user }) {
   const [showWines, setShowWines] = useState(true);
   const [interactions, setInteractions] = useState({});
   const [ratingWine, setRatingWine] = useState(null);
@@ -162,11 +159,9 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
   const supabase = createClient();
 
   const recs = profile.recommendations || [];
-  const statCountries = (profile.countries || []).length;
-  const statRegions = Object.values(profile.regions || {}).flat().length;
-  const statGrapes = (profile.varietals || []).length;
-  const statFavs = Object.values(profile.estates || {}).flat().length + (profile.specific_wines || []).length;
   const displayName = user?.email?.split("@")[0] || "";
+  const [whisper, setWhisper] = useState(null);
+  const palateLine = signatureLine(profile);
 
   useEffect(() => {
     setIsMobile(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
@@ -185,7 +180,22 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
         setInteractions(map);
       }
     }
-    if (user?.id) loadInteractions();
+    // A whisper of recent evolution on the strip ("Chenin Blanc just joined
+    // your DNA") — only when something actually promoted in the last 30 days
+    async function loadWhisper() {
+      const { data } = await supabase
+        .from("dna_timeline")
+        .select("display_name, event_at")
+        .eq("user_id", user.id)
+        .eq("event_type", "promoted")
+        .order("event_at", { ascending: false })
+        .limit(1);
+      const latest = data?.[0];
+      if (latest && Date.now() - new Date(latest.event_at).getTime() < 30 * 24 * 60 * 60 * 1000) {
+        setWhisper(`${latest.display_name} just joined your DNA`);
+      }
+    }
+    if (user?.id) { loadInteractions(); loadWhisper(); }
   }, [user?.id]);
 
   const showToast = useCallback((msg) => {
@@ -624,31 +634,34 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
         </div>
       )}
 
-      {/* DNA Strip */}
-      <div style={{
+      {/* DNA Strip — the door to the Palate view, not a dead end */}
+      <a href="/palate" data-testid="palate-strip" style={{
+        display: "block", textDecoration: "none",
         background: "linear-gradient(155deg, #1B3D2F 0%, #234A38 40%, #1B3D2F 100%)",
         borderRadius: "18px", padding: "20px 24px",
         color: "#F5F0E8", marginBottom: 28,
         boxShadow: "0 6px 24px rgba(27,61,47,0.2), 0 2px 6px rgba(27,61,47,0.1)",
       }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: "32px", flexShrink: 0 }}>{profile.archetype_emoji}</div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, lineHeight: 1.2 }}>{profile.archetype}</div>
-              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", opacity: 0.45, marginTop: 4 }}>
-                {statCountries} countries · {statRegions} regions · {statGrapes} grapes · {statFavs} favorites
-              </div>
+              {palateLine && (
+                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "13px", fontStyle: "italic", opacity: 0.6, marginTop: 4 }}>
+                  {palateLine}
+                </div>
+              )}
+              {whisper && (
+                <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#C9DAC4", marginTop: 6, fontWeight: 600 }}>
+                  🧬 {whisper}
+                </div>
+              )}
             </div>
           </div>
-          <button onClick={onRefine} style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            color: "#F5F0E8", background: "rgba(255,255,255,0.1)",
-            border: "1px solid rgba(255,255,255,0.12)", borderRadius: "100px",
-            padding: "8px 20px", cursor: "pointer", whiteSpace: "nowrap", fontWeight: 500,
-          }}>Refine</button>
+          <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "22px", opacity: 0.5, flexShrink: 0 }}>›</span>
         </div>
-      </div>
+      </a>
 
       {/* ─── Wines to Try (Interactive) ─── */}
       {recs.length > 0 && (
@@ -707,14 +720,22 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
                     fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
                     color: "#1B3D2F", opacity: 0.5, lineHeight: 1.5, maxWidth: 300,
                     margin: "0 auto 16px",
-                  }}>Refine your profile to discover more personalized recommendations.</p>
-                  <button onClick={onRefine} style={{
+                  }}>Your best picks now come from real menus — share a wine list and we&apos;ll match it to your palate.</p>
+                  <a href="/recommend" style={{
                     fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
-                    fontWeight: 600, color: "#F5F0E8",
+                    fontWeight: 600, color: "#F5F0E8", textDecoration: "none",
+                    display: "inline-block",
                     background: "linear-gradient(135deg, #8B2332, #7A1E2C)",
                     border: "none", borderRadius: "100px", padding: "12px 32px",
                     cursor: "pointer", boxShadow: "0 4px 16px rgba(139,35,50,0.2)",
-                  }}>Refine My Profile</button>
+                  }}>Scan a Wine List</a>
+                  <div style={{ marginTop: 10 }}>
+                    <button onClick={onRefine} style={{
+                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                      color: "#1B3D2F", opacity: 0.35, background: "none", border: "none",
+                      cursor: "pointer", textDecoration: "underline", padding: "10px 12px",
+                    }}>or adjust your quiz answers</button>
+                  </div>
                 </div>
               )}
 
@@ -746,114 +767,8 @@ function SavedProfileView({ profile, onRefine, onRetake, onSignOut, user }) {
         </div>
       )}
 
-      {/* Full Profile (expandable) */}
-      <button onClick={() => setShowProfile(!showProfile)} style={{
-        width: "100%", padding: "16px 20px", borderRadius: "16px",
-        border: "1px solid rgba(27,61,47,0.07)", background: "rgba(255,255,255,0.35)",
-        color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif",
-        fontSize: "14px", fontWeight: 500, cursor: "pointer",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: showProfile ? 14 : 0,
-      }}>
-        <span>Full Profile</span>
-        <span style={{ transform: showProfile ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease", fontSize: "11px", opacity: 0.35 }}>▼</span>
-      </button>
-
-      {showProfile && (
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: "16px", padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)", marginBottom: 10 }}>
-            <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.65, lineHeight: 1.65, margin: 0, fontStyle: "italic" }}>{profile.narrative}</p>
-          </div>
-          {(profile.red_count > 0 || profile.white_count > 0) && (
-            <div style={{ background: "rgba(255,255,255,0.4)", borderRadius: "16px", padding: "16px 20px", border: "1px solid rgba(27,61,47,0.06)", marginBottom: 10 }}>
-              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.35, marginBottom: 10, fontWeight: 600 }}>Red vs White</div>
-              <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", gap: 2 }}>
-                <div style={{ flex: profile.red_count || 0.01, background: "#8B2332", borderRadius: "3px 0 0 3px" }} />
-                <div style={{ flex: profile.white_count || 0.01, background: "#6B8F5E", borderRadius: "0 3px 3px 0" }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#8B2332", fontWeight: 600 }}>{profile.red_count} red</span>
-                <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#6B8F5E", fontWeight: 600 }}>{profile.white_count} white</span>
-              </div>
-            </div>
-          )}
-          <ProfileTagSection label="Countries" items={(profile.countries || []).map(displayCountry)} />
-          <ProfileRegionSection regions={profile.regions || {}} />
-          <ProfileTagSection label="Varietals" items={(profile.varietals || []).map(displayVarietal)} />
-          <ProfileTagSection label="Specific Wines" items={(profile.specific_wines || []).map(formatWineName)} />
-        </div>
-      )}
-
-      {/* Footer */}
-      <div style={{ textAlign: "center", marginTop: 24, paddingBottom: 48 }}>
-        <button onClick={onRetake} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "none", cursor: "pointer", opacity: 0.3, textDecoration: "underline", padding: "14px 12px" }}>Start fresh &amp; retake quiz</button>
-      </div>
-    </div>
-  );
-}
-
-// Never show an internal ID: last-resort prettifier for anything the display
-// helpers don't know ("hemel_en_aarde_walker_bay" → "Hemel En Aarde Walker Bay")
-function prettifyId(id) {
-  if (!id || typeof id !== "string") return "";
-  return id.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-}
-
-function displayCountry(countryId) {
-  const name = getCountryName(countryId) || prettifyId(countryId);
-  const flag = getCountryFlag(countryId);
-  return flag ? `${flag} ${name}` : name;
-}
-
-function displayVarietal(varietalId) {
-  const name = getVarietalDisplayName(varietalId) || prettifyId(varietalId);
-  // Same color-aware emoji mapping as the pick cards — 🍇 is purple, which
-  // reads wrong next to Chardonnay
-  const color = getVarietalColor(varietalId);
-  const emoji =
-    color === "white" ? "🥂"
-    : color === "sparkling" ? "🍾"
-    : color === "rosé" || color === "rose" ? "🌸"
-    : "🍇";
-  return `${emoji} ${name}`;
-}
-
-function ProfileTagSection({ label, items }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.4)", borderRadius: "16px", padding: "16px 20px", border: "1px solid rgba(27,61,47,0.06)" }}>
-      <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.35, marginBottom: 10, fontWeight: 600 }}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-        {items.map((item, i) => <span key={i} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "rgba(27,61,47,0.05)", padding: "5px 14px", borderRadius: "100px" }}>{item}</span>)}
-      </div>
-    </div>
-  );
-}
-
-// Regions grouped under their countries — profile.regions is already shaped
-// {countryId: [regionIds]}, so this is presentation, not plumbing
-function ProfileRegionSection({ regions }) {
-  const entries = Object.entries(regions || {}).filter(([, ids]) => ids && ids.length > 0);
-  if (entries.length === 0) return null;
-  return (
-    <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.4)", borderRadius: "16px", padding: "16px 20px", border: "1px solid rgba(27,61,47,0.06)" }}>
-      <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.12em", color: "#1B3D2F", opacity: 0.35, marginBottom: 10, fontWeight: 600 }}>Regions</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {entries.map(([countryId, regionIds]) => (
-          <div key={countryId}>
-            <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", fontWeight: 600, color: "#1B3D2F", opacity: 0.55, marginBottom: 6 }}>
-              {displayCountry(countryId)}
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {regionIds.map((rid) => (
-                <span key={rid} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "rgba(27,61,47,0.05)", padding: "5px 14px", borderRadius: "100px" }}>
-                  {getRegionDisplayName(rid, countryId) || prettifyId(rid)}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* The full palate lives at /palate now — the strip above is the door */}
+      <div style={{ paddingBottom: 48 }} />
     </div>
   );
 }
@@ -947,6 +862,22 @@ export default function Home() {
         const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", currentUser.id).single();
         if (data) { setSavedProfile(data); setView("profile"); }
         else { setView("welcome"); }
+        // Quiet quiz entry points from the Palate view (?quiz=refine|fresh).
+        // Read from location directly — useSearchParams would force a
+        // Suspense boundary on this statically prerendered page.
+        const quizParam = new URLSearchParams(window.location.search).get("quiz");
+        if (quizParam === "fresh") {
+          setQuizInitial(null);
+          setView("quiz");
+        } else if (quizParam === "refine" && data) {
+          setQuizInitial({
+            countries: data.countries || [], regions: data.regions || {},
+            estates: data.estates || {}, varietals: data.varietals || [],
+            specificWines: data.specific_wines || [],
+          });
+          setView("quiz");
+        }
+        if (quizParam) window.history.replaceState({}, "", "/");
       } else { setView("welcome"); }
       setLoading(false);
     }
@@ -970,7 +901,6 @@ export default function Home() {
     }
     setView("quiz");
   };
-  const handleRetake = () => { setQuizInitial(null); setView("quiz"); };
 
   const handleSaveProfile = async (profile) => {
     if (!user) return;
@@ -1020,7 +950,7 @@ export default function Home() {
         {savedMessage && (
           <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px", borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, boxShadow: "0 4px 20px rgba(27,61,47,0.3)", zIndex: 100 }}>✓ {savedMessage}</div>
         )}
-        <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} onRetake={handleRetake} onSignOut={handleSignOut} />
+        <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} onSignOut={handleSignOut} />
       </div>
     );
   }

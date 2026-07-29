@@ -14,39 +14,15 @@ import {
   DNA_TO_VARIETY_NAME,
 } from "./wineResolver";
 import wineUnified from "./wineUnified.json";
+import {
+  RATING_POINTS,
+  PROMOTION_THRESHOLDS,
+  ROLLUP_THRESHOLDS,
+  DEMOTION_THRESHOLDS,
+  CONFIDENCE_GATE,
+} from "./dnaThresholds";
 
 const PRODUCERS = wineUnified.producers;
-
-
-// ═══════════════════════════════════════════════════════
-// CONSTANTS
-// ═══════════════════════════════════════════════════════
-
-const RATING_POINTS = {
-  loved: 2,
-  liked: 1,
-  fine: 0,
-  not_for_me: -1,
-};
-
-const PROMOTION_THRESHOLDS = {
-  estate: 6,
-  varietal: 10,
-  region: 14,
-  country: 20,
-};
-
-const ROLLUP_THRESHOLDS = {
-  region: 3,  // 3 promoted estates in a region → promote region
-  country: 3, // 3 promoted regions in a country → promote country
-};
-
-const DEMOTION_THRESHOLDS = {
-  auto: -6,   // Auto-promoted items
-  quiz: -10,  // Quiz-selected items (higher bar)
-};
-
-const CONFIDENCE_GATE = 80;
 
 
 // ═══════════════════════════════════════════════════════

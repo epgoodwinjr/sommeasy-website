@@ -88,6 +88,10 @@ export default function JournalPage() {
   const supabase = createClient();
 
   useEffect(() => {
+    // Deep-link support (/journal?tab=timeline from the Palate view)
+    const tabParam = new URLSearchParams(window.location.search).get("tab");
+    if (["tried", "want", "skipped", "timeline"].includes(tabParam)) setTab(tabParam);
+
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
       const currentUser = session?.user || null;
@@ -541,6 +545,15 @@ export default function JournalPage() {
               })}
             </div>
           )}
+          {/* Cross-link: the timeline is history; the Palate is the living view */}
+          <div style={{ textAlign: "center", marginTop: 16 }}>
+            <a href="/palate" style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+              color: "#8B2332", fontWeight: 600, textDecoration: "none",
+              display: "inline-block", padding: "10px 20px", borderRadius: "100px",
+              border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.03)",
+            }}>🧬 See what&apos;s building in your palate →</a>
+          </div>
         </div>
       )}
 
