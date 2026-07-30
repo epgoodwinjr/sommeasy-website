@@ -44,7 +44,17 @@ function createSupabase() {
     {
       cookies: {
         getAll() { return cookieStore.getAll(); },
-        setAll() {}, // this route only reads the session
+        // Write rotated tokens back — a setAll no-op here discards the new
+        // refresh token whenever getUser() renews the session, and the user
+        // gets logged out at random minutes later.
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          } catch {
+            // cookies() can be read-only outside a request context; the
+            // middleware refresh covers that path.
+          }
+        },
       },
     }
   );

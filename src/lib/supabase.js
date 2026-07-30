@@ -9,10 +9,14 @@ export function createClient() {
     return {
       auth: {
         getSession: async () => ({ data: { session: null } }),
+        getUser: async () => ({ data: { user: null }, error: null }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
         signInWithPassword: async () => ({ error: { message: "Supabase not configured — check environment variables in Vercel" } }),
         signUp: async () => ({ error: { message: "Supabase not configured — check environment variables in Vercel" } }),
         signInWithOAuth: async () => ({ error: { message: "Supabase not configured — check environment variables in Vercel" } }),
+        resetPasswordForEmail: async () => ({ error: { message: "Supabase not configured — check environment variables in Vercel" } }),
+        updateUser: async () => ({ error: { message: "Supabase not configured — check environment variables in Vercel" } }),
+        resend: async () => ({ error: { message: "Supabase not configured — check environment variables in Vercel" } }),
         signOut: async () => ({}),
       },
       from: () => ({
