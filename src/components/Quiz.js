@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import wineUnified from "@/lib/wineUnified.json";
 import { generateDNAProfile } from "@/lib/profileEngine";
+import { saveStash } from "@/lib/pendingPalate";
+import { signatureLine } from "@/lib/palateSignature";
 import WineRecList from "@/components/WineRecList";
 
 const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DATA, varietals: VARIETALS_RAW } = wineUnified;
@@ -480,6 +482,20 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
     return () => clearTimeout(t);
   }, []);
 
+  // The teaser's partial read: the one-line palate signature, computed from
+  // the local answers (anonymous reveals always render the locally generated
+  // profile, which carries .raw). signatureLine wants the stored shape.
+  const teaserSignature = !user && profile.raw
+    ? signatureLine({
+        countries: profile.raw.countries,
+        regions: profile.raw.regions,
+        estates: profile.raw.estates,
+        specific_wines: profile.raw.specificWines,
+        red_count: profile.redCount,
+        white_count: profile.whiteCount,
+      })
+    : null;
+
   // Staged entrance: each block fades up in sequence so the archetype lands
   // as a moment, not a form submit. Settled transform must be "none", not
   // translateY(0) — a non-none transform makes the wrapper the containing
@@ -526,24 +542,44 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
         </div>
       )}
 
+      {/* Anonymous teaser (Session 2): the archetype hero above is the full
+          delight; what's gated is DEPTH — the palate signature is a taste of
+          the identity waiting behind the account, the recs below are a taste
+          of the matches. Saving is promised because the stash makes it true. */}
+      {!user && teaserSignature && (
+        <p data-testid="teaser-signature" style={{ ...stage(1300), fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", fontStyle: "italic", color: "#1B3D2F", opacity: mounted ? 0.65 : 0, textAlign: "center", margin: "0 0 20px" }}>
+          {teaserSignature}
+        </p>
+      )}
+
       {!user && (
-        <div style={{ ...stage(1500), background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "20px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 28, textAlign: "center" }}>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 16px 0", lineHeight: 1.55, opacity: 0.7 }}>
-            Save your profile free — then paste any restaurant wine list and get your picks matched to your taste in seconds.
+        <div data-testid="teaser-gate" style={{ ...stage(1500), background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "22px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 28, textAlign: "center" }}>
+          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px", color: "#1B3D2F", margin: "0 0 8px 0", lineHeight: 1.4 }}>
+            Create your account to meet your full palate.
           </p>
-          <a href="/signup" style={{ display: "inline-block", padding: "12px 32px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, textDecoration: "none", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>Save My Profile →</a>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 16px 0", lineHeight: 1.55, opacity: 0.65 }}>
+            Your results are saved on this device for 7 days — sign up free and they&apos;re yours for good, with every restaurant wine list matched to your taste.
+          </p>
+          <a href="/signup" style={{ display: "inline-block", padding: "13px 36px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, textDecoration: "none", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>Save My Palate →</a>
+          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", margin: "16px 0 0", opacity: 0.55 }}>
+            Already have an account?{" "}
+            <a href="/login" data-testid="teaser-signin" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in — we&apos;ll fold this into your palate.</a>
+          </p>
         </div>
       )}
 
       {/* Ratable recs — the highest-signal moment: recognition becomes rated
-          evidence, and "Building now" is alive from minute one */}
+          evidence, and "Building now" is alive from minute one. Anonymous
+          users get a taste (read-only cards, no rating language). */}
       {profile.recommendations?.length > 0 && (
         <div data-testid="reveal-recs" style={stage(1900)}>
-          <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", color: "#1B3D2F", fontWeight: 600, margin: "0 0 6px" }}>Start it off</h3>
+          <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", color: "#1B3D2F", fontWeight: 600, margin: "0 0 6px" }}>{user ? "Start it off" : "A taste of your matches"}</h3>
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.55, margin: "0 0 14px", lineHeight: 1.5 }}>
-            Rate the ones you know — every answer sharpens your palate.
+            {user
+              ? "Rate the ones you know — every answer sharpens your palate."
+              : "Bottles we'd already pour you. Your full list is waiting behind your account."}
           </p>
-          <WineRecList recs={profile.recommendations} user={user} limit={5} />
+          <WineRecList recs={profile.recommendations} user={user} limit={user ? 5 : 3} />
         </div>
       )}
 
@@ -607,6 +643,14 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, earnedD
     if (user && onProfileGenerated) {
       runSave(dna);
     } else {
+      // Never Lose a Palate: stash the results at reveal time, BEFORE any
+      // navigation can destroy them. localStorage (7-day expiry, version
+      // gate) survives the signup/email-confirmation round trip; the first
+      // authenticated load of "/" folds it in. Storage failure (private
+      // mode) must never break the reveal itself.
+      try {
+        saveStash(window.localStorage, answers, dna);
+      } catch { /* the reveal goes on */ }
       setPhase("revealed");
     }
   };

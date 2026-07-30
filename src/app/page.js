@@ -3,15 +3,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-utils";
-import { resolveAndAccumulate, syncQuizSelections, mergeQuizWithEarnedDna, reconcileQuizPromotions } from "@/lib/dnaEvolution";
-import { generateDNAProfile } from "@/lib/profileEngine";
-import { formatWineName } from "@/lib/matchEngine";
+import { resolveAndAccumulate } from "@/lib/dnaEvolution";
+import { saveQuizProfile } from "@/lib/saveQuizProfile";
+import { claimStash, restoreStash, unionQuizRaw } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
 import Quiz from "@/components/Quiz";
 import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
 
 // ─── Saved Profile View ───
-function SavedProfileView({ profile, onRefine, onSignOut, user }) {
+function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
   const [showWines, setShowWines] = useState(true);
   // Rec interactions live inside WineRecList (the shared ratable surface);
   // this view only needs the counts it reports back
@@ -248,6 +248,10 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
           }}>Sign Out</button>
         </div>
       </header>
+
+      {/* Welcome-back moment — the pending palate just landed (Session 2:
+          Never Lose a Palate). A quiet beat, not a toast. */}
+      {welcomeBack && <WelcomeBackMoment />}
 
       {/* Hero: Restaurant CTA */}
       <a href="/recommend" style={{
@@ -572,6 +576,30 @@ function SavedProfileView({ profile, onRefine, onSignOut, user }) {
   );
 }
 
+// ─── Welcome-back moment ───
+function WelcomeBackMoment() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 80);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div data-testid="welcome-back" style={{
+      marginTop: 8, marginBottom: 20, padding: "18px 22px",
+      borderRadius: "16px", textAlign: "center",
+      background: "rgba(107,143,94,0.08)", border: "1px solid rgba(107,143,94,0.22)",
+      opacity: mounted ? 1 : 0,
+      transform: mounted ? "none" : "translateY(10px)",
+      transition: "opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
+    }}>
+      <p style={{
+        fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px",
+        color: "#1B3D2F", margin: 0, lineHeight: 1.5,
+      }}>Welcome back. Your palate was waiting.</p>
+    </div>
+  );
+}
+
 // ─── Welcome Screen ───
 function WelcomeScreen({ onStart, user, onSignOut }) {
   const steps = [
@@ -655,7 +683,42 @@ export default function Home() {
   // "dimension:value" keys of earned-promoted DNA, so refine chips can wear
   // the ✦ and the user knows what an uncheck removes
   const [quizEarned, setQuizEarned] = useState([]);
+  // A pending palate (anonymous quiz stash) was just folded in on this load
+  const [welcomeBack, setWelcomeBack] = useState(false);
   const supabase = createClient();
+
+  const rowToRaw = (row) => ({
+    countries: row.countries || [], regions: row.regions || {},
+    estates: row.estates || {}, varietals: row.varietals || [],
+    specificWines: row.specific_wines || [],
+  });
+
+  // Never Lose a Palate (Session 2): an anonymous quiz stashed at reveal
+  // time gets folded in on the first authenticated load of "/". claimStash
+  // removes the stash synchronously BEFORE the async save — the two-tab
+  // race (email-confirmation landing vs the original tab) has exactly one
+  // winner. If the save fails, the stash goes back untouched: nothing lost,
+  // next load retries. Over an existing profile it's stash ∪ existing ∪
+  // earned (refine merge, initialRaw null — the anonymous quiz never
+  // displayed the existing chips, so nothing counts as a deselection).
+  const restorePendingPalate = async (userId, existingRow) => {
+    const stash = claimStash(window.localStorage);
+    if (!stash) return null;
+    try {
+      const rawAnswers = existingRow
+        ? unionQuizRaw(stash.answers, rowToRaw(existingRow))
+        : stash.answers;
+      const row = await saveQuizProfile(supabase, userId, rawAnswers, {
+        mode: existingRow ? "refine" : "fresh",
+        initialRaw: null,
+      });
+      if (row) return row;
+    } catch (err) {
+      console.error("Pending palate restore failed:", err);
+    }
+    restoreStash(window.localStorage, stash);
+    return null;
+  };
 
   const fetchEarnedDna = async (userId) => {
     const { data } = await supabase
@@ -684,7 +747,12 @@ export default function Home() {
       const currentUser = session?.user || null;
       setUser(currentUser);
       if (currentUser) {
-        const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", currentUser.id).single();
+        let { data } = await supabase.from("wine_profiles").select("*").eq("user_id", currentUser.id).single();
+        const restoredRow = await restorePendingPalate(currentUser.id, data);
+        if (restoredRow) {
+          data = restoredRow;
+          setWelcomeBack(true);
+        }
         if (data) { setSavedProfile(data); setView("profile"); }
         else { setView("welcome"); }
         if (quizParam === "fresh") {
@@ -744,51 +812,14 @@ export default function Home() {
   // gate.
   const handleSaveProfile = async (profile) => {
     if (!user) return null;
-    try {
-      const quizRaw = {
-        ...profile.raw,
-        // Fix casing at the source ("Meerlust rubicon" → "Meerlust Rubicon")
-        specificWines: (profile.raw.specificWines || []).map(formatWineName),
-      };
-      // initialRaw (the answers the refine was seeded with) lets the merge
-      // honor explicit deselections of earned items — Ed's August 2026 call
-      const merged = quizMode === "refine"
-        ? await mergeQuizWithEarnedDna(supabase, user.id, quizRaw, quizInitial)
-        : quizRaw;
-      const finalProfile = generateDNAProfile(merged);
-
-      const { error } = await supabase.from("wine_profiles").upsert({
-        user_id: user.id,
-        archetype: finalProfile.archetype,
-        archetype_emoji: finalProfile.archetypeEmoji,
-        narrative: finalProfile.narrative,
-        countries: merged.countries,
-        regions: merged.regions,
-        estates: merged.estates,
-        varietals: merged.varietals,
-        specific_wines: merged.specificWines,
-        recommendations: finalProfile.recommendations,
-        red_count: finalProfile.redCount,
-        white_count: finalProfile.whiteCount,
-      }, { onConflict: "user_id" });
-      if (error) { console.error("Save error:", error); return null; }
-
-      try {
-        // Un-flag promoted accumulation rows no longer in the DNA, then mark
-        // the declared selections as founding (earned rows keep provenance)
-        await reconcileQuizPromotions(supabase, user.id, merged);
-        await syncQuizSelections(supabase, user.id, quizRaw);
-      } catch (syncErr) {
-        console.error("Quiz sync error (non-blocking):", syncErr);
-      }
-
-      const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", user.id).single();
-      if (data) { setSavedProfile(data); return data; }
-      return null;
-    } catch (err) {
-      console.error("Save error:", err);
-      return null;
-    }
+    // initialRaw (the answers the refine was seeded with) lets the merge
+    // honor explicit deselections of earned items — Ed's August 2026 call
+    const data = await saveQuizProfile(supabase, user.id, profile.raw, {
+      mode: quizMode,
+      initialRaw: quizInitial,
+    });
+    if (data) { setSavedProfile(data); return data; }
+    return null;
   };
 
   if (loading || view === "loading") {
@@ -814,7 +845,7 @@ export default function Home() {
   }
 
   if (view === "profile" && savedProfile) {
-    return <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} onSignOut={handleSignOut} />;
+    return <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} onSignOut={handleSignOut} welcomeBack={welcomeBack} />;
   }
 
   return <WelcomeScreen onStart={handleStartQuiz} user={user} onSignOut={handleSignOut} />;

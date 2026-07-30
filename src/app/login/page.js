@@ -1,12 +1,11 @@
-import { Suspense } from "react";
 import AuthForm from "@/components/AuthForm";
 
 export const metadata = { title: "Sign In — Sommeasy" };
 
-export default function LoginPage() {
-  return (
-    <Suspense>
-      <AuthForm mode="login" />
-    </Suspense>
-  );
+// searchParams as a server prop (not useSearchParams in the client): a
+// statically-served page + useSearchParams suspends during hydration and
+// REMOUNTS the form — wiping anything typed into the pre-hydration DOM.
+// Server-rendering the params costs nothing here and kills that race.
+export default function LoginPage({ searchParams }) {
+  return <AuthForm mode="login" params={searchParams} />;
 }

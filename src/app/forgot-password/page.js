@@ -1,12 +1,8 @@
-import { Suspense } from "react";
 import ForgotPasswordForm from "@/components/ForgotPasswordForm";
 
 export const metadata = { title: "Reset Password — Sommeasy" };
 
-export default function ForgotPasswordPage() {
-  return (
-    <Suspense>
-      <ForgotPasswordForm />
-    </Suspense>
-  );
+// searchParams as a server prop — see login/page.js for why.
+export default function ForgotPasswordPage({ searchParams }) {
+  return <ForgotPasswordForm params={searchParams} />;
 }

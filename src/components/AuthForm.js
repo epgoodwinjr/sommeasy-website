@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { AUTH_ERRORS, AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
-import { interpretSignUpResult } from "@/lib/authFlow";
+import { interpretSignUpResult, sanitizeNext } from "@/lib/authFlow";
 import AuthShell, {
   authFonts, inputStyle, focusInput, blurInput, primaryButtonStyle,
   errorBoxStyle, errorTextStyle, noticeBoxStyle, noticeTextStyle,
@@ -14,32 +14,48 @@ import AuthShell, {
 const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "1";
 const RESEND_COOLDOWN_SECS = 60;
 
-export default function AuthForm({ mode }) {
-  const [email, setEmail] = useState("");
+// params: the page's searchParams server prop (?error, ?email, ?next).
+// Values can be string | string[] — take the first.
+const param = (params, key) => {
+  const v = params?.[key];
+  return Array.isArray(v) ? v[0] : v || "";
+};
+
+export default function AuthForm({ mode, params }) {
+  // Confirm/callback failures land on /login?error=<reason>&email=<email> —
+  // rendered as brand copy from the very first paint, never a silent bounce.
+  const [email, setEmail] = useState(() => param(params, "email"));
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [errorKey, setErrorKey] = useState(null);
+  const [errorKey, setErrorKey] = useState(() => {
+    const errorParam = param(params, "error");
+    if (!errorParam) return null;
+    return AUTH_ERRORS[errorParam] ? errorParam : "unknown";
+  });
   const [notice, setNotice] = useState(null);
   // "form" | "check_inbox" | "already_registered"
   const [view, setView] = useState("form");
   const [resendSecs, setResendSecs] = useState(0);
   const [resending, setResending] = useState(false);
+  // The submit button ships disabled in the SSR HTML and enables on mount:
+  // a click before React hydrates would fire a NATIVE form submission — a
+  // full reload that wipes the typed input (and, once inputs carry name
+  // attributes, would leak the password into the URL). ~100ms window.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const isLogin = mode === "login";
 
-  // Confirm/callback failures land on /login?error=<reason>&email=<email> —
-  // render them as brand copy, never a silent bounce.
-  useEffect(() => {
-    const emailParam = searchParams.get("email");
-    if (emailParam) setEmail(emailParam);
-    const errorParam = searchParams.get("error");
-    if (errorParam) setErrorKey(AUTH_ERRORS[errorParam] ? errorParam : "unknown");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Destination preservation (Session 2): signed-out gates pass ?next= and
+  // it rides the whole flow — the post-auth push, the email confirmation
+  // round trip, OAuth, and the login↔signup toggle. Always sanitized: the
+  // open-redirect rules from Session 1 apply here too.
+  const nextPath = sanitizeNext(param(params, "next") || "/");
+  const nextQS = nextPath !== "/" ? `next=${encodeURIComponent(nextPath)}` : "";
+  const withNext = (href) => (nextQS ? `${href}${href.includes("?") ? "&" : "?"}${nextQS}` : href);
 
   // Resend cooldown ticker
   useEffect(() => {
@@ -48,7 +64,8 @@ export default function AuthForm({ mode }) {
     return () => clearTimeout(t);
   }, [resendSecs]);
 
-  const emailRedirectTo = () => `${window.location.origin}/api/auth/callback`;
+  const emailRedirectTo = () =>
+    `${window.location.origin}/api/auth/callback${nextQS ? `?${nextQS}` : ""}`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -63,7 +80,7 @@ export default function AuthForm({ mode }) {
           setErrorKey(mapAuthError(error));
           return;
         }
-        router.push("/");
+        router.push(nextPath);
         router.refresh();
       } else {
         const { data, error } = await supabase.auth.signUp({
@@ -75,7 +92,7 @@ export default function AuthForm({ mode }) {
           setErrorKey(mapAuthError(outcome.error));
         } else if (outcome.kind === "signed_in") {
           // Confirmations off (or already verified) — no email theater
-          router.push("/");
+          router.push(nextPath);
           router.refresh();
         } else if (outcome.kind === "already_registered") {
           setView("already_registered");
@@ -309,7 +326,7 @@ export default function AuthForm({ mode }) {
         {errorBox}
         {noticeBox}
 
-        <button type="submit" disabled={loading} style={primaryButtonStyle(loading)}>
+        <button type="submit" disabled={loading || !hydrated} style={primaryButtonStyle(loading)}>
           {loading
             ? (isLogin ? "Signing you in…" : "Creating your account…")
             : (isLogin ? "Sign In" : "Create Account")}
@@ -318,7 +335,7 @@ export default function AuthForm({ mode }) {
 
       <p style={{ ...mutedTextStyle, marginTop: 28 }}>
         {isLogin ? "Don't have an account? " : "Already have an account? "}
-        <a href={isLogin ? "/signup" : "/login"} style={inlineLinkStyle}>
+        <a href={withNext(isLogin ? "/signup" : "/login")} style={inlineLinkStyle}>
           {isLogin ? "Sign up" : "Sign in"}
         </a>
       </p>

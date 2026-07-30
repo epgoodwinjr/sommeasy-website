@@ -24,6 +24,10 @@ setup("authenticate", async ({ page }) => {
 
   await page.goto("/login");
 
+  // The submit button enables once React has hydrated (pre-hydration
+  // interaction would be lost to a native form submission)
+  await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+
   // Fill in email and password
   await page.locator('input[type="email"]').fill(email);
   await page.locator('input[type="password"]').fill(password);

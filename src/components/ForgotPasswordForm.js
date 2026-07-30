@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
 import AuthShell, {
@@ -10,19 +9,17 @@ import AuthShell, {
   inlineLinkStyle, mutedTextStyle,
 } from "./AuthShell";
 
-export default function ForgotPasswordForm() {
-  const [email, setEmail] = useState("");
+export default function ForgotPasswordForm({ params }) {
+  const emailParam = Array.isArray(params?.email) ? params.email[0] : params?.email || "";
+  const [email, setEmail] = useState(emailParam);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [errorKey, setErrorKey] = useState(null);
-  const searchParams = useSearchParams();
+  // Disabled until hydration — a pre-hydration click would fire a native
+  // form submission and wipe the typed email (see AuthForm).
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
   const supabase = createClient();
-
-  useEffect(() => {
-    const emailParam = searchParams.get("email");
-    if (emailParam) setEmail(emailParam);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -93,7 +90,7 @@ export default function ForgotPasswordForm() {
           </div>
         )}
 
-        <button type="submit" disabled={loading} style={primaryButtonStyle(loading)}>
+        <button type="submit" disabled={loading || !hydrated} style={primaryButtonStyle(loading)}>
           {loading ? "Sending the link…" : "Send reset link"}
         </button>
       </form>
