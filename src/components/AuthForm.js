@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { AUTH_ERRORS, AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
-import { interpretSignUpResult, sanitizeNext } from "@/lib/authFlow";
+import { interpretSignUpResult, sanitizeNext, isOtpNoAccountError } from "@/lib/authFlow";
 import AuthShell, {
-  authFonts, inputStyle, focusInput, blurInput, primaryButtonStyle,
+  AuthField, authFonts, primaryButtonStyle,
   errorBoxStyle, errorTextStyle, noticeBoxStyle, noticeTextStyle,
   inlineLinkStyle, mutedTextStyle,
 } from "./AuthShell";
 
 const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "1";
+const MAGIC_ENABLED = process.env.NEXT_PUBLIC_MAGIC_LINK_ENABLED === "1";
 const RESEND_COOLDOWN_SECS = 60;
 
 // params: the page's searchParams server prop (?error, ?email, ?next).
@@ -28,6 +30,7 @@ export default function AuthForm({ mode, params }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [magicLoading, setMagicLoading] = useState(false);
   const [errorKey, setErrorKey] = useState(() => {
     const errorParam = param(params, "error");
     if (!errorParam) return null;
@@ -36,18 +39,24 @@ export default function AuthForm({ mode, params }) {
   const [notice, setNotice] = useState(null);
   // "form" | "check_inbox" | "already_registered"
   const [view, setView] = useState("form");
+  // What the inbox is waiting for: a signup confirmation or a magic link —
+  // decides the copy and what "Resend" actually calls
+  const [inboxMode, setInboxMode] = useState("signup");
   const [resendSecs, setResendSecs] = useState(0);
   const [resending, setResending] = useState(false);
   // The submit button ships disabled in the SSR HTML and enables on mount:
   // a click before React hydrates would fire a NATIVE form submission — a
-  // full reload that wipes the typed input (and, once inputs carry name
-  // attributes, would leak the password into the URL). ~100ms window.
+  // full reload that wipes the typed input and leaks named fields into the
+  // URL. ~100ms window. e2e uses the enabled button as its hydration signal.
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { setHydrated(true); }, []);
   const router = useRouter();
   const supabase = createClient();
 
   const isLogin = mode === "login";
+  // One switch for "something is in flight" — every actionable control
+  // disables together so double-submits and crossed flows can't happen
+  const anyPending = loading || googleLoading || magicLoading || resending;
 
   // Destination preservation (Session 2): signed-out gates pass ?next= and
   // it rides the whole flow — the post-auth push, the email confirmation
@@ -56,6 +65,22 @@ export default function AuthForm({ mode, params }) {
   const nextPath = sanitizeNext(param(params, "next") || "/");
   const nextQS = nextPath !== "/" ? `next=${encodeURIComponent(nextPath)}` : "";
   const withNext = (href) => (nextQS ? `${href}${href.includes("?") ? "&" : "?"}${nextQS}` : href);
+
+  // Failure focus: screen readers (and sighted keyboard users) land on the
+  // error the moment it appears — but only for INTERACTIVE failures, never
+  // the ?error param on first paint (autoFocus owns that moment).
+  const errorRef = useRef(null);
+  const shouldFocusError = useRef(false);
+  const failWith = (key) => {
+    shouldFocusError.current = true;
+    setErrorKey(key);
+  };
+  useEffect(() => {
+    if (errorKey && shouldFocusError.current) {
+      shouldFocusError.current = false;
+      errorRef.current?.focus();
+    }
+  }, [errorKey]);
 
   // Resend cooldown ticker
   useEffect(() => {
@@ -69,6 +94,7 @@ export default function AuthForm({ mode, params }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (anyPending) return;
     setLoading(true);
     setErrorKey(null);
     setNotice(null);
@@ -77,7 +103,7 @@ export default function AuthForm({ mode, params }) {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
-          setErrorKey(mapAuthError(error));
+          failWith(mapAuthError(error));
           return;
         }
         router.push(nextPath);
@@ -89,7 +115,7 @@ export default function AuthForm({ mode, params }) {
         });
         const outcome = interpretSignUpResult(data, error);
         if (outcome.kind === "error") {
-          setErrorKey(mapAuthError(outcome.error));
+          failWith(mapAuthError(outcome.error));
         } else if (outcome.kind === "signed_in") {
           // Confirmations off (or already verified) — no email theater
           router.push(nextPath);
@@ -97,35 +123,85 @@ export default function AuthForm({ mode, params }) {
         } else if (outcome.kind === "already_registered") {
           setView("already_registered");
         } else {
+          setInboxMode("signup");
           setView("check_inbox");
           setResendSecs(RESEND_COOLDOWN_SECS);
         }
       }
     } catch {
-      setErrorKey("network");
+      failWith("network");
     } finally {
       setLoading(false);
     }
   };
 
-  const resendConfirmation = async () => {
+  // Shared magic-link sender (first send AND resends). Returns true when the
+  // inbox state should show. Anti-enumeration by construction: an unknown
+  // email (shouldCreateUser: false rejection) lands on the same
+  // check-your-inbox copy as a real send.
+  const sendMagicLink = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false, emailRedirectTo: emailRedirectTo() },
+      });
+      if (error && !isOtpNoAccountError(error)) {
+        failWith(mapAuthError(error));
+        return false;
+      }
+      return true;
+    } catch {
+      failWith("network");
+      return false;
+    }
+  };
+
+  const handleMagicLink = async () => {
+    if (anyPending) return;
+    if (!email.trim()) {
+      failWith("magic_needs_email");
+      return;
+    }
+    setMagicLoading(true);
+    setErrorKey(null);
+    setNotice(null);
+    const ok = await sendMagicLink();
+    setMagicLoading(false);
+    if (ok) {
+      setInboxMode("magic");
+      setView("check_inbox");
+      setResendSecs(RESEND_COOLDOWN_SECS);
+    }
+  };
+
+  // Resend from the check-inbox state — signup confirmations go through
+  // auth.resend, magic links are simply sent again.
+  const resendLink = async () => {
     setResending(true);
     setNotice(null);
     setErrorKey(null);
     try {
+      if (inboxMode === "magic") {
+        const ok = await sendMagicLink();
+        if (ok) {
+          setNotice(AUTH_MESSAGES.resent);
+          setResendSecs(RESEND_COOLDOWN_SECS);
+        }
+        return ok;
+      }
       const { error } = await supabase.auth.resend({
         type: "signup", email,
         options: { emailRedirectTo: emailRedirectTo() },
       });
       if (error) {
-        setErrorKey(mapAuthError(error));
+        failWith(mapAuthError(error));
         return false;
       }
       setNotice(AUTH_MESSAGES.resent);
       setResendSecs(RESEND_COOLDOWN_SECS);
       return true;
     } catch {
-      setErrorKey("network");
+      failWith("network");
       return false;
     } finally {
       setResending(false);
@@ -135,11 +211,13 @@ export default function AuthForm({ mode, params }) {
   // From the login form's unconfirmed-email affordance: only move to the
   // check-inbox state if the resend actually went out.
   const resendAndShowInbox = async () => {
-    const ok = await resendConfirmation();
+    setInboxMode("signup");
+    const ok = await resendLink();
     if (ok) setView("check_inbox");
   };
 
   const handleGoogleSignIn = async () => {
+    if (anyPending) return;
     setGoogleLoading(true);
     setErrorKey(null);
     try {
@@ -148,24 +226,31 @@ export default function AuthForm({ mode, params }) {
         options: { redirectTo: emailRedirectTo() },
       });
       if (error) {
-        setErrorKey(mapAuthError(error));
+        failWith(mapAuthError(error));
         setGoogleLoading(false);
       }
       // On success the browser navigates to Google — keep the pending state.
     } catch {
-      setErrorKey("network");
+      failWith("network");
       setGoogleLoading(false);
     }
   };
 
   const errorBox = errorKey && (
-    <div style={errorBoxStyle} data-testid="auth-error" role="alert">
+    <div
+      style={errorBoxStyle}
+      data-testid="auth-error"
+      role="alert"
+      aria-live="polite"
+      tabIndex={-1}
+      ref={errorRef}
+    >
       <p style={errorTextStyle}>{authErrorCopy(errorKey)}</p>
       {errorKey === "unconfirmed_email" && (
         <button
           type="button"
           onClick={resendAndShowInbox}
-          disabled={resending || !email}
+          disabled={anyPending || !email}
           style={{
             marginTop: 8, padding: "8px 0", border: "none", background: "none",
             color: "#8B2332", fontFamily: authFonts.sans, fontSize: "13px",
@@ -173,14 +258,14 @@ export default function AuthForm({ mode, params }) {
             textDecoration: "underline",
           }}
         >
-          {resending ? "Sending…" : "Resend the confirmation email"}
+          {resending ? "Sending your link…" : "Resend the confirmation email"}
         </button>
       )}
     </div>
   );
 
   const noticeBox = notice && (
-    <div style={noticeBoxStyle} data-testid="auth-notice">
+    <div style={noticeBoxStyle} data-testid="auth-notice" role="status" aria-live="polite">
       <p style={noticeTextStyle}>{notice}</p>
     </div>
   );
@@ -190,20 +275,24 @@ export default function AuthForm({ mode, params }) {
     return (
       <AuthShell subtitle={AUTH_MESSAGES.check_inbox_title}>
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} data-testid="auth-check-inbox">
-          <div style={noticeBoxStyle}>
-            <p style={noticeTextStyle}>{AUTH_MESSAGES.check_inbox(email)}</p>
+          <div style={noticeBoxStyle} role="status" aria-live="polite">
+            <p style={noticeTextStyle}>
+              {inboxMode === "magic"
+                ? AUTH_MESSAGES.magic_sent(email)
+                : AUTH_MESSAGES.check_inbox(email)}
+            </p>
           </div>
           {noticeBox}
           {errorBox}
           <button
             type="button"
-            onClick={resendConfirmation}
-            disabled={resendSecs > 0 || resending}
+            onClick={resendLink}
+            disabled={resendSecs > 0 || anyPending}
             data-testid="auth-resend"
-            style={primaryButtonStyle(resendSecs > 0 || resending)}
+            style={primaryButtonStyle(resendSecs > 0 || anyPending)}
           >
             {resending
-              ? "Sending…"
+              ? "Sending your link…"
               : resendSecs > 0
                 ? `Resend the link in ${resendSecs}s`
                 : "Resend the link"}
@@ -232,16 +321,16 @@ export default function AuthForm({ mode, params }) {
     return (
       <AuthShell subtitle="You're already one of ours">
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} data-testid="auth-already-registered">
-          <div style={noticeBoxStyle}>
+          <div style={noticeBoxStyle} role="status" aria-live="polite">
             <p style={noticeTextStyle}>{authErrorCopy("already_registered")}</p>
           </div>
-          <a href={`/login${emailQS}`} style={{ ...primaryButtonStyle(false), display: "block", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>
+          <Link href={`/login${emailQS}`} style={{ ...primaryButtonStyle(false), display: "block", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>
             Sign in
-          </a>
+          </Link>
           <p style={{ ...mutedTextStyle, marginTop: 14 }}>
-            <a href={`/forgot-password${emailQS}`} style={inlineLinkStyle}>
+            <Link href={`/forgot-password${emailQS}`} style={inlineLinkStyle}>
               Reset your password
-            </a>
+            </Link>
           </p>
         </div>
       </AuthShell>
@@ -255,7 +344,7 @@ export default function AuthForm({ mode, params }) {
         <>
           <button
             onClick={handleGoogleSignIn}
-            disabled={googleLoading || loading}
+            disabled={anyPending || !hydrated}
             style={{
               width: "100%", padding: "15px", borderRadius: "14px",
               border: "1px solid rgba(27,61,47,0.12)",
@@ -290,54 +379,77 @@ export default function AuthForm({ mode, params }) {
       )}
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        <input
+        <AuthField
+          id="email"
+          label="Email"
           type="email"
-          placeholder="Email address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
-          style={inputStyle}
-          onFocus={focusInput}
-          onBlur={blurInput}
+          autoComplete="email"
+          inputMode="email"
+          autoFocus
+          placeholder="Email address"
         />
-        <input
+        <AuthField
+          id="password"
+          label="Password"
           type="password"
-          placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-          style={inputStyle}
-          onFocus={focusInput}
-          onBlur={blurInput}
+          // "new-password" at signup is what triggers iOS/1Password
+          // strong-password generation — the single biggest
+          // forgot-password preventer
+          autoComplete={isLogin ? "current-password" : "new-password"}
+          // New passwords follow the 8-char policy; sign-in stays
+          // length-agnostic so legacy shorter passwords still get in
+          minLength={isLogin ? undefined : 8}
+          placeholder="Password"
+          helper={isLogin ? undefined : AUTH_MESSAGES.password_helper}
         />
 
         {isLogin && (
           <p style={{ margin: "-4px 0 0", textAlign: "right" }}>
-            <a
+            <Link
               href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
               style={{ ...inlineLinkStyle, fontFamily: authFonts.sans, fontSize: "13px" }}
             >
               Forgot your password?
-            </a>
+            </Link>
           </p>
         )}
 
         {errorBox}
         {noticeBox}
 
-        <button type="submit" disabled={loading || !hydrated} style={primaryButtonStyle(loading)}>
+        <button type="submit" disabled={anyPending || !hydrated} style={primaryButtonStyle(loading)}>
           {loading
             ? (isLogin ? "Signing you in…" : "Creating your account…")
             : (isLogin ? "Sign In" : "Create Account")}
         </button>
+
+        {MAGIC_ENABLED && isLogin && (
+          <button
+            type="button"
+            onClick={handleMagicLink}
+            disabled={anyPending || !hydrated}
+            data-testid="magic-link"
+            style={{
+              border: "none", background: "none",
+              fontFamily: authFonts.sans, fontSize: "14px", fontWeight: 600,
+              color: "#8B2332", cursor: magicLoading ? "wait" : "pointer",
+              padding: "12px 8px", opacity: anyPending && !magicLoading ? 0.4 : 1,
+            }}
+          >
+            {magicLoading ? "Sending your link…" : "Email me a sign-in link instead"}
+          </button>
+        )}
       </form>
 
       <p style={{ ...mutedTextStyle, marginTop: 28 }}>
         {isLogin ? "Don't have an account? " : "Already have an account? "}
-        <a href={withNext(isLogin ? "/signup" : "/login")} style={inlineLinkStyle}>
+        <Link href={withNext(isLogin ? "/signup" : "/login")} style={inlineLinkStyle}>
           {isLogin ? "Sign up" : "Sign in"}
-        </a>
+        </Link>
       </p>
     </AuthShell>
   );

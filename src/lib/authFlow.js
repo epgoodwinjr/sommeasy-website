@@ -41,6 +41,19 @@ export function interpretSignUpResult(data, error) {
   return { kind: "error", error: { message: "empty signUp response" } };
 }
 
+/**
+ * signInWithOtp({ shouldCreateUser: false }) rejects unknown emails with
+ * "Signups not allowed for otp" (error_code otp_disabled). The magic-link UI
+ * deliberately treats that as a SUCCESS landing (anti-enumeration: same
+ * check-your-inbox copy either way) — this detector keeps that decision
+ * testable and out of the component.
+ */
+export function isOtpNoAccountError(error) {
+  if (!error) return false;
+  if (error.code === "otp_disabled" || error.error_code === "otp_disabled") return true;
+  return /signups not allowed for otp/i.test(String(error.message || ""));
+}
+
 /** OTP types the confirm route accepts from email links. */
 export const VALID_OTP_TYPES = ["signup", "recovery", "magiclink", "email_change", "invite", "email"];
 

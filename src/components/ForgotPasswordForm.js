@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
 import AuthShell, {
-  authFonts, inputStyle, focusInput, blurInput, primaryButtonStyle,
+  AuthField, authFonts, primaryButtonStyle,
   errorBoxStyle, errorTextStyle, noticeBoxStyle, noticeTextStyle,
   inlineLinkStyle, mutedTextStyle,
 } from "./AuthShell";
@@ -21,8 +22,23 @@ export default function ForgotPasswordForm({ params }) {
   useEffect(() => { setHydrated(true); }, []);
   const supabase = createClient();
 
+  // Failure focus for screen readers / keyboard users (interactive only)
+  const errorRef = useRef(null);
+  const shouldFocusError = useRef(false);
+  const failWith = (key) => {
+    shouldFocusError.current = true;
+    setErrorKey(key);
+  };
+  useEffect(() => {
+    if (errorKey && shouldFocusError.current) {
+      shouldFocusError.current = false;
+      errorRef.current?.focus();
+    }
+  }, [errorKey]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setErrorKey(null);
     try {
@@ -37,13 +53,13 @@ export default function ForgotPasswordForm({ params }) {
         // Anything else still shows the "if that email has an account"
         // copy so the form never confirms whether an account exists.
         if (key === "rate_limit" || key === "network") {
-          setErrorKey(key);
+          failWith(key);
           return;
         }
       }
       setSent(true);
     } catch {
-      setErrorKey("network");
+      failWith("network");
     } finally {
       setLoading(false);
     }
@@ -53,11 +69,11 @@ export default function ForgotPasswordForm({ params }) {
     return (
       <AuthShell subtitle="Check your inbox">
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} data-testid="reset-sent">
-          <div style={noticeBoxStyle}>
+          <div style={noticeBoxStyle} role="status" aria-live="polite">
             <p style={noticeTextStyle}>{AUTH_MESSAGES.reset_sent}</p>
           </div>
           <p style={{ ...mutedTextStyle, marginTop: 14 }}>
-            <a href="/login" style={inlineLinkStyle}>Back to sign in</a>
+            <Link href="/login" style={inlineLinkStyle}>Back to sign in</Link>
           </p>
         </div>
       </AuthShell>
@@ -73,31 +89,39 @@ export default function ForgotPasswordForm({ params }) {
         }}>
           Tell us your email and we&rsquo;ll send a link to set a new one.
         </p>
-        <input
+        <AuthField
+          id="email"
+          label="Email"
           type="email"
-          placeholder="Email address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          required
-          style={inputStyle}
-          onFocus={focusInput}
-          onBlur={blurInput}
+          autoComplete="email"
+          inputMode="email"
+          autoFocus
+          placeholder="Email address"
         />
 
         {errorKey && (
-          <div style={errorBoxStyle} data-testid="auth-error" role="alert">
+          <div
+            style={errorBoxStyle}
+            data-testid="auth-error"
+            role="alert"
+            aria-live="polite"
+            tabIndex={-1}
+            ref={errorRef}
+          >
             <p style={errorTextStyle}>{authErrorCopy(errorKey)}</p>
           </div>
         )}
 
         <button type="submit" disabled={loading || !hydrated} style={primaryButtonStyle(loading)}>
-          {loading ? "Sending the link…" : "Send reset link"}
+          {loading ? "Sending your link…" : "Send reset link"}
         </button>
       </form>
 
       <p style={{ ...mutedTextStyle, marginTop: 28 }}>
         Remembered it?{" "}
-        <a href="/login" style={inlineLinkStyle}>Sign in</a>
+        <Link href="/login" style={inlineLinkStyle}>Sign in</Link>
       </p>
     </AuthShell>
   );

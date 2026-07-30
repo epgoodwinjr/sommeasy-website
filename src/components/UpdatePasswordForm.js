@@ -1,24 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
 import AuthShell, {
-  authFonts, inputStyle, focusInput, blurInput, primaryButtonStyle,
+  AuthField, primaryButtonStyle,
   errorBoxStyle, errorTextStyle, noticeBoxStyle, noticeTextStyle,
   inlineLinkStyle, mutedTextStyle,
 } from "./AuthShell";
 
 export default function UpdatePasswordForm() {
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorKey, setErrorKey] = useState(null);
   // "checking" | "ready" | "missing" | "done"
   const [phase, setPhase] = useState("checking");
   const router = useRouter();
   const supabase = createClient();
+
+  // Failure focus for screen readers / keyboard users (interactive only)
+  const errorRef = useRef(null);
+  const shouldFocusError = useRef(false);
+  const failWith = (key) => {
+    shouldFocusError.current = true;
+    setErrorKey(key);
+  };
+  useEffect(() => {
+    if (errorKey && shouldFocusError.current) {
+      shouldFocusError.current = false;
+      errorRef.current?.focus();
+    }
+  }, [errorKey]);
 
   // The reset link lands here through the confirm/callback layer, which
   // sets the recovery session in cookies. No session → the link never ran
@@ -36,12 +50,13 @@ export default function UpdatePasswordForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setErrorKey(null);
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) {
-        setErrorKey(mapAuthError(error));
+        failWith(mapAuthError(error));
         return;
       }
       setPhase("done");
@@ -51,7 +66,7 @@ export default function UpdatePasswordForm() {
         router.refresh();
       }, 1400);
     } catch {
-      setErrorKey("network");
+      failWith("network");
     } finally {
       setLoading(false);
     }
@@ -69,14 +84,14 @@ export default function UpdatePasswordForm() {
     return (
       <AuthShell subtitle="Set a new password">
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} data-testid="reset-session-missing">
-          <div style={noticeBoxStyle}>
+          <div style={noticeBoxStyle} role="status" aria-live="polite">
             <p style={noticeTextStyle}>{AUTH_MESSAGES.reset_session_missing}</p>
           </div>
-          <a href="/forgot-password" style={{ ...primaryButtonStyle(false), display: "block", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>
+          <Link href="/forgot-password" style={{ ...primaryButtonStyle(false), display: "block", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>
             Request a reset link
-          </a>
+          </Link>
           <p style={{ ...mutedTextStyle, marginTop: 14 }}>
-            <a href="/login" style={inlineLinkStyle}>Back to sign in</a>
+            <Link href="/login" style={inlineLinkStyle}>Back to sign in</Link>
           </p>
         </div>
       </AuthShell>
@@ -86,7 +101,7 @@ export default function UpdatePasswordForm() {
   if (phase === "done") {
     return (
       <AuthShell subtitle="Set a new password">
-        <div style={noticeBoxStyle} data-testid="password-updated">
+        <div style={noticeBoxStyle} data-testid="password-updated" role="status" aria-live="polite">
           <p style={noticeTextStyle}>{AUTH_MESSAGES.password_updated}</p>
         </div>
       </AuthShell>
@@ -96,36 +111,30 @@ export default function UpdatePasswordForm() {
   return (
     <AuthShell subtitle="Set a new password">
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        <div style={{ position: "relative" }}>
-          <input
-            type={showPassword ? "text" : "password"}
-            placeholder="New password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            style={{ ...inputStyle, paddingRight: 74 }}
-            onFocus={focusInput}
-            onBlur={blurInput}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((s) => !s)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
-            style={{
-              position: "absolute", right: 6, top: "50%",
-              transform: "translateY(-50%)",
-              border: "none", background: "none", cursor: "pointer",
-              padding: "12px 12px", color: "#8B2332",
-              fontFamily: authFonts.sans, fontSize: "13px", fontWeight: 600,
-            }}
-          >
-            {showPassword ? "Hide" : "Show"}
-          </button>
-        </div>
+        <AuthField
+          id="new-password"
+          label="New password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          // new-password is what triggers iOS/1Password strong-password
+          // generation on the reset path
+          autoComplete="new-password"
+          autoFocus
+          minLength={8}
+          placeholder="New password"
+          helper={AUTH_MESSAGES.password_helper}
+        />
 
         {errorKey && (
-          <div style={errorBoxStyle} data-testid="auth-error" role="alert">
+          <div
+            style={errorBoxStyle}
+            data-testid="auth-error"
+            role="alert"
+            aria-live="polite"
+            tabIndex={-1}
+            ref={errorRef}
+          >
             <p style={errorTextStyle}>{authErrorCopy(errorKey)}</p>
           </div>
         )}

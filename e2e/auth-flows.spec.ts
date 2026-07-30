@@ -126,6 +126,8 @@ test.describe("Auth — signed-out flows", () => {
     await expect(error).toBeVisible({ timeout: 15_000 });
     await expect(error).toContainText(/don't match our books/);
     await expect(page.getByText("Invalid login credentials")).toHaveCount(0);
+    // Focus lands on the error (S3): screen readers hear it, keyboards reach it
+    await expect(error).toBeFocused();
     // The submit button recovered (try/finally) — not stuck on a pending label
     await expect(page.locator('button[type="submit"]')).toBeEnabled();
   });
@@ -188,6 +190,152 @@ test.describe("Auth — signed-out flows", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// Polish the Brass (Session 3): form fundamentals, states, magic link
+// ─────────────────────────────────────────────────────────────────────────
+
+const MAGIC_ON = process.env.NEXT_PUBLIC_MAGIC_LINK_ENABLED === "1";
+
+test.describe("Auth — polish (Session 3)", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("HARD-FAIL GUARD: password-manager vocabulary on login + signup", async ({ page }) => {
+    // If a password field loses its autoComplete attribute, iOS/1Password
+    // stop offering to save/generate passwords — the single biggest
+    // forgot-password preventer. Never soften this spec.
+    await page.goto("/login");
+    await expect(page.locator("input#email")).toHaveAttribute("autocomplete", "email");
+    await expect(page.locator("input#email")).toHaveAttribute("name", "email");
+    await expect(page.locator("input#password")).toHaveAttribute("autocomplete", "current-password");
+    await expect(page.locator("input#password")).toHaveAttribute("name", "password");
+
+    await page.goto("/signup");
+    await expect(page.locator("input#email")).toHaveAttribute("autocomplete", "email");
+    await expect(page.locator("input#password")).toHaveAttribute("autocomplete", "new-password");
+    await expect(page.locator("input#password")).toHaveAttribute("minlength", "8");
+  });
+
+  test("labels, autofocus, helper, and visibility toggle", async ({ page }) => {
+    await page.goto("/signup");
+    // Visible labels, properly associated
+    await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    // Email autofocused for the fast path
+    await expect(page.locator("input#email")).toBeFocused();
+    // The quiet requirements helper
+    await expect(page.getByText("At least 8 characters.")).toBeVisible();
+
+    // Show/Hide toggle
+    const password = page.locator("input#password");
+    await password.fill("a-fine-vintage-8");
+    await expect(password).toHaveAttribute("type", "password");
+    await page.getByRole("button", { name: "Show password" }).click();
+    await expect(password).toHaveAttribute("type", "text");
+    await page.getByRole("button", { name: "Hide password" }).click();
+    await expect(password).toHaveAttribute("type", "password");
+
+    // Forgot-password page has the same field discipline
+    await page.goto("/forgot-password");
+    await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+    await expect(page.locator("input#email")).toHaveAttribute("autocomplete", "email");
+    await expect(page.locator("input#email")).toBeFocused();
+  });
+
+  test("pending state: real copy, everything disabled while in flight", async ({ page }) => {
+    // A slow token exchange keeps the pending state observable
+    await routeAuth(page, "**/auth/v1/token**", async (route) => {
+      await new Promise((r) => setTimeout(r, 1200));
+      await fulfillJson(route, { code: 400, error_code: "invalid_credentials", msg: "Invalid login credentials" }, 400);
+    });
+
+    await page.goto("/login");
+    const submit = page.locator('button[type="submit"]');
+    await expect(submit).toBeEnabled({ timeout: 15_000 });
+    await page.locator("input#email").fill(FAKE_EMAIL);
+    await page.locator("input#password").fill("whatever-password");
+    await submit.click();
+
+    await expect(submit).toContainText("Signing you in…");
+    await expect(submit).toBeDisabled();
+    if (MAGIC_ON) {
+      await expect(page.getByTestId("magic-link")).toBeDisabled();
+    }
+
+    // Then the failure lands, focused, and the form recovers
+    await expect(page.getByTestId("auth-error")).toBeVisible({ timeout: 15_000 });
+    await expect(submit).toBeEnabled();
+  });
+
+  test("error boxes carry role=alert + aria-live", async ({ page }) => {
+    await page.goto(`/login?error=link_expired&email=${encodeURIComponent(FAKE_EMAIL)}`);
+    const error = page.getByTestId("auth-error");
+    await expect(error).toBeVisible({ timeout: 15_000 });
+    await expect(error).toHaveAttribute("role", "alert");
+    await expect(error).toHaveAttribute("aria-live", "polite");
+  });
+
+  test("logo links home from auth pages", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.getByRole("link", { name: "Sommeasy home" })).toHaveAttribute("href", "/");
+  });
+
+  test(`magic link ${MAGIC_ON ? "flow (flag on)" : "stays hidden (flag off)"}`, async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+
+    if (!MAGIC_ON) {
+      await expect(page.getByTestId("magic-link")).toHaveCount(0);
+      return;
+    }
+
+    const magic = page.getByTestId("magic-link");
+    await expect(magic).toBeVisible();
+    await expect(magic).toContainText("Email me a sign-in link instead");
+
+    // Without an email: a warm nudge, not a dead click
+    await magic.click();
+    await expect(page.getByTestId("auth-error")).toContainText(/Tell us your email first/);
+
+    // With an email: intercepted OTP send → the check-inbox state with
+    // anti-enumeration copy and the gated resend
+    await routeAuth(page, "**/auth/v1/otp**", (route) => fulfillJson(route, {}));
+    await page.locator("input#email").fill(FAKE_EMAIL);
+    await magic.click();
+
+    const inbox = page.getByTestId("auth-check-inbox");
+    await expect(inbox).toBeVisible({ timeout: 15_000 });
+    await expect(inbox).toContainText(/If that email has an account with us/);
+    await expect(inbox).toContainText(FAKE_EMAIL);
+    const resend = page.getByTestId("auth-resend");
+    await expect(resend).toBeDisabled();
+    await expect(resend).toContainText(/Resend the link in \d+s/);
+  });
+
+  test("magic link is signup-page-free and anti-enumeration on unknown emails", async ({ page }) => {
+    test.skip(!MAGIC_ON, "magic link flag off in this environment");
+
+    // No magic link on signup — it's a sign-in affordance
+    await page.goto("/signup");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await expect(page.getByTestId("magic-link")).toHaveCount(0);
+
+    // Unknown email (shouldCreateUser:false rejection) lands on the SAME
+    // check-inbox state — the form never confirms account existence
+    await routeAuth(page, "**/auth/v1/otp**", (route) =>
+      fulfillJson(route, { code: 422, error_code: "otp_disabled", msg: "Signups not allowed for otp" }, 422)
+    );
+    await page.goto("/login");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await page.locator("input#email").fill("nobody-here@example.com");
+    await page.getByTestId("magic-link").click();
+
+    const inbox = page.getByTestId("auth-check-inbox");
+    await expect(inbox).toBeVisible({ timeout: 15_000 });
+    await expect(inbox).toContainText(/If that email has an account with us/);
+    await expect(page.getByText("Signups not allowed for otp")).toHaveCount(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // Recovery-session flow (uses the seeded auth state as the session; the
 // password mutation itself is intercepted — the e2e account is never changed)
 // ─────────────────────────────────────────────────────────────────────────
@@ -210,6 +358,10 @@ test.describe("Auth — update password with a session", () => {
     await page.goto("/update-password");
     const input = page.locator('input[placeholder="New password"]');
     await expect(input).toBeVisible({ timeout: 15_000 });
+    // Password-manager guard on the reset path: new-password triggers
+    // iOS/1Password strong-password generation
+    await expect(input).toHaveAttribute("autocomplete", "new-password");
+    await expect(input).toHaveAttribute("minlength", "8");
 
     await input.fill("a-new-fine-vintage-6");
     // Visibility toggle from day one on this page

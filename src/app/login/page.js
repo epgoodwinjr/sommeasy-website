@@ -1,6 +1,9 @@
 import AuthForm from "@/components/AuthForm";
 
-export const metadata = { title: "Sign In — Sommeasy" };
+export const metadata = {
+  title: "Sign In — Sommeasy",
+  description: "Sign in to your Wine DNA — your palate, your journal, and picks from any restaurant wine list.",
+};
 
 // searchParams as a server prop (not useSearchParams in the client): a
 // statically-served page + useSearchParams suspends during hydration and

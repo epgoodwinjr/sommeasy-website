@@ -18,7 +18,7 @@ function test(name, fn) {
 function assert(cond, msg) { if (!cond) throw new Error("ASSERT FAILED: " + msg); }
 
 async function main() {
-  const { sanitizeNext, interpretSignUpResult, isValidOtpType, VALID_OTP_TYPES } =
+  const { sanitizeNext, interpretSignUpResult, isValidOtpType, VALID_OTP_TYPES, isOtpNoAccountError } =
     await import("../authFlow.js");
   const { AUTH_ERRORS, AUTH_MESSAGES, mapAuthError, authErrorCopy } =
     await import("../authCopy.js");
@@ -148,7 +148,7 @@ async function main() {
 
   test("every error copy tells the user what to do next (CLAUDE.md voice rule)", () => {
     // Heuristic: actionable copy contains a verb of action or direction
-    const actionable = /try|sign in|reset|check|request|give it|pick|ignore|moment/i;
+    const actionable = /try|sign in|reset|check|request|give it|pick|ignore|moment|type it/i;
     for (const [k, copy] of Object.entries(AUTH_ERRORS)) {
       assert(actionable.test(copy), `${k} copy has no next step: "${copy}"`);
     }
@@ -186,6 +186,31 @@ async function main() {
 
   test("anti-enumeration reset copy never confirms account existence", () => {
     assert(/if that email has an account/i.test(AUTH_MESSAGES.reset_sent), "conditional phrasing required");
+  });
+
+  console.log("\n═══ Session 3 — magic link + password policy copy ═══");
+
+  test("magic_sent copy is anti-enumeration (same conditional phrasing as reset)", () => {
+    const copy = AUTH_MESSAGES.magic_sent("x@y.com");
+    assert(/if that email has an account/i.test(copy), "conditional phrasing required");
+    assert(copy.includes("x@y.com"), "shows the address");
+    assert(/sign-in link/i.test(copy), "names what was sent");
+  });
+
+  test("password_helper and magic_needs_email exist with the 8-char policy", () => {
+    assert(AUTH_MESSAGES.password_helper === "At least 8 characters.", "helper copy");
+    assert(/8 characters/.test(AUTH_ERRORS.weak_password), "weak_password names 8");
+    assert(!/6 characters/.test(AUTH_ERRORS.weak_password), "no stale 6-char copy");
+    assert(typeof AUTH_ERRORS.magic_needs_email === "string" && AUTH_ERRORS.magic_needs_email.length > 20, "magic_needs_email");
+  });
+
+  test("isOtpNoAccountError detects the shouldCreateUser:false rejection", () => {
+    assert(isOtpNoAccountError({ message: "Signups not allowed for otp", status: 422 }), "by message");
+    assert(isOtpNoAccountError({ code: "otp_disabled", message: "anything" }), "by code");
+    assert(isOtpNoAccountError({ error_code: "otp_disabled" }), "by error_code");
+    assert(!isOtpNoAccountError({ message: "For security purposes, wait", status: 429 }), "rate limit is NOT a no-account");
+    assert(!isOtpNoAccountError({ message: "fetch failed" }), "network is NOT a no-account");
+    assert(!isOtpNoAccountError(null), "null");
   });
 
   console.log(`\n${passed} passed, ${failed} failed\n`);

@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
+
 // Shared visual shell + style vocabulary for every auth page (login,
 // signup, forgot-password, update-password). One place to keep the brand
 // identity consistent across the whole front door.
@@ -72,6 +75,75 @@ export const mutedTextStyle = {
   color: "#1B3D2F", textAlign: "center", opacity: 0.5,
 };
 
+export const labelStyle = {
+  display: "block",
+  fontFamily: authFonts.sans, fontSize: "11px", fontWeight: 600,
+  color: "#1B3D2F", opacity: 0.55,
+  letterSpacing: "0.12em", textTransform: "uppercase",
+  margin: "0 0 6px 4px",
+};
+
+export const helperTextStyle = {
+  fontFamily: authFonts.sans, fontSize: "12px",
+  color: "#1B3D2F", opacity: 0.45, margin: "6px 4px 0", lineHeight: 1.4,
+};
+
+/**
+ * A labeled auth input with the full password-manager vocabulary: visible
+ * label, id/name, autoComplete (autoComplete="new-password" is what makes
+ * iOS/1Password offer strong-password generation), inputMode, and a
+ * visibility toggle on password fields. One component so no field can
+ * quietly lose an attribute.
+ */
+export function AuthField({
+  id, label, type = "text", value, onChange,
+  autoComplete, inputMode, autoFocus = false,
+  required = true, minLength, placeholder, helper,
+}) {
+  const [show, setShow] = useState(false);
+  const isPassword = type === "password";
+  return (
+    <div>
+      <label htmlFor={id} style={labelStyle}>{label}</label>
+      <div style={{ position: "relative" }}>
+        <input
+          id={id}
+          name={id}
+          type={isPassword && show ? "text" : type}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+          inputMode={inputMode}
+          autoFocus={autoFocus}
+          required={required}
+          minLength={minLength}
+          placeholder={placeholder}
+          style={{ ...inputStyle, ...(isPassword ? { paddingRight: 74 } : {}) }}
+          onFocus={focusInput}
+          onBlur={blurInput}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            aria-label={show ? "Hide password" : "Show password"}
+            style={{
+              position: "absolute", right: 6, top: "50%",
+              transform: "translateY(-50%)",
+              border: "none", background: "none", cursor: "pointer",
+              padding: "12px 12px", color: "#8B2332",
+              fontFamily: authFonts.sans, fontSize: "13px", fontWeight: 600,
+            }}
+          >
+            {show ? "Hide" : "Show"}
+          </button>
+        )}
+      </div>
+      {helper && <p style={helperTextStyle}>{helper}</p>}
+    </div>
+  );
+}
+
 export default function AuthShell({ subtitle, children }) {
   return (
     <div style={{
@@ -80,15 +152,18 @@ export default function AuthShell({ subtitle, children }) {
     }}>
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <img src="/protea-icon.png" alt="" style={{
-            height: 72, width: "auto", marginBottom: 16,
-            filter: "drop-shadow(0 4px 16px rgba(139,35,50,0.12))",
-          }} />
-          <h1 style={{
-            fontFamily: authFonts.serif,
-            fontSize: "34px", color: "#8B2332", margin: "0 0 6px 0",
-            fontWeight: 700, letterSpacing: "-0.01em",
-          }}>Sommeasy</h1>
+          {/* The logo is a door home, not a cul-de-sac */}
+          <Link href="/" aria-label="Sommeasy home" style={{ textDecoration: "none", display: "inline-block" }}>
+            <img src="/protea-icon.png" alt="" style={{
+              height: 72, width: "auto", marginBottom: 16,
+              filter: "drop-shadow(0 4px 16px rgba(139,35,50,0.12))",
+            }} />
+            <h1 style={{
+              fontFamily: authFonts.serif,
+              fontSize: "34px", color: "#8B2332", margin: "0 0 6px 0",
+              fontWeight: 700, letterSpacing: "-0.01em",
+            }}>Sommeasy</h1>
+          </Link>
           <p style={{
             fontFamily: authFonts.sans, fontSize: "15px",
             color: "#1B3D2F", opacity: 0.5, margin: 0,

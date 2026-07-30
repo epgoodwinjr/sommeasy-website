@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-utils";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
@@ -646,7 +647,7 @@ function WelcomeScreen({ onStart, user, onSignOut }) {
 
       {!user && (
         <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, marginTop: 20 }}>
-          Already have an account? <a href="/login" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in</a>
+          Already have an account? <Link href="/login" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in</Link>
         </p>
       )}
       <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.3, marginTop: 10, marginBottom: 48 }}>Takes about 2 minutes</p>

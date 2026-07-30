@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import wineUnified from "@/lib/wineUnified.json";
 import { generateDNAProfile } from "@/lib/profileEngine";
 import { saveStash } from "@/lib/pendingPalate";
@@ -536,9 +537,9 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
           <div data-testid="reveal-saved" style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#6B8F5E", fontWeight: 600, marginBottom: 14 }}>
             ✓ Saved to your palate
           </div>
-          <a href="/palate" data-testid="reveal-palate-cta" style={{ display: "inline-block", padding: "15px 44px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none", boxShadow: "0 6px 24px rgba(139,35,50,0.3)" }}>
+          <Link href="/palate" data-testid="reveal-palate-cta" style={{ display: "inline-block", padding: "15px 44px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none", boxShadow: "0 6px 24px rgba(139,35,50,0.3)" }}>
             Meet your palate →
-          </a>
+          </Link>
         </div>
       )}
 
@@ -560,10 +561,10 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 16px 0", lineHeight: 1.55, opacity: 0.65 }}>
             Your results are saved on this device for 7 days — sign up free and they&apos;re yours for good, with every restaurant wine list matched to your taste.
           </p>
-          <a href="/signup" style={{ display: "inline-block", padding: "13px 36px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, textDecoration: "none", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>Save My Palate →</a>
+          <Link href="/signup" style={{ display: "inline-block", padding: "13px 36px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, textDecoration: "none", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>Save My Palate →</Link>
           <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", margin: "16px 0 0", opacity: 0.55 }}>
             Already have an account?{" "}
-            <a href="/login" data-testid="teaser-signin" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in — we&apos;ll fold this into your palate.</a>
+            <Link href="/login" data-testid="teaser-signin" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in — we&apos;ll fold this into your palate.</Link>
           </p>
         </div>
       )}
