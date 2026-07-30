@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-utils";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { saveQuizProfile } from "@/lib/saveQuizProfile";
-import { claimStash, restoreStash, unionQuizRaw } from "@/lib/pendingPalate";
+import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
 import Quiz from "@/components/Quiz";
 import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
@@ -694,30 +694,55 @@ export default function Home() {
     specificWines: row.specific_wines || [],
   });
 
-  // Never Lose a Palate (Session 2): an anonymous quiz stashed at reveal
-  // time gets folded in on the first authenticated load of "/". claimStash
-  // removes the stash synchronously BEFORE the async save — the two-tab
-  // race (email-confirmation landing vs the original tab) has exactly one
-  // winner. If the save fails, the stash goes back untouched: nothing lost,
-  // next load retries. Over an existing profile it's stash ∪ existing ∪
-  // earned (refine merge, initialRaw null — the anonymous quiz never
-  // displayed the existing chips, so nothing counts as a deselection).
-  const restorePendingPalate = async (userId, existingRow) => {
-    const stash = claimStash(window.localStorage);
-    if (!stash) return null;
+  // Never Lose a Palate (Sessions 2 + 5): a pending anonymous quiz gets
+  // folded in on the first authenticated load of "/". TWO carriers, same
+  // quiz: user_metadata.pending_palate (attached at signup — travels with
+  // the account onto ANY device; the July 30 canary fix) and the
+  // localStorage stash (same-browser fallback, and the only carrier for
+  // plain sign-ins). claimStash removes the local stash synchronously
+  // BEFORE the async save — the two-tab race (email-confirmation landing vs
+  // the original tab) has exactly one winner; the metadata carrier is safe
+  // to race because the union save is content-idempotent. Both carriers
+  // present → union, never lose either. If the save fails, the local stash
+  // goes back untouched and the metadata stays put: nothing lost, next load
+  // retries. Over an existing profile it's stash ∪ existing ∪ earned
+  // (refine merge, initialRaw null — the anonymous quiz never displayed the
+  // existing chips, so nothing counts as a deselection). After a successful
+  // save BOTH carriers are cleared.
+  const restorePendingPalate = async (currentUser, existingRow) => {
+    const local = claimStash(window.localStorage);
+    const meta = parseMetadataStash(currentUser.user_metadata?.pending_palate);
+    if (!local && !meta) return null;
+    const stashAnswers =
+      local && meta ? unionQuizRaw(meta.answers, local.answers) : (meta || local).answers;
     try {
       const rawAnswers = existingRow
-        ? unionQuizRaw(stash.answers, rowToRaw(existingRow))
-        : stash.answers;
-      const row = await saveQuizProfile(supabase, userId, rawAnswers, {
+        ? unionQuizRaw(stashAnswers, rowToRaw(existingRow))
+        : stashAnswers;
+      const row = await saveQuizProfile(supabase, currentUser.id, rawAnswers, {
         mode: existingRow ? "refine" : "fresh",
         initialRaw: null,
       });
-      if (row) return row;
+      if (row) {
+        if (meta) {
+          // Clear the account-side carrier. A failed clear only means the
+          // next load re-runs a content-identical union — nothing is ever
+          // double-applied, so this must not block the restore.
+          try {
+            const { error: clearErr } = await supabase.auth.updateUser({
+              data: { pending_palate: null },
+            });
+            if (clearErr) console.error("Pending palate metadata clear failed:", clearErr);
+          } catch (clearErr) {
+            console.error("Pending palate metadata clear failed:", clearErr);
+          }
+        }
+        return row;
+      }
     } catch (err) {
       console.error("Pending palate restore failed:", err);
     }
-    restoreStash(window.localStorage, stash);
+    if (local) restoreStash(window.localStorage, local);
     return null;
   };
 
@@ -749,7 +774,7 @@ export default function Home() {
       setUser(currentUser);
       if (currentUser) {
         let { data } = await supabase.from("wine_profiles").select("*").eq("user_id", currentUser.id).single();
-        const restoredRow = await restorePendingPalate(currentUser.id, data);
+        const restoredRow = await restorePendingPalate(currentUser, data);
         if (restoredRow) {
           data = restoredRow;
           setWelcomeBack(true);

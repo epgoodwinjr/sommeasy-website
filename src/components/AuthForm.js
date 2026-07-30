@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { AUTH_ERRORS, AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
 import { interpretSignUpResult, sanitizeNext, isOtpNoAccountError } from "@/lib/authFlow";
+import { peekStash, buildMetadataPayload } from "@/lib/pendingPalate";
 import AuthShell, {
   AuthField, authFonts, primaryButtonStyle,
   errorBoxStyle, errorTextStyle, noticeBoxStyle, noticeTextStyle,
@@ -92,6 +93,21 @@ export default function AuthForm({ mode, params }) {
   const emailRedirectTo = () =>
     `${window.location.origin}/api/auth/callback${nextQS ? `?${nextQS}` : ""}`;
 
+  // Never Lose a Palate (Session 5): an anonymous quiz rides the signup as
+  // user_metadata, so it travels with the ACCOUNT — localStorage can't
+  // survive a cross-device or in-app-browser email confirmation (the July 30
+  // canary lost a full quiz exactly that way). Peek, never claim: abandoning
+  // signup must leave the same-browser stash intact. Any failure here
+  // returns null and the signup proceeds untouched.
+  const pendingPalateMetadata = () => {
+    try {
+      const stash = peekStash(window.localStorage);
+      return stash ? buildMetadataPayload(stash.answers, stash.createdAt) : null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (anyPending) return;
@@ -109,9 +125,13 @@ export default function AuthForm({ mode, params }) {
         router.push(nextPath);
         router.refresh();
       } else {
+        const pendingPalate = pendingPalateMetadata();
         const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: { emailRedirectTo: emailRedirectTo() },
+          options: {
+            emailRedirectTo: emailRedirectTo(),
+            ...(pendingPalate ? { data: { pending_palate: pendingPalate } } : {}),
+          },
         });
         const outcome = interpretSignUpResult(data, error);
         if (outcome.kind === "error") {

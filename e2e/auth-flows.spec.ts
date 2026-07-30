@@ -64,12 +64,35 @@ const fakeUser = (identities: object[]) => ({
 test.describe("Auth — signed-out flows", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("HARD-FAIL GUARD: signup happy path → check-your-inbox with gated resend", async ({ page }) => {
-    await routeAuth(page, "**/auth/v1/signup**", (route) =>
-      fulfillJson(route, fakeUser([{ identity_id: "i-1", provider: "email" }]))
-    );
+  test("HARD-FAIL GUARD: signup happy path → check-your-inbox with gated resend, stash rides as metadata", async ({ page }) => {
+    let signupBody: any = null;
+    await routeAuth(page, "**/auth/v1/signup**", (route) => {
+      signupBody = route.request().postDataJSON();
+      return fulfillJson(route, fakeUser([{ identity_id: "i-1", provider: "email" }]));
+    });
 
     await page.goto("/signup");
+    // Never Lose a Palate (Session 5): a pending anonymous quiz must ride
+    // the signup as user_metadata — localStorage doesn't survive a
+    // cross-device confirmation (the July 30 canary). Plant the stash the
+    // quiz would have left, then assert the request body carries it.
+    await page.evaluate(() =>
+      window.localStorage.setItem(
+        "sommeasy.pendingPalate",
+        JSON.stringify({
+          version: 1,
+          createdAt: Date.now(),
+          answers: {
+            countries: ["south_africa"],
+            regions: { south_africa: ["stellenbosch"] },
+            estates: {},
+            varietals: ["pinot_noir"],
+            specificWines: [],
+          },
+          profile: null,
+        })
+      )
+    );
     await page.locator('input[type="email"]').fill(FAKE_EMAIL);
     await page.locator('input[type="password"]').fill("a-fine-vintage-6");
     await page.locator('button[type="submit"]').click();
@@ -86,6 +109,25 @@ test.describe("Auth — signed-out flows", () => {
     await expect(resend).toBeVisible();
     await expect(resend).toBeDisabled();
     await expect(resend).toContainText(/Resend the link in \d+s/);
+
+    // HARD-FAIL GUARD (Session 5): the signup request must carry the pending
+    // palate as user_metadata — compact answers, no generated profile. If
+    // this stops, cross-device signups silently lose the quiz again.
+    expect(signupBody, "signup request body not captured").not.toBeNull();
+    const carried = signupBody?.data?.pending_palate;
+    expect(carried, "signup must carry pending_palate metadata when a stash exists").toBeTruthy();
+    expect(carried.version).toBe(1);
+    expect(carried.answers.countries).toContain("south_africa");
+    expect(carried.answers.regions.south_africa).toContain("stellenbosch");
+    expect(carried.answers.varietals).toContain("pinot_noir");
+    expect(carried.answers.narrative, "only compact answers may travel").toBeUndefined();
+
+    // Peek, never claim: abandoning signup must leave the same-browser
+    // localStorage path intact, so the stash survives the carry.
+    const survivor = await page.evaluate(() =>
+      window.localStorage.getItem("sommeasy.pendingPalate")
+    );
+    expect(survivor, "the stash must survive the signup carry (peek, not claim)").not.toBeNull();
   });
 
   test("already-registered fake success → truthful state with sign-in and reset links", async ({ page }) => {

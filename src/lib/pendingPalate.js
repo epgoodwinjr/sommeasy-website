@@ -105,6 +105,84 @@ export function restoreStash(storage, claimed) {
   return saveStash(storage, claimed.answers, claimed.profile, claimed.createdAt);
 }
 
+// ─── Server-side carry: Supabase user_metadata (Session 5) ───
+//
+// localStorage only survives a same-browser confirmation round trip. The
+// July 30 acceptance canary proved the common case is CROSS-browser (sign up
+// on a laptop, confirm on a phone; Hide My Email opens an in-app browser) —
+// so at signup the stash also rides the account itself, as
+// user_metadata.pending_palate, and is restored on the first authenticated
+// load on ANY device. Compact answers only — never the generated
+// profile/narrative (the engine is deterministic; the restore regenerates).
+// Size-guarded: an implausibly huge stash falls back to localStorage-only
+// rather than risking the signup call itself.
+
+export const METADATA_MAX_CHARS = 8 * 1024;
+
+/** Only the five quiz dimensions travel — anything else is dropped. */
+function compactAnswers(answers) {
+  return {
+    countries: answers.countries || [],
+    regions: answers.regions || {},
+    estates: answers.estates || {},
+    varietals: answers.varietals || [],
+    specificWines: answers.specificWines || [],
+  };
+}
+
+/**
+ * Non-destructive read for the signup carry. AuthForm PEEKS — it must never
+ * claim: if the user abandons signup, the same-browser localStorage path
+ * stays intact. Returns { answers, createdAt } or null; never throws.
+ */
+export function peekStash(storage, now = Date.now()) {
+  try {
+    const parsed = parseStash(storage.getItem(PENDING_PALATE_KEY), now);
+    return parsed.valid ? { answers: parsed.answers, createdAt: parsed.createdAt } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The signUp() metadata payload: { version, createdAt, answers } — or null
+ * when there's nothing valid to carry, or the payload is implausibly large.
+ * Null must leave the signup untouched; the carry is an enhancement, never
+ * a gate.
+ */
+export function buildMetadataPayload(answers, createdAt = Date.now()) {
+  if (!answersLookValid(answers)) return null;
+  const payload = {
+    version: STASH_VERSION,
+    createdAt: typeof createdAt === "number" ? createdAt : Date.now(),
+    answers: compactAnswers(answers),
+  };
+  try {
+    if (JSON.stringify(payload).length > METADATA_MAX_CHARS) return null;
+  } catch {
+    return null;
+  }
+  return payload;
+}
+
+/**
+ * Validate user_metadata.pending_palate. Same version + shape gates as the
+ * localStorage stash, but deliberately NO expiry: the stash's 7-day window
+ * protects a shared browser from replaying a stale quiz into someone else's
+ * login, while metadata is bound to the account the user explicitly created
+ * to keep these answers — honoring it weeks later (a slow email confirmer)
+ * is the point. Returns { answers, createdAt } or null.
+ */
+export function parseMetadataStash(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value.version !== STASH_VERSION) return null;
+  if (!answersLookValid(value.answers)) return null;
+  return {
+    answers: compactAnswers(value.answers),
+    createdAt: typeof value.createdAt === "number" ? value.createdAt : null,
+  };
+}
+
 // ─── Merge helper for restoring over an existing profile ───
 
 function dedupe(list) {

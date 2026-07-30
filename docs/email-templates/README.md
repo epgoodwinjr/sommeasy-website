@@ -52,6 +52,14 @@ Every button points at the token_hash confirm route:
 
 - Georgia serif stack echoes the Playfair Display brand type without relying
   on web fonts (most email clients won't load them).
+- The protea mark loads from `https://sommeasy.wine/protea-icon.png` (the
+  live `/public` asset) — email clients need an absolute URL. `width="48"`
+  is set as an attribute AND inline style (Outlook ignores one or the
+  other), with alt text for clients that block remote images.
+- The "button being shy?" fallback shows friendly link text ("Confirm my
+  email"), not the raw token URL — a visible wall-of-token URL is a known
+  spam-filter trigger (Session 5). The href is unchanged, so right-click /
+  long-press → copy link keeps the copy-paste affordance.
 - Brand palette: burgundy `#8B2332`, forest `#1B3D2F`, cream `#F5F0E8`.
 - Table layout + inline styles for email-client compatibility; single-column,
   480px card, mobile-safe.

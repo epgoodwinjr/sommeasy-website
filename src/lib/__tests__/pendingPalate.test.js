@@ -41,8 +41,9 @@ const PROFILE = { archetype: "The Loyalist", raw: ANSWERS };
 
 async function main() {
   const {
-    PENDING_PALATE_KEY, STASH_VERSION, STASH_MAX_AGE_MS,
+    PENDING_PALATE_KEY, STASH_VERSION, STASH_MAX_AGE_MS, METADATA_MAX_CHARS,
     buildStash, parseStash, saveStash, claimStash, clearStash, restoreStash,
+    peekStash, buildMetadataPayload, parseMetadataStash,
     unionQuizRaw,
   } = await import("../pendingPalate.js");
 
@@ -149,6 +150,87 @@ async function main() {
     assert(saveStash(angry, ANSWERS, PROFILE, NOW) === false, "save returns false");
     assert(claimStash(angry, NOW) === null, "claim returns null");
     clearStash(angry); // must not throw
+  });
+
+  console.log("\n═══ metadata carry (Session 5) — the cross-device fix ═══");
+
+  test("peekStash reads without claiming — the stash survives the peek", () => {
+    const storage = fakeStorage();
+    saveStash(storage, ANSWERS, PROFILE, NOW);
+    const peeked = peekStash(storage, NOW + 1000);
+    assert(peeked !== null, "peeked");
+    assert(deepEq(peeked.answers, ANSWERS), "answers");
+    assert(peeked.createdAt === NOW, "createdAt");
+    assert(storage.getItem(PENDING_PALATE_KEY) !== null, "stash must survive — abandon-signup path");
+  });
+
+  test("peekStash on absent/expired/throwing storage → null, never throws", () => {
+    assert(peekStash(fakeStorage(), NOW) === null, "absent");
+    const storage = fakeStorage();
+    saveStash(storage, ANSWERS, PROFILE, NOW);
+    assert(peekStash(storage, NOW + STASH_MAX_AGE_MS + 60_000) === null, "expired");
+    const angry = { getItem: () => { throw new Error("denied"); } };
+    assert(peekStash(angry, NOW) === null, "throwing storage");
+  });
+
+  test("buildMetadataPayload carries version, createdAt, and ONLY the five quiz dimensions", () => {
+    const dirty = { ...ANSWERS, narrative: "x".repeat(500), archetype: "The Loyalist", extras: [1, 2] };
+    const payload = buildMetadataPayload(dirty, NOW);
+    assert(payload !== null, "built");
+    assert(payload.version === STASH_VERSION, "version");
+    assert(payload.createdAt === NOW, "createdAt");
+    assert(deepEq(payload.answers, ANSWERS), "compact answers only");
+    assert(!("narrative" in payload.answers) && !("archetype" in payload.answers), "junk keys dropped");
+  });
+
+  test("buildMetadataPayload refuses malformed answers — the carry never gates signup", () => {
+    assert(buildMetadataPayload(null, NOW) === null, "null");
+    assert(buildMetadataPayload({ countries: [] }, NOW) === null, "empty countries");
+    assert(buildMetadataPayload({ varietals: ["syrah"] }, NOW) === null, "no countries at all");
+  });
+
+  test("buildMetadataPayload size guard: an implausibly huge stash → null (localStorage-only fallback)", () => {
+    const huge = {
+      ...ANSWERS,
+      specificWines: Array.from({ length: 500 }, (_, i) => `Château Longwinded Grand Cru Classé Bottling No. ${i}`),
+    };
+    assert(JSON.stringify(huge).length > METADATA_MAX_CHARS, "fixture actually oversized");
+    assert(buildMetadataPayload(huge, NOW) === null, "oversized → null");
+  });
+
+  test("build → parse metadata roundtrip is content-identical", () => {
+    const parsed = parseMetadataStash(buildMetadataPayload(ANSWERS, NOW));
+    assert(parsed !== null, "parsed");
+    assert(deepEq(parsed.answers, ANSWERS), "answers roundtrip");
+    assert(parsed.createdAt === NOW, "createdAt roundtrip");
+  });
+
+  test("parseMetadataStash rejects junk: null, strings, arrays, missing/empty answers, alien version", () => {
+    const junk = [
+      null, undefined, "a string", 42, [],
+      {}, { version: STASH_VERSION }, { version: STASH_VERSION, answers: {} },
+      { version: STASH_VERSION, answers: { countries: [] } },
+      { version: STASH_VERSION + 1, answers: ANSWERS },
+    ];
+    for (const v of junk) {
+      assert(parseMetadataStash(v) === null, `accepted ${JSON.stringify(v)}`);
+    }
+  });
+
+  test("metadata has NO expiry — a slow email confirmer keeps their palate", () => {
+    // The stash's 7-day window protects a shared browser from replaying a
+    // stale quiz; metadata is bound to the account the user explicitly
+    // created to keep these answers. Three weeks later must still restore.
+    const old = { version: STASH_VERSION, createdAt: NOW - 21 * 24 * 60 * 60 * 1000, answers: ANSWERS };
+    const parsed = parseMetadataStash(old);
+    assert(parsed !== null, "21-day-old metadata still valid");
+    assert(deepEq(parsed.answers, ANSWERS), "answers intact");
+  });
+
+  test("parseMetadataStash tolerates a missing createdAt (older payloads) — answers still restore", () => {
+    const parsed = parseMetadataStash({ version: STASH_VERSION, answers: ANSWERS });
+    assert(parsed !== null, "valid without createdAt");
+    assert(parsed.createdAt === null, "createdAt null, not NaN/undefined");
   });
 
   console.log("\n═══ unionQuizRaw — merge, never clobber ═══");

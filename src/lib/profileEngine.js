@@ -260,11 +260,37 @@ function determineArchetype(ctx) {
     };
   }
 
-  // ─── 15. THE RISING PALATE ───
+  // ─── 15. THE INSTINCTIVE PALATE (fallback) ───
+  // The fallback is a REAL identity, never a deferral (Session 5). The
+  // reveal is the emotional payoff of the quiz — even minimal input (France
+  // + Cabernet, say) is a confident, classic place to stand, and it gets
+  // named and celebrated in the present tense. The old "Rising Palate" led
+  // with grow-richer/get-sharper deferral copy — telling a brand-new user
+  // to return later at the exact moment the product should be telling them
+  // who they already are. That phrasing is banned (and enforced by a source
+  // scan in archetypeVoice.test.js, which is why it isn't quoted here).
+  // Don't fabricate depth the data doesn't support: the flattery here is
+  // FOCUS, stated as strength.
+  const anchor =
+    countryNames.length > 0 && varietalNames.length > 0
+      ? `${joinList(countryNames, 2)} on the label, ${joinList(varietalNames.slice(0, 2), 2)} in the glass`
+      : countryNames.length > 0
+        ? `${joinList(countryNames, 2)} on the label`
+        : varietalNames.length > 0
+          ? `${joinList(varietalNames.slice(0, 2), 2)} in the glass`
+          : null;
+  const lean =
+    countryNames.length === 0
+      ? ""
+      : oldWorldRatio >= 0.7
+        ? " That's a classic position — the places you're drawn to have spent centuries earning exactly that kind of trust."
+        : newWorldRatio >= 0.7
+          ? " That's a modern position — you're drawn to places still writing their own rules, and that says something."
+          : "";
   return {
-    archetype: "The Rising Palate",
-    archetypeEmoji: "🌱",
-    narrative: `You know what you like${countryNames.length > 0 ? ` — ${joinList(countryNames, 2)} ${countryNames.length === 1 ? "is" : "are"} on your radar` : ""}${varietalNames.length > 0 ? ` and ${joinList(varietalNames.slice(0, 2), 2)} ${varietalNames.length === 1 ? "is" : "are"} already favorites` : ""}. That's the starting point for everything. As you try more wines through Sommeasy, your profile will grow richer and your recommendations will get sharper. Every expert started exactly where you are — with a glass they loved and a desire to find the next one.`,
+    archetype: "The Instinctive Palate",
+    archetypeEmoji: "🌿",
+    narrative: `You order with instinct, and your instinct is sound. ${anchor ? `${anchor} — you've already picked your ground, and plenty of drinkers never do.` : "You trust your own taste over the trend of the week, and that's rarer than it sounds."}${lean} A focused palate isn't a smaller one — it's one that knows what it loves, and that clarity is exactly what a sommelier hopes to find across the table. The Somm's job with you is simple: honor it.`,
   };
 }
 

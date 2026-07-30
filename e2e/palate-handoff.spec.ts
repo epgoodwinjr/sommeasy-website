@@ -1,18 +1,26 @@
 import { test, expect } from "@playwright/test";
+import { testDb } from "./fixtures/test-db";
 
 /**
- * Never Lose a Palate — the anonymous quiz → signup handoff (Session 2).
+ * Never Lose a Palate — the anonymous quiz → signup handoff (Sessions 2+5).
  *
  * HARD-FAIL GUARDS (CLAUDE.md rule): spec A fails if the anonymous quiz
  * stops stashing its results; spec B fails if a signed-in landing stops
- * folding the stash into the account. Together they guard the exact seam
- * that destroyed a real user's results on July 29. Do NOT make these
+ * folding the localStorage stash into the account; spec C fails if a
+ * signup that carried pending_palate METADATA stops restoring the palate —
+ * the cross-device path the July 30 acceptance canary proved is the common
+ * case (localStorage never survives a Hide My Email / in-app-browser
+ * confirmation). Together they guard the exact seam that destroyed a real
+ * user's results on July 29 and again on July 30. Do NOT make these
  * outcome-tolerant.
  *
- * Data discipline: spec B logs into the dedicated e2e account with a stash
- * that is a SUBSET of its seeded founding answers — the union (and the
- * refine merge on top) is content-identical to what any refine save writes,
- * so the seeded fixture never drifts (same discipline as quiz-completion).
+ * Data discipline: specs B and C log into the dedicated e2e account with
+ * answers that are a SUBSET of its seeded founding answers — the union (and
+ * the refine merge on top) is content-identical to what any refine save
+ * writes, so the seeded fixture never drifts (same discipline as
+ * quiz-completion). Spec C's metadata seed is self-healing: if a run dies
+ * before the app clears it, the next authenticated landing folds in the
+ * same subset (content-identical) and clears it.
  */
 
 const STASH_KEY = "sommeasy.pendingPalate";
@@ -123,6 +131,57 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     // The stash was claimed — nothing left to double-apply
     const remaining = await page.evaluate((key) => window.localStorage.getItem(key), STASH_KEY);
     expect(remaining, "stash must be cleared after a successful fold-in").toBeNull();
+
+    // Idempotency: a reload is a plain landing — no second moment
+    await page.reload();
+    await expect(page.getByTestId("palate-strip")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("welcome-back")).toHaveCount(0);
+  });
+
+  test("HARD-FAIL GUARD: pending_palate metadata → sign-in restores the palate (cross-device, no stash)", async ({ page }) => {
+    const email = process.env.TEST_USER_EMAIL!;
+    const password = process.env.TEST_USER_PASSWORD!;
+    expect(email, "TEST_USER_EMAIL missing").toBeTruthy();
+
+    // The July 30 canary: quiz in one browser, confirmation opened in
+    // another — localStorage never makes the trip. The account-side carrier
+    // (user_metadata.pending_palate, attached at signup) must restore the
+    // palate ALONE. Seeding it directly via updateUser stands in for the
+    // signup carry, which the auth-flows guard covers without real users.
+    const { supabase } = await testDb();
+    const { error: seedErr } = await supabase.auth.updateUser({
+      data: {
+        pending_palate: { version: 1, createdAt: Date.now(), answers: SEED_SUBSET_ANSWERS },
+      },
+    });
+    expect(seedErr, `seeding pending_palate metadata failed: ${seedErr?.message}`).toBeNull();
+
+    await page.goto("/login");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+
+    // Stash-free on purpose: the metadata is the carrier under test
+    const preStash = await page.evaluate((key) => window.localStorage.getItem(key), STASH_KEY);
+    expect(preStash, "this spec must run stash-free").toBeNull();
+
+    await page.locator('input[type="email"]').fill(email);
+    await page.locator('input[type="password"]').fill(password);
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL("/", { timeout: 15_000 });
+
+    // The metadata carrier fires the same welcome-back moment — if this
+    // never appears, cross-device signups are losing their quiz again
+    await expect(page.getByTestId("welcome-back")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("welcome-back")).toContainText("Welcome back. Your palate was waiting.");
+    await expect(page.getByTestId("palate-strip")).toBeVisible();
+
+    // The account-side carrier is cleared after the fold-in — verified
+    // against the real auth record, not the browser's cached session
+    const { data: refreshed, error: getErr } = await supabase.auth.getUser();
+    expect(getErr).toBeNull();
+    expect(
+      refreshed.user?.user_metadata?.pending_palate ?? null,
+      "pending_palate metadata must be cleared after a successful fold-in"
+    ).toBeNull();
 
     // Idempotency: a reload is a plain landing — no second moment
     await page.reload();
