@@ -171,19 +171,33 @@ export default function JournalPage() {
   };
 
   const handleDelete = async (wineName) => {
-    // Reverse DNA accumulation before deleting
-    try {
-      const result = await reverseAccumulation(supabase, user.id, wineName);
-      if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
-    } catch (evoErr) {
-      console.error("DNA reversal error (non-blocking):", evoErr);
-    }
+    // Read the interaction before deleting — the reversal needs its rating
+    // and confidence, and the row is gone by the time reversal runs
+    const { data: interaction } = await supabase
+      .from("wine_interactions")
+      .select("rating, match_confidence")
+      .eq("user_id", user.id)
+      .eq("wine_name", wineName)
+      .single();
 
-    const { error } = await supabase
+    // Delete FIRST, returning the deleted rows. Points reverse only when
+    // THIS call actually removed the row — a failed delete + retry (or a
+    // second tab) can never double-reverse.
+    const { data: deleted, error } = await supabase
       .from("wine_interactions")
       .delete()
       .eq("user_id", user.id)
-      .eq("wine_name", wineName);
+      .eq("wine_name", wineName)
+      .select("wine_name");
+
+    if (!error && (deleted || []).length > 0) {
+      try {
+        const result = await reverseAccumulation(supabase, user.id, wineName, interaction);
+        if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+      } catch (evoErr) {
+        console.error("DNA reversal error (non-blocking):", evoErr);
+      }
+    }
 
     if (!error) {
       setInteractions((prev) => prev.filter((i) => i.wine_name !== wineName));

@@ -119,9 +119,9 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
     }
   };
 
-  const showEvolutionToasts = useCallback((promotions) => {
-    if (!promotions || promotions.length === 0) return;
-    const toasts = evolutionToastMessages(promotions);
+  const showEvolutionToasts = useCallback((items, isDemotion = false) => {
+    if (!items || items.length === 0) return;
+    const toasts = evolutionToastMessages(items, isDemotion);
     // Show sequentially with 1s gaps, starting after the standard toast
     toasts.forEach((msg, i) => {
       setTimeout(() => {
@@ -138,7 +138,17 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
     const name = bottleName.trim();
 
     try {
-      // 1. Save to wine_interactions
+      // 1. Save to wine_interactions — but first read any existing rating:
+      // re-logging an already-rated bottle must apply the differential, not
+      // full points again
+      const { data: existing } = await supabase
+        .from("wine_interactions")
+        .select("rating")
+        .eq("user_id", user.id)
+        .eq("wine_name", name)
+        .single();
+      const previousRating = existing?.rating || null;
+
       const { error: upsertErr } = await supabase.from("wine_interactions").upsert({
         user_id: user.id,
         wine_name: name,
@@ -152,7 +162,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
       // 2. DNA Evolution: resolve metadata, accumulate points, check promotions
       let evolutionResult = null;
       try {
-        evolutionResult = await resolveAndAccumulate(supabase, user.id, name, rating);
+        evolutionResult = await resolveAndAccumulate(supabase, user.id, name, rating, previousRating);
       } catch (evoErr) {
         console.error("DNA evolution error (non-blocking):", evoErr);
       }
@@ -186,9 +196,13 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
       // 4. Show standard toast
       showToast("Added to your collection!");
 
-      // 5. Show evolution toasts if any promotions fired
+      // 5. Show evolution toasts if any promotions/demotions fired (a re-log
+      // downgrade can demote now that the differential is applied)
       if (evolutionResult?.promotions?.length > 0) {
-        showEvolutionToasts(evolutionResult.promotions);
+        showEvolutionToasts(evolutionResult.promotions, false);
+      }
+      if (evolutionResult?.demotions?.length > 0) {
+        showEvolutionToasts(evolutionResult.demotions, true);
       }
     } catch (err) {
       console.error("Bottle save failed:", err);

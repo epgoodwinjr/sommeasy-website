@@ -364,10 +364,20 @@ function resolveWine(wineName) {
 // ═══════════════════════════════════════════════════════
 
 const RATING_POINTS = { loved: 2, liked: 1, fine: 0, not_for_me: -1 };
-const PROMOTION_THRESHOLDS = { estate: 6, varietal: 10, region: 14, country: 20 };
+// Partial band (60–79): integer-capped points — loved halves, the rest clamp
+// to ±1 so every delta reverses exactly (see dnaThresholds.js)
+const PARTIAL_RATING_POINTS = { loved: 1, liked: 1, fine: 0, not_for_me: -1 };
+const PROMOTION_THRESHOLDS = { estate: 4, varietal: 6, region: 10, country: 14 };
 const ROLLUP_THRESHOLDS = { region: 3, country: 3 };
 const DEMOTION_THRESHOLDS = { auto: -6, quiz: -10 };
 const CONFIDENCE_GATE = 80;
+const PARTIAL_CONFIDENCE_GATE = 60;
+
+function pointsTableFor(confidence) {
+  if (confidence >= CONFIDENCE_GATE) return RATING_POINTS;
+  if (confidence >= PARTIAL_CONFIDENCE_GATE) return PARTIAL_RATING_POINTS;
+  return null;
+}
 
 function findCountryForRegion(dnaRegionId) {
   for (const [countryId, regions] of Object.entries(REGIONS)) {
@@ -387,11 +397,13 @@ function getRegionDisplayName(id) {
 }
 function getCountryDisplayName(id) { const f = COUNTRIES.find(c => c.id === id); return f ? f.name : id; }
 
-function buildDimensionUpdates(resolution) {
+function buildDimensionUpdates(resolution, { partial = false } = {}) {
   const updates = [];
   const { dnaMapping, isBlend: blend } = resolution;
   if (!dnaMapping) return updates;
-  if (resolution.winery) {
+  // Partial band skips the estate — a fuzzy producer match must not accrue
+  // toward an estate promotion
+  if (resolution.winery && !partial) {
     let estateId = dnaMapping.dnaEstateId;
     if (!estateId) {
       const normName = resolution.winery.toLowerCase().replace(/[^a-z0-9]/g, "_");
@@ -580,12 +592,14 @@ async function resolveAndAccumulate(supabase, userId, wineName, rating, previous
       resolved_at: new Date().toISOString(),
     }).eq("user_id", userId).eq("wine_name", wineName);
   }
-  if (resolution.confidence < CONFIDENCE_GATE) return { resolution, promotions: [], demotions: [] };
-  const newPts = RATING_POINTS[rating] ?? 0;
-  const oldPts = previousRating ? (RATING_POINTS[previousRating] ?? 0) : 0;
+  const pointsTable = pointsTableFor(resolution.confidence);
+  if (!pointsTable) return { resolution, promotions: [], demotions: [] };
+  const partial = pointsTable === PARTIAL_RATING_POINTS;
+  const newPts = pointsTable[rating] ?? 0;
+  const oldPts = previousRating ? (pointsTable[previousRating] ?? 0) : 0;
   const pointDelta = newPts - oldPts;
   if (pointDelta === 0) return { resolution, promotions: [], demotions: [] };
-  const dimUpdates = buildDimensionUpdates(resolution);
+  const dimUpdates = buildDimensionUpdates(resolution, { partial });
   for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, pointDelta);
   const promotions = await checkPromotions(supabase, userId, dimUpdates);
   const demotions = await checkDemotions(supabase, userId, dimUpdates);
@@ -594,15 +608,22 @@ async function resolveAndAccumulate(supabase, userId, wineName, rating, previous
   return { resolution, promotions, demotions };
 }
 
-async function reverseAccumulation(supabase, userId, wineName) {
-  const { data: interaction } = await supabase.from("wine_interactions")
-    .select("rating, match_confidence").eq("user_id", userId).eq("wine_name", wineName).single();
-  if (!interaction || !interaction.rating || interaction.match_confidence < CONFIDENCE_GATE) return { demotions: [] };
-  const points = RATING_POINTS[interaction.rating] ?? 0;
-  if (points === 0) return { demotions: [] };
+async function reverseAccumulation(supabase, userId, wineName, interactionData = null) {
+  let interaction = interactionData;
+  if (!interaction) {
+    const { data } = await supabase.from("wine_interactions")
+      .select("rating, match_confidence").eq("user_id", userId).eq("wine_name", wineName).single();
+    interaction = data;
+  }
+  // No stored confidence → never resolved → never accumulated
+  if (!interaction || !interaction.rating || interaction.match_confidence == null) return { demotions: [] };
   const resolution = resolveWine(wineName);
-  if (resolution.confidence < CONFIDENCE_GATE) return { demotions: [] };
-  const dimUpdates = buildDimensionUpdates(resolution);
+  const pointsTable = pointsTableFor(resolution.confidence);
+  if (!pointsTable) return { demotions: [] };
+  const partial = pointsTable === PARTIAL_RATING_POINTS;
+  const points = pointsTable[interaction.rating] ?? 0;
+  if (points === 0) return { demotions: [] };
+  const dimUpdates = buildDimensionUpdates(resolution, { partial });
   for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, -points);
   const demotions = await checkDemotions(supabase, userId, dimUpdates);
   if (demotions.length > 0) await applyDemotions(supabase, userId, demotions);
@@ -761,6 +782,46 @@ function getAcc(tables, dimension, dimensionValue) {
   return tables.dna_accumulation.find(
     r => r.user_id === TEST_USER && r.dimension === dimension && r.dimension_value === dimensionValue
   );
+}
+
+// Mirrors the fixed home handleBottleSave / recommend handleRatePick flow:
+// the previous rating is READ from the interactions row before the upsert,
+// never assumed — re-rating from any surface applies the differential.
+async function simulateSurfaceRate(supabase, wineName, rating) {
+  const existing = supabase.tables.wine_interactions.find(
+    r => r.user_id === TEST_USER && r.wine_name === wineName
+  );
+  const previousRating = existing?.rating || null;
+  if (existing) {
+    existing.rating = rating;
+    existing.interaction_type = "had";
+  } else {
+    supabase.tables.wine_interactions.push({
+      id: genId(), user_id: TEST_USER, wine_name: wineName,
+      interaction_type: "had", rating, match_confidence: null,
+    });
+  }
+  return resolveAndAccumulate(supabase, TEST_USER, wineName, rating, previousRating);
+}
+
+// Mirrors the fixed journal handleDelete sequence: read the row, delete
+// FIRST (returning what was removed), reverse only when this call actually
+// removed the row. failDelete simulates a delete that errors out.
+async function simulateJournalDelete(supabase, wineName, { failDelete = false } = {}) {
+  const row = supabase.tables.wine_interactions.find(
+    r => r.user_id === TEST_USER && r.wine_name === wineName
+  );
+  const interaction = row ? { rating: row.rating, match_confidence: row.match_confidence } : null;
+  if (failDelete) return { demotions: [], deletedCount: 0 };
+  const deleted = supabase.tables.wine_interactions.filter(
+    r => r.user_id === TEST_USER && r.wine_name === wineName
+  );
+  supabase.tables.wine_interactions = supabase.tables.wine_interactions.filter(
+    r => !(r.user_id === TEST_USER && r.wine_name === wineName)
+  );
+  if (deleted.length === 0) return { demotions: [], deletedCount: 0 };
+  const result = await reverseAccumulation(supabase, TEST_USER, wineName, interaction);
+  return { ...result, deletedCount: deleted.length };
 }
 
 function ensureProfile(tables) {
@@ -931,7 +992,7 @@ async function suite2() {
     assert(henschke, "henschke estate row should exist");
     assert(henschke.points === 2, `henschke points: ${henschke.points}`);
 
-    // No promotions yet (syrah=5 < 10, estates < 6)
+    // No promotions yet (syrah=5 < 6, estates ≤ 2 < 4)
     assert(!syrah.promoted, "syrah should not be promoted yet");
   });
 
@@ -959,17 +1020,15 @@ async function suite2() {
 async function suite3() {
   console.log("\n═══ Suite 3: Promotion Triggers ═══");
 
-  // 3A: Estate promotion (6 pts)
-  await runTest("Suite 3", "3A: Estate promotion at 6 pts (3 Loved)", async () => {
+  // 3A: Estate promotion (4 pts)
+  await runTest("Suite 3", "3A: Estate promotion at 4 pts (2 Loved)", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
     const r1 = await simulateBottleSave(sb, "Henschke Hill of Grace Shiraz", "loved");
     assert(r1.promotions.length === 0, "no promotion after 1st");
     const r2 = await simulateBottleSave(sb, "Henschke Mount Edelstone Shiraz", "loved");
-    assert(r2.promotions.length === 0, "no promotion after 2nd");
-    const r3 = await simulateBottleSave(sb, "Henschke Keyneton Euphonium Shiraz", "loved");
-    const estatePromo = r3.promotions.find(p => p.dimension === "estate");
-    assert(estatePromo, "estate promotion should fire after 3rd Loved");
+    const estatePromo = r2.promotions.find(p => p.dimension === "estate");
+    assert(estatePromo, "estate promotion should fire after 2nd Loved");
     const hAcc = getAcc(tables, "estate", "henschke");
     assert(hAcc.promoted === true, "henschke should be promoted");
     assert(hAcc.promoted_at, "promoted_at should be set");
@@ -977,39 +1036,38 @@ async function suite3() {
     assert(tl, "timeline entry should exist");
   });
 
-  // 3B: Varietal promotion (10 pts)
-  await runTest("Suite 3", "3B: Varietal promotion at 10 pts (5 Loved)", async () => {
+  // 3B: Varietal promotion (6 pts)
+  await runTest("Suite 3", "3B: Varietal promotion at 6 pts (3 Loved)", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
     const syrahWines = [
       "Henschke Hill of Grace Shiraz", "Torbreck RunRig Shiraz",
-      "Penfolds Grange Shiraz", "Glaetzer Amon-Ra Shiraz", "Clarendon Hills Syrah"
+      "Penfolds Grange Shiraz"
     ];
     let lastResult;
     for (const w of syrahWines) lastResult = await simulateBottleSave(sb, w, "loved");
     const varietalPromo = lastResult.promotions.find(p => p.dimension === "varietal");
-    assert(varietalPromo, "syrah varietal should promote at 10 pts");
+    assert(varietalPromo, "syrah varietal should promote at 6 pts");
     const syrahAcc = getAcc(tables, "varietal", "syrah");
     assert(syrahAcc.promoted === true, "syrah should be promoted");
     const profile = tables.wine_profiles[0];
     assert(profile.varietals.includes("syrah"), "wine_profiles.varietals should include syrah");
   });
 
-  // 3C: Region promotion via direct points (14 pts)
-  await runTest("Suite 3", "3C: Region promotion at 14 pts (7 Loved)", async () => {
+  // 3C: Region promotion via direct points (10 pts)
+  await runTest("Suite 3", "3C: Region promotion at 10 pts (5 Loved)", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
-    // All seven must be Barossa producers in wineUnified.json — the old data
+    // All five must be Barossa producers in wineUnified.json — the old data
     // mapped every South Australia producer to barossa; the new data is precise
     const barossaWines = [
       "Henschke Hill of Grace", "Torbreck RunRig", "Penfolds Grange",
-      "St Hallett Old Block Shiraz", "Peter Lehmann Stonewell Shiraz", "Kaesler Old Bastard",
-      "Langmeil Freedom Shiraz"
+      "St Hallett Old Block Shiraz", "Peter Lehmann Stonewell Shiraz"
     ];
     let lastResult;
     for (const w of barossaWines) lastResult = await simulateBottleSave(sb, w, "loved");
     const regionPromo = lastResult.promotions.find(p => p.dimension === "region");
-    assert(regionPromo, "barossa region should promote at 14 pts");
+    assert(regionPromo, "barossa region should promote at 10 pts");
   });
 
   // 3D: Region promotion via estate roll-up (3 promoted estates in Stellenbosch)
@@ -1035,20 +1093,19 @@ async function suite3() {
     assert(stellAcc && stellAcc.promoted === true, "stellenbosch should be promoted via roll-up");
   });
 
-  // 3E: Country promotion (20 pts)
-  await runTest("Suite 3", "3E: Country promotion at 20 pts (10 Loved)", async () => {
+  // 3E: Country promotion (14 pts)
+  await runTest("Suite 3", "3E: Country promotion at 14 pts (7 Loved)", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
     const ausWines = [
       "Henschke Hill of Grace", "Torbreck RunRig", "Penfolds Grange",
       "Glaetzer Amon-Ra Shiraz", "Clarendon Hills Syrah", "Kaesler Old Bastard",
-      "Langmeil Freedom Shiraz", "Kay Brothers Block 6 Shiraz",
-      "Hentley Farm Shiraz", "John Duval Entity Shiraz"
+      "Langmeil Freedom Shiraz"
     ];
     let lastResult;
     for (const w of ausWines) lastResult = await simulateBottleSave(sb, w, "loved");
     const countryPromo = lastResult.promotions.find(p => p.dimension === "country" && p.dimensionValue === "australia");
-    assert(countryPromo, "australia should promote at 20 pts");
+    assert(countryPromo, "australia should promote at 14 pts");
     const profile = tables.wine_profiles[0];
     assert(profile.countries.includes("australia"), "wine_profiles.countries should include australia");
   });
@@ -1057,27 +1114,20 @@ async function suite3() {
   console.log("  - 3F: Country roll-up (skipped — requires extensive setup)");
 
   // 3G: Multiple simultaneous promotions
-  await runTest("Suite 3", "3G: Multiple simultaneous promotions", async () => {
+  await runTest("Suite 3", "3G: Varietal + region promote on the same save", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
-    // Build up syrah to 8 pts and barossa to 12 pts
-    for (let i = 0; i < 4; i++) {
-      await simulateBottleSave(sb, `Henschke Shiraz Variant ${i}`, "loved");
-    }
-    // Now one more Loved pushes syrah to 10 AND barossa to 14
-    // We need more wines to get barossa to 14. Let's add more barossa wines
-    for (let i = 0; i < 2; i++) {
-      await simulateBottleSave(sb, `Torbreck Shiraz Variant ${i}`, "loved");
-    }
-    // syrah=12, barossa=12. One more gets both closer. Actually let's check...
-    const syrahBefore = getAcc(tables, "varietal", "syrah");
-    const barossaBefore = getAcc(tables, "region", "barossa");
-    // At this point, both should be at 12. One more gets to 14 for both
-    const result = await simulateBottleSave(sb, "Penfolds St Henri Shiraz", "loved");
-    // Both should fire
+    // Build syrah to 4 and barossa to 8 (distinct estates so none reach 4),
+    // then one Barossa Shiraz pushes syrah to 6 AND barossa to 10 together
+    await simulateBottleSave(sb, "Henschke Hill of Grace Shiraz", "loved"); // syrah 2, barossa 2
+    await simulateBottleSave(sb, "Torbreck RunRig Shiraz", "loved");        // syrah 4, barossa 4
+    await simulateBottleSave(sb, "Penfolds Grange", "loved");               // barossa 6
+    await simulateBottleSave(sb, "Kaesler Old Bastard", "loved");           // barossa 8
+    const result = await simulateBottleSave(sb, "St Hallett Old Block Shiraz", "loved"); // syrah 6, barossa 10
     const hasVarietalPromo = result.promotions.some(p => p.dimension === "varietal");
     const hasRegionPromo = result.promotions.some(p => p.dimension === "region");
-    assert(hasVarietalPromo || hasRegionPromo, "at least one promotion should fire simultaneously");
+    assert(hasVarietalPromo, "syrah should promote on the final save");
+    assert(hasRegionPromo, "barossa should promote on the same save");
   });
 
   // 3H: Unmappable values
@@ -1169,9 +1219,9 @@ async function suite4() {
     // Demote: 16 not_for_me = -6
     for (let i = 0; i < 16; i++) await simulateBottleSave(sb, `Henschke Syrah Bad ${i}`, "not_for_me");
     assert(getAcc(tables, "varietal", "syrah").promoted === false, "should be demoted");
-    // Re-promote: need to get back to +10 from current negative
+    // Re-promote: need to get back to the varietal threshold from current negative
     const currentPts = getAcc(tables, "varietal", "syrah").points;
-    const neededLoved = Math.ceil((10 - currentPts) / 2);
+    const neededLoved = Math.ceil((PROMOTION_THRESHOLDS.varietal - currentPts) / RATING_POINTS.loved);
     for (let i = 0; i < neededLoved; i++) await simulateBottleSave(sb, `Torbreck Syrah Comeback ${i}`, "loved");
     const syrah = getAcc(tables, "varietal", "syrah");
     assert(syrah.promoted === true, `syrah should be re-promoted (points: ${syrah.points})`);
@@ -1205,12 +1255,12 @@ async function suite5() {
   await runTest("Suite 5", "5B: Rating change drops estate points (stays above demotion)", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
-    // Get Henschke estate to exactly 6 pts (3 Loved)
+    // Get Henschke estate to 6 pts (3 Loved — promotes at 4 on the 2nd)
     await simulateBottleSave(sb, "Henschke Hill of Grace Shiraz", "loved");
     await simulateBottleSave(sb, "Henschke Mount Edelstone Shiraz", "loved");
     await simulateBottleSave(sb, "Henschke Keyneton Shiraz", "loved");
     const estBefore = getAcc(tables, "estate", "henschke");
-    assert(estBefore && estBefore.promoted === true, "henschke should be promoted at 6");
+    assert(estBefore && estBefore.promoted === true, "henschke should be promoted");
     // Change one Loved to Fine: delta = 0 - 2 = -2, drops to 4
     await simulateBottleSave(sb, "Henschke Hill of Grace Shiraz", "fine", "loved");
     const estAfter = getAcc(tables, "estate", "henschke");
@@ -1283,17 +1333,20 @@ async function suite6() {
   await runTest("Suite 6", "6C: Quiz addition preserves existing auto-accumulated points", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
-    // Auto-accumulate 8 pts for malbec (4 Loved)
-    for (let i = 0; i < 4; i++) await simulateBottleSave(sb, `Catena Zapata Malbec ${2018+i}`, "loved");
+    // Auto-accumulate 4 pts for malbec (2 Loved) — below the varietal
+    // threshold (6), so the row is still unpromoted when the quiz claims it
+    // (a promoted earned row would keep source='auto' — Suite 9F)
+    for (let i = 0; i < 2; i++) await simulateBottleSave(sb, `Catena Zapata Malbec ${2018+i}`, "loved");
     let malbec = getAcc(tables, "varietal", "malbec");
-    assert(malbec.points === 8, `malbec should have 8 pts, got ${malbec.points}`);
+    assert(malbec.points === 4, `malbec should have 4 pts, got ${malbec.points}`);
     assert(malbec.source === "auto", "should be auto source before quiz");
+    assert(malbec.promoted === false, "still below the varietal threshold");
 
     // Now user takes quiz and adds malbec
     await syncQuizSelections(sb, TEST_USER, { countries: [], regions: {}, estates: {}, varietals: ["malbec"] });
     malbec = getAcc(tables, "varietal", "malbec");
     assert(malbec.source === "quiz", "source should now be quiz");
-    assert(malbec.points === 8, `points should be preserved at 8, got ${malbec.points}`);
+    assert(malbec.points === 4, `points should be preserved at 4, got ${malbec.points}`);
     assert(malbec.promoted === true, "should be promoted");
   });
 }
@@ -1547,6 +1600,183 @@ async function suite9() {
 }
 
 // ═══════════════════════════════════════════════════════
+// SUITE 10: Partial Credit (confidence 60–79)
+// ═══════════════════════════════════════════════════════
+
+async function suite10() {
+  console.log("\n═══ Suite 10: Partial Credit ═══");
+
+  // Fixture names verified against the real resolver:
+  //   "Barossa Shiraz"  → 60 (varietal+region+country, no producer)
+  //   "Sancerre"        → 60 (fuzzy producer, region loire_valley)
+  //   "Chablis 2021"    → 40 (region only — below the partial gate)
+
+  await runTest("Suite 10", "10A: 60-band loved accumulates +1 on varietal/region/country, no estate", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    const r = resolveWine("Barossa Shiraz");
+    assert(r.confidence >= PARTIAL_CONFIDENCE_GATE && r.confidence < CONFIDENCE_GATE,
+      `fixture must sit in the partial band, got ${r.confidence}`);
+    await simulateSurfaceRate(sb, "Barossa Shiraz", "loved");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 1, `syrah: ${getAcc(tables, "varietal", "syrah")?.points}`);
+    assert(getAcc(tables, "region", "barossa")?.points === 1, `barossa: ${getAcc(tables, "region", "barossa")?.points}`);
+    assert(getAcc(tables, "country", "australia")?.points === 1, `australia: ${getAcc(tables, "country", "australia")?.points}`);
+    const estateRows = tables.dna_accumulation.filter(x => x.dimension === "estate");
+    assert(estateRows.length === 0, "no estate rows in the partial band");
+    // Metadata still stamps (confidence > 0)
+    const row = tables.wine_interactions.find(x => x.wine_name === "Barossa Shiraz");
+    assert(row.match_confidence === r.confidence, "match_confidence stamped");
+  });
+
+  await runTest("Suite 10", "10B: Fuzzy producer in the partial band accrues no estate", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    const r = resolveWine("Sancerre");
+    assert(r.confidence >= PARTIAL_CONFIDENCE_GATE && r.confidence < CONFIDENCE_GATE,
+      `fixture must sit in the partial band, got ${r.confidence}`);
+    assert(r.winery, "fixture premise: a (fuzzy) winery was matched");
+    await simulateSurfaceRate(sb, "Sancerre", "loved");
+    const estateRows = tables.dna_accumulation.filter(x => x.dimension === "estate");
+    assert(estateRows.length === 0, "fuzzy producer must not accrue an estate row");
+    assert(getAcc(tables, "country", "france")?.points === 1, "country still accumulates at +1");
+  });
+
+  await runTest("Suite 10", "10C: Below 60 accumulates nothing", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    const r = resolveWine("Chablis 2021");
+    assert(r.confidence > 0 && r.confidence < PARTIAL_CONFIDENCE_GATE,
+      `fixture must sit below the partial gate, got ${r.confidence}`);
+    await simulateSurfaceRate(sb, "Chablis 2021", "loved");
+    assert(tables.dna_accumulation.length === 0, "no accumulation below the partial gate");
+    // Metadata still stamps (confidence > 0) so the somm payload sees it
+    const row = tables.wine_interactions.find(x => x.wine_name === "Chablis 2021");
+    assert(row.match_confidence === r.confidence, "match_confidence still stamped");
+  });
+
+  await runTest("Suite 10", "10D: Full band is untouched by partial credit (loved = +2)", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    await simulateSurfaceRate(sb, "Henschke Hill of Grace Shiraz", "loved");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 2, "full credit at 80+");
+    assert(getAcc(tables, "estate", "henschke")?.points === 2, "estate accrues at 80+");
+  });
+
+  await runTest("Suite 10", "10E: Partial re-rates apply the capped differential", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    await simulateSurfaceRate(sb, "Barossa Shiraz", "loved");    // +1
+    await simulateSurfaceRate(sb, "Barossa Shiraz", "liked");    // capped: 1→1, delta 0
+    assert(getAcc(tables, "varietal", "syrah")?.points === 1, `after liked: ${getAcc(tables, "varietal", "syrah")?.points}`);
+    await simulateSurfaceRate(sb, "Barossa Shiraz", "not_for_me"); // 1→-1, delta -2
+    assert(getAcc(tables, "varietal", "syrah")?.points === -1, `after not_for_me: ${getAcc(tables, "varietal", "syrah")?.points}`);
+  });
+
+  await runTest("Suite 10", "10F: Partial delete reverses to exactly zero", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    await simulateSurfaceRate(sb, "Barossa Shiraz", "loved");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 1, "accumulated +1");
+    await simulateJournalDelete(sb, "Barossa Shiraz");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 0, `after delete: ${getAcc(tables, "varietal", "syrah")?.points}`);
+  });
+
+  await runTest("Suite 10", "10G: Partial points still reach promotion", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    // 6 loved partial bottles → syrah 6 → varietal promotes (barossa 6 < 10)
+    let lastResult;
+    for (let i = 0; i < 6; i++) {
+      lastResult = await simulateSurfaceRate(sb, `Barossa Shiraz ${2016 + i}`, "loved");
+    }
+    const promo = lastResult.promotions.find(p => p.dimension === "varietal" && p.dimensionValue === "syrah");
+    assert(promo, "syrah should promote from partial-credit evidence");
+    assert(tables.wine_profiles[0].varietals.includes("syrah"), "profile gains syrah");
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// SUITE 11: Surface Flows (Session 1 call-site fixes)
+// ═══════════════════════════════════════════════════════
+
+async function suite11() {
+  console.log("\n═══ Suite 11: Surface Flows ═══");
+
+  await runTest("Suite 11", "11A: /recommend rating accumulates and stamps resolved_* metadata", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    await simulateSurfaceRate(sb, "Ken Forrester Old Vine Chenin Blanc Stellenbosch", "loved");
+    assert(getAcc(tables, "varietal", "chenin_blanc")?.points === 2, "restaurant rating feeds DNA");
+    const row = tables.wine_interactions.find(x => x.wine_name === "Ken Forrester Old Vine Chenin Blanc Stellenbosch");
+    assert(row.resolved_varietal === "Chenin Blanc", `resolved_varietal: ${row.resolved_varietal}`);
+    assert(row.resolved_country === "South Africa", `resolved_country: ${row.resolved_country}`);
+    assert(row.match_confidence >= CONFIDENCE_GATE, "confidence stamped");
+  });
+
+  await runTest("Suite 11", "11B: Re-log same wine same rating adds nothing (double-count regression)", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    await simulateSurfaceRate(sb, "Henschke Hill of Grace Shiraz", "loved");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 2, "first log: +2");
+    // The old home handleBottleSave omitted previousRating here → +4 total
+    await simulateSurfaceRate(sb, "Henschke Hill of Grace Shiraz", "loved");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 2,
+      `re-log must not double-count: ${getAcc(tables, "varietal", "syrah")?.points}`);
+    assert(getAcc(tables, "estate", "henschke")?.points === 2, "estate not double-counted");
+  });
+
+  await runTest("Suite 11", "11C: Cross-surface re-rate applies the differential", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    // Rated loved at the restaurant, downgraded to liked at home
+    await simulateSurfaceRate(sb, "Henschke Hill of Grace Shiraz", "loved");
+    await simulateSurfaceRate(sb, "Henschke Hill of Grace Shiraz", "liked");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 1,
+      `loved→liked should land on 1: ${getAcc(tables, "varietal", "syrah")?.points}`);
+  });
+
+  await runTest("Suite 11", "11D: Failed delete + retry reverses exactly once", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    await simulateSurfaceRate(sb, "Henschke Hill of Grace Shiraz", "loved");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 2, "accumulated +2");
+    // Delete fails — with reversal ordered AFTER the delete, nothing reverses
+    await simulateJournalDelete(sb, "Henschke Hill of Grace Shiraz", { failDelete: true });
+    assert(getAcc(tables, "varietal", "syrah")?.points === 2,
+      `failed delete must reverse nothing: ${getAcc(tables, "varietal", "syrah")?.points}`);
+    // Retry succeeds — reverses exactly once
+    await simulateJournalDelete(sb, "Henschke Hill of Grace Shiraz");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 0,
+      `retry reverses once: ${getAcc(tables, "varietal", "syrah")?.points}`);
+  });
+
+  await runTest("Suite 11", "11E: Deleting an already-gone row reverses nothing (two-tab race)", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    await simulateSurfaceRate(sb, "Henschke Hill of Grace Shiraz", "loved");
+    await simulateJournalDelete(sb, "Henschke Hill of Grace Shiraz");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 0, "first delete reverses");
+    // Second tab clicks delete on the same, already-deleted row
+    await simulateJournalDelete(sb, "Henschke Hill of Grace Shiraz");
+    assert(getAcc(tables, "varietal", "syrah")?.points === 0,
+      `second delete must be a no-op: ${getAcc(tables, "varietal", "syrah")?.points}`);
+  });
+
+  await runTest("Suite 11", "11F: Never-resolved row (historical /recommend) reverses nothing", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    // A pre-fix /recommend rating: rated but never resolved, never accumulated
+    tables.wine_interactions.push({
+      id: genId(), user_id: TEST_USER, wine_name: "Henschke Hill of Grace Shiraz",
+      interaction_type: "had", rating: "loved", match_confidence: null,
+    });
+    await simulateJournalDelete(sb, "Henschke Hill of Grace Shiraz");
+    assert(tables.dna_accumulation.length === 0,
+      "no phantom reversal for rows that never accumulated");
+  });
+}
+
+// ═══════════════════════════════════════════════════════
 // SUITE 8: UI Verification (Manual)
 // ═══════════════════════════════════════════════════════
 
@@ -1581,6 +1811,8 @@ async function main() {
   await suite6();
   await suite7();
   await suite9();
+  await suite10();
+  await suite11();
   suite8();
 
   // ── Report ──
@@ -1592,6 +1824,7 @@ async function main() {
     "Suite 1": "Resolver", "Suite 2": "Accumulation", "Suite 3": "Promotion",
     "Suite 4": "Demotion", "Suite 5": "Rating Changes", "Suite 6": "Quiz Sync",
     "Suite 7": "Edge Cases", "Suite 9": "Quiz Merge",
+    "Suite 10": "Partial Credit", "Suite 11": "Surface Flows",
   };
   for (const [key, label] of Object.entries(suiteNames)) {
     const s = suiteResults[key] || { passed: 0, failed: 0 };

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, getVarietalColor, formatWineName, getPickCount } from "@/lib/matchEngine";
 import { buildSommPayload } from "@/lib/sommPicks";
+import { resolveAndAccumulate } from "@/lib/dnaEvolution";
+import { evolutionToastMessages } from "@/components/WineRecList";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (default: max 1200px, 0.7 quality — wine list text stays readable)
@@ -79,6 +81,7 @@ export default function RecommendPage() {
   const [pickRatings, setPickRatings] = useState({});
   const [ratingPick, setRatingPick] = useState(null);
   const [ratingToast, setRatingToast] = useState(null);
+  const [evolutionToasts, setEvolutionToasts] = useState([]);
   const [pageCount, setPageCount] = useState(0);
   const [scanningAdditionalPage, setScanningAdditionalPage] = useState(false);
   const [occasion, setOccasion] = useState("");
@@ -448,6 +451,18 @@ export default function RecommendPage() {
   };
 
   // ─── Pick rating ───
+  const showEvolutionToasts = (items, isDemotion) => {
+    const msgs = evolutionToastMessages(items, isDemotion);
+    msgs.forEach((msg, i) => {
+      setTimeout(() => {
+        setEvolutionToasts((prev) => [...prev, msg]);
+        setTimeout(() => {
+          setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+        }, 4000);
+      }, 1500 + (i * 1500));
+    });
+  };
+
   const handleRatePick = async (wineName, rating) => {
     setPickRatings((prev) => ({ ...prev, [wineName]: rating }));
     setRatingPick(null);
@@ -455,6 +470,16 @@ export default function RecommendPage() {
     setTimeout(() => setRatingToast(null), 2500);
 
     try {
+      // Previous rating from any surface — the differential keeps a re-rate
+      // from double-counting
+      const { data: existing } = await supabase
+        .from("wine_interactions")
+        .select("rating")
+        .eq("user_id", user.id)
+        .eq("wine_name", wineName)
+        .single();
+      const previousRating = existing?.rating || null;
+
       const row = {
         user_id: user.id,
         wine_name: wineName,
@@ -477,7 +502,20 @@ export default function RecommendPage() {
       }
       const occ = occasion.trim();
       if (occ) row.occasion = occ;
-      await supabase.from("wine_interactions").upsert(row, { onConflict: "user_id, wine_name" });
+      const { error } = await supabase.from("wine_interactions").upsert(row, { onConflict: "user_id, wine_name" });
+
+      // A rated bottle is evidence — run the evolution engine exactly like
+      // WineRecList does (non-blocking): accumulate points, stamp resolved_*
+      // metadata, surface promotions/demotions
+      if (!error) {
+        try {
+          const result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
+          if (result?.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
+          if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+        } catch (evoErr) {
+          console.error("DNA evolution error (non-blocking):", evoErr);
+        }
+      }
     } catch (err) {
       console.error("Rating save error:", err);
     }
@@ -616,6 +654,17 @@ Barolo, Giacomo Conterno 2018.........................$210`);
         {ratingToast && (
           <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px", borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, zIndex: 90, boxShadow: "0 4px 20px rgba(27,61,47,0.3)" }}>{ratingToast}</div>
         )}
+        {evolutionToasts.map((msg, i) => (
+          <div key={msg} style={{
+            position: "fixed", top: ratingToast ? 56 + (i * 44) : 16 + (i * 44),
+            left: "50%", transform: "translateX(-50%)",
+            background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
+            borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif",
+            fontSize: "14px", fontWeight: 600, zIndex: 91,
+            boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
+            whiteSpace: "nowrap",
+          }}>{msg}</div>
+        ))}
         <div style={{ padding: "16px 0", display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(16px)", zIndex: 10 }}>
           <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", fontWeight: 700, textDecoration: "none", display: "flex", alignItems: "center", gap: "10px", letterSpacing: "-0.01em" }}><img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />Sommeasy</a>
           <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.5 }}>{user.email?.split("@")[0]}</span>

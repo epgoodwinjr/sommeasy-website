@@ -12,11 +12,26 @@ export const RATING_POINTS = {
   not_for_me: -1,
 };
 
+// Partial-credit points for medium-confidence resolutions (60–79): the
+// strongest signal is halved (loved 2→1) and the rest clamp to ±1. The table
+// stays integer-valued on purpose — points is an INTEGER column, and deltas
+// (re-rates, deletes) only reverse exactly when points-per-rating is a fixed
+// integer function, never a rounded fraction. Applies to varietal/region/
+// country only — estate loyalty requires a confident producer match.
+export const PARTIAL_RATING_POINTS = {
+  loved: 1,
+  liked: 1,
+  fine: 0,
+  not_for_me: -1,
+};
+
+// Promotions fire at a real drinking pace: 2 loved bottles to an estate,
+// 3 to a varietal, 5 to a region, 7 to a country (loved = 2 points).
 export const PROMOTION_THRESHOLDS = {
-  estate: 6,
-  varietal: 10,
-  region: 14,
-  country: 20,
+  estate: 4,
+  varietal: 6,
+  region: 10,
+  country: 14,
 };
 
 export const ROLLUP_THRESHOLDS = {
@@ -29,4 +44,7 @@ export const DEMOTION_THRESHOLDS = {
   quiz: -10,  // Quiz-selected items (higher bar)
 };
 
+// Full credit at 80+, partial credit (PARTIAL_RATING_POINTS) down to 60,
+// nothing below — an unrecognized wine is not evidence.
 export const CONFIDENCE_GATE = 80;
+export const PARTIAL_CONFIDENCE_GATE = 60;

@@ -156,17 +156,20 @@ Trimbach Riesling, Alsace 2021...$44`;
     await recPage.pasteAndAnalyze(KNOWN_GOOD_LIST);
     await expect(recPage.resultsHeading).toBeVisible({ timeout: 10_000 });
 
-    // Give The Somm time to answer (or fall back) — it's a background call
-    await page.waitForTimeout(20_000);
+    // Wait for The Somm to reach a terminal state (answer or fallback) —
+    // the call is measured at 12–20s, so a fixed sleep flakes under load.
+    // A shimmer still up at the deadline is a REAL failure (stuck pending).
+    await expect
+      .poll(async () => page.locator('[data-testid="somm-thinking"]').count(),
+        { timeout: 45_000 })
+      .toBe(0);
 
     const picks = await page.locator('[data-testid="pick-card"]').count();
     const notes = await page.locator('[data-testid="somm-note"]').count();
-    const thinking = await page.locator('[data-testid="somm-thinking"]').count();
 
     // Picks must exist in EVERY outcome; The Somm is progressive enhancement
     expect(picks).toBeGreaterThan(0);
-    // Terminal state: either notes rendered, or clean fallback (no notes, no stuck shimmer)
-    expect(thinking).toBe(0);
+    // Terminal state: either notes rendered, or clean fallback (no notes)
     if (notes > 0) {
       expect(notes).toBeLessThanOrEqual(picks);
     }

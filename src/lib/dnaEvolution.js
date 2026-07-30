@@ -16,13 +16,25 @@ import {
 import wineUnified from "./wineUnified.json";
 import {
   RATING_POINTS,
+  PARTIAL_RATING_POINTS,
   PROMOTION_THRESHOLDS,
   ROLLUP_THRESHOLDS,
   DEMOTION_THRESHOLDS,
   CONFIDENCE_GATE,
+  PARTIAL_CONFIDENCE_GATE,
 } from "./dnaThresholds";
 
 const PRODUCERS = wineUnified.producers;
+
+// Confidence band → points table. Full credit at CONFIDENCE_GATE+, partial
+// credit down to PARTIAL_CONFIDENCE_GATE, no accumulation below. resolveWine
+// is deterministic, so a wine's band — and therefore its table — is stable
+// across re-rates and deletions, which keeps deltas exactly reversible.
+function pointsTableFor(confidence) {
+  if (confidence >= CONFIDENCE_GATE) return RATING_POINTS;
+  if (confidence >= PARTIAL_CONFIDENCE_GATE) return PARTIAL_RATING_POINTS;
+  return null;
+}
 
 
 // ═══════════════════════════════════════════════════════
@@ -57,14 +69,16 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
     }).eq("user_id", userId).eq("wine_name", wineName);
   }
 
-  // Step 3: Only accumulate if confidence meets the gate
-  if (resolution.confidence < CONFIDENCE_GATE) {
+  // Step 3: Only accumulate if confidence reaches at least the partial band
+  const pointsTable = pointsTableFor(resolution.confidence);
+  if (!pointsTable) {
     return { resolution, promotions: [], demotions: [] };
   }
+  const partial = pointsTable === PARTIAL_RATING_POINTS;
 
   // Step 4: Calculate point delta
-  const newPoints = RATING_POINTS[rating] ?? 0;
-  const oldPoints = previousRating ? (RATING_POINTS[previousRating] ?? 0) : 0;
+  const newPoints = pointsTable[rating] ?? 0;
+  const oldPoints = previousRating ? (pointsTable[previousRating] ?? 0) : 0;
   const pointDelta = newPoints - oldPoints;
 
   if (pointDelta === 0) {
@@ -72,7 +86,7 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
   }
 
   // Step 5: Determine which dimensions to update
-  const dimensionUpdates = buildDimensionUpdates(resolution);
+  const dimensionUpdates = buildDimensionUpdates(resolution, { partial });
 
   // Step 6: Apply point deltas to dna_accumulation
   for (const dim of dimensionUpdates) {
@@ -104,14 +118,16 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
 /**
  * Build the list of dimensions to update from a resolution result.
  * Each entry: { dimension, dimensionValue, displayName, mappable }
+ * In the partial band the estate dimension is skipped entirely — a fuzzy
+ * producer match must not accrue toward an estate promotion.
  */
-function buildDimensionUpdates(resolution) {
+function buildDimensionUpdates(resolution, { partial = false } = {}) {
   const updates = [];
   const { dnaMapping, isBlend } = resolution;
   if (!dnaMapping) return updates;
 
   // Estate (winery) — only if it maps to a DNA estate
-  if (resolution.winery) {
+  if (resolution.winery && !partial) {
     // Try to find the estate in PRODUCERS
     let estateId = dnaMapping.dnaEstateId;
     let estateMappable = dnaMapping.estateMappable;
@@ -579,28 +595,41 @@ async function applyDemotions(supabase, userId, demotions) {
 /**
  * Fully reverse points for a deleted interaction.
  * Called when a user deletes a wine from their journal.
+ *
+ * Callers that delete the row FIRST (so a failed delete + retry can't
+ * double-reverse) pass the pre-read interaction data — by the time this
+ * runs, the row is gone.
  */
-export async function reverseAccumulation(supabase, userId, wineName) {
+export async function reverseAccumulation(supabase, userId, wineName, interactionData = null) {
   // Get the stored resolved data for this interaction
-  const { data: interaction } = await supabase
-    .from("wine_interactions")
-    .select("rating, match_confidence, resolved_winery, resolved_varietal, resolved_region, resolved_province, resolved_country")
-    .eq("user_id", userId)
-    .eq("wine_name", wineName)
-    .single();
+  let interaction = interactionData;
+  if (!interaction) {
+    const { data } = await supabase
+      .from("wine_interactions")
+      .select("rating, match_confidence")
+      .eq("user_id", userId)
+      .eq("wine_name", wineName)
+      .single();
+    interaction = data;
+  }
 
-  if (!interaction || !interaction.rating || interaction.match_confidence < CONFIDENCE_GATE) {
+  // A row with no stored confidence was never resolved, so it never
+  // accumulated — nothing to reverse (the historical /recommend rows)
+  if (!interaction || !interaction.rating || interaction.match_confidence == null) {
     return { demotions: [] };
   }
 
-  const points = RATING_POINTS[interaction.rating] ?? 0;
+  // Re-resolve to get the dimension mappings; the deterministic resolver
+  // lands in the same confidence band the accumulation used
+  const resolution = resolveWine(wineName);
+  const pointsTable = pointsTableFor(resolution.confidence);
+  if (!pointsTable) return { demotions: [] };
+  const partial = pointsTable === PARTIAL_RATING_POINTS;
+
+  const points = pointsTable[interaction.rating] ?? 0;
   if (points === 0) return { demotions: [] };
 
-  // Re-resolve to get the dimension mappings
-  const resolution = resolveWine(wineName);
-  if (resolution.confidence < CONFIDENCE_GATE) return { demotions: [] };
-
-  const dimensionUpdates = buildDimensionUpdates(resolution);
+  const dimensionUpdates = buildDimensionUpdates(resolution, { partial });
 
   // Reverse the points
   for (const dim of dimensionUpdates) {

@@ -55,15 +55,24 @@ test.describe("Seed the dedicated test account", () => {
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Step 2 of 5")).toBeVisible();
 
-    // Step 2 — regions, grouped by country accordion (first one open)
-    await ensureChip("Stellenbosch");
-    await page.getByRole("button", { name: /France/ }).first().click(); // open accordion
-    await ensureChip("Burgundy");
+    // Accordion-grouped steps: which group opens first follows the saved
+    // profile's order, so open the chip's accordion when it isn't visible
+    const ensureAccordionChip = async (accordion: string, chip: string) => {
+      const chipBtn = page.getByRole("button", { name: new RegExp(chip) }).first();
+      if (!(await chipBtn.isVisible().catch(() => false))) {
+        await page.getByRole("button", { name: new RegExp(accordion) }).first().click();
+      }
+      await ensureChip(chip);
+    };
+
+    // Step 2 — regions, grouped by country accordion
+    await ensureAccordionChip("South Africa", "Stellenbosch");
+    await ensureAccordionChip("France", "Burgundy");
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Step 3 of 5")).toBeVisible();
 
-    // Step 3 — producers (Stellenbosch accordion opens first)
-    await ensureChip("Kanonkop");
+    // Step 3 — producers, grouped by region accordion
+    await ensureAccordionChip("Stellenbosch", "Kanonkop");
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Step 4 of 5")).toBeVisible();
 

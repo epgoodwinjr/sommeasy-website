@@ -23,17 +23,17 @@ export async function testDb(): Promise<{ supabase: SupabaseClient; userId: stri
 
 /**
  * The account's one earned-promoted DNA fixture: Chenin Blanc, "earned" by
- * ratings (source='auto', promoted, 10 points = exactly at the varietal
- * threshold). The uncheck spec removes it through the real refine flow and
- * calls this again to restore — self-healing, so a crashed run can't leave
- * the account without its fixture.
+ * ratings (source='auto', promoted, 6 points = exactly at the varietal
+ * threshold — dnaThresholds.js). The uncheck spec removes it through the
+ * real refine flow and calls this again to restore — self-healing, so a
+ * crashed run can't leave the account without its fixture.
  */
 export const EARNED_FIXTURE = {
   dimension: "varietal",
   value: "chenin_blanc",
   displayName: "Chenin Blanc",
-  points: 10,
-  interactionCount: 5,
+  points: 6,
+  interactionCount: 3,
 };
 
 export async function ensureEarnedFixture(supabase: SupabaseClient, userId: string) {
