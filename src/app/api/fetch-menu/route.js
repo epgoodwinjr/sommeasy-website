@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDocumentProxy } from "unpdf";
+import { safeFetch, SsrfError, SSRF_BLOCK_MESSAGE } from "@/lib/ssrfGuard";
+import { checkRateLimit, getClientIp, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const maxDuration = 45;
 
@@ -121,6 +123,17 @@ async function extractPdfText(buffer) {
 
 export async function POST(request) {
   try {
+    // Rate limit BEFORE any outbound fetch — this route makes network
+    // requests to user-supplied hosts, so it's the highest-abuse surface
+    // after the paid Claude routes.
+    const rate = checkRateLimit("fetch-menu", getClientIp(request));
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: RATE_LIMIT_MESSAGE },
+        { status: 429, headers: { "Retry-After": String(rate.retryAfterSec) } }
+      );
+    }
+
     const body = await request.json();
     const { url } = body;
 
@@ -138,17 +151,16 @@ export async function POST(request) {
     const fetchUrl = parsedUrl.toString();
     const urlPath = parsedUrl.pathname.toLowerCase();
 
-    // ─── FETCH THE PAGE ───
+    // ─── FETCH THE PAGE (SSRF-guarded, per-hop revalidated) ───
     let pageResponse;
     try {
-      pageResponse = await fetch(fetchUrl, {
+      pageResponse = await safeFetch(fetchUrl, {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
           Accept:
             "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf,*/*;q=0.8",
         },
-        redirect: "follow",
         signal: AbortSignal.timeout(15000),
       });
 
@@ -159,10 +171,16 @@ export async function POST(request) {
         );
       }
     } catch (fetchErr) {
+      // An SSRF rejection is a refusal, not a failure — log the reason and
+      // give brand copy, never leak which internal host was probed.
+      if (fetchErr instanceof SsrfError) {
+        console.warn(`[fetch-menu] blocked: ${fetchErr.reason}: ${fetchErr.message}`);
+        return NextResponse.json({ error: SSRF_BLOCK_MESSAGE }, { status: 422 });
+      }
       if (fetchErr.name === "TimeoutError") {
         return NextResponse.json({ error: "Page took too long to load (15s timeout)" }, { status: 422 });
       }
-      console.error("Fetch error:", fetchErr.message);
+      console.error("[fetch-menu] fetch error:", fetchErr.message);
       return NextResponse.json({ error: "Could not reach that URL. Check the address and try again." }, { status: 422 });
     }
 

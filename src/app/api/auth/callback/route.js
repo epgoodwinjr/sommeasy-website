@@ -45,6 +45,8 @@ export async function GET(request) {
       return failure("exchange_failed");
     }
 
+    // Watchtower: the funnel numerator — a session was actually established.
+    console.log("[auth] callback ok: via=pkce");
     return applyCookies(NextResponse.redirect(`${origin}${next}`));
   } catch (err) {
     console.error(`[auth] callback failed: ${err?.message || err}`);

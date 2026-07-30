@@ -164,7 +164,7 @@ async function main() {
     [{ message: "fetch failed" }, "network"],
     [{ message: "Email link is invalid or has expired", status: 403 }, "link_expired"],
     [{ message: "Token has expired or is invalid", status: 403 }, "link_expired"],
-    [{ message: "Password should be at least 6 characters.", status: 422 }, "weak_password"],
+    [{ message: "Password should be at least 8 characters.", status: 422 }, "weak_password"],
     [{ message: "New password should be different from the old password.", status: 422 }, "same_password"],
     [{ message: "some totally novel failure", status: 500 }, "unknown"],
   ];

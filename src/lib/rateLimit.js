@@ -1,7 +1,18 @@
-// rateLimit.js — in-memory per-IP sliding-window limiter for the paid Vision routes.
+// rateLimit.js — in-memory per-IP sliding-window limiter for the paid Vision
+// routes and the SSRF-guarded fetch-menu route.
 //
 // Abuse protection, not billing enforcement: Fluid Compute keeps instances warm,
 // but a cold start resetting the window is acceptable. No external store.
+//
+// KNOWN LIMITATION (per-instance): the window lives in this process's memory,
+// so the effective limit is MAX_REQUESTS × (number of warm instances), and a
+// cold start starts a fresh window. That's fine for casual abuse but is NOT a
+// hard ceiling against a distributed attacker. The durable upgrade — a shared
+// Redis/KV sliding window keyed the same `${route}:${ip}` way — is tracked in
+// CLAUDE.md priorities; swap the Map for a KV client behind this same
+// checkRateLimit signature when traffic justifies it (no caller changes).
+// Turnstile (src/lib/captcha.js) is the complementary human-check path,
+// prepared behind NEXT_PUBLIC_CAPTCHA_ENABLED for the same threat.
 
 const WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const MAX_REQUESTS = 10;          // per IP, per route, per window

@@ -336,6 +336,65 @@ test.describe("Auth — polish (Session 3)", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// Negative-path sweep (Session 4): the failure modes a real user hits when
+// the network or Supabase misbehaves. All intercepted — no real users.
+// ─────────────────────────────────────────────────────────────────────────
+
+test.describe("Auth — negative paths (Session 4)", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("network failure on login → 'reach our cellar' brand copy, form recovers", async ({ page }) => {
+    await page.route("**/auth/v1/token**", (route) => route.abort("failed"));
+    await page.goto("/login");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await page.locator("input#email").fill(FAKE_EMAIL);
+    await page.locator("input#password").fill("whatever-password");
+    await page.locator('button[type="submit"]').click();
+
+    const error = page.getByTestId("auth-error");
+    await expect(error).toBeVisible({ timeout: 15_000 });
+    await expect(error).toContainText(/couldn't reach our cellar/i);
+    await expect(page.locator('button[type="submit"]')).toBeEnabled();
+  });
+
+  test("network failure on forgot-password → brand copy (not a hang)", async ({ page }) => {
+    await page.route("**/auth/v1/recover**", (route) => route.abort("failed"));
+    await page.goto("/forgot-password");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await page.locator("input#email").fill(FAKE_EMAIL);
+    await page.locator('button[type="submit"]').click();
+
+    const error = page.getByTestId("auth-error");
+    await expect(error).toBeVisible({ timeout: 15_000 });
+    await expect(error).toContainText(/couldn't reach our cellar/i);
+  });
+
+  test("rate-limited login → warm 'easy does it' copy, never the raw string", async ({ page }) => {
+    await routeAuth(page, "**/auth/v1/token**", (route) =>
+      fulfillJson(route, { code: 429, error_code: "over_request_rate_limit", msg: "For security purposes, you can only request this after 51 seconds." }, 429)
+    );
+    await page.goto("/login");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await page.locator("input#email").fill(FAKE_EMAIL);
+    await page.locator("input#password").fill("whatever-password");
+    await page.locator('button[type="submit"]').click();
+
+    const error = page.getByTestId("auth-error");
+    await expect(error).toBeVisible({ timeout: 15_000 });
+    await expect(error).toContainText(/easy does it/i);
+    await expect(page.getByText("For security purposes")).toHaveCount(0);
+  });
+
+  test("expired-link + unconfirmed-email landings render distinct brand copy", async ({ page }) => {
+    await page.goto(`/login?error=link_expired`);
+    await expect(page.getByTestId("auth-error")).toContainText(/expired/i);
+
+    await page.goto(`/login?error=exchange_failed`);
+    await expect(page.getByTestId("auth-error")).toContainText(/couldn't finish signing you in/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // Recovery-session flow (uses the seeded auth state as the session; the
 // password mutation itself is intercepted — the e2e account is never changed)
 // ─────────────────────────────────────────────────────────────────────────
@@ -377,5 +436,27 @@ test.describe("Auth — update password with a session", () => {
 
     // The quiet beat, then home — signed in
     await page.waitForURL("/", { timeout: 15_000 });
+  });
+
+  test("network failure on update-password → brand copy (all three forms covered)", async ({ page }) => {
+    await page.route("**/auth/v1/user**", async (route) => {
+      const method = route.request().method();
+      if (method === "OPTIONS") { await route.fulfill({ status: 204, headers: CORS_HEADERS }); return; }
+      if (method === "PUT") { await route.abort("failed"); return; }
+      await route.fallback(); // real GET /user — recovery session check
+    });
+
+    await page.goto("/update-password");
+    const input = page.locator('input[placeholder="New password"]');
+    await expect(input).toBeVisible({ timeout: 15_000 });
+    await input.fill("a-new-fine-vintage-8");
+    await page.locator('button[type="submit"]').click();
+
+    const error = page.getByTestId("auth-error");
+    await expect(error).toBeVisible({ timeout: 15_000 });
+    await expect(error).toContainText(/couldn't reach our cellar/i);
+    // Focus moved to the error (S3 a11y), form recovered
+    await expect(error).toBeFocused();
+    await expect(page.locator('button[type="submit"]')).toBeEnabled();
   });
 });

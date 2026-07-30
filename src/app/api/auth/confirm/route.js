@@ -37,6 +37,8 @@ export async function GET(request) {
         console.error(`[auth] confirm failed: code exchange: ${error.message}`);
         return failure("exchange_failed");
       }
+      // Watchtower: the funnel numerator — a session was actually established.
+      console.log("[auth] confirm ok: via=code");
       return applyCookies(NextResponse.redirect(`${origin}${next}`));
     }
 
@@ -54,6 +56,8 @@ export async function GET(request) {
       return failure("link_expired");
     }
 
+    // Watchtower: the funnel numerator — a session was actually established.
+    console.log(`[auth] confirm ok: via=token_hash type=${type}`);
     return applyCookies(NextResponse.redirect(`${origin}${next}`));
   } catch (err) {
     console.error(`[auth] confirm failed: ${err?.message || err}`);
