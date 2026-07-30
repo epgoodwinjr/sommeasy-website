@@ -139,7 +139,9 @@ function termMatchesInText(term, text) {
   if (term.length <= 2) return false;
   if (term.includes(" ") || term.includes("-")) return text.includes(term);
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`(?:^|[\\s,;:()/\\-\u2013\u2014.'])${escaped}(?:[\\s,;:()/\\-\u2013\u2014.']|$)`, "i");
+  // (?!'s...): a possessive never counts as a mention -- "Mate's Vineyard"
+  // is not the producer Mate (the apostrophe still bounds quoted names)
+  const re = new RegExp(`(?:^|[\\s,;:()/\\-\u2013\u2014.'])${escaped}(?!'s(?:[\\s,;:()/\\-\u2013\u2014.']|$))(?:[\\s,;:()/\\-\u2013\u2014.']|$)`, "i");
   return re.test(text);
 }
 

@@ -60,12 +60,17 @@ function normalize(text) {
  * Boundary-aware containment over normalized text (charset [a-z0-9\s'.-]).
  * Single-token needles must sit on word boundaries — a producer normalized
  * to "cass" or "rozes" must not match inside "cassis" or "crozes-hermitage".
+ * A possessive never counts as a mention: "X's <site>" names a vineyard
+ * after a person (Kumeu River "Maté's Vineyard" is not the Tuscan producer
+ * "Máté"), so the apostrophe bounds quoted names but not 's. Missing a
+ * possessive producer only lowers confidence; a false hit overrides the
+ * wine's country and poisons DNA accumulation.
  * Multi-word/hyphenated needles keep plain substring semantics.
  */
 function containsTerm(haystack, needle) {
   if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|[\\s'.])${escaped}(?:[\\s'.]|$)`).test(haystack);
+  return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
 
 function tokenize(text) {
@@ -245,6 +250,37 @@ function getRegionIndex() {
 
 
 // ═══════════════════════════════════════════════════════
+// COUNTRY TERMS (explicit-geography conflict guard)
+// ═══════════════════════════════════════════════════════
+
+let _countryTermIndex = null;
+
+function getCountryTermIndex() {
+  if (_countryTermIndex) return _countryTermIndex;
+  // Country display names as normalized terms ("new zealand", "france").
+  // "US" normalizes to 2 chars and is dropped — US wines flag conflicts
+  // through their regions instead (regionLookup rows carry the country).
+  _countryTermIndex = COUNTRIES
+    .map(c => ({ id: c.id, norm: normalize(c.name) }))
+    .filter(c => c.norm.length >= 4);
+  return _countryTermIndex;
+}
+
+/**
+ * Countries the wine name mentions explicitly ("...Marlborough, New Zealand").
+ * Used ONLY as a conflict guard against producer-derived geography — never
+ * as an attribution source on its own.
+ */
+function detectExplicitCountries(normInput) {
+  const ids = new Set();
+  for (const c of getCountryTermIndex()) {
+    if (containsTerm(normInput, c.norm)) ids.add(c.id);
+  }
+  return ids;
+}
+
+
+// ═══════════════════════════════════════════════════════
 // MATCHING ENGINE
 // ═══════════════════════════════════════════════════════
 
@@ -349,9 +385,14 @@ function matchRegion(normInput) {
  * 90-100: Strong winery match + region AND varietal confirmed
  * 80-89:  Producer match + at least one corroborating field (region or varietal)
  * 60-79:  Producer match alone, or region+varietal without producer
- * Below 60: Too uncertain to use for accumulation
+ * Below CONFIDENCE_GATE (80, dnaThresholds.js): too uncertain for accumulation
+ *
+ * countryConflict (the name explicitly places the wine in a country the
+ * producer doesn't belong to) caps the result at 55 — below the
+ * CONFIDENCE_GATE (80) accumulation threshold in dnaThresholds.js, with
+ * headroom under the historic 60 line should the gate ever move.
  */
-function calculateConfidence(producerResult, varietalMatch, regionMatch, inputTokenCount) {
+function calculateConfidence(producerResult, varietalMatch, regionMatch, inputTokenCount, countryConflict) {
   let confidence = 0;
   const corroborations = (varietalMatch ? 1 : 0) + (regionMatch ? 1 : 0);
 
@@ -392,6 +433,10 @@ function calculateConfidence(producerResult, varietalMatch, regionMatch, inputTo
     } else if (varietalMatch) {
       confidence = 30;
     }
+  }
+
+  if (countryConflict) {
+    confidence = Math.min(confidence, 55);
   }
 
   return Math.min(confidence, 100);
@@ -498,8 +543,22 @@ export function resolveWine(wineName) {
   // Step 3: Match region in the wine name
   const regionMatch = matchRegion(normInput);
 
+  // Step 3.5: Explicit-geography conflict — the name places the wine in a
+  // country the matched producer doesn't belong to. Every bug in the
+  // country-misattribution class (Cassis→US, Gimonnet→Italy,
+  // Crozes→Portugal, Maté's Vineyard→Italy) shared one shape: a fuzzy
+  // producer hit silently outvoting what the menu line says outright.
+  // The producer keeps its display fields, but confidence is capped below
+  // CONFIDENCE_GATE so a disputed match can never reach DNA accumulation.
+  let countryConflict = false;
+  if (producerResult && producerResult.producer.dnaCountryId) {
+    const explicit = detectExplicitCountries(normInput);
+    if (regionMatch && regionMatch.dnaCountryId) explicit.add(regionMatch.dnaCountryId);
+    countryConflict = explicit.size > 0 && !explicit.has(producerResult.producer.dnaCountryId);
+  }
+
   // Step 4: Calculate confidence
-  const confidence = calculateConfidence(producerResult, varietalMatch, regionMatch, inputTokens.length);
+  const confidence = calculateConfidence(producerResult, varietalMatch, regionMatch, inputTokens.length, countryConflict);
 
   // Step 5: Assemble result
   const winery = producerResult ? producerResult.producer.name : null;
