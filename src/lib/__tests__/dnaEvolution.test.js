@@ -169,11 +169,12 @@ function normalize(text) {
 function tokenize(text) { return normalize(text).split(/\s+/).filter(t => t.length >= 2); }
 
 // Mirrors wineResolver.containsTerm — boundary-aware containment so short
-// producer norms ("cass", "rozes") can't match inside longer words
+// producer norms ("cass", "rozes") can't match inside longer words, and a
+// possessive ("mate's") never counts as a mention of the base word
 function containsTerm(haystack, needle) {
   if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|[\\s'.])${escaped}(?:[\\s'.]|$)`).test(haystack);
+  return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
 
 const BLEND_PATTERNS = [/\bred\s+blend\b/i, /\bwhite\s+blend\b/i, /\bbordeaux.style\b/i, /\brhone.style\b/i, /\bgms\b/i, /\bmeritage\b/i];
@@ -296,7 +297,7 @@ function matchRegion(normInput) {
   return null;
 }
 
-function calculateConfidence(producerResult, varietalMatch, regionMatch) {
+function calculateConfidence(producerResult, varietalMatch, regionMatch, countryConflict) {
   let confidence = 0;
   const corroborations = (varietalMatch ? 1 : 0) + (regionMatch ? 1 : 0);
   if (producerResult) {
@@ -320,7 +321,19 @@ function calculateConfidence(producerResult, varietalMatch, regionMatch) {
     else if (regionMatch) confidence = 40;
     else if (varietalMatch) confidence = 30;
   }
+  if (countryConflict) confidence = Math.min(confidence, 55);
   return Math.min(confidence, 100);
+}
+
+// Mirrors wineResolver's explicit-geography conflict guard: country display
+// names as normalized terms, used only to dispute producer-derived geography
+const countryTermIndex = COUNTRIES
+  .map(c => ({ id: c.id, norm: normalize(c.name) }))
+  .filter(c => c.norm.length >= 4);
+function detectExplicitCountries(normInput) {
+  const ids = new Set();
+  for (const c of countryTermIndex) { if (containsTerm(normInput, c.norm)) ids.add(c.id); }
+  return ids;
 }
 
 function resolveWine(wineName) {
@@ -332,7 +345,13 @@ function resolveWine(wineName) {
   const producerResult = matchProducer(normInput, inputTokens);
   const varietalMatch = matchVarietal(normInput);
   const regionMatch = matchRegion(normInput);
-  const confidence = calculateConfidence(producerResult, varietalMatch, regionMatch);
+  let countryConflict = false;
+  if (producerResult && producerResult.producer.dnaCountryId) {
+    const explicit = detectExplicitCountries(normInput);
+    if (regionMatch && regionMatch.dnaCountryId) explicit.add(regionMatch.dnaCountryId);
+    countryConflict = explicit.size > 0 && !explicit.has(producerResult.producer.dnaCountryId);
+  }
+  const confidence = calculateConfidence(producerResult, varietalMatch, regionMatch, countryConflict);
   const winery = producerResult ? producerResult.producer.name : null;
   const varietal = varietalMatch ? varietalMatch.name : null;
   const blendDetected = isBlend(varietal);

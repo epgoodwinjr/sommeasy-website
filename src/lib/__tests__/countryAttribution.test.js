@@ -8,16 +8,29 @@
 //     (producer "Pier", Piedmont, substring-matched inside "Pierre")
 //   - "Crozes-Hermitage" displaying as Portugal — PR #16's case
 //     (producer "Rozès", Port house, substring-matched inside "Crozes")
+//   - "Kumeu River, Maté's Vineyard" (NZ Chardonnay) crediting Italy —
+//     the Tuscan producer "Máté" (norm "mate") matched inside the
+//     possessive "Maté's" because both boundary classes treat the
+//     apostrophe as a word edge. "X's <site>" names a vineyard after a
+//     person; it is not a mention of producer X. Observed live July 30
+//     2026 as estate=mate/region=tuscany/country=italy accumulation rows
+//     from one loved NZ bottle.
 //
 // Root cause: producer/varietal detection used raw substring includes()
 // instead of word-boundary matching. Fixed July 2026 in matchEngine.js
 // (detectWineAttributes + producer-term "&"/"et"/"and" aliases) and
-// wineResolver.js (containsTerm boundary guard in matchProducer).
+// wineResolver.js (containsTerm boundary guard in matchProducer). The
+// possessive fix adds a (?!'s…) lookahead to both boundary matchers so
+// an apostrophe still bounds quoted names ('Clos du Mesnil') but never
+// lets a possessive count as a producer mention.
 //
-// The logic below MIRRORS matchEngine.js / wineResolver.js (both are ESM
-// with bare JSON imports, so plain node can't load them — same pattern as
-// dnaEvolution.test.js). If you change the matching logic in production,
-// update the mirror here.
+// The mirror sections below MIRROR matchEngine.js / wineResolver.js
+// (ESM with bare JSON imports — same pattern as dnaEvolution.test.js).
+// If you change the matching logic in production, update the mirror here.
+// The final section imports the REAL wineResolver.js via the alias-loader
+// (helpers/alias-loader.mjs supplies JSON import attributes), so the
+// resolver regression cases also run against production code, mirror-drift
+// notwithstanding.
 
 const wineUnified = require("../wineUnified.json");
 const COUNTRIES = wineUnified.countries;
@@ -36,7 +49,7 @@ function termMatchesInText(term, text) {
   if (term.length <= 2) return false;
   if (term.includes(" ") || term.includes("-")) return text.includes(term);
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`(?:^|[\\s,;:()/\\-–—.'])${escaped}(?:[\\s,;:()/\\-–—.']|$)`, "i");
+  const re = new RegExp(`(?:^|[\\s,;:()/\\-–—.'])${escaped}(?!'s(?:[\\s,;:()/\\-–—.']|$))(?:[\\s,;:()/\\-–—.']|$)`, "i");
   return re.test(text);
 }
 
@@ -179,7 +192,7 @@ function tokenize(text) { return normalize(text).split(/\s+/).filter(t => t.leng
 function containsTerm(haystack, needle) {
   if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|[\\s'.])${escaped}(?:[\\s'.]|$)`).test(haystack);
+  return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
 
 const producerIndex = [];
@@ -302,6 +315,27 @@ test("Varietal 'Port' does not fire inside 'Portal'/'Portugal' (color guard)", (
   assert(!attrs.varietalIds.has("port"), `varietals: ${[...attrs.varietalIds]}`);
 });
 
+test("Possessive 'Máté's Vineyard' does not attribute Italy (Kumeu River case)", () => {
+  // matchEngine keeps accents, so the producer term is "máté" — the
+  // both-accents spelling is the form that exercises this path.
+  const c = detectedCountry("Kumeu River, Máté's Vineyard, New Zealand");
+  assert(c !== "italy", `detectedCountry: ${c}`);
+  assert(c === "new_zealand", `expected new_zealand, got: ${c}`);
+});
+
+test("termMatchesInText: possessive 's never counts as a mention; closing quote still bounds", () => {
+  assert(!termMatchesInText("máté", " kumeu river, máté's vineyard, new zealand "),
+    "term matched inside possessive máté's");
+  // Deliberate trade: even a REAL producer written possessively ("Krug's
+  // cuvée") does not count — a false country override poisons the DNA,
+  // a missed producer merely lowers confidence.
+  assert(!termMatchesInText("krug", " krug's clos du mesnil "),
+    "term matched inside possessive krug's");
+  // The apostrophe stays a boundary when it is a quote, not a possessive
+  assert(termMatchesInText("mesnil", " krug 'clos du mesnil' champagne "),
+    "closing-quote apostrophe boundary must still match");
+});
+
 console.log("\n═══ Country Attribution — Resolver (matchProducer) ═══");
 
 test("Resolver: 'Cassis...' does not match producer Cass (US)", () => {
@@ -329,5 +363,68 @@ test("Resolver: legit 'Cass Grenache' still matches producer Cass", () => {
   assert(m && m.producer.norm === "cass", `matched: ${m && m.producer.name} (${m && m.score})`);
 });
 
-console.log(`\nTotal: ${passed}/${passed + failed} passed, ${failed} failed\n`);
-process.exit(failed > 0 ? 1 : 0);
+test("Resolver: 'Kumeu River, Maté's Vineyard...' does not match producer Máté (Italy)", () => {
+  // The resolver strips accents, so the real-world spelling ("Maté's",
+  // é only) collides with producer norm "mate" — the observed live bug.
+  const m = matchProducer("Kumeu River, Maté's Vineyard, New Zealand");
+  assert(!m || m.producer.norm !== "mate", `matched: ${m && m.producer.name} (${m && m.score})`);
+});
+
+test("Resolver: nominative 'Máté Sangiovese' still matches producer Máté", () => {
+  const m = matchProducer("Máté Sangiovese");
+  assert(m && m.producer.norm === "mate", `matched: ${m && m.producer.name} (${m && m.score})`);
+});
+
+test("containsTerm: possessive 's blocked, quote/space boundaries intact", () => {
+  assert(!containsTerm("kumeu river mate's new zealand", "mate"), "mate matched inside mate's");
+  assert(containsTerm("mate sangiovese", "mate"), "nominative mate must still match");
+  assert(containsTerm("krug 'clos du mesnil'", "mesnil"), "closing-quote boundary must still match");
+});
+
+// ═══════════════════════════════════════════════════════
+// REAL MODULE: resolveWine via alias-loader (no mirror drift)
+// ═══════════════════════════════════════════════════════
+
+async function realModuleTests() {
+  const { register } = require("node:module");
+  const { pathToFileURL } = require("node:url");
+  register("./helpers/alias-loader.mjs", pathToFileURL(__filename));
+  const { resolveWine } = await import("../wineResolver.js");
+
+  console.log("\n═══ Country Attribution — REAL resolveWine ═══");
+
+  test("Real resolveWine: Kumeu River Maté's Vineyard never lands on Italy/Tuscany/Máté", () => {
+    const r = resolveWine("Kumeu River, Maté's Vineyard, New Zealand");
+    assert(r.country !== "Italy", `country: ${r.country}`);
+    const dna = r.dnaMapping || {};
+    assert(dna.dnaCountryId !== "italy", `dnaCountryId: ${dna.dnaCountryId}`);
+    assert(dna.dnaRegionId !== "tuscany", `dnaRegionId: ${dna.dnaRegionId}`);
+    assert(dna.dnaEstateId !== "mate", `dnaEstateId: ${dna.dnaEstateId}`);
+  });
+
+  test("Real resolveWine: nominative Máté still resolves to Italy", () => {
+    const r = resolveWine("Máté Sangiovese");
+    assert(r.winery === "Máté", `winery: ${r.winery}`);
+    assert(r.country === "Italy", `country: ${r.country}`);
+    // No over-capping: uncontested producer matches must stay above the
+    // DNA accumulation gate (CONFIDENCE_GATE = 80 in dnaThresholds.js)
+    assert(r.confidence >= 80, `confidence: ${r.confidence}`);
+  });
+
+  test("Real resolveWine: explicit-geography conflict caps confidence below the DNA gate", () => {
+    // Producer Máté (Italy) matches nominatively here, but the name
+    // explicitly places the bottle in New Zealand (Marlborough + the
+    // country name). Every bug in this suite shared one shape: a fuzzy
+    // producer hit silently outvoting what the menu line says outright.
+    // A disputed match must never reach DNA accumulation.
+    const r = resolveWine("Máté Marlborough Sauvignon Blanc, New Zealand");
+    assert(r.confidence < 80, `confidence: ${r.confidence}`);
+  });
+}
+
+realModuleTests()
+  .catch((err) => { failed++; console.error("Real-module suite crashed:", err); })
+  .then(() => {
+    console.log(`\nTotal: ${passed}/${passed + failed} passed, ${failed} failed\n`);
+    process.exit(failed > 0 ? 1 : 0);
+  });
