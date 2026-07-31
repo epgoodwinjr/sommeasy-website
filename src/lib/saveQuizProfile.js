@@ -35,6 +35,13 @@ export async function saveQuizProfile(supabase, userId, rawAnswers, { mode = "fr
       archetype: finalProfile.archetype,
       archetype_emoji: finalProfile.archetypeEmoji,
       narrative: finalProfile.narrative,
+      // The identity strand (Act III): epithet + traits + genome ride the
+      // jsonb column from migration 006; the title stays in archetype
+      identity: {
+        epithet: finalProfile.epithet,
+        traits: finalProfile.traits,
+        genome: finalProfile.genome,
+      },
       countries: merged.countries,
       regions: merged.regions,
       estates: merged.estates,

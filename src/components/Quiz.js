@@ -513,10 +513,12 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
       <div style={{ background: "linear-gradient(145deg, #1B3D2F 0%, #2A5540 50%, #1B3D2F 100%)", borderRadius: "24px", padding: "36px 24px 32px", color: "#F5F0E8", marginBottom: 20, boxShadow: "0 16px 48px rgba(27,61,47,0.4)", position: "relative", overflow: "hidden", textAlign: "center" }}>
         <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(139,35,50,0.1)" }} />
         <div style={{ position: "absolute", bottom: -30, left: -30, width: 100, height: 100, borderRadius: "50%", background: "rgba(107,143,94,0.08)" }} />
-        <div style={{ position: "relative" }}>
-          <div style={{ ...stage(100), fontSize: "52px", marginBottom: 12, transform: mounted ? "scale(1)" : "scale(0.6)", transition: `opacity 0.7s ease 100ms, transform 0.8s cubic-bezier(0.34, 1.4, 0.64, 1) 100ms` }}>{profile.archetypeEmoji}</div>
+        <div style={{ position: "relative", paddingTop: 8 }}>
           <div style={{ ...stage(500), fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", opacity: mounted ? 0.5 : 0, marginBottom: 8 }}>Your Wine DNA</div>
-          <h2 data-testid="reveal-archetype" style={{ ...stage(700), fontFamily: "'Playfair Display', Georgia, serif", fontSize: "32px", margin: "0 0 16px 0", fontWeight: 700, lineHeight: 1.1 }}>{profile.archetype}</h2>
+          <h2 data-testid="reveal-archetype" style={{ ...stage(700), fontFamily: "'Playfair Display', Georgia, serif", fontSize: "32px", margin: "0 0 10px 0", fontWeight: 700, lineHeight: 1.1 }}>{profile.archetype}</h2>
+          {profile.epithet && (
+            <p data-testid="reveal-epithet" style={{ ...stage(900), fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", fontStyle: "italic", opacity: mounted ? 0.7 : 0, margin: "0 0 16px" }}>{profile.epithet}</p>
+          )}
           <p style={{ ...stage(1100), fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", lineHeight: 1.65, opacity: mounted ? 0.8 : 0, maxWidth: 360, margin: "0 auto" }}>{profile.narrative}</p>
         </div>
       </div>
@@ -663,7 +665,7 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, earnedD
   // otherwise (anonymous users, or a failed save awaiting retry)
   const revealProfile = savedRow ? {
     archetype: savedRow.archetype,
-    archetypeEmoji: savedRow.archetype_emoji,
+    epithet: savedRow.identity?.epithet || "",
     narrative: savedRow.narrative,
     recommendations: savedRow.recommendations || [],
   } : profile;

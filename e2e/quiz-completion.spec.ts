@@ -38,6 +38,11 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     const archetype = page.getByTestId("reveal-archetype");
     await expect(archetype).toBeVisible({ timeout: 30_000 });
     expect((await archetype.textContent())?.trim().length).toBeGreaterThan(0);
+    // The identity strand (Act III): the composed epithet renders under the
+    // title — this account's palate always composes one
+    const epithet = page.getByTestId("reveal-epithet");
+    await expect(epithet).toBeVisible();
+    expect((await epithet.textContent())?.trim().length).toBeGreaterThan(0);
     await expect(page.getByTestId("reveal-saved")).toBeVisible();
 
     // Auto-save means NO save button, and the reveal is a moment, not a

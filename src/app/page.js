@@ -33,7 +33,9 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
   const recs = profile.recommendations || [];
   const displayName = user?.email?.split("@")[0] || "";
   const [whisper, setWhisper] = useState(null);
-  const palateLine = signatureLine(profile);
+  // The identity strand's epithet (Act III) is the strip's line; the live
+  // signature computation is the fallback for a not-yet-recomposed row
+  const palateLine = profile.identity?.epithet || signatureLine(profile);
 
   useEffect(() => {
     setIsMobile(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
@@ -479,7 +481,6 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "32px", flexShrink: 0 }}>{profile.archetype_emoji}</div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, lineHeight: 1.2 }}>{profile.archetype}</div>
               {palateLine && (

@@ -1,4 +1,7 @@
 import wineUnified from "./wineUnified.json";
+// The .js extension keeps this importable by plain node (the test suites
+// load the real module through the alias loader)
+import { composeIdentity } from "./identityEngine.js";
 
 const { countries: COUNTRIES, regions: REGIONS, producers: PRODUCERS, varietals: VARIETALS } = wineUnified;
 
@@ -78,224 +81,6 @@ const WINE_RECS = {
 
 
 // ═══════════════════════════════════════════════════════
-// NARRATIVE HELPERS
-// ═══════════════════════════════════════════════════════
-
-function joinList(items, max) {
-  const s = items.slice(0, max || 3);
-  if (s.length === 0) return "";
-  if (s.length === 1) return s[0];
-  if (s.length === 2) return s[0] + " and " + s[1];
-  return s.slice(0, -1).join(", ") + ", and " + s[s.length - 1];
-}
-
-function joinWithOverflow(items, max) {
-  if (items.length <= max) return joinList(items, max);
-  const shown = items.slice(0, max);
-  const rest = items.length - max;
-  return joinList(shown, max) + ` and ${rest} more`;
-}
-
-// Which country has the most regions selected?
-function dominantCountry(regions, countries) {
-  let best = null;
-  let bestCount = 0;
-  for (const cId of countries) {
-    const count = (regions[cId] || []).length;
-    if (count > bestCount) { bestCount = count; best = cId; }
-  }
-  return best;
-}
-
-
-// ═══════════════════════════════════════════════════════
-// ARCHETYPE ENGINE — ~15 types with rich narratives
-// ═══════════════════════════════════════════════════════
-
-function determineArchetype(ctx) {
-  const {
-    breadth, depth, regionCount, varietalCount, redCount, whiteCount,
-    oldWorldRatio, newWorldRatio, concentration,
-    countryNames, regionNames, varietalNames, estateNames, specificWines,
-    topCountry, topCountryRegions,
-  } = ctx;
-
-  const totalVarietals = redCount + whiteCount;
-  const redRatio = totalVarietals > 0 ? redCount / totalVarietals : 0.5;
-  const whiteRatio = totalVarietals > 0 ? whiteCount / totalVarietals : 0.5;
-
-  // ─── 1. THE GRAND PALATE ───
-  if (depth >= 6 && breadth >= 5 && varietalCount >= 5) {
-    return {
-      archetype: "The Grand Palate",
-      archetypeEmoji: "👑",
-      narrative: `This is the palate of someone who has been everywhere and remembers everything. ${joinList(countryNames, 4)}${countryNames.length > 4 ? " and beyond" : ""} — you navigate them all with fluency. You know ${joinList(estateNames.slice(0, 3), 3)} by name, you track ${joinList(varietalNames.slice(0, 3), 3)} across hemispheres, and your ${regionCount} regions aren't just pins on a map — they're places where you've built a genuine understanding of what the land produces. The restaurant sommelier isn't telling you what to drink. You're telling them.`,
-    };
-  }
-
-  // ─── 2. THE COLLECTOR ───
-  if (depth >= 4 && breadth >= 4) {
-    return {
-      archetype: "The Collector",
-      archetypeEmoji: "🏛️",
-      narrative: `You have the palate of someone who's been paying attention. Deep knowledge across ${joinList(countryNames, 3)}${countryNames.length > 3 ? " and beyond" : ""} — you don't just drink wine, you study it. You know your estates${estateNames.length > 0 ? ` like ${joinList(estateNames.slice(0, 2), 2)}` : ""}, you track your favorites, and your affinity for ${joinList(varietalNames.slice(0, 3), 3)} reveals a palate that's both wide-ranging and specific. ${regionCount} regions, ${breadth} countries — you've built a mental map of what you love, and it's impressively detailed.`,
-    };
-  }
-
-  // ─── 3. THE TERROIR DEVOTEE ───
-  if (breadth <= 2 && depth >= 4 && regionCount >= 4) {
-    const focus = topCountry || countryNames[0];
-    return {
-      archetype: "The Terroir Devotee",
-      archetypeEmoji: "🌍",
-      narrative: `You could write the book on ${focus}. While others scatter their attention across the globe, you've gone deep — ${joinList(topCountryRegions || regionNames, 4)} are territory you know intimately. You understand that ${joinList(estateNames.slice(0, 2), 2)}${estateNames.length > 0 ? " aren't" : "the estates here aren't"} just labels, they're expressions of specific places. ${varietalCount > 0 ? `Your love for ${joinList(varietalNames.slice(0, 2), 2)} through the lens of ${focus} shows a palate shaped by terroir, not trend.` : `This kind of focus is rare, and it means you taste nuances others miss.`}`,
-    };
-  }
-
-  // ─── 4. THE CONNOISSEUR ───
-  if (depth >= 3 && breadth >= 2 && breadth <= 4) {
-    return {
-      archetype: "The Connoisseur",
-      archetypeEmoji: "🔬",
-      narrative: `You've moved past "I like red wine" a long time ago. Your palate is calibrated — you know the difference between ${regionNames.length >= 2 ? joinList(regionNames.slice(0, 2), 2) : "regions"} not just as names but as flavors.${estateNames.length > 0 ? ` Producers like ${joinList(estateNames.slice(0, 2), 2)} matter to you, and that's the sign of a serious wine drinker.` : ""} Across ${joinList(countryNames, 3)}, you've zeroed in on ${joinList(varietalNames.slice(0, 3), 3)} — and you know exactly what you want from each.`,
-    };
-  }
-
-  // ─── 5. THE GLOBE-TROTTER ───
-  if (breadth >= 6 && varietalCount >= 5) {
-    return {
-      archetype: "The Globe-Trotter",
-      archetypeEmoji: "✈️",
-      narrative: `${breadth} countries. ${varietalCount} grapes. You don't have a comfort zone — you have a flight itinerary. ${joinWithOverflow(countryNames, 4)} are all on your radar, and you're the kind of drinker who orders the most unfamiliar thing on the list just to see what happens. ${joinList(varietalNames.slice(0, 3), 3)} are throughlines, but honestly, you'd try anything if it came from somewhere interesting. That restlessness is a gift.`,
-    };
-  }
-
-  // ─── 6. THE EXPLORER ───
-  if (breadth >= 4 && depth < 3) {
-    return {
-      archetype: "The Explorer",
-      archetypeEmoji: "🧭",
-      narrative: `Your palate doesn't sit still. ${joinList(countryNames, 4)} — you're drawn to variety and new discoveries over drilling deep into one appellation.${varietalCount >= 3 ? ` Across all these regions, ${joinList(varietalNames.slice(0, 2), 2)} keep showing up in your glass, which tells us a lot about what your palate gravitates toward even when you're exploring.` : ""} There's a world of wine out there that's going to light you up, and Sommeasy is going to help you find it.`,
-    };
-  }
-
-  // ─── 7. THE CLASSICIST ───
-  if (oldWorldRatio >= 0.75 && breadth >= 3 && regionCount >= 3) {
-    return {
-      archetype: "The Classicist",
-      archetypeEmoji: "📜",
-      narrative: `You're drawn to wines with centuries behind them. ${joinList(countryNames, 3)} — these are places where winemaking traditions run deep, and that resonance clearly matters to you. Your affinity for ${joinList(regionNames.slice(0, 3), 3)} suggests a palate that values place over novelty, restraint over power.${varietalNames.length > 0 ? ` ${joinList(varietalNames.slice(0, 2), 2)} in their Old World expressions — that's your sweet spot.` : ""} There's a reason the classics endure, and you understand that intuitively.`,
-    };
-  }
-
-  // ─── 8. THE PIONEER ───
-  if (newWorldRatio >= 0.7 && breadth >= 2 && regionCount >= 2) {
-    return {
-      archetype: "The Pioneer",
-      archetypeEmoji: "🌊",
-      narrative: `You gravitate toward the energy of New World wine — ${joinList(countryNames, 3)}. These are places where winemakers are still writing the rules, pushing boundaries with ${joinList(varietalNames.slice(0, 2), 2) || "bold grapes"} in unexpected ways.${regionNames.length > 0 ? ` ${joinList(regionNames.slice(0, 3), 3)} are your proving grounds.` : ""} You taste ambition in a glass before you taste oak, and that's what makes your palate exciting.`,
-    };
-  }
-
-  // ─── 9. THE BRIDGE BUILDER ───
-  if (breadth >= 3 && oldWorldRatio >= 0.3 && oldWorldRatio <= 0.7 && varietalCount >= 3) {
-    return {
-      archetype: "The Bridge Builder",
-      archetypeEmoji: "🌉",
-      narrative: `You don't pick sides. Old World, New World — you taste what's good regardless of where it comes from. ${joinList(countryNames, 3)} might seem like an eclectic mix, but there's a throughline: you're drawn to ${joinList(varietalNames.slice(0, 2), 2)} whether they're grown in ancient European soils or planted last generation in ${countryNames.find(c => ["United States", "US", "Australia", "South Africa", "Chile", "Argentina", "New Zealand"].includes(c)) || "the New World"}. That open-mindedness is the mark of a genuinely evolved palate.`,
-    };
-  }
-
-  // ─── 10. THE RED DEVOTEE ───
-  if (redRatio >= 0.8 && varietalCount >= 3) {
-    const redNames = varietalNames.filter(name => {
-      const v = VARIETALS.find(x => x.name === name);
-      return v && v.color === "red";
-    });
-    return {
-      archetype: "The Red Devotee",
-      archetypeEmoji: "🍷",
-      narrative: `Red wine isn't just your preference — it's your language. ${joinList(redNames.slice(0, 3), 3)} — you know the spectrum from elegant to powerful and you have opinions about each.${regionNames.length > 0 ? ` Across ${joinList(regionNames.slice(0, 3), 3)}, you've mapped out where your reds reach their peak.` : ""}${countryNames.length > 0 ? ` ${joinList(countryNames, 2)} produce the wines that move you most.` : ""} When someone hands you the wine list, you're going straight to the left side of the page.`,
-    };
-  }
-
-  // ─── 11. THE WHITE WINE AUTHORITY ───
-  if (whiteRatio >= 0.7 && varietalCount >= 3) {
-    const whiteNames = varietalNames.filter(name => {
-      const v = VARIETALS.find(x => x.name === name);
-      return v && v.color === "white";
-    });
-    return {
-      archetype: "The White Wine Authority",
-      archetypeEmoji: "✨",
-      narrative: `While the world obsesses over reds, you've been quietly building expertise in the wines most people overlook. ${joinList(whiteNames.slice(0, 3), 3)} — you understand the difference between them in ways that surprise even wine professionals.${regionNames.length > 0 ? ` ${joinList(regionNames.slice(0, 3), 3)} are where you've found your magic.` : ""} There's a depth and complexity to great white wine that you're tuned into, and it sets you apart.`,
-    };
-  }
-
-  // ─── 12. THE LOYALIST ───
-  if (breadth === 1 && regionCount >= 2) {
-    const country = countryNames[0] || "your chosen country";
-    return {
-      archetype: "The Loyalist",
-      archetypeEmoji: "🏡",
-      narrative: `You know what you love: ${country}. And you've gone deep — ${joinList(regionNames, 3)} are your territory.${estateNames.length > 0 ? ` You know producers like ${joinList(estateNames.slice(0, 2), 2)} by heart.` : ""}${varietalNames.length > 0 ? ` ${joinList(varietalNames.slice(0, 2), 2)} grown in ${country} soil — that's your sweet spot.` : ""} You're the friend everyone asks when they need a ${country} recommendation, and you never disappoint.`,
-    };
-  }
-
-  // ─── 13. THE PURIST ───
-  if (varietalCount >= 1 && varietalCount <= 2 && (depth >= 2 || regionCount >= 2)) {
-    return {
-      archetype: "The Purist",
-      archetypeEmoji: "🎯",
-      narrative: `You know exactly what you want in a glass: ${joinList(varietalNames, 2)}. No chasing trends, no compromises. ${regionNames.length > 0 ? `You've tracked ${varietalCount === 1 ? "it" : "them"} across ${joinList(regionNames.slice(0, 3), 3)} and you know how ${varietalCount === 1 ? "it" : "each"} tastes different in each place.` : ""}${estateNames.length > 0 ? ` Producers like ${joinList(estateNames.slice(0, 2), 2)} are your benchmarks.` : ""} This kind of focus means you taste subtleties that more scattered drinkers miss — the difference between good and great.`,
-    };
-  }
-
-  // ─── 14. THE CURIOUS PALATE ───
-  if (breadth >= 2 && varietalCount >= 2) {
-    return {
-      archetype: "The Curious Palate",
-      archetypeEmoji: "💡",
-      narrative: `You're building something here. ${joinList(countryNames, 3)} caught your attention, ${joinList(varietalNames.slice(0, 2), 2)} are speaking to you, and you're starting to connect the dots between what you taste and what you love.${regionNames.length > 0 ? ` ${joinList(regionNames.slice(0, 2), 2)} are early favorites that will deepen with experience.` : ""} You're at the stage where every bottle teaches you something — and that's genuinely the best place to be.`,
-    };
-  }
-
-  // ─── 15. THE INSTINCTIVE PALATE (fallback) ───
-  // The fallback is a REAL identity, never a deferral (Session 5). The
-  // reveal is the emotional payoff of the quiz — even minimal input (France
-  // + Cabernet, say) is a confident, classic place to stand, and it gets
-  // named and celebrated in the present tense. The old "Rising Palate" led
-  // with grow-richer/get-sharper deferral copy — telling a brand-new user
-  // to return later at the exact moment the product should be telling them
-  // who they already are. That phrasing is banned (and enforced by a source
-  // scan in archetypeVoice.test.js, which is why it isn't quoted here).
-  // Don't fabricate depth the data doesn't support: the flattery here is
-  // FOCUS, stated as strength.
-  const anchor =
-    countryNames.length > 0 && varietalNames.length > 0
-      ? `${joinList(countryNames, 2)} on the label, ${joinList(varietalNames.slice(0, 2), 2)} in the glass`
-      : countryNames.length > 0
-        ? `${joinList(countryNames, 2)} on the label`
-        : varietalNames.length > 0
-          ? `${joinList(varietalNames.slice(0, 2), 2)} in the glass`
-          : null;
-  const lean =
-    countryNames.length === 0
-      ? ""
-      : oldWorldRatio >= 0.7
-        ? " That's a classic position — the places you're drawn to have spent centuries earning exactly that kind of trust."
-        : newWorldRatio >= 0.7
-          ? " That's a modern position — you're drawn to places still writing their own rules, and that says something."
-          : "";
-  return {
-    archetype: "The Instinctive Palate",
-    archetypeEmoji: "🌿",
-    narrative: `You order with instinct, and your instinct is sound. ${anchor ? `${anchor} — you've already picked your ground, and plenty of drinkers never do.` : "You trust your own taste over the trend of the week, and that's rarer than it sounds."}${lean} A focused palate isn't a smaller one — it's one that knows what it loves, and that clarity is exactly what a sommelier hopes to find across the table. The Somm's job with you is simple: honor it.`,
-  };
-}
-
-
-// ═══════════════════════════════════════════════════════
 // MAIN PROFILE GENERATOR
 // ═══════════════════════════════════════════════════════
 
@@ -305,8 +90,6 @@ export function generateDNAProfile(answers) {
   // ─── Resolve names from IDs ───
   const countryObjs = countries.map(id => COUNTRIES.find(c => c.id === id)).filter(Boolean);
   const countryNames = countryObjs.map(c => c.name);
-  const oldWorld = countryObjs.filter(c => c.world === "old").length;
-  const newWorld = countryObjs.filter(c => c.world === "new").length;
 
   const allRegionIds = Object.values(regions).flat();
   const regionNames = allRegionIds.map(rId => {
@@ -330,48 +113,16 @@ export function generateDNAProfile(answers) {
   const reds = varietals.filter(id => VARIETALS.find(v => v.id === id)?.color === "red");
   const whites = varietals.filter(id => VARIETALS.find(v => v.id === id)?.color === "white");
 
-  // ─── Compute scoring dimensions ───
-  const breadth = countries.length;
-  const depth = allEstateIds.length + (specificWines?.length || 0);
-  const regionCount = allRegionIds.length;
-  const varietalCount = varietals.length;
-  const oldWorldRatio = breadth > 0 ? oldWorld / breadth : 0.5;
-  const newWorldRatio = breadth > 0 ? newWorld / breadth : 0.5;
-
-  // Concentration: what % of regions are in the top country?
-  let concentration = 0;
-  let topCountryId = null;
-  let topCountryRegions = [];
-  for (const cId of countries) {
-    const rCount = (regions[cId] || []).length;
-    if (rCount > concentration) {
-      concentration = rCount;
-      topCountryId = cId;
-    }
-  }
-  if (topCountryId) {
-    topCountryRegions = (regions[topCountryId] || []).map(rId => {
-      for (const regionList of Object.values(REGIONS)) {
-        const f = regionList.find(r => r.id === rId);
-        if (f) return f.name;
-      }
-      return null;
-    }).filter(Boolean);
-    concentration = regionCount > 0 ? concentration / regionCount : 0;
-  }
-
-  const topCountryObj = topCountryId ? COUNTRIES.find(c => c.id === topCountryId) : null;
-  const topCountry = topCountryObj ? topCountryObj.name : null;
-
-  // ─── Determine archetype ───
-  const { archetype, archetypeEmoji, narrative } = determineArchetype({
-    breadth, depth, regionCount, varietalCount,
-    redCount: reds.length, whiteCount: whites.length,
-    oldWorldRatio, newWorldRatio, concentration,
-    countryNames, regionNames, varietalNames, estateNames,
+  // ─── Compose the identity strand (Act III — the archetype engine is
+  // retired; the title lives in the archetype column, the emoji column
+  // carries a neutral 🧬 until surfaces stop reading it) ───
+  const identity = composeIdentity({
+    countries, regions, estates, varietals,
     specificWines: specificWines || [],
-    topCountry, topCountryRegions,
   });
+  const archetype = identity.title;
+  const archetypeEmoji = "🧬";
+  const narrative = identity.narrative;
 
   // ─── Build recommendations ───
   const recs = [];
@@ -414,6 +165,7 @@ export function generateDNAProfile(answers) {
 
   return {
     archetype, archetypeEmoji, narrative,
+    epithet: identity.epithet, traits: identity.traits, genome: identity.genome,
     countries: countryNames, regions: regionNames, estates: estateNames,
     varietals: varietalNames, specificWines: specificWines || [],
     recommendations: recs.slice(0, 20),

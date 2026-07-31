@@ -303,7 +303,9 @@ export default function PalateView({ profile, timeline, accumulation }) {
   }, []);
 
   const signature = computeSignature(profile, accumulation);
-  const sigLine = signatureLine(profile, accumulation);
+  // The strand's epithet leads (Act III); the live signature line is the
+  // fallback for a row the engine hasn't composed yet
+  const sigLine = profile.identity?.epithet || signatureLine(profile, accumulation);
 
   // Founding vs earned: promoted DNA whose points came from real bottles, not
   // the quiz. Rendered as a quiet mark, not a badge wall.
@@ -344,14 +346,14 @@ export default function PalateView({ profile, timeline, accumulation }) {
 
   return (
     <div>
-      {/* ─── Identity ─── */}
-      <div style={{ textAlign: "center", padding: "26px 0 24px" }}>
-        <div style={{ fontSize: "44px", marginBottom: 10, lineHeight: 1 }}>{profile.archetype_emoji}</div>
+      {/* ─── Identity (the strand: title + epithet; the emoji retired with
+          the archetype engine — the visual signature replaces it in S4) ─── */}
+      <div style={{ textAlign: "center", padding: "30px 0 24px" }}>
         <h1 data-testid="palate-archetype" style={{ fontFamily: SERIF, fontSize: "32px", color: GREEN, margin: "0 0 8px", fontWeight: 700, letterSpacing: "-0.01em" }}>
           {profile.archetype}
         </h1>
         {sigLine && (
-          <p style={{ fontFamily: SERIF, fontSize: "15px", fontStyle: "italic", color: BURGUNDY, margin: 0, opacity: 0.85 }}>
+          <p data-testid="palate-epithet" style={{ fontFamily: SERIF, fontSize: "15px", fontStyle: "italic", color: BURGUNDY, margin: 0, opacity: 0.85 }}>
             {sigLine}
           </p>
         )}

@@ -16,10 +16,13 @@ test.describe("Palate view (hard-fail guard)", () => {
   test("renders archetype, signature, named DNA, and evolution sections", async ({ page }) => {
     await page.goto("/palate");
 
-    // Identity: a non-empty archetype headline
+    // Identity: a non-empty archetype headline + the strand's epithet
     const archetype = page.getByTestId("palate-archetype");
     await expect(archetype).toBeVisible();
     expect((await archetype.textContent())?.trim().length).toBeGreaterThan(0);
+    const epithet = page.getByTestId("palate-epithet");
+    await expect(epithet).toBeVisible();
+    expect((await epithet.textContent())?.trim().length).toBeGreaterThan(0);
 
     // Pillar 4: the palate signature card
     await expect(page.getByTestId("palate-signature")).toBeVisible();
