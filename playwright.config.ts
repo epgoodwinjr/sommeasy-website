@@ -21,6 +21,10 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
+  // One worker: every spec shares the ONE test account, and the Act III
+  // guards assert exact DB state (archetype/identity/timeline). Parallel
+  // files would race each other's baselines.
+  workers: 1,
   retries: 0,
   reporter: [
     ["html", { outputFolder: "playwright-report", open: "never" }],

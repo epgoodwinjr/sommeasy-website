@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
+import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 
 const SERIF = "'Playfair Display', Georgia, serif";
 const SANS = "'Source Sans 3', sans-serif";
@@ -220,6 +221,17 @@ export default function WineRecList({ recs, user, limit = 5, onCountsChange, emp
     });
   }, []);
 
+  // The celebrated shift lands after any promotion/demotion toasts have
+  // had their moment — it's the headline, not the opening act
+  const showShiftToast = useCallback((msg, delayMs) => {
+    setTimeout(() => {
+      setEvolutionToasts((prev) => [...prev, msg]);
+      setTimeout(() => {
+        setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+      }, 5000);
+    }, delayMs);
+  }, []);
+
   const saveInteraction = async (wineName, type, rating) => {
     const previousRating = interactions[wineName]?.rating || null;
     setInteractions((prev) => ({ ...prev, [wineName]: { type, rating: rating || null } }));
@@ -244,6 +256,13 @@ export default function WineRecList({ recs, user, limit = 5, onCountsChange, emp
         const result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
         if (result?.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
         if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+        // Milestone hook (Act III S3): recompose the identity strand when
+        // this rating earned the change — celebrated only on a real shift
+        const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
+        if (shift?.shifted) {
+          const evoCount = (result?.promotions?.length || 0) + (result?.demotions?.length || 0);
+          showShiftToast(shiftToastMessage(shift), 1500 + evoCount * 1500);
+        }
       } catch (evoErr) {
         console.error("DNA evolution error (non-blocking):", evoErr);
       }

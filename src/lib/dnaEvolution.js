@@ -50,7 +50,10 @@ function pointsTableFor(confidence) {
  * @param {string} wineName - Wine name as entered
  * @param {string} rating - 'loved', 'liked', 'fine', 'not_for_me'
  * @param {string|null} previousRating - Previous rating if re-rating, null if new
- * @returns {object} { resolution, promotions, demotions }
+ * @returns {object} { resolution, dimensions, promotions, demotions } —
+ *   dimensions is what this wine's confidence band accumulates toward
+ *   (empty below the partial gate), returned even on a zero delta so the
+ *   milestone hook can judge the wine, not the delta
  */
 export async function resolveAndAccumulate(supabase, userId, wineName, rating, previousRating = null) {
   // Step 1: Resolve wine metadata
@@ -72,21 +75,21 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
   // Step 3: Only accumulate if confidence reaches at least the partial band
   const pointsTable = pointsTableFor(resolution.confidence);
   if (!pointsTable) {
-    return { resolution, promotions: [], demotions: [] };
+    return { resolution, dimensions: [], promotions: [], demotions: [] };
   }
   const partial = pointsTable === PARTIAL_RATING_POINTS;
 
-  // Step 4: Calculate point delta
+  // Step 4: Determine which dimensions this band accumulates toward
+  const dimensionUpdates = buildDimensionUpdates(resolution, { partial });
+
+  // Step 5: Calculate point delta
   const newPoints = pointsTable[rating] ?? 0;
   const oldPoints = previousRating ? (pointsTable[previousRating] ?? 0) : 0;
   const pointDelta = newPoints - oldPoints;
 
   if (pointDelta === 0) {
-    return { resolution, promotions: [], demotions: [] };
+    return { resolution, dimensions: dimensionUpdates, promotions: [], demotions: [] };
   }
-
-  // Step 5: Determine which dimensions to update
-  const dimensionUpdates = buildDimensionUpdates(resolution, { partial });
 
   // Step 6: Apply point deltas to dna_accumulation
   for (const dim of dimensionUpdates) {
@@ -107,7 +110,7 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
     await applyDemotions(supabase, userId, demotions);
   }
 
-  return { resolution, promotions, demotions };
+  return { resolution, dimensions: dimensionUpdates, promotions, demotions };
 }
 
 

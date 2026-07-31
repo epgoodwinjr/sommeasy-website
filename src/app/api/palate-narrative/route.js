@@ -21,7 +21,8 @@ const STALE_RATED_COUNT = 5;
 const SYSTEM_PROMPT = `You are The Somm — Sommeasy's sommelier voice. Confident but not pretentious, warm and conversational, zero gatekeeping jargon. You are rewriting one thing: the user's palate narrative — the short paragraph on their Palate page that describes who they are as a wine drinker.
 
 You receive JSON with:
-- "archetype": their palate archetype name.
+- "archetype": their identity title (e.g. "The Mosel Purist").
+- "epithet": their signature line — the strand's composed phrases (e.g. "Mosel-centered · white-leaning · estate-loyal"). Write from the full identity, title and epithet together.
 - "dna": their current DNA — countries, regions, grapes, estates. Items marked (earned) were added by real rated bottles, not the quiz — that's growth worth acknowledging.
 - "recentEvolution": what was promoted into or rotated out of their DNA lately, if anything.
 - "loved" / "notForMe": bottles they actually rated. The strongest signal you have.
@@ -101,7 +102,7 @@ export async function POST(request) {
 
     const { data: profile } = await supabase
       .from("wine_profiles")
-      .select("archetype, narrative, narrative_updated_at, created_at, red_count, white_count")
+      .select("archetype, identity, narrative, narrative_updated_at, created_at, red_count, white_count")
       .eq("user_id", user.id)
       .single();
     if (!profile || !profile.narrative) return fallback();
@@ -148,9 +149,14 @@ export async function POST(request) {
 
     const payload = {
       archetype: profile.archetype,
+      epithet: profile.identity?.epithet || null,
       dna,
+      // A shifted event is the identity itself moving — describe it as a
+      // becoming, never as something rotating out
       recentEvolution: recentEvents.map((e) =>
-        `${e.display_name} (${e.dimension}) ${e.event_type === "promoted" ? "joined their DNA" : "rotated out"}`
+        e.event_type === "shifted"
+          ? `their identity shifted — they became ${e.display_name}`
+          : `${e.display_name} (${e.dimension}) ${e.event_type === "promoted" ? "joined their DNA" : "rotated out"}`
       ),
       loved,
       notForMe,

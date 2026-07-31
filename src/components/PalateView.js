@@ -164,15 +164,31 @@ function RecentlyEvolved({ timeline, accumulation }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {events.map((e) => {
-            const acc = accByKey.get(`${e.dimension}:${e.dimension_value}`);
-            const bottles = acc?.interaction_count || 0;
-            const line = e.event_type === "promoted"
-              ? `${e.display_name} earned its place${bottles > 0 ? ` — ${bottles === 1 ? "one bottle" : `${NUMBER_WORDS[bottles - 1] || bottles} bottles`} made the case` : ""}`
-              : `${e.display_name} rotated out — your ratings stopped backing it`;
+            // A shifted event is the identity itself moving — its own kind of
+            // entry, not a dimension line. dimension_value carries the
+            // before→after strand; the title line is the fallback.
+            let line, glyph;
+            if (e.event_type === "shifted") {
+              glyph = "✨";
+              line = `You became ${e.display_name}`;
+              try {
+                const change = JSON.parse(e.dimension_value);
+                if (change?.from?.title === change?.to?.title && change?.to?.epithet) {
+                  line = `Your signature shifted — ${change.to.epithet}`;
+                }
+              } catch { /* the title line stands */ }
+            } else {
+              const acc = accByKey.get(`${e.dimension}:${e.dimension_value}`);
+              const bottles = acc?.interaction_count || 0;
+              glyph = e.event_type === "promoted" ? "🧬" : "🍂";
+              line = e.event_type === "promoted"
+                ? `${e.display_name} earned its place${bottles > 0 ? ` — ${bottles === 1 ? "one bottle" : `${NUMBER_WORDS[bottles - 1] || bottles} bottles`} made the case` : ""}`
+                : `${e.display_name} rotated out — your ratings stopped backing it`;
+            }
             return (
               <div key={e.id} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px" }}>
-                <div style={{ fontFamily: SERIF, fontSize: "14px", color: GREEN, lineHeight: 1.45 }}>
-                  <span style={{ marginRight: 8 }}>{e.event_type === "promoted" ? "🧬" : "🍂"}</span>
+                <div style={{ fontFamily: SERIF, fontSize: "14px", color: GREEN, lineHeight: 1.45, fontWeight: e.event_type === "shifted" ? 600 : 400 }}>
+                  <span style={{ marginRight: 8 }}>{glyph}</span>
                   {line}
                 </div>
                 <span style={{ fontFamily: SANS, fontSize: "11px", color: GREEN, opacity: 0.3, flexShrink: 0, whiteSpace: "nowrap" }}>{formatDate(e.event_at)}</span>

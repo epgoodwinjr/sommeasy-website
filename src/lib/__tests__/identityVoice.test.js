@@ -67,7 +67,7 @@ function bannedIn(text) {
 }
 
 async function main() {
-  const { composeIdentity } = await import("../identityEngine.js");
+  const { composeIdentity, COUNTRY_TITLE_NAMES } = await import("../identityEngine.js");
   const { generateDNAProfile } = await import("../profileEngine.js");
   const source = readFileSync(new URL("../identityEngine.js", import.meta.url), "utf-8");
 
@@ -132,7 +132,7 @@ async function main() {
   test("France + Cabernet composes a confident title with no fabricated places", () => {
     const s = sparse({ countries: ["france"], varietals: ["cabernet_sauvignon"] });
     assert(/^The .+/.test(s.title), `title not composed: "${s.title}"`);
-    assert(s.title.includes("France") || s.title.includes("Cabernet"), `title must be built from their own evidence: "${s.title}"`);
+    assert(s.title.includes("French") || s.title.includes("Cabernet"), `title must be built from their own evidence: "${s.title}"`);
     assert(!s.narrative.includes("Bordeaux"), "must not fabricate regions the user never picked");
     assert(!s.title.includes("Bordeaux"), "title must not fabricate places");
     assert(s.narrative.includes("France") && s.narrative.includes("Cabernet Sauvignon"), "narrative names their own evidence");
@@ -144,7 +144,7 @@ async function main() {
   test("a single country and nothing else gets a real identity", () => {
     const s = sparse({ countries: ["italy"] });
     assert(/^The .+/.test(s.title) && s.title !== "The Instinctive Palate", `single-country input fell to the degenerate register: "${s.title}"`);
-    assert(s.title.includes("Italy"), `anchor must be their own country: "${s.title}"`);
+    assert(s.title.includes("Italian"), `country anchor wears its adjective in the title: "${s.title}"`);
     assert(bannedIn(s.narrative) === null, `deferral copy: ${bannedIn(s.narrative)}`);
   });
 
@@ -189,6 +189,45 @@ async function main() {
       assert(!/[a-z]_[a-z]/.test(s.title), `raw id in title: "${s.title}"`);
       assert(!/[a-z]_[a-z]/.test(s.epithet), `raw id in epithet: "${s.epithet}"`);
       assert(!/[a-z]_[a-z]/.test(s.narrative), `raw id in narrative: "${s.narrative}"`);
+    }
+  });
+
+  console.log("\n═══ country titles wear their adjectives (S3 Part 0) ═══");
+
+  test("country-anchored titles use the adjective; epithet and narrative keep the noun", () => {
+    const s = sparse({ countries: ["south_africa"] });
+    assert(s.title.includes("South African"), `expected the adjective in the title: "${s.title}"`);
+    assert(s.epithet.includes("South Africa-anchored"), `epithet must keep the place noun: "${s.epithet}"`);
+    assert(!s.epithet.includes("South African-"), `epithet must not take the adjective: "${s.epithet}"`);
+    assert(s.narrative.includes("South Africa"), `narrative prose keeps the noun: "${s.narrative}"`);
+  });
+
+  test("wine-register picks hold: Argentine, American", () => {
+    const arg = sparse({ countries: ["argentina"] });
+    assert(arg.title.includes("Argentine") && !arg.title.includes("Argentinian"),
+      `Argentina composes "Argentine" (trade register): "${arg.title}"`);
+    const us = sparse({ countries: ["us"] });
+    assert(us.title.includes("American"), `US composes "American": "${us.title}"`);
+  });
+
+  test("New Zealand keeps its noun deliberately (trade register)", () => {
+    assert(COUNTRY_TITLE_NAMES.new_zealand === "New Zealand",
+      `the deliberate noun fallback drifted: "${COUNTRY_TITLE_NAMES.new_zealand}"`);
+    const s = sparse({ countries: ["new_zealand"] });
+    assert(s.title.includes("New Zealand"), `NZ title: "${s.title}"`);
+  });
+
+  test("every wineUnified country has a title name, and none of them clunk", () => {
+    const wineUnified = JSON.parse(
+      readFileSync(new URL("../wineUnified.json", import.meta.url), "utf-8")
+    );
+    for (const c of wineUnified.countries) {
+      const titleName = COUNTRY_TITLE_NAMES[c.id];
+      assert(typeof titleName === "string" && titleName.length > 0,
+        `country "${c.id}" has no title name — add it to COUNTRY_TITLE_NAMES`);
+      // The clunk rule's own bar: nothing in the map may step itself down
+      assert(titleName.length <= 14 && titleName.trim().split(/\s+/).length <= 2,
+        `title name "${titleName}" (${c.id}) would clunk in a title`);
     }
   });
 

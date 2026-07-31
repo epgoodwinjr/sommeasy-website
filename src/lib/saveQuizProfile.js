@@ -1,6 +1,7 @@
 import { generateDNAProfile } from "./profileEngine";
 import { formatWineName } from "./matchEngine";
 import { mergeQuizWithEarnedDna, reconcileQuizPromotions, syncQuizSelections } from "./dnaEvolution";
+import { countRatedBottles } from "./identityRecompose";
 
 /**
  * The ONE quiz-save path — extracted from page.js's handleSaveProfile
@@ -30,6 +31,25 @@ export async function saveQuizProfile(supabase, userId, rawAnswers, { mode = "fr
       : quizRaw;
     const finalProfile = generateDNAProfile(merged);
 
+    // Milestone continuity (Act III S3): a quiz save IS a recompose, so it
+    // resets the every-5th baseline to the live rated count — while the
+    // first-time-firsts flags survive VERBATIM (they fire once per account;
+    // a refine must never re-arm them). Quiz saves stay silent by
+    // construction: nothing here writes a timeline event.
+    let milestones = { ratedCountAtLastRecompose: 0, firsts: {} };
+    try {
+      const [{ data: existing }, ratedCount] = await Promise.all([
+        supabase.from("wine_profiles").select("identity").eq("user_id", userId).single(),
+        countRatedBottles(supabase, userId),
+      ]);
+      milestones = {
+        ratedCountAtLastRecompose: ratedCount,
+        firsts: existing?.identity?.milestones?.firsts || {},
+      };
+    } catch (msErr) {
+      console.error("Milestone continuity read failed (non-blocking):", msErr);
+    }
+
     const { error } = await supabase.from("wine_profiles").upsert({
       user_id: userId,
       archetype: finalProfile.archetype,
@@ -41,6 +61,7 @@ export async function saveQuizProfile(supabase, userId, rawAnswers, { mode = "fr
         epithet: finalProfile.epithet,
         traits: finalProfile.traits,
         genome: finalProfile.genome,
+        milestones,
       },
       countries: merged.countries,
       regions: merged.regions,

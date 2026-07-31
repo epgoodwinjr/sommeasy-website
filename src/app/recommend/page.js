@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase";
 import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, getVarietalColor, formatWineName, getPickCount } from "@/lib/matchEngine";
 import { buildSommPayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
+import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { evolutionToastMessages } from "@/components/WineRecList";
 
 // ─── Image compression utility ───
@@ -506,12 +507,24 @@ export default function RecommendPage() {
 
       // A rated bottle is evidence — run the evolution engine exactly like
       // WineRecList does (non-blocking): accumulate points, stamp resolved_*
-      // metadata, surface promotions/demotions
+      // metadata, surface promotions/demotions, then let the milestone hook
+      // recompose the identity strand and celebrate a real shift
       if (!error) {
         try {
           const result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
           if (result?.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
           if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+          const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
+          if (shift?.shifted) {
+            const evoCount = (result?.promotions?.length || 0) + (result?.demotions?.length || 0);
+            const msg = shiftToastMessage(shift);
+            setTimeout(() => {
+              setEvolutionToasts((prev) => [...prev, msg]);
+              setTimeout(() => {
+                setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+              }, 5000);
+            }, 1500 + evoCount * 1500);
+          }
         } catch (evoErr) {
           console.error("DNA evolution error (non-blocking):", evoErr);
         }

@@ -4,6 +4,13 @@
 // Tests all 8 suites: Resolver, Accumulation, Promotion, Demotion,
 // Rating Changes, Quiz Sync, Edge Cases, UI Notes
 
+// Suite 12 tests the REAL identityRecompose module (the milestone hook) via
+// dynamic import — the alias loader supplies the JSON import attributes the
+// engine's wineUnified import needs under plain node.
+const { register } = require("node:module");
+const { pathToFileURL } = require("node:url");
+register("./helpers/alias-loader.mjs", pathToFileURL(__filename));
+
 // Unified data architecture (wineUnified.json) — the same shapes the
 // production resolver consumes. ESTATES = producers keyed by DNA region id.
 const wineUnified = require("../wineUnified.json");
@@ -30,10 +37,32 @@ function createMockSupabase(tables) {
     let insertedData = null;
     let orderCol = null;
     let orderAsc = true;
+    let countMode = false;
+    let returnRowsAfterWrite = false;
+
+    // Column getter with PostgREST JSON-path support ("identity->>epithet")
+    // — the milestone hook's compare-and-swap filters on it
+    function rowValue(row, col) {
+      if (col.includes("->>")) {
+        const [base, key] = col.split("->>");
+        const obj = row[base];
+        return obj && typeof obj === "object" ? (obj[key] ?? null) : null;
+      }
+      return row[col];
+    }
+
+    function matchesFilter(row, f) {
+      const v = rowValue(row, f.col);
+      if (f.kind === "eq") return v === f.val;
+      if (f.kind === "is") return f.val === null ? v == null : v === f.val;
+      if (f.kind === "not-is") return f.val === null ? v != null : v !== f.val;
+      if (f.kind === "in") return f.val.includes(v);
+      return true;
+    }
 
     function getFiltered() {
       return (tables[tableName] || []).filter(row =>
-        filters.every(f => row[f.col] === f.val)
+        filters.every(f => matchesFilter(row, f))
       );
     }
 
@@ -51,11 +80,19 @@ function createMockSupabase(tables) {
     }
 
     const builder = {
-      select(cols) {
+      select(cols, opts) {
         if (!op) op = "select";
+        else returnRowsAfterWrite = true; // update(...).select() — CAS reads its winners
+        if (opts?.count) countMode = true;
         return builder;
       },
-      eq(col, val) { filters.push({ col, val }); return builder; },
+      eq(col, val) { filters.push({ kind: "eq", col, val }); return builder; },
+      is(col, val) { filters.push({ kind: "is", col, val }); return builder; },
+      not(col, operator, val) {
+        if (operator === "is") filters.push({ kind: "not-is", col, val });
+        return builder;
+      },
+      in(col, vals) { filters.push({ kind: "in", col, val: vals }); return builder; },
       order(col, opts) { orderCol = col; orderAsc = opts?.ascending ?? true; return builder; },
       insert(data) {
         op = "insert";
@@ -113,11 +150,15 @@ function createMockSupabase(tables) {
       },
       then(resolve) {
         if (op === "select") {
+          if (countMode) {
+            resolve({ data: null, count: getFiltered().length, error: null });
+            return;
+          }
           resolve({ data: executeSelect(), error: null });
         } else if (op === "update") {
           const rows = getFiltered();
           for (const row of rows) Object.assign(row, updateData);
-          resolve({ data: null, error: null });
+          resolve({ data: returnRowsAfterWrite ? rows.map(r => ({ ...r })) : null, error: null });
         } else if (op === "delete") {
           const toRemove = getFiltered();
           const ids = new Set(toRemove.map(r => r.id));
@@ -612,19 +653,21 @@ async function resolveAndAccumulate(supabase, userId, wineName, rating, previous
     }).eq("user_id", userId).eq("wine_name", wineName);
   }
   const pointsTable = pointsTableFor(resolution.confidence);
-  if (!pointsTable) return { resolution, promotions: [], demotions: [] };
+  if (!pointsTable) return { resolution, dimensions: [], promotions: [], demotions: [] };
   const partial = pointsTable === PARTIAL_RATING_POINTS;
+  // Dimensions are built (and returned) before the delta check — the
+  // milestone hook judges the wine, not the delta
+  const dimUpdates = buildDimensionUpdates(resolution, { partial });
   const newPts = pointsTable[rating] ?? 0;
   const oldPts = previousRating ? (pointsTable[previousRating] ?? 0) : 0;
   const pointDelta = newPts - oldPts;
-  if (pointDelta === 0) return { resolution, promotions: [], demotions: [] };
-  const dimUpdates = buildDimensionUpdates(resolution, { partial });
+  if (pointDelta === 0) return { resolution, dimensions: dimUpdates, promotions: [], demotions: [] };
   for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, pointDelta);
   const promotions = await checkPromotions(supabase, userId, dimUpdates);
   const demotions = await checkDemotions(supabase, userId, dimUpdates);
   if (promotions.length > 0) await applyPromotions(supabase, userId, promotions);
   if (demotions.length > 0) await applyDemotions(supabase, userId, demotions);
-  return { resolution, promotions, demotions };
+  return { resolution, dimensions: dimUpdates, promotions, demotions };
 }
 
 async function reverseAccumulation(supabase, userId, wineName, interactionData = null) {
@@ -1814,6 +1857,283 @@ async function suite11() {
 }
 
 // ═══════════════════════════════════════════════════════
+// SUITE 12: The Living Strand — milestone hook (Session 3)
+// ═══════════════════════════════════════════════════════
+//
+// Tests the REAL maybeRecomposeIdentity module (imported through the alias
+// loader) against the mock DB, driven by the mirror engine exactly like the
+// surfaces drive the real one: rate → engine result → hook.
+
+async function suite12() {
+  console.log("\n═══ Suite 12: The Living Strand (milestone hook) ═══");
+
+  const { maybeRecomposeIdentity, countRatedBottles, RECOMPOSE_RATED_INTERVAL, shiftToastMessage } =
+    await import("../identityRecompose.js");
+  const { composeIdentity } = await import("../identityEngine.js");
+
+  // Seed a wine_profiles row whose strand is exactly what the engine
+  // composes from the raw arrays (no accumulation) — the S2 quiz-save state.
+  function seedStrandProfile(tables, raw, milestones = null) {
+    const strand = composeIdentity({ ...raw, accumulation: [] });
+    const reds = raw.varietals.filter(id => VARIETALS.find(v => v.id === id)?.color === "red").length;
+    const whites = raw.varietals.filter(id => VARIETALS.find(v => v.id === id)?.color === "white").length;
+    tables.wine_profiles.push({
+      id: genId(), user_id: TEST_USER,
+      countries: [...raw.countries],
+      regions: JSON.parse(JSON.stringify(raw.regions)),
+      estates: JSON.parse(JSON.stringify(raw.estates)),
+      varietals: [...raw.varietals],
+      specific_wines: [...(raw.specificWines || [])],
+      archetype: strand.title,
+      identity: {
+        epithet: strand.epithet, traits: strand.traits, genome: strand.genome,
+        milestones: milestones || { ratedCountAtLastRecompose: 0, firsts: {} },
+      },
+      red_count: reds, white_count: whites,
+    });
+    return strand;
+  }
+
+  // The e2e fixture's shape: SA+France, Stellenbosch+Burgundy, Kanonkop,
+  // Pinot Noir + Chardonnay → "The South African Curator"
+  const S12_RAW = {
+    countries: ["south_africa", "france"],
+    regions: { south_africa: ["stellenbosch"], france: ["burgundy"] },
+    estates: { stellenbosch: ["kanonkop"] },
+    varietals: ["pinot_noir", "chardonnay"],
+    specificWines: [],
+  };
+
+  function seedRatedRows(tables, n) {
+    for (let i = 0; i < n; i++) {
+      tables.wine_interactions.push({
+        id: genId(), user_id: TEST_USER, wine_name: `asdfghjkl ${i}`,
+        interaction_type: "had", rating: "fine", match_confidence: null,
+      });
+    }
+  }
+
+  function profileRow(tables) {
+    return tables.wine_profiles.find(p => p.user_id === TEST_USER);
+  }
+  function shiftedRows(tables) {
+    return tables.dna_timeline.filter(e => e.event_type === "shifted");
+  }
+
+  // Exactly how every surface drives the hook
+  async function rateAndHook(sb, wineName, rating) {
+    const result = await simulateSurfaceRate(sb, wineName, rating);
+    return maybeRecomposeIdentity(sb, TEST_USER, { ...result, rating });
+  }
+  async function deleteAndHook(sb, wineName) {
+    const result = await simulateJournalDelete(sb, wineName);
+    return maybeRecomposeIdentity(sb, TEST_USER, { ...result, isReversal: true });
+  }
+
+  await runTest("Suite 12", "12A: Every-5th milestone fires at exactly 5, resets the baseline, stays silent when unchanged", async () => {
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW);
+    // 4 rated bottles that resolve to nothing — no milestone
+    for (let i = 1; i <= 4; i++) {
+      const res = await rateAndHook(sb, `asdfghjkl pre${i}`, "fine");
+      assert(res === null, `bottle ${i} must not be a milestone`);
+    }
+    // The 5th fires — and with no evidence, the strand is unchanged: silent
+    const fifth = await rateAndHook(sb, "asdfghjkl pre5", "fine");
+    assert(fifth !== null, "5th rated bottle must fire the interval milestone");
+    assert(fifth.shifted === false, "no evidence moved — recompose must be silent");
+    assert(shiftedRows(tables).length === 0, "silent refresh writes no events");
+    const ms = profileRow(tables).identity.milestones;
+    assert(ms.ratedCountAtLastRecompose === 5, `baseline resets to 5, got ${ms.ratedCountAtLastRecompose}`);
+    // 6..9 silent, 10 fires again
+    for (let i = 6; i <= 9; i++) {
+      const res = await rateAndHook(sb, `asdfghjkl pre${i}`, "fine");
+      assert(res === null, `bottle ${i} must not be a milestone`);
+    }
+    const tenth = await rateAndHook(sb, "asdfghjkl pre10", "fine");
+    assert(tenth !== null, "10th rated bottle fires the next interval");
+    assert(RECOMPOSE_RATED_INTERVAL === 5, "interval constant is 5");
+  });
+
+  await runTest("Suite 12", "12B: Promotion milestone recomposes; a changed strand writes ONE shifted event with before→after", async () => {
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    const before = seedStrandProfile(tables, S12_RAW);
+    // Meerlust two points shy of the estate threshold — one loved bottle away
+    tables.dna_accumulation.push({
+      id: genId(), user_id: TEST_USER, dimension: "estate", dimension_value: "meerlust",
+      display_name: "Meerlust", points: 2, interaction_count: 1,
+      promoted: false, source: "auto", mappable: true,
+    });
+    const shift = await rateAndHook(sb, "Meerlust Rubicon", "loved");
+    assert(shift?.shifted === true, "estate promotion must shift the strand");
+    assert(shift.titleChanged === true, "second estate makes a Loyalist — title changes");
+    assert(shift.title === "The South African Loyalist", `got "${shift.title}"`);
+    assert(shift.previousTitle === before.title, "previousTitle carries the before state");
+    const row = profileRow(tables);
+    assert(row.archetype === "The South African Loyalist", "archetype column updated");
+    assert(row.identity.epithet.includes("estate-loyal"), `epithet gains estate-loyal: "${row.identity.epithet}"`);
+    const events = shiftedRows(tables);
+    assert(events.length === 1, `exactly one shifted event, got ${events.length}`);
+    assert(events[0].dimension === "identity", "shifted rows use the identity dimension");
+    assert(events[0].display_name === "The South African Loyalist", "display_name is the new title");
+    const change = JSON.parse(events[0].dimension_value);
+    assert(change.from.title === before.title && change.to.title === shift.title,
+      "dimension_value carries before→after titles");
+    assert(change.from.epithet === before.epithet && change.to.epithet === row.identity.epithet,
+      "dimension_value carries before→after epithets");
+    assert(shiftToastMessage(shift).includes("you're now The South African Loyalist"),
+      "the toast celebrates the new title");
+  });
+
+  await runTest("Suite 12", "12C: First earned promotion arms once — stored promoted rows never fire it", async () => {
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW);
+    // A migrated/seeded account: an already-promoted row exists, firsts unset
+    tables.dna_accumulation.push({
+      id: genId(), user_id: TEST_USER, dimension: "varietal", dimension_value: "chenin_blanc",
+      display_name: "Chenin Blanc", points: 6, interaction_count: 3,
+      promoted: true, source: "auto", mappable: true,
+    });
+    // A rating with no live promotion and count < 5 → no milestone at all:
+    // stored promoted rows are history, not a first
+    const quiet = await rateAndHook(sb, "asdfghjkl x", "fine");
+    assert(quiet === null, "a stored promoted row must not fire the first-promotion milestone");
+    assert(!profileRow(tables).identity.milestones.firsts.earnedPromotion, "flag stays unarmed");
+    // A LIVE promotion arms it
+    tables.dna_accumulation.push({
+      id: genId(), user_id: TEST_USER, dimension: "estate", dimension_value: "meerlust",
+      display_name: "Meerlust", points: 2, interaction_count: 1,
+      promoted: false, source: "auto", mappable: true,
+    });
+    const shift = await rateAndHook(sb, "Meerlust Rubicon", "loved");
+    assert(shift !== null, "live promotion is a milestone");
+    assert(profileRow(tables).identity.milestones.firsts.earnedPromotion === true, "first-promotion flag armed");
+  });
+
+  await runTest("Suite 12", "12D: First loved bottle OUTSIDE the DNA fires once; inside bottles never do", async () => {
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW);
+    // Loved bottle INSIDE the DNA (stellenbosch + south_africa are in the
+    // arrays) — not outside, no other milestone → null
+    const inside = await rateAndHook(sb, "Kanonkop Pinotage 2019", "loved");
+    assert(inside === null, "an inside bottle must not fire the outside-DNA first");
+    // Loved bottle fully outside (syrah/barossa/australia — none in the
+    // arrays) → the first fires
+    const outside = await rateAndHook(sb, "Barossa Shiraz", "loved");
+    assert(outside !== null, "first loved bottle outside the DNA is a milestone");
+    assert(profileRow(tables).identity.milestones.firsts.lovedOutsideDna === true, "flag armed");
+    // A second outside bottle is not a first — and alone, not a milestone
+    const again = await rateAndHook(sb, "Barossa Shiraz 2020", "loved");
+    assert(again === null, "the outside-DNA first fires exactly once");
+  });
+
+  await runTest("Suite 12", "12E: First demotion arms the flag on the reversal path", async () => {
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW);
+    // A promoted syrah hanging one point above the auto demotion threshold
+    tables.dna_accumulation.push({
+      id: genId(), user_id: TEST_USER, dimension: "varietal", dimension_value: "syrah",
+      display_name: "Syrah", points: -5, interaction_count: 0,
+      promoted: true, source: "auto", mappable: true,
+    });
+    profileRow(tables).varietals.push("syrah");
+    const shift = await rateAndHook(sb, "Barossa Shiraz", "not_for_me");
+    assert(shift !== null, "a demotion is a milestone");
+    assert(profileRow(tables).identity.milestones.firsts.demotion === true, "first-demotion flag armed");
+    assert(getAcc(tables, "varietal", "syrah").promoted === false, "premise: syrah demoted");
+  });
+
+  await runTest("Suite 12", "12F: Deletes lower the live count — a delete alone is no interval milestone", async () => {
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW, { ratedCountAtLastRecompose: 3, firsts: {} });
+    seedRatedRows(tables, 6); // count 6 < 3+5 → below the interval
+    tables.wine_interactions.push({
+      id: genId(), user_id: TEST_USER, wine_name: "Henschke Hill of Grace Shiraz",
+      interaction_type: "had", rating: "loved", match_confidence: 90,
+    });
+    // count 7, baseline 3 — still below 8; deleting drops it to 6
+    const res = await deleteAndHook(sb, "Henschke Hill of Grace Shiraz");
+    assert(res === null, "a delete without a demotion is not a milestone");
+    assert(await countRatedBottles(sb, TEST_USER) === 6, "live count reflects the delete");
+  });
+
+  await runTest("Suite 12", "12G: Quiz saves write no shifted events (source guard + flow)", async () => {
+    // Mechanical guard on the REAL save path: saveQuizProfile never touches
+    // the timeline, and carries the milestone continuity
+    const fs = require("node:fs");
+    const src = fs.readFileSync(require.resolve("../saveQuizProfile.js"), "utf-8");
+    assert(!src.includes("dna_timeline"), "saveQuizProfile must never write timeline events");
+    assert(src.includes("milestones"), "saveQuizProfile must carry milestone continuity");
+    assert(src.includes("firsts"), "saveQuizProfile must preserve the firsts flags");
+    // Flow: the quiz save's DB writes (merge → reconcile → sync) leave the
+    // timeline untouched even when they un-flag promotions
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW, { ratedCountAtLastRecompose: 2, firsts: { earnedPromotion: true } });
+    tables.dna_accumulation.push({
+      id: genId(), user_id: TEST_USER, dimension: "varietal", dimension_value: "chenin_blanc",
+      display_name: "Chenin Blanc", points: 6, interaction_count: 3,
+      promoted: true, source: "auto", mappable: true,
+    });
+    const initialRaw = { ...S12_RAW, varietals: ["pinot_noir", "chardonnay", "chenin_blanc"] };
+    const quizRaw = S12_RAW; // chenin explicitly unchecked
+    const merged = await mergeQuizWithEarnedDna(sb, TEST_USER, quizRaw, initialRaw);
+    await reconcileQuizPromotions(sb, TEST_USER, merged);
+    await syncQuizSelections(sb, TEST_USER, quizRaw);
+    assert(tables.dna_timeline.length === 0, "a quiz save writes NO timeline events, shifted included");
+  });
+
+  await runTest("Suite 12", "12H: Two-tab race — the CAS loser writes no second event", async () => {
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW);
+    seedRatedRows(tables, 4);
+    // Arm the other tab: when THIS hook run reads dna_accumulation (after
+    // its profile read, before its CAS), the other tab lands its recompose
+    let armed = false;
+    const origFrom = sb.from;
+    const raced = { ...sb, from: (name) => {
+      if (armed && name === "dna_accumulation") {
+        armed = false;
+        const row = profileRow(tables);
+        row.archetype = "The Stellenbosch Curator";
+        row.identity = { ...row.identity, epithet: "Stellenbosch-centered · red & white" };
+      }
+      return origFrom(name);
+    }};
+    // 5th bottle with real evidence — this recompose WOULD shift
+    const result = await simulateSurfaceRate(raced, "Barossa Shiraz", "loved");
+    armed = true;
+    const shift = await maybeRecomposeIdentity(raced, TEST_USER, { ...result, rating: "loved" });
+    assert(shift !== null, "the milestone itself fires");
+    assert(shift.shifted === false, "the CAS loser must not claim the shift");
+    assert(shiftedRows(tables).length === 0, "no event from the losing tab");
+  });
+
+  await runTest("Suite 12", "12I: Live red/white recount follows an earned varietal into the rail counts", async () => {
+    const tables = freshTables();
+    const sb = createMockSupabase(tables);
+    seedStrandProfile(tables, { ...S12_RAW, varietals: ["chardonnay"] });
+    assert(profileRow(tables).red_count === 0 && profileRow(tables).white_count === 1, "premise: all-white start");
+    // Three loved Pinotages promote the varietal (6 pts); the recompose
+    // must recount the rail from the grown varietal set
+    let shift = null;
+    for (let i = 0; i < 3; i++) {
+      shift = await rateAndHook(sb, `Kanonkop Pinotage 201${i}`, "loved");
+    }
+    assert(profileRow(tables).varietals.includes("pinotage"), "premise: pinotage promoted into the DNA");
+    assert(profileRow(tables).red_count === 1, `red_count recounted: ${profileRow(tables).red_count}`);
+    assert(profileRow(tables).white_count === 1, `white_count recounted: ${profileRow(tables).white_count}`);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
 // SUITE 8: UI Verification (Manual)
 // ═══════════════════════════════════════════════════════
 
@@ -1850,6 +2170,7 @@ async function main() {
   await suite9();
   await suite10();
   await suite11();
+  await suite12();
   suite8();
 
   // ── Report ──
@@ -1862,6 +2183,7 @@ async function main() {
     "Suite 4": "Demotion", "Suite 5": "Rating Changes", "Suite 6": "Quiz Sync",
     "Suite 7": "Edge Cases", "Suite 9": "Quiz Merge",
     "Suite 10": "Partial Credit", "Suite 11": "Surface Flows",
+    "Suite 12": "The Living Strand",
   };
   for (const [key, label] of Object.entries(suiteNames)) {
     const s = suiteResults[key] || { passed: 0, failed: 0 };

@@ -106,6 +106,14 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
       .from("dna_timeline")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId);
+    // The milestone hook (Act III S3) may silently refresh identity
+    // bookkeeping (milestones baseline, red/white recount) during the run —
+    // capture the identity-bearing profile fields so the restore is exact
+    const { data: baselineIdentity } = await supabase
+      .from("wine_profiles")
+      .select("archetype, identity, red_count, white_count")
+      .eq("user_id", userId)
+      .single();
 
     try {
       const recPage = new RecommendPage(page);
@@ -220,6 +228,17 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
             .eq("dimension", dimension)
             .eq("dimension_value", value);
         }
+      }
+      if (baselineIdentity) {
+        await supabase
+          .from("wine_profiles")
+          .update({
+            archetype: baselineIdentity.archetype,
+            identity: baselineIdentity.identity,
+            red_count: baselineIdentity.red_count,
+            white_count: baselineIdentity.white_count,
+          })
+          .eq("user_id", userId);
       }
     }
   });

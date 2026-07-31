@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import { resolveAndAccumulate, reverseAccumulation, fetchDnaTimeline } from "@/lib/dnaEvolution";
+import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 
 const RATING_DISPLAY = {
   loved: { emoji: "❤️", label: "Loved it" },
@@ -139,6 +140,18 @@ export default function JournalPage() {
     });
   }, []);
 
+  // The celebrated shift closes the toast run — after promos/demos have had
+  // their beat. evoCount staggers it behind them.
+  const showShiftToast = useCallback((shift, evoCount) => {
+    const msg = shiftToastMessage(shift);
+    setTimeout(() => {
+      setEvolutionToasts((prev) => [...prev, msg]);
+      setTimeout(() => {
+        setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+      }, 5000);
+    }, 1500 + evoCount * 1500);
+  }, []);
+
   const handleUpdateRating = async (wineName, rating) => {
     // Find previous rating for point differential calculation
     const prev = interactions.find((i) => i.wine_name === wineName);
@@ -158,6 +171,11 @@ export default function JournalPage() {
         const result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
         if (result?.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
         if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+        // Milestone hook (Act III S3) — a rating change can shift the strand
+        const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
+        if (shift?.shifted) {
+          showShiftToast(shift, (result?.promotions?.length || 0) + (result?.demotions?.length || 0));
+        }
         // Refresh timeline
         const timeline = await fetchDnaTimeline(supabase, user.id);
         setTimelineEntries(timeline);
@@ -194,6 +212,12 @@ export default function JournalPage() {
       try {
         const result = await reverseAccumulation(supabase, user.id, wineName, interaction);
         if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+        // Milestone hook on the reversal path — a delete-triggered demotion
+        // can shift the strand back, and that's worth saying too
+        const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, isReversal: true });
+        if (shift?.shifted) {
+          showShiftToast(shift, result?.demotions?.length || 0);
+        }
       } catch (evoErr) {
         console.error("DNA reversal error (non-blocking):", evoErr);
       }
@@ -534,9 +558,27 @@ export default function JournalPage() {
               {timelineEntries.map((entry) => {
                 const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
                 const target = dimensionLabels[entry.dimension] || "your DNA";
-                const text = entry.event_type === "promoted"
-                  ? `${entry.display_name} added to ${target}`
-                  : `${entry.display_name} removed from ${target}`;
+                // A shifted row is an identity moment, not a dimension move:
+                // "You became The Mosel Purist" — or, when only the epithet
+                // moved, the new signature line. dimension_value carries the
+                // before→after strand; display_name (the new title) is the
+                // fallback if it ever doesn't parse.
+                let text;
+                let glyph = "🧬";
+                if (entry.event_type === "shifted") {
+                  glyph = "✨";
+                  text = `You became ${entry.display_name}`;
+                  try {
+                    const change = JSON.parse(entry.dimension_value);
+                    if (change?.from?.title === change?.to?.title && change?.to?.epithet) {
+                      text = `Your signature shifted — ${change.to.epithet}`;
+                    }
+                  } catch { /* fall back to the title line */ }
+                } else {
+                  text = entry.event_type === "promoted"
+                    ? `${entry.display_name} added to ${target}`
+                    : `${entry.display_name} removed from ${target}`;
+                }
                 return (
                   <div key={entry.id} style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
@@ -546,8 +588,9 @@ export default function JournalPage() {
                     <div style={{
                       fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
                       color: "#1B3D2F", lineHeight: 1.4,
+                      fontWeight: entry.event_type === "shifted" ? 600 : 400,
                     }}>
-                      <span style={{ marginRight: 8 }}>🧬</span>
+                      <span style={{ marginRight: 8 }}>{glyph}</span>
                       {text}
                     </div>
                     <span style={{

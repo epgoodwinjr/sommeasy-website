@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-utils";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
+import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { saveQuizProfile } from "@/lib/saveQuizProfile";
 import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
@@ -42,19 +43,22 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
   }, []);
 
   useEffect(() => {
-    // A whisper of recent evolution on the strip ("Chenin Blanc just joined
-    // your DNA") — only when something actually promoted in the last 30 days
+    // A whisper of recent evolution on the strip — the latest promotion
+    // ("Chenin Blanc just joined your DNA") or identity shift ("You became
+    // The Mosel Purist"), only when it happened in the last 30 days
     async function loadWhisper() {
       const { data } = await supabase
         .from("dna_timeline")
-        .select("display_name, event_at")
+        .select("display_name, event_type, event_at")
         .eq("user_id", user.id)
-        .eq("event_type", "promoted")
+        .in("event_type", ["promoted", "shifted"])
         .order("event_at", { ascending: false })
         .limit(1);
       const latest = data?.[0];
       if (latest && Date.now() - new Date(latest.event_at).getTime() < 30 * 24 * 60 * 60 * 1000) {
-        setWhisper(`${latest.display_name} just joined your DNA`);
+        setWhisper(latest.event_type === "shifted"
+          ? `You became ${latest.display_name}`
+          : `${latest.display_name} just joined your DNA`);
       }
     }
     if (user?.id) { loadWhisper(); }
@@ -161,10 +165,13 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
 
       if (upsertErr) throw upsertErr;
 
-      // 2. DNA Evolution: resolve metadata, accumulate points, check promotions
+      // 2. DNA Evolution: resolve metadata, accumulate points, check
+      // promotions — then the milestone hook may recompose the identity
       let evolutionResult = null;
+      let shift = null;
       try {
         evolutionResult = await resolveAndAccumulate(supabase, user.id, name, rating, previousRating);
+        shift = await maybeRecomposeIdentity(supabase, user.id, { ...evolutionResult, rating });
       } catch (evoErr) {
         console.error("DNA evolution error (non-blocking):", evoErr);
       }
@@ -199,12 +206,23 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
       showToast("Added to your collection!");
 
       // 5. Show evolution toasts if any promotions/demotions fired (a re-log
-      // downgrade can demote now that the differential is applied)
+      // downgrade can demote now that the differential is applied), then the
+      // celebrated shift as the closing beat
       if (evolutionResult?.promotions?.length > 0) {
         showEvolutionToasts(evolutionResult.promotions, false);
       }
       if (evolutionResult?.demotions?.length > 0) {
         showEvolutionToasts(evolutionResult.demotions, true);
+      }
+      if (shift?.shifted) {
+        const evoCount = (evolutionResult?.promotions?.length || 0) + (evolutionResult?.demotions?.length || 0);
+        const msg = shiftToastMessage(shift);
+        setTimeout(() => {
+          setEvolutionToasts((prev) => [...prev, msg]);
+          setTimeout(() => {
+            setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+          }, 5000);
+        }, 1500 + evoCount * 1500);
       }
     } catch (err) {
       console.error("Bottle save failed:", err);

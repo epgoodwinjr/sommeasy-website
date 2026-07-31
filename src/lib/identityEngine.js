@@ -72,6 +72,42 @@ const PERSONA_LINES = {
 };
 
 // ═══════════════════════════════════════════════════════
+// COUNTRY TITLE ADJECTIVES
+// ═══════════════════════════════════════════════════════
+//
+// Country-anchored titles read as adjectives — "The Italian Faithful", not
+// "The Italy Faithful" — through the same titleName mechanism grape anchors
+// use. TITLES ONLY: epithets ("Italy-anchored") and narrative prose ("leads
+// with Italy") keep the place noun. Wine-register choices: "Argentine" (the
+// trade's traditional form, as in Argentine Malbec) over "Argentinian";
+// "American" for the US. New Zealand deliberately keeps its noun — the
+// trade says "New Zealand Pinot", and "New Zealander" names a person, not
+// a wine. Every country in wineUnified.json has an entry (identityVoice
+// enforces completeness), so a new catalog country fails a test instead of
+// silently clunking.
+export const COUNTRY_TITLE_NAMES = {
+  us: "American",
+  france: "French",
+  italy: "Italian",
+  spain: "Spanish",
+  portugal: "Portuguese",
+  chile: "Chilean",
+  argentina: "Argentine",
+  austria: "Austrian",
+  australia: "Australian",
+  germany: "German",
+  new_zealand: "New Zealand", // deliberate noun — see above
+  south_africa: "South African",
+  israel: "Israeli",
+  greece: "Greek",
+  canada: "Canadian",
+  hungary: "Hungarian",
+  bulgaria: "Bulgarian",
+  romania: "Romanian",
+  uruguay: "Uruguayan",
+};
+
+// ═══════════════════════════════════════════════════════
 // LOOKUPS (never show an internal id)
 // ═══════════════════════════════════════════════════════
 
@@ -246,6 +282,10 @@ export function composeIdentity(evidence) {
   );
   const anchorRegion = anchorRegionId ? regionObj(anchorRegionId) : null;
   const anchorCountry = anchorCountryId ? countryObj(anchorCountryId) : null;
+  // The adjective ships in the title, so the clunk rule judges the adjective
+  const anchorCountryTitle = anchorCountry
+    ? COUNTRY_TITLE_NAMES[anchorCountryId] || anchorCountry.name
+    : null;
 
   // Varietal dominance: one grape, no mapped places, several countries —
   // the grape IS the through-line, so it outranks the place anchors
@@ -260,8 +300,8 @@ export function composeIdentity(evidence) {
     };
   } else if (anchorRegion && (anchorCountryRegions >= 2 || regionEvidenceLeads || breadth === 1) && anchorReads(anchorRegion.name)) {
     anchor = { type: "region", id: anchorRegionId, name: anchorRegion.name };
-  } else if (anchorCountry && anchorReads(anchorCountry.name)) {
-    anchor = { type: "country", id: anchorCountryId, name: anchorCountry.name };
+  } else if (anchorCountry && anchorReads(anchorCountryTitle)) {
+    anchor = { type: "country", id: anchorCountryId, name: anchorCountry.name, titleName: anchorCountryTitle };
   } else if (anchorRegion && anchorReads(anchorRegion.name)) {
     // Country name clunked but a readable region exists — use it
     anchor = { type: "region", id: anchorRegionId, name: anchorRegion.name };
@@ -271,7 +311,7 @@ export function composeIdentity(evidence) {
   } else if (anchorCountry) {
     // Nothing reads cleanly but a country exists — a long true name beats
     // no identity
-    anchor = { type: "country", id: anchorCountryId, name: anchorCountry.name };
+    anchor = { type: "country", id: anchorCountryId, name: anchorCountry.name, titleName: anchorCountryTitle };
   }
 
   // ─── Persona: ordered rules, first match wins — total and tie-free ───
