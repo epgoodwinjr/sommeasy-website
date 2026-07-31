@@ -2131,6 +2131,50 @@ async function suite12() {
     assert(profileRow(tables).red_count === 1, `red_count recounted: ${profileRow(tables).red_count}`);
     assert(profileRow(tables).white_count === 1, `white_count recounted: ${profileRow(tables).white_count}`);
   });
+
+  await runTest("Suite 12", "12J: The anchor evidence floor through the milestone flow — a 2-point tie stays silent, a 4-point tie shifts region-ward", async () => {
+    // Region/country accumulation is seeded directly (like 12B's meerlust)
+    // and the interval milestone forces the recompose, so the case tests the
+    // floor at the exact layer production hits it: the real hook composing
+    // with real accumulation rows.
+    function seedRegionTie(tables, points) {
+      tables.dna_accumulation.push(
+        { id: genId(), user_id: TEST_USER, dimension: "region", dimension_value: "stellenbosch",
+          display_name: "Stellenbosch", points, interaction_count: points / 2, promoted: false, source: "auto", mappable: true },
+        { id: genId(), user_id: TEST_USER, dimension: "country", dimension_value: "south_africa",
+          display_name: "South Africa", points, interaction_count: points / 2, promoted: false, source: "auto", mappable: true },
+      );
+    }
+
+    // Below the floor: the first-bottle tie (2/2) must not retitle anyone
+    let tables = freshTables();
+    let sb = createMockSupabase(tables);
+    const before = seedStrandProfile(tables, S12_RAW);
+    assert(before.title === "The South African Curator", `premise: country-anchored start, got "${before.title}"`);
+    seedRegionTie(tables, 2);
+    seedRatedRows(tables, 4);
+    const below = await rateAndHook(sb, "asdfghjkl floor", "fine"); // 5th bottle → interval milestone
+    assert(below !== null, "interval milestone must fire the recompose");
+    assert(below.shifted === false, "a 2-point tie must NOT flip the anchor — silent refresh");
+    assert(profileRow(tables).archetype === "The South African Curator", `title moved below the floor: "${profileRow(tables).archetype}"`);
+    assert(shiftedRows(tables).length === 0, "no shifted event below the floor");
+
+    // At the floor: the 4-point tie (two loved bottles) must lead and shift
+    tables = freshTables();
+    sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW);
+    seedRegionTie(tables, 4);
+    seedRatedRows(tables, 4);
+    const atFloor = await rateAndHook(sb, "asdfghjkl floor", "fine");
+    assert(atFloor !== null, "interval milestone must fire the recompose");
+    assert(atFloor.shifted === true, "a 4-point tie must flip the anchor region-ward");
+    assert(profileRow(tables).archetype.startsWith("The Stellenbosch"), `expected a Stellenbosch title, got "${profileRow(tables).archetype}"`);
+    const floorEvents = shiftedRows(tables);
+    assert(floorEvents.length === 1, `exactly one shifted event, got ${floorEvents.length}`);
+    const change = JSON.parse(floorEvents[0].dimension_value);
+    assert(change.from.title === "The South African Curator" && change.to.title.startsWith("The Stellenbosch"),
+      "the event carries the country→region retitle");
+  });
 }
 
 // ═══════════════════════════════════════════════════════

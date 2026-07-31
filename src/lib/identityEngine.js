@@ -24,6 +24,7 @@
 // never lesser.
 
 import wineUnified from "./wineUnified.json";
+import { REGION_ANCHOR_EVIDENCE_FLOOR } from "./dnaThresholds.js";
 
 const { countries: COUNTRIES, regions: REGIONS, producers: PRODUCERS, varietals: VARIETALS } = wineUnified;
 
@@ -276,8 +277,12 @@ export function composeIdentity(evidence) {
 
   // ─── Anchor precedence: region → country → grape, stepping down when a
   // name would clunk in the title ───
+  // The evidence floor: a region "leads" only at REGION_ANCHOR_EVIDENCE_FLOOR
+  // points or more. Ties above the floor still lead (every rating writes
+  // region and country together, so a strict lead essentially cannot occur);
+  // below it, a first-bottle tie is noise and must not retitle anyone.
   const regionEvidenceLeads = accumulation.some(
-    (row) => row.dimension === "region" && row.points > 0 &&
+    (row) => row.dimension === "region" && row.points >= REGION_ANCHOR_EVIDENCE_FLOOR &&
       !accumulation.some((o) => o.dimension !== "region" && o.points > row.points)
   );
   const anchorRegion = anchorRegionId ? regionObj(anchorRegionId) : null;

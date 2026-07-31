@@ -1,131 +1,85 @@
-# Sommeasy — Your Wine DNA Profile
+# Sommeasy — Your Wine DNA
 
-A mobile-friendly web app that builds your Wine DNA profile based on the wines, regions, and grapes you already know you love — then helps you pick wines at restaurants.
+Sommeasy builds your **Wine DNA** — a per-user identity composed from the wines, places, and grapes you actually love — and then picks bottles for you from any restaurant's wine list. Snap a list, paste it, or drop a URL; The Somm matches it against your palate and tells you why each pick fits.
 
-## Quick Start (Local Development)
+The identity is one of one: a composed title ("The Stellenbosch Loyalist"), a signature line, a narrative in The Somm's voice, and a generative visual mark grown from your data. Rating bottles is evidence — enough of it promotes new estates, grapes, and regions into your DNA, retitles you at milestone moments, and grows the mark.
+
+## Quick start (local development)
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Run the development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000). You'll need a `.env.local` (not committed) with the Supabase project keys and an `ANTHROPIC_API_KEY` — see **Environment** below.
 
-## Setup Checklist
+## How it works
 
-### 1. Supabase Database Setup
+- **The quiz (5 steps)** seeds the palate: countries → regions → estates → grapes → specific bottles. Completion auto-saves and stages the reveal: title, epithet, mark, narrative. Anonymous quizzes stash locally (and ride signup metadata) so the palate survives account creation on any device.
+- **The identity strand** (`src/lib/identityEngine.js`) composes the title/epithet/traits/genome deterministically from evidence — pure and client-runnable, so the anonymous teaser works with no DB or LLM.
+- **The visual mark** (`src/lib/palateMark.js`) renders the genome as a deterministic SVG bloom — same palate, same mark, byte for byte; the mark grows rather than changes when the palate evolves.
+- **The evidence ledger** (`src/lib/dnaEvolution.js` + `dnaThresholds.js`) turns rated bottles into points per estate/varietal/region/country, with promotions, demotions, and exact reversibility on re-rates and deletes.
+- **Milestones** (`src/lib/identityRecompose.js`) recompose the identity when you earn it — promotions, every 5th bottle, first-time firsts — celebrating real shifts with a toast, a timeline entry, and the regrown mark.
+- **The Somm** (`/api/somm-picks`) curates scored candidates into picks with pairing-first notes, in brand voice; any failure silently keeps the algorithmic picks. Menu scanning (`/api/parse-wine-list`), label OCR (`/api/scan-label`), and the palate narrative (`/api/palate-narrative`) run on the same Claude model constant (`src/lib/anthropicConfig.js`).
+- **Unified wine data**: one `wineUnified.json` (built by `scripts/build_quiz_data.py` from 130k WineMag reviews) powers the quiz, the resolver, and the match engine — word-boundary matching, producer/varietal alias indexes, and misattribution guards.
 
-Go to your Supabase dashboard → SQL Editor → New Query, then paste and run the contents of:
-
-```
-supabase/migrations/001_create_profiles.sql
-```
-
-This creates the `wine_profiles` table with Row Level Security policies.
-
-### 2. Supabase Auth Setup
-
-In your Supabase dashboard:
-
-1. Go to **Authentication → Providers**
-2. **Email** should already be enabled (it is by default)
-3. To enable **Google Sign-In**:
-   - Go to Authentication → Providers → Google
-   - Toggle it ON
-   - You'll need a Google OAuth Client ID and Secret from [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-   - Set the redirect URL to: `https://yyzysoprhtconzbzsqsj.supabase.co/auth/v1/callback`
-
-### 3. Environment Variables
-
-The `.env.local` file should contain:
+## Project structure (the load-bearing parts)
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=https://yyzysoprhtconzbzsqsj.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_cLMQC3JC0tAneiUPW4sLzg_aZz94NT7
+src/
+├── app/
+│   ├── page.js                  # Home: quiz, DNA strip, wines to try, bottle logging
+│   ├── palate/page.js           # The Palate view (identity + evolution)
+│   ├── recommend/page.js        # Restaurant flow: scan/paste/URL → picks
+│   ├── journal/page.js          # Wine journal + DNA timeline
+│   └── api/                     # parse-wine-list, scan-label, somm-picks,
+│                                #   palate-narrative, fetch-menu (SSRF-guarded),
+│                                #   auth/confirm + auth/callback, keepalive
+├── components/                  # Quiz, PalateView, PalateMark, WineRecList (THE
+│                                #   one rating surface), auth forms
+└── lib/                         # identityEngine, palateMark, dnaEvolution,
+                                 #   dnaThresholds, identityRecompose, wineResolver,
+                                 #   matchEngine, sommPicks, ssrfGuard, authFlow…
+supabase/migrations/             # 001–008 (profiles, interactions, accumulation,
+                                 #   timeline, identity, policies)
+e2e/                             # Playwright suite (serialized, dedicated test
+                                 #   account, twelve permanent hard-fail guards)
+docs/                            # Design briefs, session readouts, the watchtower
 ```
 
-## Deploy to Vercel (Free)
-
-### Step 1: Push to GitHub
+## Testing
 
 ```bash
-# Initialize git repo
-git init
-git add .
-git commit -m "Initial commit — Sommeasy Wine DNA Quiz"
+# Unit suites (plain node, no framework)
+node src/lib/__tests__/dnaEvolution.test.js
+node src/lib/__tests__/identityVoice.test.js
+node src/lib/__tests__/palateMark.test.js
+# …see CLAUDE.md for the full list
 
-# Create a repo on GitHub (github.com/new), then:
-git remote add origin https://github.com/YOUR_USERNAME/sommeasy.git
-git branch -M main
-git push -u origin main
+# End-to-end (regenerate gitignored fixtures first if needed:
+# python3 e2e/fixtures/generate-fixtures.py)
+npm run test:e2e
 ```
 
-### Step 2: Deploy on Vercel
+The e2e suite runs serialized against a dedicated test account and makes real Claude calls (~$0.15–0.30/run). Never point it at a personal account.
 
-1. Go to [vercel.com](https://vercel.com) and sign in with GitHub
-2. Click **"Add New Project"**
-3. Import your `sommeasy` repository
-4. In **Environment Variables**, add:
-   - `NEXT_PUBLIC_SUPABASE_URL` = `https://yyzysoprhtconzbzsqsj.supabase.co`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = `sb_publishable_cLMQC3JC0tAneiUPW4sLzg_aZz94NT7`
-5. Click **Deploy**
+## Environment
 
-Vercel will give you a URL like `sommeasy.vercel.app`.
+`.env.local` (never committed) carries:
 
-### Step 3: Connect sommeasy.wine Domain
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — the browser client **fails the build loudly** if these are missing; a green deploy with dead auth is impossible
+- `ANTHROPIC_API_KEY` — all four Claude routes degrade gracefully without it
+- `TEST_USER_EMAIL` / `TEST_USER_PASSWORD` — the dedicated e2e account
+- Feature flags (default off): `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED`, `NEXT_PUBLIC_MAGIC_LINK_ENABLED`, `NEXT_PUBLIC_CAPTCHA_ENABLED`
 
-1. In Vercel: Go to your project → Settings → Domains → Add `sommeasy.wine`
-2. Vercel will show you DNS records to add
-3. In GoDaddy: Go to DNS Management for sommeasy.wine and add the records Vercel shows you (typically an A record and CNAME)
-4. **Important**: Remove any existing A records or CNAME records that GoDaddy's website builder may have added
+## Deployment
 
-DNS propagation takes 15 minutes to 48 hours.
+Vercel auto-deploys from `main`. Supabase (Postgres + Auth with RLS) hosts the data; a daily cron hits `/api/keepalive` so the free-tier project never auto-pauses. Domain: sommeasy.wine. Weekly log health-check ritual: `docs/auth-watchtower.md`.
 
-### Step 4: Update Supabase Auth Redirect
+## Tech stack
 
-Once your domain is live, go to Supabase → Authentication → URL Configuration and add:
-- Site URL: `https://sommeasy.wine`
-- Redirect URLs: `https://sommeasy.wine/api/auth/callback`
+- **Next.js 14** (App Router) · **Supabase** (Postgres, RLS, auth) · **Vercel**
+- **Anthropic Claude** for menu scanning, label OCR, somm curation, and narrative
+- Inline styles / CSS-in-JS, mobile-first, brand palette (forest green, burgundy, sage, cream)
 
-## Project Structure
-
-```
-sommeasy/
-├── src/
-│   ├── app/
-│   │   ├── page.js              # Home — welcome screen + quiz
-│   │   ├── layout.js            # Root layout + metadata
-│   │   ├── globals.css           # Global styles
-│   │   ├── login/page.js        # Sign in page
-│   │   ├── signup/page.js       # Create account page
-│   │   └── api/auth/callback/   # Auth callback route
-│   ├── components/
-│   │   ├── Quiz.js              # The wine DNA quiz flow
-│   │   └── AuthForm.js          # Login/signup form
-│   └── lib/
-│       ├── supabase.js          # Supabase client
-│       ├── wineData.js          # Wine countries/regions/estates/varietals
-│       └── profileEngine.js     # Archetype + recommendation engine
-├── supabase/
-│   └── migrations/
-│       └── 001_create_profiles.sql  # Database schema
-├── .env.local                   # Environment variables (not committed)
-└── package.json
-```
-
-## Tech Stack
-
-- **Frontend**: Next.js 14 (React)
-- **Backend/Auth/DB**: Supabase (PostgreSQL + Auth)
-- **Hosting**: Vercel (free tier)
-- **Domain**: sommeasy.wine
-
-## What's Next
-
-- [ ] Wire quiz options to WineMag 130k dataset
-- [ ] Build restaurant recommendation engine (price range + red/white + wine list URL)
-- [ ] Wine list URL parsing and matching
-- [ ] Profile editing and refinement over time
+For working conventions, invariants, and the full current-state map, read `CLAUDE.md`.

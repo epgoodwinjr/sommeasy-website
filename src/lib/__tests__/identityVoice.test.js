@@ -169,6 +169,53 @@ async function main() {
     assert(s.epithet.split(" · ").length >= 2, `rich input deserves a fuller epithet: "${s.epithet}"`);
   });
 
+  // ─── The anchor evidence floor (S5, Ed-approved): region evidence flips
+  // the anchor region-ward only at REGION_ANCHOR_EVIDENCE_FLOOR (4) points.
+  // The shape isolates regionEvidenceLeads from the other region routes:
+  // two countries (breadth 2 kills the breadth===1 route), one selected
+  // region each (kills the anchorCountryRegions>=2 route), so only the
+  // evidence can flip the title region-ward.
+  const FLOOR_EVIDENCE = {
+    countries: ["south_africa", "france"],
+    regions: { south_africa: ["stellenbosch"], france: ["burgundy"] },
+    estates: {}, varietals: ["pinot_noir"], specificWines: [],
+  };
+
+  test("a 2-point region tie must NOT flip the anchor (below the floor)", () => {
+    const s = composeIdentity({
+      ...FLOOR_EVIDENCE,
+      accumulation: [
+        { dimension: "region", dimension_value: "stellenbosch", points: 2 },
+        { dimension: "country", dimension_value: "south_africa", points: 2 },
+      ],
+    });
+    assert(s.title.startsWith("The South African"), `first-bottle tie retitled: "${s.title}"`);
+    assert(s.traits.anchor.type === "country", `anchor flipped below the floor: ${s.traits.anchor.type}`);
+  });
+
+  test("a 4-point region tie MUST flip the anchor (at the floor)", () => {
+    const s = composeIdentity({
+      ...FLOOR_EVIDENCE,
+      accumulation: [
+        { dimension: "region", dimension_value: "stellenbosch", points: 4 },
+        { dimension: "country", dimension_value: "south_africa", points: 4 },
+      ],
+    });
+    assert(s.title.startsWith("The Stellenbosch"), `at-floor tie must lead: "${s.title}"`);
+    assert(s.traits.anchor.type === "region", `anchor did not flip at the floor: ${s.traits.anchor.type}`);
+  });
+
+  test("above the floor, a strictly out-pointed region still does not lead", () => {
+    const s = composeIdentity({
+      ...FLOOR_EVIDENCE,
+      accumulation: [
+        { dimension: "region", dimension_value: "stellenbosch", points: 4 },
+        { dimension: "country", dimension_value: "south_africa", points: 6 },
+      ],
+    });
+    assert(s.traits.anchor.type === "country", `out-pointed region led anyway: ${s.traits.anchor.type}`);
+  });
+
   test("long anchor names step down instead of shipping clunk", () => {
     const s = composeIdentity({
       countries: ["us"], regions: { us: ["willamette_valley"] }, estates: {},

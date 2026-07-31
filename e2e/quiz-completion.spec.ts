@@ -22,6 +22,13 @@ import { testDb, ensureEarnedFixture, readEarnedFixtureRow, EARNED_FIXTURE } fro
 
 test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
   test("complete quiz → auto-saved reveal with ratable recs → rating succeeds", async ({ page }) => {
+    // Quiz-save silence (Act III S3, e2e-level pin of Suite 12G): a refine
+    // save recomposes the identity but must write ZERO dna_timeline events —
+    // user edits are not rating evidence, quiz saves are never celebrated
+    const { supabase, userId } = await testDb();
+    const { count: timelineBefore } = await supabase
+      .from("dna_timeline").select("*", { count: "exact", head: true }).eq("user_id", userId);
+
     await page.goto("/?quiz=refine");
 
     // Refine mode opens on step 1 with seeded answers. Wait for each step
@@ -49,6 +56,12 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     await expect(revealMark).toBeVisible();
     await expect(revealMark.locator("svg circle").first()).toBeAttached();
     await expect(page.getByTestId("reveal-saved")).toBeVisible();
+
+    // The save is complete (reveal-saved rendered) — the timeline must not
+    // have moved by even one row
+    const { count: timelineAfter } = await supabase
+      .from("dna_timeline").select("*", { count: "exact", head: true }).eq("user_id", userId);
+    expect(timelineAfter, "a quiz save wrote a dna_timeline event — quiz saves must be silent").toBe(timelineBefore);
 
     // Auto-save means NO save button, and the reveal is a moment, not a
     // parallel profile page — no Full Profile tab, the room is /palate

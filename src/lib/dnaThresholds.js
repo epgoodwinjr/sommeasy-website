@@ -48,3 +48,13 @@ export const DEMOTION_THRESHOLDS = {
 // nothing below — an unrecognized wine is not evidence.
 export const CONFIDENCE_GATE = 80;
 export const PARTIAL_CONFIDENCE_GATE = 60;
+
+// A region may pull a title's anchor region-ward only at 4+ evidence points
+// (two loved bottles — deliberately the same bar estate loyalty pays).
+// Every rating writes region and country points together, so a first bottle
+// always produces a region-country TIE; below this floor that tie carries no
+// information about region-vs-country preference and must not retitle
+// anyone. Tie-tolerance above the floor stays: an estate promotion at 4
+// implies its region is at 4, so the address sharpens exactly at the first
+// real loyalty moment. (S4 readout radar item, Ed-approved in S5.)
+export const REGION_ANCHOR_EVIDENCE_FLOOR = 4;
