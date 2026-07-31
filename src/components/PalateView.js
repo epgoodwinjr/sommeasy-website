@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import wineUnified from "@/lib/wineUnified.json";
 import { getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, getVarietalColor, formatWineName } from "@/lib/matchEngine";
 import { computeSignature, concentrationPhrase, signatureLine } from "@/lib/palateSignature";
+import PalateMark from "./PalateMark";
 import { PROMOTION_THRESHOLDS, RATING_POINTS } from "@/lib/dnaThresholds";
 
 const SERIF = "'Playfair Display', Georgia, serif";
@@ -362,9 +363,10 @@ export default function PalateView({ profile, timeline, accumulation }) {
 
   return (
     <div>
-      {/* ─── Identity (the strand: title + epithet; the emoji retired with
-          the archetype engine — the visual signature replaces it in S4) ─── */}
+      {/* ─── Identity (the strand: title + epithet + the visual signature —
+          the mark is the hero, generated from the genome) ─── */}
       <div style={{ textAlign: "center", padding: "30px 0 24px" }}>
+        <PalateMark genome={profile.identity?.genome} size={192} style={{ marginBottom: 18 }} />
         <h1 data-testid="palate-archetype" style={{ fontFamily: SERIF, fontSize: "32px", color: GREEN, margin: "0 0 8px", fontWeight: 700, letterSpacing: "-0.01em" }}>
           {profile.archetype}
         </h1>

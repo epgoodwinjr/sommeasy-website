@@ -24,6 +24,12 @@ test.describe("Palate view (hard-fail guard)", () => {
     await expect(epithet).toBeVisible();
     expect((await epithet.textContent())?.trim().length).toBeGreaterThan(0);
 
+    // The Signature (Act III S4): the visual mark renders in the hero as a
+    // real SVG — a genome that fails to render would silently drop it
+    const heroMark = page.getByTestId("palate-mark").first();
+    await expect(heroMark).toBeVisible();
+    await expect(heroMark.locator("svg circle").first()).toBeAttached();
+
     // Pillar 4: the palate signature card
     await expect(page.getByTestId("palate-signature")).toBeVisible();
     await expect(page.getByText("Palate Signature", { exact: true })).toBeVisible();
@@ -45,6 +51,12 @@ test.describe("Palate view (hard-fail guard)", () => {
     await page.goto("/");
     const strip = page.getByTestId("palate-strip");
     await expect(strip).toBeVisible();
+    // The strip carries the visual mark (Act III S4) without growing: the
+    // mark is capped at 44px so the text block still owns the strip height
+    const stripMark = strip.getByTestId("palate-mark");
+    await expect(stripMark).toBeVisible();
+    const markBox = await stripMark.boundingBox();
+    expect(markBox && markBox.height).toBeLessThanOrEqual(44);
     await strip.click();
     await page.waitForURL("/palate");
     await expect(page.getByTestId("palate-archetype")).toBeVisible();

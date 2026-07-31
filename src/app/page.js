@@ -11,6 +11,7 @@ import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/li
 import { signatureLine } from "@/lib/palateSignature";
 import Quiz from "@/components/Quiz";
 import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
+import PalateMark from "@/components/PalateMark";
 
 // ─── Saved Profile View ───
 function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
@@ -499,6 +500,9 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1, minWidth: 0 }}>
+            {/* The visual signature at strip size — 44px keeps the strip's
+                height owned by the text block, never the mark */}
+            <PalateMark genome={profile.identity?.genome} size={44} />
             <div style={{ minWidth: 0 }}>
               <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, lineHeight: 1.2 }}>{profile.archetype}</div>
               {palateLine && (

@@ -62,6 +62,12 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     await expect(archetype).toBeVisible({ timeout: 30_000 });
     expect((await archetype.textContent())?.trim().length).toBeGreaterThan(0);
 
+    // The Signature (Act III S4): the mark renders for anonymous users too —
+    // composed client-side from the local genome, no DB, no account
+    const teaserMark = page.getByTestId("palate-mark").first();
+    await expect(teaserMark).toBeVisible();
+    await expect(teaserMark.locator("svg circle").first()).toBeAttached();
+
     // Teaser gate: honest save promise + the fold-in sign-in path (S2.4)
     const gate = page.getByTestId("teaser-gate");
     await expect(gate).toBeVisible();

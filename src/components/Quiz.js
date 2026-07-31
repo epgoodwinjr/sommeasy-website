@@ -7,6 +7,7 @@ import { generateDNAProfile } from "@/lib/profileEngine";
 import { saveStash } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
 import WineRecList from "@/components/WineRecList";
+import PalateMark from "@/components/PalateMark";
 
 const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DATA, varietals: VARIETALS_RAW } = wineUnified;
 
@@ -514,6 +515,11 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
         <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(139,35,50,0.1)" }} />
         <div style={{ position: "absolute", bottom: -30, left: -30, width: 100, height: 100, borderRadius: "50%", background: "rgba(107,143,94,0.08)" }} />
         <div style={{ position: "relative", paddingTop: 8 }}>
+          <div style={{ ...stage(300) }}>
+            {/* The visual signature — composed client-side from the local
+                genome, so the anonymous teaser gets the identical mark */}
+            <PalateMark genome={profile.genome} size={124} style={{ marginBottom: 14 }} />
+          </div>
           <div style={{ ...stage(500), fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", opacity: mounted ? 0.5 : 0, marginBottom: 8 }}>Your Wine DNA</div>
           <h2 data-testid="reveal-archetype" style={{ ...stage(700), fontFamily: "'Playfair Display', Georgia, serif", fontSize: "32px", margin: "0 0 10px 0", fontWeight: 700, lineHeight: 1.1 }}>{profile.archetype}</h2>
           {profile.epithet && (
@@ -666,6 +672,7 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, earnedD
   const revealProfile = savedRow ? {
     archetype: savedRow.archetype,
     epithet: savedRow.identity?.epithet || "",
+    genome: savedRow.identity?.genome || profile?.genome,
     narrative: savedRow.narrative,
     recommendations: savedRow.recommendations || [],
   } : profile;

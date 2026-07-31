@@ -43,6 +43,11 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     const epithet = page.getByTestId("reveal-epithet");
     await expect(epithet).toBeVisible();
     expect((await epithet.textContent())?.trim().length).toBeGreaterThan(0);
+    // The Signature (Act III S4): the visual mark renders in the reveal hero
+    // from the saved row's genome
+    const revealMark = page.getByTestId("palate-mark").first();
+    await expect(revealMark).toBeVisible();
+    await expect(revealMark.locator("svg circle").first()).toBeAttached();
     await expect(page.getByTestId("reveal-saved")).toBeVisible();
 
     // Auto-save means NO save button, and the reveal is a moment, not a
