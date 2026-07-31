@@ -153,15 +153,22 @@ Trimbach Riesling, Alsace 2021...$44`;
   });
 
   test("After analysis: somm notes render OR fallback keeps noteless picks", async ({ page }) => {
+    // The somm route's LEGITIMATE worst case is two sequential Claude calls
+    // (the corrective retry — a designed success path, observed live at
+    // ~45s total), each bounded by the SDK's 60s timeout. Terminal state
+    // can therefore arrive at up to ~120s; only beyond that is the shimmer
+    // truly stuck. The old 45s deadline sat INSIDE the route's envelope
+    // and failed exactly when The Somm recovered by design (July 31).
+    test.setTimeout(150_000);
     await recPage.pasteAndAnalyze(KNOWN_GOOD_LIST);
     await expect(recPage.resultsHeading).toBeVisible({ timeout: 10_000 });
 
     // Wait for The Somm to reach a terminal state (answer or fallback) —
-    // the call is measured at 12–20s, so a fixed sleep flakes under load.
-    // A shimmer still up at the deadline is a REAL failure (stuck pending).
+    // a fixed sleep flakes under load, and a shimmer still up past the
+    // route's worst legitimate case is a REAL failure (stuck pending).
     await expect
       .poll(async () => page.locator('[data-testid="somm-thinking"]').count(),
-        { timeout: 45_000 })
+        { timeout: 130_000 })
       .toBe(0);
 
     const picks = await page.locator('[data-testid="pick-card"]').count();

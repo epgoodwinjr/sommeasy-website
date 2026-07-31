@@ -51,5 +51,6 @@ export default defineConfig({
     port: 3000,
     reuseExistingServer: true,
     timeout: 30_000,
+    stdout: "pipe",
   },
 });
