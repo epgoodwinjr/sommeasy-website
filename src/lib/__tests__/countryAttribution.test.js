@@ -411,14 +411,17 @@ async function realModuleTests() {
     assert(r.confidence >= 80, `confidence: ${r.confidence}`);
   });
 
-  test("Real resolveWine: explicit-geography conflict caps confidence below the DNA gate", () => {
+  test("Real resolveWine: explicit-geography conflict caps confidence below even the partial band", () => {
     // Producer Máté (Italy) matches nominatively here, but the name
     // explicitly places the bottle in New Zealand (Marlborough + the
     // country name). Every bug in this suite shared one shape: a fuzzy
     // producer hit silently outvoting what the menu line says outright.
-    // A disputed match must never reach DNA accumulation.
+    // The cap must land below PARTIAL_CONFIDENCE_GATE (60), not just
+    // CONFIDENCE_GATE (80): the 60-79 band accumulates partial credit on
+    // region/country — exactly the producer-derived dimensions a
+    // geography conflict disputes. A disputed match accumulates NOTHING.
     const r = resolveWine("Máté Marlborough Sauvignon Blanc, New Zealand");
-    assert(r.confidence < 80, `confidence: ${r.confidence}`);
+    assert(r.confidence < 60, `confidence: ${r.confidence}`);
   });
 }
 

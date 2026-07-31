@@ -384,13 +384,18 @@ function matchRegion(normInput) {
  *
  * 90-100: Strong winery match + region AND varietal confirmed
  * 80-89:  Producer match + at least one corroborating field (region or varietal)
- * 60-79:  Producer match alone, or region+varietal without producer
- * Below CONFIDENCE_GATE (80, dnaThresholds.js): too uncertain for accumulation
+ * 60-79:  Producer match alone, or region+varietal without producer —
+ *         accumulates PARTIAL credit (varietal/region/country, never estate)
+ * Below PARTIAL_CONFIDENCE_GATE (60, dnaThresholds.js): no accumulation
  *
  * countryConflict (the name explicitly places the wine in a country the
- * producer doesn't belong to) caps the result at 55 — below the
- * CONFIDENCE_GATE (80) accumulation threshold in dnaThresholds.js, with
- * headroom under the historic 60 line should the gate ever move.
+ * producer doesn't belong to) caps the result at 55. The cap sitting below
+ * PARTIAL_CONFIDENCE_GATE (60) — not merely CONFIDENCE_GATE (80) — is
+ * load-bearing: the partial band still writes region/country points, and
+ * producer-derived region/country are exactly the dimensions a geography
+ * conflict disputes. A disputed match must accumulate nothing.
+ * Guarded by dnaEvolution Suite 10H and the countryAttribution real-module
+ * conflict test.
  */
 function calculateConfidence(producerResult, varietalMatch, regionMatch, inputTokenCount, countryConflict) {
   let confidence = 0;
@@ -549,7 +554,8 @@ export function resolveWine(wineName) {
   // Crozes→Portugal, Maté's Vineyard→Italy) shared one shape: a fuzzy
   // producer hit silently outvoting what the menu line says outright.
   // The producer keeps its display fields, but confidence is capped below
-  // CONFIDENCE_GATE so a disputed match can never reach DNA accumulation.
+  // PARTIAL_CONFIDENCE_GATE so a disputed match earns no DNA accumulation
+  // at all — not even the partial band's region/country credit.
   let countryConflict = false;
   if (producerResult && producerResult.producer.dnaCountryId) {
     const explicit = detectExplicitCountries(normInput);

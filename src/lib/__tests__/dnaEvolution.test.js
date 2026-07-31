@@ -1712,6 +1712,24 @@ async function suite10() {
     assert(promo, "syrah should promote from partial-credit evidence");
     assert(tables.wine_profiles[0].varietals.includes("syrah"), "profile gains syrah");
   });
+
+  await runTest("Suite 10", "10H: Geography-conflict cap lands below even the partial band", async () => {
+    const tables = freshTables(); ensureProfile(tables);
+    const sb = createMockSupabase(tables);
+    // Producer Máté (Italy) matches nominatively, but the name explicitly
+    // places the bottle in New Zealand. The conflict cap (55) must sit
+    // below PARTIAL_CONFIDENCE_GATE, not just CONFIDENCE_GATE: partial
+    // credit writes region/country, and producer-derived region/country
+    // (tuscany/italy here) are exactly the dimensions the conflict
+    // disputes. A disputed match accumulates NOTHING.
+    const r = resolveWine("Máté Marlborough Sauvignon Blanc, New Zealand");
+    assert(r.winery, "fixture premise: the producer matched");
+    assert(r.confidence < PARTIAL_CONFIDENCE_GATE,
+      `conflict cap must sit below the partial gate, got ${r.confidence}`);
+    await simulateSurfaceRate(sb, "Máté Marlborough Sauvignon Blanc, New Zealand", "loved");
+    assert(tables.dna_accumulation.length === 0,
+      "a geography-conflicted wine accumulates nothing — not even partial credit");
+  });
 }
 
 // ═══════════════════════════════════════════════════════
