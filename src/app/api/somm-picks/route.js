@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { checkRateLimit, getClientIp, logClaudeUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp, logClaudeUsage, estimateClaudeCostUSD, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
 import { extractJson, validateSommResponse } from "@/lib/sommPicks";
 
@@ -10,7 +10,14 @@ export const maxDuration = 300;
 // missing key, timeout, upstream error, malformed LLM output — returns
 // { fallback: true } and the client silently keeps the algorithmic picks.
 // The app must never be worse than Phase 1 because of this feature.
-const fallback = () => NextResponse.json({ fallback: true });
+//
+// `meta` (The Long Memory): whenever Claude was actually called, the
+// response — success OR fallback — carries { outcome, attempts, durationMs,
+// usage } so the AUTHENTICATED client can write the durable somm_curation /
+// menu_analyzed events. This route deliberately has no session (it never
+// needed one), so the event write happens client-side under RLS; meta is
+// only ever the user's own usage numbers.
+const fallback = (meta) => NextResponse.json(meta ? { fallback: true, meta } : { fallback: true });
 
 const SYSTEM_PROMPT = `You are The Somm — Sommeasy's sommelier voice. You are the knowledgeable friend who knows wine, never the stuffy sommelier. Confident but not pretentious. Warm and conversational. Zero gatekeeping jargon — no wine-speak unless it genuinely helps, and if you use a term, it should explain itself in context.
 
@@ -46,6 +53,22 @@ export async function POST(request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return fallback();
 
+  // Telemetry across attempts — a retry is two real calls, and the cost
+  // record must say so (totals, not the winning attempt's numbers). Hoisted
+  // above the try so even the catch path can report what was spent.
+  const telemetry = { attempts: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 };
+  const buildMeta = (outcome, salvagedCount = 0) => ({
+    outcome,
+    attempts: telemetry.attempts,
+    salvagedCount,
+    durationMs: telemetry.durationMs,
+    usage: {
+      inputTokens: telemetry.inputTokens,
+      outputTokens: telemetry.outputTokens,
+      estCostUSD: estimateClaudeCostUSD(telemetry.inputTokens, telemetry.outputTokens),
+    },
+  });
+
   try {
     const payload = await request.json();
     if (
@@ -76,6 +99,11 @@ export async function POST(request) {
       });
       const ms = Date.now() - start;
 
+      telemetry.attempts++;
+      telemetry.durationMs += ms;
+      telemetry.inputTokens += response.usage?.input_tokens || 0;
+      telemetry.outputTokens += response.usage?.output_tokens || 0;
+
       logClaudeUsage("somm-picks", response.usage, ms);
 
       const rawText = response.content
@@ -104,7 +132,16 @@ export async function POST(request) {
             if (result.salvaged.length > 0) {
               console.log(`[somm-picks] salvaged: ${result.salvaged.join(", ")}`);
             }
-            return NextResponse.json({ picks: result.picks, sommSummary: result.sommSummary });
+            // Outcome precedence: a retry that also salvaged reports
+            // "retried" — the retry is the stronger contract signal
+            const outcome = attempt > 0 ? "retried"
+              : result.salvaged.length > 0 ? "salvaged"
+              : "first_attempt";
+            return NextResponse.json({
+              picks: result.picks,
+              sommSummary: result.sommSummary,
+              meta: buildMeta(outcome, result.salvaged.length),
+            });
           }
           reason = result.reason;
         }
@@ -130,9 +167,11 @@ export async function POST(request) {
     }
 
     console.error(`[somm-picks] validation failed: ${lastReason}`);
-    return fallback();
+    return fallback(buildMeta("fallback"));
   } catch (err) {
     console.error("[somm-picks] error:", err?.message || err);
-    return fallback();
+    // Tokens spent before the error (e.g. a timeout on the retry) still
+    // deserve a cost record; a pre-Claude failure sends no meta at all
+    return fallback(telemetry.attempts > 0 ? buildMeta("fallback") : undefined);
   }
 }

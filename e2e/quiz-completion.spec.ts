@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { findRawIdTextNodes } from "./fixtures/raw-id-scan";
-import { testDb, ensureEarnedFixture, readEarnedFixtureRow, EARNED_FIXTURE } from "./fixtures/test-db";
+import { testDb, ensureEarnedFixture, readEarnedFixtureRow, EARNED_FIXTURE, countEvents, latestEvent } from "./fixtures/test-db";
 
 /**
  * Hard-fail guard for the quiz completion flow (The Reveal session).
@@ -28,6 +28,9 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     const { supabase, userId } = await testDb();
     const { count: timelineBefore } = await supabase
       .from("dna_timeline").select("*", { count: "exact", head: true }).eq("user_id", userId);
+    // The Long Memory: a quiz save is silent on the DNA timeline but LOUD in
+    // the event ledger — delta assertion only (wine_events is append-forever)
+    const quizEventsBefore = await countEvents(supabase, userId, "quiz_completed");
 
     await page.goto("/?quiz=refine");
 
@@ -62,6 +65,15 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     const { count: timelineAfter } = await supabase
       .from("dna_timeline").select("*", { count: "exact", head: true }).eq("user_id", userId);
     expect(timelineAfter, "a quiz save wrote a dna_timeline event — quiz saves must be silent").toBe(timelineBefore);
+
+    // …and exactly one quiz_completed event landed (fire-and-forget — poll)
+    await expect
+      .poll(async () => countEvents(supabase, userId, "quiz_completed"), { timeout: 15_000 })
+      .toBe(quizEventsBefore + 1);
+    const quizEvent = await latestEvent(supabase, userId, "quiz_completed");
+    expect(quizEvent!.payload.mode).toBe("refine");
+    expect((quizEvent!.payload.title ?? "").length).toBeGreaterThan(0);
+    expect(quizEvent!.payload.counts.countries).toBeGreaterThan(0);
 
     // Auto-save means NO save button, and the reveal is a moment, not a
     // parallel profile page — no Full Profile tab, the room is /palate

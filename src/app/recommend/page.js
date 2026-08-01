@@ -6,6 +6,7 @@ import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, bui
 import { buildSommPayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
+import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { evolutionToastMessages } from "@/components/WineRecList";
 
 // ─── Image compression utility ───
@@ -149,7 +150,10 @@ export default function RecommendPage() {
   };
 
   // ─── Core analysis (called with explicit values to avoid React batching issues) ───
-  const runAnalysis = (entries, minP, maxP, colorP) => {
+  // `source` ("scan" | "pdf" | "url" | "paste") rides the menu_analyzed
+  // event — passed explicitly because extractedFrom state may not have
+  // committed yet when this runs
+  const runAnalysis = (entries, minP, maxP, colorP, source) => {
     if (!profile) return;
     setTotalParsed(entries.length);
     const dna = {
@@ -178,8 +182,19 @@ export default function RecommendPage() {
     setSommNotes({});
     setSommSummary("");
     setSommState("idle");
+    // menu_analyzed (The Long Memory) fires ONCE per analysis — from
+    // askTheSomm when The Somm runs (so the outcome + duration ride along),
+    // or right here when it never will (somm: null)
+    const analysisMeta = { source: source || null, winesParsed: entries.length, matchCount: matched.length };
     if (curated.length > 0) {
-      askTheSomm({ scored, curated, pickCount, totalWines: entries.length, minP, maxP, colorP });
+      askTheSomm({ scored, curated, pickCount, totalWines: entries.length, minP, maxP, colorP, analysisMeta });
+    } else {
+      recordEvent(supabase, user.id, "menu_analyzed", {
+        source: analysisMeta.source,
+        wines_parsed: analysisMeta.winesParsed,
+        match_count: analysisMeta.matchCount,
+        somm: null,
+      });
     }
   };
 
@@ -206,7 +221,11 @@ export default function RecommendPage() {
   const wineKey = (w) => `${w.name}::${w.price}`;
 
   // ─── Ask The Somm: LLM curation + notes. Any failure = silent fallback ───
-  const askTheSomm = async ({ scored, curated, pickCount, totalWines, minP, maxP, colorP }) => {
+  // analysisMeta is present only on the first ask after an analysis — it
+  // makes this call the one that records menu_analyzed (with the somm
+  // outcome). "Ask the Somm again" passes none and records only the
+  // somm_curation cost event.
+  const askTheSomm = async ({ scored, curated, pickCount, totalWines, minP, maxP, colorP, analysisMeta = null }) => {
     const seq = ++sommSeqRef.current;
     const payload = buildSommPayload({
       scoredEntries: scored,
@@ -220,21 +239,64 @@ export default function RecommendPage() {
       occasion: occasion.trim() || null,
       display: { varietal: getVarietalDisplayName, region: getRegionDisplayName, country: getCountryName },
     });
-    if (payload.candidates.length === 0 || !pickCount) return;
+    // The analysis event, fired exactly once whatever The Somm's fate.
+    // somm.outcome: first_attempt | salvaged | retried | fallback, plus
+    // "superseded" when a refilter abandoned the in-flight request.
+    let menuAnalyzedFired = false;
+    const recordMenuAnalyzed = (somm) => {
+      if (!analysisMeta || menuAnalyzedFired) return;
+      menuAnalyzedFired = true;
+      recordEvent(supabase, user.id, "menu_analyzed", {
+        source: analysisMeta.source,
+        wines_parsed: analysisMeta.winesParsed,
+        match_count: analysisMeta.matchCount,
+        somm,
+      });
+    };
+    if (payload.candidates.length === 0 || !pickCount) { recordMenuAnalyzed(null); return; }
 
     setSommState("pending");
+    const clientStart = Date.now();
     try {
       const res = await fetch("/api/somm-picks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (sommSeqRef.current !== seq) return; // a refilter superseded this request
-      if (!res.ok) { setSommState("fallback"); return; }
-      const data = await res.json();
-      if (sommSeqRef.current !== seq) return;
+      const clientMs = Date.now() - clientStart;
+      let data = null;
+      if (res.ok) {
+        try { data = await res.json(); } catch { /* malformed body → fallback below */ }
+      }
+
+      // The durable cost record — whenever the server says Claude was
+      // actually called, success or fallback, superseded or not: the tokens
+      // were spent either way
+      if (data?.meta?.usage) {
+        recordEvent(supabase, user.id, "somm_curation", {
+          outcome: data.meta.outcome,
+          attempts: data.meta.attempts,
+          salvaged_count: data.meta.salvagedCount ?? 0,
+          duration_ms: data.meta.durationMs,
+          input_tokens: data.meta.usage.inputTokens,
+          output_tokens: data.meta.usage.outputTokens,
+          est_cost_usd: data.meta.usage.estCostUSD,
+        });
+      }
+      const sommMs = data?.meta?.durationMs ?? clientMs;
+
+      if (sommSeqRef.current !== seq) { // a refilter superseded this request
+        recordMenuAnalyzed({ outcome: "superseded", duration_ms: sommMs });
+        return;
+      }
+      if (!res.ok || !data) {
+        setSommState("fallback");
+        recordMenuAnalyzed({ outcome: "fallback", duration_ms: sommMs });
+        return;
+      }
       if (data.fallback || !Array.isArray(data.picks) || data.picks.length === 0) {
         setSommState("fallback");
+        recordMenuAnalyzed({ outcome: "fallback", duration_ms: sommMs });
         return;
       }
 
@@ -248,13 +310,19 @@ export default function RecommendPage() {
         sommPicks.push({ ...entry, pickType: p.role });
         notes[wineKey(entry)] = p.note;
       }
-      if (sommPicks.length === 0) { setSommState("fallback"); return; }
+      if (sommPicks.length === 0) {
+        setSommState("fallback");
+        recordMenuAnalyzed({ outcome: "fallback", duration_ms: sommMs });
+        return;
+      }
       setPicks(sommPicks);
       setSommNotes(notes);
       setSommSummary(data.sommSummary || "");
       setSommState("done");
+      recordMenuAnalyzed({ outcome: data.meta?.outcome || "first_attempt", duration_ms: sommMs });
     } catch {
       if (sommSeqRef.current === seq) setSommState("fallback");
+      recordMenuAnalyzed({ outcome: "fallback", duration_ms: Date.now() - clientStart });
     }
   };
 
@@ -265,7 +333,8 @@ export default function RecommendPage() {
     const entries = parseWineList(wineListText);
     const min = minPrice ? parseFloat(minPrice) : null;
     const max = maxPrice ? parseFloat(maxPrice) : null;
-    runAnalysis(entries, min, max, colorPref);
+    // A scan that fell back to editable text still originated as a scan
+    runAnalysis(entries, min, max, colorPref, extractedFrom || "paste");
   };
 
   // ─── Vision scan (photo or PDF) ───
@@ -364,7 +433,8 @@ export default function RecommendPage() {
         setExtractedFrom("scan");
         const min = minPrice ? parseFloat(minPrice) : null;
         const max = maxPrice ? parseFloat(maxPrice) : null;
-        runAnalysis(accumulatedEntriesRef.current, min, max, colorPref);
+        runAnalysis(accumulatedEntriesRef.current, min, max, colorPref,
+          file.type === "application/pdf" ? "pdf" : "scan");
         setProcessing(false);
         setScanningAdditionalPage(false);
         stopLoadingMessages();
@@ -441,7 +511,7 @@ export default function RecommendPage() {
       setProcessingMsg("Finding your perfect picks...");
       const min = minPrice ? parseFloat(minPrice) : null;
       const max = maxPrice ? parseFloat(maxPrice) : null;
-      runAnalysis(entries, min, max, colorPref);
+      runAnalysis(entries, min, max, colorPref, "url");
       setProcessing(false);
       setProcessingMsg("");
     } catch (err) {
@@ -510,23 +580,36 @@ export default function RecommendPage() {
       // metadata, surface promotions/demotions, then let the milestone hook
       // recompose the identity strand and celebrate a real shift
       if (!error) {
+        let result = null;
         try {
-          const result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
-          if (result?.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
-          if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
-          const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
-          if (shift?.shifted) {
-            const evoCount = (result?.promotions?.length || 0) + (result?.demotions?.length || 0);
-            const msg = shiftToastMessage(shift);
-            setTimeout(() => {
-              setEvolutionToasts((prev) => [...prev, msg]);
-              setTimeout(() => {
-                setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
-              }, 5000);
-            }, 1500 + evoCount * 1500);
-          }
+          result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
         } catch (evoErr) {
           console.error("DNA evolution error (non-blocking):", evoErr);
+        }
+        // The ledger record (The Long Memory) — exactly once per rating,
+        // old→new plus the resolved band; fire-and-forget
+        recordEvent(supabase, user.id, "pick_rated", ratingEventPayload({
+          wine: wineName, rating, previousRating, surface: "recommend",
+          confidence: result?.resolution?.confidence,
+        }));
+        if (result) {
+          try {
+            if (result.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
+            if (result.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+            const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
+            if (shift?.shifted) {
+              const evoCount = (result.promotions?.length || 0) + (result.demotions?.length || 0);
+              const msg = shiftToastMessage(shift);
+              setTimeout(() => {
+                setEvolutionToasts((prev) => [...prev, msg]);
+                setTimeout(() => {
+                  setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+                }, 5000);
+              }, 1500 + evoCount * 1500);
+            }
+          } catch (evoErr) {
+            console.error("DNA evolution error (non-blocking):", evoErr);
+          }
         }
       }
     } catch (err) {

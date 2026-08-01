@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
+import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 
 const SERIF = "'Playfair Display', Georgia, serif";
 const SANS = "'Source Sans 3', sans-serif";
@@ -163,10 +164,12 @@ function WineRecCard({ rec, index, onAction, readOnly }) {
  * @param recs           profile.recommendations
  * @param user           Supabase user (null → read-only list, no actions)
  * @param limit          max cards shown at once
+ * @param surface        which door this list is ("home" | "reveal") — rides
+ *                       the wine_events payloads so the funnel can tell them apart
  * @param onCountsChange ({ interactedRecs, visibleRecs, hasAnyInteractions })
  * @param emptyState     ReactNode when every rec has been actioned
  */
-export default function WineRecList({ recs, user, limit = 5, onCountsChange, emptyState = null }) {
+export default function WineRecList({ recs, user, limit = 5, surface = "home", onCountsChange, emptyState = null }) {
   const [interactions, setInteractions] = useState({});
   const [hasAnyInteractions, setHasAnyInteractions] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -250,21 +253,43 @@ export default function WineRecList({ recs, user, limit = 5, onCountsChange, emp
     const labels = { had: "Noted!", want: "Added to your list!", skip: "Removed" };
     showToast(labels[type] || "Saved!");
 
+    // Intent signals (The Long Memory): today these leave only a state row —
+    // the event is the durable trace. Fire-and-forget.
+    if (!error && type === "want") {
+      recordEvent(supabase, user.id, "wine_wanted", { wine: wineName, surface });
+    }
+    if (!error && type === "skip") {
+      recordEvent(supabase, user.id, "wine_skipped", { wine: wineName, surface });
+    }
+
     // A rated bottle is evidence — run the evolution engine (non-blocking)
     if (!error && type === "had" && rating) {
+      let result = null;
       try {
-        const result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
-        if (result?.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
-        if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
-        // Milestone hook (Act III S3): recompose the identity strand when
-        // this rating earned the change — celebrated only on a real shift
-        const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
-        if (shift?.shifted) {
-          const evoCount = (result?.promotions?.length || 0) + (result?.demotions?.length || 0);
-          showShiftToast(shiftToastMessage(shift), 1500 + evoCount * 1500);
-        }
+        result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
       } catch (evoErr) {
         console.error("DNA evolution error (non-blocking):", evoErr);
+      }
+      // The ledger record — exactly once per rating, old→new plus the band
+      // the engine resolved at (engine hiccup → band "none"); fire-and-forget
+      recordEvent(supabase, user.id, "rec_rated", ratingEventPayload({
+        wine: wineName, rating, previousRating, surface,
+        confidence: result?.resolution?.confidence,
+      }));
+      if (result) {
+        try {
+          if (result.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
+          if (result.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+          // Milestone hook (Act III S3): recompose the identity strand when
+          // this rating earned the change — celebrated only on a real shift
+          const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
+          if (shift?.shifted) {
+            const evoCount = (result.promotions?.length || 0) + (result.demotions?.length || 0);
+            showShiftToast(shiftToastMessage(shift), 1500 + evoCount * 1500);
+          }
+        } catch (evoErr) {
+          console.error("DNA evolution error (non-blocking):", evoErr);
+        }
       }
     }
   };

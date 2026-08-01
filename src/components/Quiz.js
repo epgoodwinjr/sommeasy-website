@@ -588,7 +588,7 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
               ? "Rate the ones you know — every answer sharpens your palate."
               : "Bottles we'd already pour you. Your full list is waiting behind your account."}
           </p>
-          <WineRecList recs={profile.recommendations} user={user} limit={user ? 5 : 3} />
+          <WineRecList recs={profile.recommendations} user={user} limit={user ? 5 : 3} surface="reveal" />
         </div>
       )}
 

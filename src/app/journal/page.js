@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase";
 import { resolveAndAccumulate, reverseAccumulation, fetchDnaTimeline } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
+import { recordEvent, ratingEventPayload, confidenceBand } from "@/lib/wineEvents";
 
 const RATING_DISPLAY = {
   loved: { emoji: "❤️", label: "Loved it" },
@@ -167,20 +168,34 @@ export default function JournalPage() {
 
     if (!error) {
       // Re-run DNA evolution with the rating change
+      let result = null;
       try {
-        const result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
-        if (result?.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
-        if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
-        // Milestone hook (Act III S3) — a rating change can shift the strand
-        const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
-        if (shift?.shifted) {
-          showShiftToast(shift, (result?.promotions?.length || 0) + (result?.demotions?.length || 0));
-        }
-        // Refresh timeline
-        const timeline = await fetchDnaTimeline(supabase, user.id);
-        setTimelineEntries(timeline);
+        result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
       } catch (evoErr) {
         console.error("DNA evolution error (non-blocking):", evoErr);
+      }
+      // The ledger record (The Long Memory): the old→new history the upsert
+      // just discarded. previousRating may be null — a "Want to Try" bottle
+      // rated for the first time from the journal. Fire-and-forget.
+      recordEvent(supabase, user.id, "journal_rerated", ratingEventPayload({
+        wine: wineName, rating, previousRating, surface: "journal",
+        confidence: result?.resolution?.confidence,
+      }));
+      if (result) {
+        try {
+          if (result.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
+          if (result.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
+          // Milestone hook (Act III S3) — a rating change can shift the strand
+          const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
+          if (shift?.shifted) {
+            showShiftToast(shift, (result.promotions?.length || 0) + (result.demotions?.length || 0));
+          }
+          // Refresh timeline
+          const timeline = await fetchDnaTimeline(supabase, user.id);
+          setTimelineEntries(timeline);
+        } catch (evoErr) {
+          console.error("DNA evolution error (non-blocking):", evoErr);
+        }
       }
       await loadInteractions(user.id);
       showToast("Rating updated!");
@@ -193,7 +208,7 @@ export default function JournalPage() {
     // and confidence, and the row is gone by the time reversal runs
     const { data: interaction } = await supabase
       .from("wine_interactions")
-      .select("rating, match_confidence")
+      .select("rating, match_confidence, interaction_type")
       .eq("user_id", user.id)
       .eq("wine_name", wineName)
       .single();
@@ -209,6 +224,21 @@ export default function JournalPage() {
       .select("wine_name");
 
     if (!error && (deleted || []).length > 0) {
+      // The ledger record (The Long Memory): what was removed and whether
+      // evidence was reversed. points_reversed mirrors the engine's own
+      // rules — a sub-partial-band resolution accumulated nothing, and a
+      // "fine"/unrated row carried 0 points in every band, so neither
+      // reverses anything. Fired only when THIS call removed the row (the
+      // same delete-first idempotency the reversal itself rides).
+      const band = confidenceBand(interaction?.match_confidence);
+      recordEvent(supabase, user.id, "journal_deleted", {
+        wine: wineName,
+        rating: interaction?.rating ?? null,
+        interaction_type: interaction?.interaction_type ?? null,
+        confidence_band: band,
+        points_reversed:
+          band !== "none" && !!interaction?.rating && interaction.rating !== "fine",
+      });
       try {
         const result = await reverseAccumulation(supabase, user.id, wineName, interaction);
         if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);

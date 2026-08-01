@@ -79,11 +79,26 @@ Run these over the last 7 days of Vercel logs (Logs tab → filter, or
 ### 6. Cost
 
 - Grep `"type":"claude_usage"` — one JSON line per Claude call with
-  `estCostUSD`.
+  `estCostUSD`. Since The Long Memory, the somm and narrative calls ALSO
+  write durable `wine_events` cost records (`somm_curation`,
+  `narrative_regenerated`), so the 1-hour retention no longer erases the
+  ledger — SQL:
+
+  ```sql
+  SELECT event_type, count(*) AS calls,
+         round(sum((payload->>'est_cost_usd')::numeric), 4) AS usd
+  FROM wine_events
+  WHERE event_type IN ('somm_curation', 'narrative_regenerated')
+    AND occurred_at > now() - interval '30 days'
+  GROUP BY 1;
+  ```
+
 - **Healthy:** in line with the CLAUDE.md per-call measurements (scan ~$0.009,
   somm $0.021–0.025, narrative ~$0.006).
 - **Escalate when:** per-call cost or call volume jumps unexpectedly — a
-  retry storm, a prompt regression inflating tokens, or abuse.
+  retry storm, a prompt regression inflating tokens, or abuse. (Scan/label
+  calls stay grep-only — their durable trace is `menu_analyzed`, which
+  records the analysis, not its cost.)
 
 ### 7. Session death (refresh-token rotation)
 
@@ -112,6 +127,17 @@ Run these over the last 7 days of Vercel logs (Logs tab → filter, or
 ### 9. The Somm's corrective retry (`somm-picks`)
 
 - Grep `[somm-picks] retrying after: <reason>` vs total `POST /api/somm-picks 200`.
+- **Durable since The Long Memory** — the weekly ritual gets SQL instead of
+  a hopeful grep (`menu_analyzed` records every analysis with its somm
+  outcome; `superseded` means the user refiltered before The Somm answered):
+
+  ```sql
+  SELECT payload->'somm'->>'outcome' AS outcome, count(*)
+  FROM wine_events
+  WHERE event_type = 'menu_analyzed'
+    AND occurred_at > now() - interval '7 days'
+  GROUP BY 1 ORDER BY 2 DESC;
+  ```
 - **Baseline (July 31, 2026):** the "fires on every attempt" impression from
   local dev did NOT hold up — the live sample that day was a clean
   first-attempt success (16.1s, no retry line); the interlude's documented
@@ -135,6 +161,90 @@ Run these over the last 7 days of Vercel logs (Logs tab → filter, or
 - **Escalate when:** volume decouples from timeline events (gate broken →
   silent cost leak), or failures with no fallback line (the route must keep
   the existing narrative on ANY failure).
+
+## The launch funnel (The Long Memory — wine_events + Web Analytics)
+
+Anonymous traffic is aggregate only: Vercel Web Analytics (cookieless
+pageviews) covers landing → quiz start → teaser views from the Vercel
+dashboard. Identified behavior starts at signup and lives in `wine_events`.
+There is deliberately NO anonymous identity stitching — the pending-palate
+back-log (`quiz_completed` with mode `restore`, `occurred_at` = when the
+anonymous quiz actually happened) covers the one moment that matters in
+between.
+
+The three queries that matter for launch week:
+
+### 11a. Quiz completions vs signups (conversion through the teaser gate)
+
+```sql
+SELECT
+  (SELECT count(*) FROM auth.users
+    WHERE created_at > now() - interval '7 days')                    AS signups,
+  (SELECT count(DISTINCT user_id) FROM wine_events
+    WHERE event_type = 'quiz_completed'
+      AND occurred_at > now() - interval '7 days')                   AS users_completing_quiz,
+  (SELECT count(*) FROM wine_events
+    WHERE event_type = 'quiz_completed' AND payload->>'mode' = 'restore'
+      AND occurred_at > now() - interval '7 days')                   AS anonymous_quizzes_folded_in;
+```
+
+Read `anonymous_quizzes_folded_in` against the teaser pageviews in Web
+Analytics: that ratio IS the teaser gate's conversion. **Escalate when**
+teaser views are healthy but fold-ins are ~0 — the stash/metadata carry
+broke (the palate-handoff guards pin it, but prod SMTP/browser weirdness is
+exactly what the July 30 canary caught).
+
+### 11b. Signups vs first rating
+
+```sql
+WITH ratings AS (
+  SELECT user_id, min(occurred_at) AS first_rating_at
+  FROM wine_events
+  WHERE event_type IN ('pick_rated', 'rec_rated', 'bottle_logged', 'journal_rerated')
+  GROUP BY user_id
+)
+SELECT count(u.id)                                   AS signups,
+       count(r.user_id)                              AS rated_at_least_once,
+       round(100.0 * count(r.user_id) / greatest(count(u.id), 1)) AS pct
+FROM auth.users u
+LEFT JOIN ratings r ON r.user_id = u.id
+WHERE u.created_at > now() - interval '7 days';
+```
+
+**Escalate when** pct stalls near zero — users meet their palate and never
+feed it; the reveal's ratable recs or the /recommend flow isn't landing.
+
+### 11c. First rating vs first shift
+
+```sql
+WITH first_rating AS (
+  SELECT user_id, min(occurred_at) AS at FROM wine_events
+  WHERE event_type IN ('pick_rated', 'rec_rated', 'bottle_logged', 'journal_rerated')
+  GROUP BY user_id
+),
+first_shift AS (
+  SELECT user_id, min(event_at) AS at FROM dna_timeline
+  WHERE event_type = 'shifted' GROUP BY user_id
+)
+SELECT count(fr.user_id) AS users_with_a_rating,
+       count(fs.user_id) AS users_with_a_shift,
+       round(avg(EXTRACT(epoch FROM fs.at - fr.at) / 3600)::numeric, 1) AS avg_hours_rating_to_shift
+FROM first_rating fr
+LEFT JOIN first_shift fs ON fs.user_id = fr.user_id;
+```
+
+The identity split in one query: ratings are usage (`wine_events`), shifts
+are identity (`dna_timeline`) — never duplicated. **Escalate when** rating
+volume is healthy but shifts stay zero for weeks (milestones stopped
+firing — cross-check §8).
+
+### 12. The roster (founder CRM)
+
+`SELECT * FROM user_roster;` — one row per user: signup date, title +
+epithet, bottles rated, shift count, event count, last event, narrative
+age. SQL-Editor/service-role only (client roles are revoked). This is the
+CRM until a real tool earns its place (a named post-launch decision in
+CLAUDE.md; the event schema is keyed so any future tool can consume it).
 
 ## Reason-code reference
 

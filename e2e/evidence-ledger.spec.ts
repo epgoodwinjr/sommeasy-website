@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { RecommendPage } from "./fixtures/sommeasy-page";
-import { testDb } from "./fixtures/test-db";
+import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
 
 /**
  * Hard-fail guards for the evidence ledger (Act III, Session 1):
@@ -12,9 +12,16 @@ import { testDb } from "./fixtures/test-db";
  *    (the somm payload used to see null varietal/region for these rows).
  * 2. Deleting that row through the journal UI must reverse the points
  *    exactly (delete-first idempotency).
+ * 3. (The Long Memory) Both moments must land in the wine_events ledger:
+ *    the rating writes a pick_rated row (old→new, band), the delete writes
+ *    a journal_deleted row (what was removed, points reversed).
  *
  * Do NOT make this outcome-tolerant. If accumulation doesn't move, the
  * /recommend evidence path is broken again.
+ *
+ * wine_events discipline: append-forever — the exact-restore in `finally`
+ * deliberately does NOT touch wine_events (no DELETE policy exists, on
+ * purpose). Event assertions are deltas + latest-row shape only.
  *
  * Data discipline: the guard wine (Kanonkop Pinotage, Stellenbosch —
  * resolves at 90) touches only dimensions that are already quiz-promoted on
@@ -102,6 +109,9 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
 
     await healStaleGuardRows(supabase, userId);
     const baseline = await readDims(supabase, userId);
+    // Event-ledger baselines — deltas only, never absolute counts
+    const pickRatedBefore = await countEvents(supabase, userId, "pick_rated");
+    const journalDeletedBefore = await countEvents(supabase, userId, "journal_deleted");
     const { count: timelineBaseline } = await supabase
       .from("dna_timeline")
       .select("id", { count: "exact", head: true })
@@ -174,6 +184,18 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
         .eq("user_id", userId);
       expect(timelineNow).toBe(timelineBaseline);
 
+      // The Long Memory: the rating wrote its pick_rated event — old→new
+      // with the resolved band (fire-and-forget, so poll for the landing)
+      await expect
+        .poll(async () => countEvents(supabase, userId, "pick_rated"), { timeout: 15_000 })
+        .toBe(pickRatedBefore + 1);
+      const pickEvent = await latestEvent(supabase, userId, "pick_rated");
+      expect(pickEvent!.payload.wine).toBe(guardName);
+      expect(pickEvent!.payload.rating).toBe("loved");
+      expect(pickEvent!.payload.previous_rating).toBeNull();
+      expect(pickEvent!.payload.surface).toBe("recommend");
+      expect(pickEvent!.payload.confidence_band).toBe("full");
+
       // Leg 2 — deleting the journal row reverses the evidence exactly
       await page.goto("/journal");
       await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
@@ -195,6 +217,16 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
           });
         }, { timeout: 15_000 })
         .toBe(true);
+
+      // The Long Memory: the delete wrote its journal_deleted event — what
+      // was removed, and that evidence really was reversed
+      await expect
+        .poll(async () => countEvents(supabase, userId, "journal_deleted"), { timeout: 15_000 })
+        .toBe(journalDeletedBefore + 1);
+      const deleteEvent = await latestEvent(supabase, userId, "journal_deleted");
+      expect(deleteEvent!.payload.wine).toBe(guardName);
+      expect(deleteEvent!.payload.rating).toBe("loved");
+      expect(deleteEvent!.payload.points_reversed).toBe(true);
     } finally {
       // Kill any in-flight page JS FIRST — on an assertion failure the
       // browser's resolveAndAccumulate may still be running, and cleaning

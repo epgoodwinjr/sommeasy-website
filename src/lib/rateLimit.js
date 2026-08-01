@@ -63,15 +63,23 @@ export function checkRateLimit(route, ip) {
 }
 
 /**
- * One structured log line per Claude call — Vercel logs are the cost
- * dashboard for now. Sonnet-class pricing: $3/MTok in, $15/MTok out.
+ * The one price table (Sonnet-class: $3/MTok in, $15/MTok out) — shared by
+ * the live log line and the durable wine_events cost records so the two can
+ * never disagree.
+ */
+export function estimateClaudeCostUSD(inputTokens, outputTokens) {
+  return Math.round(((inputTokens || 0) * 3 + (outputTokens || 0) * 15) / 1e6 * 1e6) / 1e6;
+}
+
+/**
+ * One structured log line per Claude call — the live-debugging view of cost
+ * (wine_events.somm_curation / narrative_regenerated are the durable one).
  */
 export function logClaudeUsage(route, usage, ms) {
   if (!usage) return;
   const inputTokens = usage.input_tokens || 0;
   const outputTokens = usage.output_tokens || 0;
-  const estCostUSD =
-    Math.round((inputTokens * 3 + outputTokens * 15) / 1e6 * 1e6) / 1e6;
+  const estCostUSD = estimateClaudeCostUSD(inputTokens, outputTokens);
   console.log(
     JSON.stringify({ type: "claude_usage", route, inputTokens, outputTokens, estCostUSD, ms })
   );

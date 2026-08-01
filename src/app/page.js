@@ -7,6 +7,7 @@ import { compressImage } from "@/lib/image-utils";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { saveQuizProfile } from "@/lib/saveQuizProfile";
+import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
 import Quiz from "@/components/Quiz";
@@ -176,6 +177,14 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
       } catch (evoErr) {
         console.error("DNA evolution error (non-blocking):", evoErr);
       }
+
+      // The ledger record (The Long Memory) — old→new plus the band the
+      // engine actually resolved at; fire-and-forget
+      recordEvent(supabase, user.id, "bottle_logged", ratingEventPayload({
+        wine: name, rating, previousRating,
+        surface: "log_bottle",
+        confidence: evolutionResult?.resolution?.confidence,
+      }));
 
       // 3. Update specific_wines based on rating (existing logic)
       const currentSpecific = profile.specific_wines || [];
@@ -554,6 +563,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
               recs={recs}
               user={user}
               limit={5}
+              surface="home"
               onCountsChange={handleRecCounts}
               emptyState={
                 <div style={{
@@ -759,6 +769,12 @@ export default function Home() {
       const row = await saveQuizProfile(supabase, currentUser.id, rawAnswers, {
         mode: existingRow ? "refine" : "fresh",
         initialRaw: null,
+        // The Long Memory: this save is the anonymous quiz finally landing —
+        // record it as mode "restore", back-logged to when the quiz actually
+        // happened (the stash's createdAt; the local carrier's is authoritative
+        // when both exist — same moment, but the local one always carries it)
+        eventMode: "restore",
+        occurredAt: local?.createdAt ?? meta?.createdAt ?? null,
       });
       if (row) {
         if (meta) {

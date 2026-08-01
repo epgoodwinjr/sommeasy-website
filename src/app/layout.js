@@ -1,4 +1,5 @@
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/react";
 
 export const metadata = {
   title: "Sommeasy — Your Wine DNA Profile",
@@ -34,6 +35,13 @@ export default function RootLayout({ children }) {
           }}
         />
         <div style={{ position: "relative", zIndex: 1 }}>{children}</div>
+        {/* Cookieless pageviews (The Long Memory, Part 2) — the anonymous
+            half of the funnel: landing → quiz start → teaser views. The
+            identified half lives in wine_events. No identity stitching by
+            design; the pending-palate back-log covers the one moment that
+            matters in between. Enable Web Analytics on the Vercel project
+            with this deploy. No-ops silently outside Vercel (dev, e2e). */}
+        <Analytics />
       </body>
     </html>
   );

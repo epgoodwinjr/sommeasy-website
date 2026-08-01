@@ -103,6 +103,39 @@ export async function ensureEarnedFixture(supabase: SupabaseClient, userId: stri
   }
 }
 
+/**
+ * wine_events is APPEND-FOREVER — for the app AND for tests (The Long
+ * Memory, migration 009: no UPDATE policy, no DELETE policy, deliberately).
+ * The byte-exact-restore discipline every other table follows EXCLUDES this
+ * one: guards assert event DELTAS (count before/after, latest-row shape),
+ * never absolute state, and never delete events. Do not "fix" a guard by
+ * adding a DELETE policy — growth of this table on the test account is by
+ * design, and no spec may assume a known starting count.
+ */
+export async function countEvents(
+  supabase: SupabaseClient, userId: string, eventType: string
+): Promise<number> {
+  const { count } = await supabase
+    .from("wine_events")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("event_type", eventType);
+  return count ?? 0;
+}
+
+export async function latestEvent(
+  supabase: SupabaseClient, userId: string, eventType: string
+) {
+  const { data } = await supabase
+    .from("wine_events")
+    .select("event_type, payload, occurred_at, created_at")
+    .eq("user_id", userId)
+    .eq("event_type", eventType)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  return data?.[0] ?? null;
+}
+
 export async function readEarnedFixtureRow(supabase: SupabaseClient, userId: string) {
   const f = EARNED_FIXTURE;
   const { data } = await supabase

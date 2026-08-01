@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import Anthropic from "@anthropic-ai/sdk";
-import { checkRateLimit, getClientIp, logClaudeUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp, logClaudeUsage, estimateClaudeCostUSD, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
+import { recordEvent } from "@/lib/wineEvents";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -172,6 +173,11 @@ export async function POST(request) {
     let messages = baseMessages;
     let lastReason = null;
 
+    // Cost telemetry across attempts (The Long Memory) — the durable
+    // narrative_regenerated event records what a regeneration really cost,
+    // retries included
+    const telemetry = { attempts: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 };
+
     for (let attempt = 0; attempt < 2; attempt++) {
       const start = Date.now();
       const response = await client.messages.create({
@@ -182,6 +188,10 @@ export async function POST(request) {
       });
       const ms = Date.now() - start;
       logClaudeUsage("palate-narrative", response.usage, ms);
+      telemetry.attempts++;
+      telemetry.durationMs += ms;
+      telemetry.inputTokens += response.usage?.input_tokens || 0;
+      telemetry.outputTokens += response.usage?.output_tokens || 0;
 
       const rawText = response.content.filter((b) => b.type === "text").map((b) => b.text).join("");
 
@@ -207,6 +217,18 @@ export async function POST(request) {
               console.error("[palate-narrative] save failed:", error.message);
               return fallback();
             }
+            // The durable cost record (The Long Memory). Awaited on purpose:
+            // a serverless function may freeze un-awaited work after the
+            // response, and recordEvent's swallow guarantee means this can
+            // add one ~50ms insert but never a failure path.
+            await recordEvent(supabase, user.id, "narrative_regenerated", {
+              attempts: telemetry.attempts,
+              duration_ms: telemetry.durationMs,
+              input_tokens: telemetry.inputTokens,
+              output_tokens: telemetry.outputTokens,
+              est_cost_usd: estimateClaudeCostUSD(telemetry.inputTokens, telemetry.outputTokens),
+              narrative_chars: result.narrative.length,
+            });
             return NextResponse.json({ narrative: result.narrative });
           }
           reason = result.reason;

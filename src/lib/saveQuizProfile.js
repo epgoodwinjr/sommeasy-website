@@ -2,6 +2,7 @@ import { generateDNAProfile } from "./profileEngine";
 import { formatWineName } from "./matchEngine";
 import { mergeQuizWithEarnedDna, reconcileQuizPromotions, syncQuizSelections } from "./dnaEvolution";
 import { countRatedBottles } from "./identityRecompose";
+import { recordEvent, quizEventPayload } from "./wineEvents";
 
 /**
  * The ONE quiz-save path — extracted from page.js's handleSaveProfile
@@ -18,8 +19,20 @@ import { countRatedBottles } from "./identityRecompose";
  * wipe. Journal data is never touched by quiz edits. The narrative
  * regenerates from the merged palate; narrative_updated_at is left alone so
  * The Somm re-evolves it under its usual staleness gate.
+ *
+ * The Long Memory: every successful save fires ONE quiz_completed
+ * wine_events row (fire-and-forget — a failed event never fails the save).
+ * eventMode overrides the recorded mode ("restore" for the pending-palate
+ * fold-in, which runs as a refine/fresh save but is a different funnel
+ * moment); occurredAt back-logs the stash's createdAt — the moment the quiz
+ * actually happened, which is why occurred_at and created_at are separate
+ * columns. This writes wine_events ONLY: quiz saves never touch the DNA
+ * timeline table (Suite 12 source-scans this file to keep it that way).
  */
-export async function saveQuizProfile(supabase, userId, rawAnswers, { mode = "fresh", initialRaw = null } = {}) {
+export async function saveQuizProfile(
+  supabase, userId, rawAnswers,
+  { mode = "fresh", initialRaw = null, eventMode = null, occurredAt = null } = {}
+) {
   try {
     const quizRaw = {
       ...rawAnswers,
@@ -73,6 +86,14 @@ export async function saveQuizProfile(supabase, userId, rawAnswers, { mode = "fr
       white_count: finalProfile.whiteCount,
     }, { onConflict: "user_id" });
     if (error) { console.error("Save error:", error); return null; }
+
+    // The ledger record — fired without await so a slow insert can't delay
+    // the reveal by a frame
+    recordEvent(
+      supabase, userId, "quiz_completed",
+      quizEventPayload({ mode: eventMode || mode, raw: merged, title: finalProfile.archetype }),
+      occurredAt ? { occurredAt } : {}
+    );
 
     try {
       // Un-flag promoted accumulation rows no longer in the DNA, then mark
