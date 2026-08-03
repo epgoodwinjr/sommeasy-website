@@ -101,5 +101,7 @@ No unmerged work was found on any of them.
 
 ## Deploy
 
-Pushed to main → Vercel auto-deploy. Confirmation appended below once the
-deployment reports READY.
+Pushed to main (`a7f0a24`) → Vercel auto-deploy
+`dpl_4uGQDm4Ubpb3H3M1rFGa3tiLboDK` went **READY** in ~30s, aliased to
+`sommeasy.wine` (production). After the branch deletions, GitHub carries
+exactly one branch: `main`.
