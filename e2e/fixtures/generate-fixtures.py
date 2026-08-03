@@ -1,8 +1,8 @@
 """Generate synthetic e2e fixture images for Sommeasy Playwright tests.
 
 The originals were never committed (e2e/fixtures/images/ is gitignored).
-These render real text so the client-side Tesseract OCR path is genuinely
-exercised; tests accept 'error' outcomes so imperfect OCR still passes.
+These render real text so the Claude Vision scan paths are genuinely
+exercised; tests accept 'error' outcomes so an imperfect extraction still passes.
 """
 import os
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
