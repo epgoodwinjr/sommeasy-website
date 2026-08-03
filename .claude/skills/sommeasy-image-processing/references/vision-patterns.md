@@ -147,14 +147,16 @@ need full resolution.
   still over 2MB (menu photos are bigger and the route takes base64 JSON,
   which inflates size ~33%).
 
-PDFs are not compressed — they go up as base64 as-is.
+PDFs are not compressed — they go up as base64 as-is; the client rejects
+files over 10MB before upload.
 
 ---
 
 ## Shared Conventions (apply to any new Vision route)
 
 1. `checkRateLimit(routeName, getClientIp(req))` before ANY other work —
-   these are paid routes. Return 429 + `Retry-After` on denial.
+   these are paid routes (10 requests/hour/IP). Return 429 + `Retry-After`
+   on denial.
 2. Missing `ANTHROPIC_API_KEY` → friendly degradation copy, never a crash.
    Scanning errors are visible-but-friendly; Somm/narrative routes fall
    back silently. Match the existing register.

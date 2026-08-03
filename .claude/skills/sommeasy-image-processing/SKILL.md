@@ -35,11 +35,14 @@ route*. Text inputs never leave the browser's parser:
 | Wine bottle label photo | `POST /api/scan-label` (Claude Vision) | multipart FormData, `image` field |
 | Restaurant wine list / menu photo | `POST /api/parse-wine-list` (Claude Vision) | JSON `{ imageBase64, mimeType }` |
 | Uploaded wine-list PDF | `POST /api/parse-wine-list` (Claude Vision) | JSON `{ pdfBase64 }` (document block) |
-| Wine list URL (HTML or PDF) | `/api/fetch-menu` (safeFetch, SSRF-guarded; unpdf for PDF URLs) → client-side `parseWineList` | No Claude call — scraped text parsed in the browser |
+| Wine list URL (HTML or PDF) | `/api/fetch-menu` (safeFetch, SSRF-guarded; unpdf for PDF URLs) → client-side `parseWineList` | No Claude call — returns `{ text, source: "html" \| "pdf" }`, parsed in the browser |
 | Pasted wine list text | client-side `parseWineList` (matchEngine) | No Claude call |
-| Shelf tag / price card | `POST /api/scan-label` | No dedicated shelf-tag feature exists; a single-wine photo is a label scan |
 
-Two nuances worth keeping straight:
+There is no shelf-tag feature — no UI entry point, no route copy, nothing
+in the code. At most, a shelf-tag photo a user asks about is treated as a
+label-like image via `/api/scan-label`.
+
+Nuances worth keeping straight:
 
 - **Transport asymmetry is real:** scan-label takes FormData,
   parse-wine-list takes a JSON body with base64. Don't "unify" them casually.
@@ -48,6 +51,9 @@ Two nuances worth keeping straight:
   Vision-grade structured extraction, but no current UI sends it — URL and
   paste flows deliberately use the free, instant client-side parser. Don't
   document or build against the textContent path as if it were the URL flow.
+- **fetch-menu's PDF extraction preserves line breaks on purpose:** unpdf
+  with Y-coordinate (`transform[5]`) detection — naive extraction merges
+  the whole PDF into one blob and breaks the text parser.
 
 ---
 
@@ -96,6 +102,10 @@ recommend page:
 Malformed JSON gets one rescue attempt (`extractFirstJsonObject`, trusted
 only if it carries a `wines` array) before falling back to Path B.
 
+Multi-page scans accumulate Path A entries across calls
+(`accumulatedEntriesRef` on the recommend page) and re-run analysis over
+the combined set — a second page adds to the slate, never replaces it.
+
 ---
 
 ## Output Schemas
@@ -143,20 +153,25 @@ Never pass raw model text to matching. Fields the model can't read are
   a friendly no-key fallback, same as the existing ones.
 - **Error copy is brand voice:** warm, no raw error strings, always tells
   the user what to do next ("Try a clearer, closer photo.").
-- **Cost awareness:** ~$0.009/scan (text path), labels comparable. e2e runs
-  make real Claude calls (~$0.15–0.30/run). The API is approved and
+- **Real coverage is e2e:** no unit test hits either Vision route —
+  `npm run test:e2e` (with its hard-fail fail-if-no-picks guard) is the
+  coverage, and every local run makes real Claude calls (~$0.15–0.30/run).
+- **Cost awareness:** ~$0.009/scan (text path), labels comparable;
+  worst-case engaged session ≈ ≤$0.12. The API is approved and
   encouraged — be mindful, not avoidant.
 
 ---
 
 ## History (why this file looks the way it does)
 
-Early Sommeasy ran a hybrid: Tesseract.js in the browser for wine lists and
-shelf tags, Claude Vision for labels. The Tesseract path was retired — it
-was a declared-but-never-called dependency, and its last dead remnants
-(`parseOCRText`, `preprocessForOCR`) were deleted in the Aug 3, 2026
-dead-code removal. `references/tesseract-patterns.md` was deleted with it.
-Don't resurrect any of it; the git history has it if you're curious.
+Early Sommeasy *planned* a hybrid — Tesseract.js in the browser for wine
+lists and shelf tags, Claude Vision for labels — and the old version of
+this skill taught it as if it were live. None of it ever ran: tesseract.js
+was a declared-but-never-called dependency, and the shelf-tag feature
+never existed at all. The last dead remnants (`parseOCRText`,
+`preprocessForOCR`) were deleted in the Aug 3, 2026 dead-code removal.
+`references/tesseract-patterns.md` was deleted with it. Don't resurrect
+any of it; the git history has it if you're curious.
 
 ---
 
