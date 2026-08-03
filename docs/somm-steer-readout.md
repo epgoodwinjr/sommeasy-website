@@ -129,6 +129,38 @@ overflow assertion (placeholder text set as the input's value,
 mobile width. The old copy could not have passed this assertion; it's how
 the truncation class stays dead.
 
-## Prod verification (post-deploy)
+## Prod verification (post-deploy, Aug 3 2026)
 
-Filled in after the Vercel deploy — see the section appended below.
+The established technique: a realistic payload built with the REAL pipeline
+(`parseWineList` → `matchWinesAgainstDNA` → `curatePicks` →
+`buildSommPayload`, via the alias-loader in plain node), POSTed straight at
+the live `/api/somm-picks`. The fixture: a 14-wine bistro list with four
+South African wines, scored against a France/Italy palate ("The Burgundy
+Classicist") so the SA wines rank at the bottom — Raats Chenin at exactly
+score 0, invisible to the pre-steer pipeline.
+
+**Steered call** (`"focus on South African wines"`): the builder flagged
+all four SA wines `steerMatch` and appended the score-0 Raats as candidate
+11 (12 candidates vs 11 without the steer). HTTP 200 in 16.9s,
+`first_attempt`, no salvage (2,170 in / 611 out tokens, $0.0157). **4 of 5
+picks were South African** — including Raats as the value pick, a wine the
+model literally could not have chosen before this change. The summary led
+with "Tonight's list honors your South Africa focus", the top note opened
+"You asked for South Africa", and every note still spoke to the palate DNA
+(Faiveley, Fontodi, "a Burgundy classicist") — steer as tonight's brief,
+DNA as background context, exactly the designed priority.
+
+**Control call** (no steer): 11 candidates, zero `steerMatch` fields,
+HTTP 200 in 15.6s, `first_attempt`, no salvage ($0.0157). Picks were the
+DNA-driven Franco-Italian slate (Jadot Bourgogne top pick, Fontodi from
+the loved list, Barbaresco as adventure) with no steer language anywhere —
+pre-change behavior, unchanged.
+
+## Loose ends
+
+- The stale repo skill `.claude/skills/sommeasy-image-processing` (still
+  prescribes the removed tesseract.js) was flagged as a separate background
+  task during this session — not part of this change.
+- Known accepted edge (documented above): a steer cannot create a results
+  screen out of a zero-DNA-match menu, because `curatePicks` returning 0
+  picks means The Somm is never asked. Revisit only if real steers hit it.
