@@ -136,18 +136,33 @@ the fire-and-forget contract hides — the delta assertion surfaced it).
   countryAttribution 22, sommPicks 30, sommRoute 5, authFlow 56,
   authRoutes 21, pendingPalate 26, identityVoice 21, palateMark 15,
   ssrfGuard 48, captcha 8, wineEvents 26, tableVerdict 17.
-- **e2e: full suite green** — 65 specs (61 + the 4 new table-verdict
-  guards), serialized against the dedicated test account only.
-- **Prod (e2e account, real UI):** analyze → choose → `pick_chosen` visible
-  in wine_events with session + role; home ask → "It was fine" →
-  `pick_rated` (surface `verdict_prompt`, session carried) + the wishlist
-  row became `had:fine` with the ask staying resolved across a reload;
-  bypass → `somm_bypassed` visible (fresh session id) + `/?log=1` opened
-  the camera step; journal delete → `journal_deleted` (points_reversed
-  false) and the account restored to baseline (chenin fixture unmoved at
-  6 points, identity fields restored).
+- **e2e: full suite green** — `TOTAL: 65/65 passed (5 skipped)` (61 + the
+  4 new table-verdict guards), serialized against the dedicated test
+  account only.
+- **Prod (deployed sommeasy.wine, e2e account, real UI):** commit
+  `fcf8260` deployed (Vercel `dpl_9fk7tdz…`, page-chunk marker confirmed),
+  then the 4 table-verdict guards re-run against `https://sommeasy.wine`
+  with a throwaway baseURL config — **5/5 passed (20.4s)**. The prod
+  ledger rows (22:34 UTC, Aug 3):
+  - `pick_chosen` `{role:"top", wine:"Ken Forrester Old Vine Chenin
+    Blanc, Stellenbosch 2021", price:38, steer:null, session:"2b239153",
+    replaced:null}`
+  - `pick_rated` `{wine: same, rating:"fine", session:"2b239153"` — the
+    choice's session carried through the home ask — `surface:
+    "verdict_prompt", confidence_band:"full", previous_rating:null}`
+  - `somm_bypassed` `{session:"396dcb08"` (a fresh sitting), `picks_shown:
+    1, had_chosen:null, steer:null}`
+  - `journal_deleted` `{wine: same, rating:"fine", confidence_band:
+    "full", points_reversed:false}` — cleanup through the real journal UI
+  The wishlist row went `want:null` → `had:fine` → deleted; the ask
+  resolved across a reload (ledger-read, not state); `/?log=1` opened the
+  camera step; the chenin_blanc earned fixture never moved off 6 points;
+  identity-bearing profile fields restored to baseline. (The same run
+  also shows `session` riding an ordinary `/recommend` `pick_rated` from
+  the identity-shift guard — the funnel thread is on every surface.)
 - **Migration:** applied to prod project `zugunlctgpytgyxftllv`; RLS
-  re-verified by query (two policies exactly, no UPDATE/DELETE).
+  re-verified by query — exactly two policies (INSERT own rows, SELECT
+  own rows), no UPDATE, no DELETE.
 
 ## Non-goals honored
 No onboarding cards (item 3). No new dependencies. No matchEngine /
