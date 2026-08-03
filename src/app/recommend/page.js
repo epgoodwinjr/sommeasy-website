@@ -86,7 +86,7 @@ export default function RecommendPage() {
   const [evolutionToasts, setEvolutionToasts] = useState([]);
   const [pageCount, setPageCount] = useState(0);
   const [scanningAdditionalPage, setScanningAdditionalPage] = useState(false);
-  const [occasion, setOccasion] = useState("");
+  const [steer, setSteer] = useState("");
   const [sommState, setSommState] = useState("idle"); // idle | pending | done | fallback
   const [sommNotes, setSommNotes] = useState({});     // wineKey → note
   const [sommSummary, setSommSummary] = useState("");
@@ -193,6 +193,7 @@ export default function RecommendPage() {
         source: analysisMeta.source,
         wines_parsed: analysisMeta.winesParsed,
         match_count: analysisMeta.matchCount,
+        steer: steer.trim() || null,
         somm: null,
       });
     }
@@ -236,7 +237,7 @@ export default function RecommendPage() {
       totalParsed: totalWines,
       budget: { min: minP ?? null, max: maxP ?? null },
       color: colorP === "all" ? null : colorP,
-      occasion: occasion.trim() || null,
+      steer: steer.trim() || null,
       display: { varietal: getVarietalDisplayName, region: getRegionDisplayName, country: getCountryName },
     });
     // The analysis event, fired exactly once whatever The Somm's fate.
@@ -250,6 +251,9 @@ export default function RecommendPage() {
         source: analysisMeta.source,
         wines_parsed: analysisMeta.winesParsed,
         match_count: analysisMeta.matchCount,
+        // What was actually SENT (trimmed/capped), not live input state —
+        // the steer box may have been edited while the request was in flight
+        steer: payload.steer,
         somm,
       });
     };
@@ -571,8 +575,11 @@ export default function RecommendPage() {
         row.somm_note = note;
         if (pick.pickType) row.somm_pick_role = pick.pickType;
       }
-      const occ = occasion.trim();
-      if (occ) row.occasion = occ;
+      // The steer travels with the rating into the journal — the memory of
+      // what that night was about. The column keeps its pre-steer name
+      // (occasion) — same data, no schema churn.
+      const steerNote = steer.trim();
+      if (steerNote) row.occasion = steerNote;
       const { error } = await supabase.from("wine_interactions").upsert(row, { onConflict: "user_id, wine_name" });
 
       // A rated bottle is evidence — run the evolution engine exactly like
@@ -848,16 +855,24 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 style={{ width: "100%", padding: "11px 10px 11px 22px", borderRadius: "8px", border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)", fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", outline: "none", boxSizing: "border-box" }} />
             </div>
           </div>
-          {/* Occasion also editable here — scanned-first users shouldn't have
-              to rescan just to tell The Somm it's steak night */}
-          <div style={{ marginTop: 10 }}>
+          {/* The steer is also editable here — scanned-first users shouldn't
+              have to rescan just to point The Somm somewhere new. Copy lives
+              in label + helper (which wrap), never a long placeholder (which
+              clips at mobile widths — the original truncation bug). */}
+          <div style={{ marginTop: 12 }}>
+            <label htmlFor="steer-input-results" style={{
+              display: "block", fontFamily: "'Source Sans 3', sans-serif",
+              fontSize: "11px", fontWeight: 600, color: "#1B3D2F", opacity: 0.55,
+              letterSpacing: "0.12em", textTransform: "uppercase", margin: "0 0 6px 2px",
+            }}>Steer the Somm <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(optional)</span></label>
             <input
-              data-testid="occasion-input-results"
+              id="steer-input-results"
+              data-testid="steer-input-results"
               type="text"
               maxLength={200}
-              value={occasion}
-              onChange={(e) => setOccasion(e.target.value)}
-              placeholder="What's the occasion? (optional — then ask the Somm again)"
+              value={steer}
+              onChange={(e) => setSteer(e.target.value)}
+              placeholder="A grape, a place, a mood…"
               style={{
                 width: "100%", padding: "12px", borderRadius: "8px",
                 border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)",
@@ -865,6 +880,10 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 outline: "none", boxSizing: "border-box",
               }}
             />
+            <p style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+              color: "#1B3D2F", opacity: 0.45, margin: "6px 2px 0", lineHeight: 1.5,
+            }}>Try &ldquo;something South African&rdquo; or &ldquo;no Chardonnay&rdquo; — then ask the Somm again.</p>
           </div>
           {/* Re-fire curation against the refiltered pool (rate limit self-polices) */}
           <div style={{ marginTop: 10, textAlign: "center" }}>
@@ -1130,15 +1149,24 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </div>
         </div>
 
-        {/* Occasion (optional) — feeds The Somm's pairing-first notes */}
+        {/* Steer the Somm (optional) — explicit direction for tonight, with
+            authority over the palate DNA in the somm prompt. Copy lives in
+            label + helper (which wrap), never a long placeholder (which
+            clips at mobile widths). */}
         <div style={{ marginTop: 12 }}>
+          <label htmlFor="steer-input" style={{
+            display: "block", fontFamily: "'Source Sans 3', sans-serif",
+            fontSize: "11px", fontWeight: 600, color: "#1B3D2F", opacity: 0.55,
+            letterSpacing: "0.12em", textTransform: "uppercase", margin: "0 0 6px 2px",
+          }}>Steer the Somm <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(optional)</span></label>
           <input
-            data-testid="occasion-input"
+            id="steer-input"
+            data-testid="steer-input"
             type="text"
             maxLength={200}
-            value={occasion}
-            onChange={(e) => setOccasion(e.target.value)}
-            placeholder="What's the occasion? Steak night, first date, Tuesday… (optional)"
+            value={steer}
+            onChange={(e) => setSteer(e.target.value)}
+            placeholder="A grape, a place, a mood…"
             style={{
               width: "100%", padding: "12px", borderRadius: "8px",
               border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.8)",
@@ -1146,6 +1174,10 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               outline: "none", boxSizing: "border-box",
             }}
           />
+          <p style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+            color: "#1B3D2F", opacity: 0.45, margin: "6px 2px 0", lineHeight: 1.5,
+          }}>Try &ldquo;something South African&rdquo;, &ldquo;no Chardonnay&rdquo;, or &ldquo;big reds for a steak night&rdquo;.</p>
         </div>
       </div>
 

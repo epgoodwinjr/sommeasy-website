@@ -8,9 +8,115 @@ export const SOMM_ROLES = ["top", "value", "adventure", "splurge", "wildcard"];
 const CANDIDATE_CAP = 25;
 const REASON_CAP = 3;
 const NOTE_MAX_CHARS = 500;
-const OCCASION_MAX_CHARS = 200;
+const STEER_MAX_CHARS = 200;
+// Steer-matched wines the DNA filter would hide get appended to the slate —
+// at most this many, so a broad steer ("french") can't flood the payload
+const STEER_EXTRA_CAP = 6;
 
 const identity = (x) => x;
+
+// ─── The steer (diner free text → candidate-slate influence) ───
+//
+// The steer's real authority lives in the somm prompt; this layer exists for
+// one reason: the model can only pick from the slate, and the slate is
+// DNA-filtered (score > 0, top 25). "Focus on Chenin" must be able to
+// surface Chenins the DNA has never met. Matching here is deliberately
+// coarse — word-boundary tokens against the wine's own text — because a
+// false positive only adds a candidate the model is free to ignore, while a
+// false negative makes the steer silently unfollowable.
+
+const STEER_NEGATIONS = new Set([
+  "no", "not", "nothing", "none", "never", "without", "avoid", "skip", "but", "except",
+]);
+// Words that would junk-match menu text or carry no candidate-layer meaning
+// (style/mood words like "big" or "crisp" are for the model, not the slate)
+const STEER_STOPWORDS = new Set([
+  "a", "an", "the", "and", "or", "for", "of", "on", "in", "with", "some",
+  "something", "anything", "please", "like", "want", "focus", "prefer",
+  "tonight", "night", "wine", "wines", "bottle", "bottles", "give", "find",
+  "show", "keep", "more", "less", "maybe", "just", "really", "very", "nice",
+  "good", "great", "big", "bold", "light", "crisp", "style", "world",
+  "south", "north", "east", "west", "new", "old",
+]);
+// Adjective → place, so "something South African" reaches South Africa.
+// Covers the wineUnified country set plus the common US case.
+const STEER_DEMONYMS = {
+  french: "france", italian: "italy", spanish: "spain", german: "germany",
+  portuguese: "portugal", austrian: "austria", australian: "australia",
+  argentine: "argentina", argentinian: "argentina", chilean: "chile",
+  american: "us", californian: "california", greek: "greece",
+  hungarian: "hungary", bulgarian: "bulgaria", romanian: "romania",
+  uruguayan: "uruguay", israeli: "israel", canadian: "canada",
+  "south african": "south africa", "new zealand": "new zealand",
+};
+
+/** Lowercase, strip diacritics, collapse non-alphanumerics — returns the
+ *  text space-padded so word-boundary matching is a plain includes(). */
+function normalizeSteerText(text) {
+  const flat = String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  return flat ? ` ${flat} ` : "";
+}
+
+/** Positive steer terms: tokens + bigrams, demonym-mapped, minus stopwords
+ *  and anything within two words of a negation cue ("no Chardonnay" must
+ *  never BOOST Chardonnay — avoidance is the prompt's job). */
+function extractSteerTerms(steer) {
+  const tokens = normalizeSteerText(steer).trim().split(" ").filter(Boolean);
+  const negated = (i) => STEER_NEGATIONS.has(tokens[i - 1]) || STEER_NEGATIONS.has(tokens[i - 2]);
+  const terms = new Set();
+  for (let i = 0; i < tokens.length; i++) {
+    if (negated(i)) continue;
+    const tok = tokens[i];
+    const next = tokens[i + 1];
+    if (next) {
+      const bigram = `${tok} ${next}`;
+      if (STEER_DEMONYMS[bigram]) terms.add(STEER_DEMONYMS[bigram]);
+      else if (
+        tok.length >= 3 && next.length >= 3 &&
+        !STEER_STOPWORDS.has(tok) && !STEER_STOPWORDS.has(next) &&
+        !STEER_NEGATIONS.has(tok) && !STEER_NEGATIONS.has(next)
+      ) terms.add(bigram);
+    }
+    if (tok.length >= 4 && !STEER_STOPWORDS.has(tok) && !STEER_NEGATIONS.has(tok)) {
+      terms.add(STEER_DEMONYMS[tok] || tok);
+    }
+  }
+  return Array.from(terms).slice(0, 12);
+}
+
+/** Everything a steer term could legitimately name about one wine: its menu
+ *  text plus detected varietal/region/country as display names AND raw ids
+ *  (normalization turns "chenin_blanc" into "chenin blanc" for free). */
+function steerSearchText(entry, d) {
+  return normalizeSteerText(
+    [
+      entry.name,
+      entry.section,
+      entry.detectedVarietalId ? d.varietal(entry.detectedVarietalId) : null,
+      ...(entry.detectedRegionIds || []).map((r) => d.region(r, entry.detectedCountry)),
+      entry.detectedCountry ? d.country(entry.detectedCountry) : null,
+      entry.detectedVarietalId,
+      ...(entry.detectedRegionIds || []),
+      entry.detectedCountry,
+    ].filter(Boolean).join(" ")
+  );
+}
+
+function makeSteerMatcher(steerTerms, d) {
+  const cache = new Map();
+  return (entry) => {
+    if (!cache.has(entry)) {
+      const text = steerSearchText(entry, d);
+      cache.set(entry, steerTerms.some((t) => text.includes(` ${t} `)));
+    }
+    return cache.get(entry);
+  };
+}
 
 function prettifyId(id) {
   if (!id || typeof id !== "string") return id;
@@ -51,7 +157,7 @@ export function buildSommPayload({
   totalParsed,
   budget,
   color,
-  occasion,
+  steer,
   display,
 }) {
   const d = {
@@ -60,6 +166,10 @@ export function buildSommPayload({
     country: display?.country || identity,
   };
 
+  const steerText = steer ? String(steer).trim().slice(0, STEER_MAX_CHARS) : "";
+  const steerTerms = steerText ? extractSteerTerms(steerText) : [];
+  const matchesSteer = makeSteerMatcher(steerTerms, d);
+
   const eligible = (scoredEntries || [])
     .filter((e) => e.score > 0 && e.price != null)
     .filter((e) => passesColor(e, color))
@@ -67,7 +177,24 @@ export function buildSommPayload({
     .sort((a, b) => b.score - a.score)
     .slice(0, CANDIDATE_CAP);
 
-  const candidates = eligible.map((e, i) => ({
+  // Steer augmentation is strictly additive: the DNA slate above is never
+  // reordered or shrunk (no-steer behavior stays byte-identical, and the
+  // silent-fallback path is untouched) — steer-matched wines that budget and
+  // color allow but the DNA filter hid are APPENDED, best-scored first.
+  let slate = eligible;
+  if (steerTerms.length > 0) {
+    const inSlate = new Set(eligible);
+    const extras = (scoredEntries || [])
+      .filter((e) => e.price != null && !inSlate.has(e))
+      .filter((e) => passesColor(e, color))
+      .filter((e) => passesBudget(e, budget))
+      .filter((e) => matchesSteer(e))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, STEER_EXTRA_CAP);
+    if (extras.length > 0) slate = eligible.concat(extras);
+  }
+
+  const candidates = slate.map((e, i) => ({
     i,
     name: e.name,
     price: e.price,
@@ -78,11 +205,12 @@ export function buildSommPayload({
     country: e.detectedCountry ? d.country(e.detectedCountry) : null,
     score: Math.round(e.score * 10) / 10,
     reasons: (e.matchReasons || []).slice(0, REASON_CAP).map((r) => r.label),
+    ...(steerTerms.length > 0 && matchesSteer(e) ? { steerMatch: true } : {}),
   }));
 
   // Map the algorithmic picks onto candidate indices (name+price identity)
   const pickKey = (e) => `${e.name}::${e.price}`;
-  const indexByKey = new Map(eligible.map((e, i) => [pickKey(e), i]));
+  const indexByKey = new Map(slate.map((e, i) => [pickKey(e), i]));
   const algorithmicIndices = (algorithmicPicks || [])
     .map((p) => indexByKey.get(pickKey(p)))
     .filter((i) => i !== undefined);
@@ -125,7 +253,7 @@ export function buildSommPayload({
     },
     budget: { min: budget?.min ?? null, max: budget?.max ?? null },
     color: color || null,
-    occasion: occasion ? String(occasion).slice(0, OCCASION_MAX_CHARS) : null,
+    steer: steerText || null,
   };
 }
 

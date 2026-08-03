@@ -238,6 +238,34 @@ are identity (`dna_timeline`) — never duplicated. **Escalate when** rating
 volume is healthy but shifts stay zero for weeks (milestones stopped
 firing — cross-check §8).
 
+### 11d. Steer adoption ("A Word with the Somm", Aug 2026)
+
+Every `menu_analyzed` payload carries `steer` — the diner's free-text
+direction verbatim, or null when the box was left empty:
+
+```sql
+SELECT count(*)                                        AS analyses,
+       count(*) FILTER (WHERE payload->>'steer' IS NOT NULL) AS steered,
+       round(100.0 * count(*) FILTER (WHERE payload->>'steer' IS NOT NULL)
+             / greatest(count(*), 1))                  AS pct_steered
+FROM wine_events
+WHERE event_type = 'menu_analyzed'
+  AND occurred_at > now() - interval '7 days';
+
+-- What people actually type (the product signal — grape? place? food?):
+SELECT payload->>'steer' AS steer, count(*)
+FROM wine_events
+WHERE event_type = 'menu_analyzed' AND payload->>'steer' IS NOT NULL
+  AND occurred_at > now() - interval '7 days'
+GROUP BY 1 ORDER BY 2 DESC LIMIT 20;
+```
+
+This feature came from real-user feedback (she wanted to steer, not name an
+occasion) — the second query is the check that the reframe landed. **Watch
+for** steers the Somm can't honor at the candidate layer (styles like "big
+reds" rely on the model; grapes/places also get slate augmentation). No
+escalation threshold — this one is a product dial, not an alarm.
+
 ### 12. The roster (founder CRM)
 
 `SELECT * FROM user_roster;` — one row per user: signup date, title +

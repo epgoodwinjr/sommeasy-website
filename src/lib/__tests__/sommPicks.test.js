@@ -58,7 +58,7 @@ async function main() {
     totalParsed: 60,
     budget: { min: null, max: null },
     color: null,
-    occasion: null,
+    steer: null,
   };
 
   test("candidates capped at 25, sorted by score desc, i = array index", () => {
@@ -116,10 +116,13 @@ async function main() {
     assert(p.feedback.loved[0].varietal === "Syrah" && p.feedback.loved[0].region === "Barossa", JSON.stringify(p.feedback.loved[0]));
   });
 
-  test("occasion truncated to 200 chars, null when absent", () => {
-    const p = buildSommPayload({ ...baseArgs, occasion: "x".repeat(300) });
-    assert(p.occasion.length === 200, `${p.occasion.length}`);
-    assert(buildSommPayload(baseArgs).occasion === null, "expected null");
+  test("steer trimmed + capped to 200 chars, null when absent or blank", () => {
+    const p = buildSommPayload({ ...baseArgs, steer: "x".repeat(300) });
+    assert(p.steer.length === 200, `${p.steer.length}`);
+    assert(buildSommPayload(baseArgs).steer === null, "expected null when absent");
+    assert(buildSommPayload({ ...baseArgs, steer: "   " }).steer === null, "expected null when blank");
+    assert(buildSommPayload({ ...baseArgs, steer: "  focus on chenin  " }).steer === "focus on chenin", "expected trim");
+    assert(!("occasion" in p), "occasion key must be gone");
   });
 
   test("algorithmicPicks map to candidate indices", () => {
@@ -134,6 +137,92 @@ async function main() {
     });
     assert(p.dna.varietals[0] === "V:pinot_noir", p.dna.varietals[0]);
     assert(p.candidates[0].country.startsWith("C:"), p.candidates[0].country);
+  });
+
+  console.log("\n═══ steer-aware candidate slate ═══");
+
+  // A menu the DNA loves (30 positive-score wines, no Chenin) plus wines the
+  // DNA has never met (score 0) — the exact case the steer must rescue.
+  const dnaFavorites = Array.from({ length: 30 }, (_, k) =>
+    makeEntry(`Barossa Shiraz ${k}`, 40 + k, 30 - k, { country: "australia", varietalId: "syrah_shiraz" })
+  );
+  const chenins = [
+    makeEntry("Raats Original Chenin Blanc", 38, 0, { country: "south_africa", varietalId: "chenin_blanc", color: "white" }),
+    makeEntry("Ken Forrester Old Vine Reserve", 45, 0, { country: "south_africa", varietalId: "chenin_blanc", color: "white" }),
+    makeEntry("Domaine Huet Le Mont Sec", 60, 0, { country: "france", varietalId: "chenin_blanc", color: "white" }),
+  ];
+  const steerArgs = { ...baseArgs, scoredEntries: [...dnaFavorites, ...chenins], totalParsed: 33 };
+
+  test("no steer: no steerMatch fields, slate byte-identical to today", () => {
+    const p = buildSommPayload(steerArgs);
+    assert(p.candidates.length === 25, `got ${p.candidates.length}`);
+    assert(p.candidates.every((c) => !("steerMatch" in c)), "steerMatch must be absent without a steer");
+  });
+
+  test("steer pulls DNA-invisible matches into the slate (the Chenin case)", () => {
+    const base = buildSommPayload(steerArgs);
+    const p = buildSommPayload({ ...steerArgs, steer: "focus on Chenin tonight" });
+    assert(p.candidates.length === 28, `got ${p.candidates.length}`);
+    // Additive-only: the existing slate survives untouched as a prefix
+    for (let k = 0; k < 25; k++) {
+      assert(p.candidates[k].name === base.candidates[k].name, `prefix diverged at ${k}`);
+    }
+    const extras = p.candidates.slice(25);
+    assert(extras.every((c) => /Chenin|Forrester|Huet/.test(c.name)), JSON.stringify(extras.map((c) => c.name)));
+    assert(extras.every((c) => c.steerMatch === true), "extras must carry steerMatch");
+    assert(p.candidates.every((c, idx) => c.i === idx), "i must stay sequential");
+  });
+
+  test("steer flags matching candidates already in the slate", () => {
+    const p = buildSommPayload({ ...steerArgs, steer: "something Australian" });
+    // All 30 Australians match: 25 in the base slate (flagged in place) plus
+    // the 5 below the cutoff appended as extras. The Chenins don't match.
+    assert(p.candidates.length === 30, `got ${p.candidates.length}`);
+    assert(p.candidates.every((c) => c.steerMatch === true), "every Australian must be flagged");
+    assert(!p.candidates.some((c) => /Chenin|Forrester|Huet/.test(c.name)), "non-matching wines must not ride along");
+  });
+
+  test("demonym steers reach the wines they mean ('something South African')", () => {
+    const p = buildSommPayload({ ...steerArgs, steer: "something South African" });
+    const extras = p.candidates.slice(25);
+    assert(extras.length === 2, `got ${extras.length}`);
+    assert(extras.every((c) => /Raats|Forrester/.test(c.name)), JSON.stringify(extras.map((c) => c.name)));
+  });
+
+  test("negated terms never augment ('no Chardonnay', 'nothing Californian')", () => {
+    const chard = makeEntry("Kistler Les Noisetiers Chardonnay", 90, 0, { country: "us", varietalId: "chardonnay", color: "white" });
+    const p = buildSommPayload({
+      ...steerArgs,
+      scoredEntries: [...dnaFavorites, chard],
+      steer: "no Chardonnay please",
+    });
+    assert(p.candidates.length === 25, `got ${p.candidates.length}`);
+    assert(p.candidates.every((c) => !("steerMatch" in c)), "a purely negative steer must not flag or augment");
+  });
+
+  test("steer extras respect budget, color, and the 6-wine cap", () => {
+    const manyChenins = Array.from({ length: 10 }, (_, k) =>
+      makeEntry(`Chenin Blanc ${k}`, 30 + k, 0, { country: "south_africa", varietalId: "chenin_blanc", color: "white" })
+    );
+    const overBudget = makeEntry("Unicorn Chenin Blanc", 500, 0, { varietalId: "chenin_blanc", color: "white" });
+    const capped = buildSommPayload({
+      ...steerArgs,
+      scoredEntries: [...dnaFavorites, ...manyChenins, overBudget],
+      budget: { min: null, max: 60 },
+      steer: "focus on Chenin",
+    });
+    const extras = capped.candidates.slice(-6);
+    assert(capped.candidates.length === 25 + 6, `cap: got ${capped.candidates.length}`);
+    assert(!capped.candidates.some((c) => c.name === "Unicorn Chenin Blanc"), "budget must still gate extras");
+
+    const colorGated = buildSommPayload({
+      ...steerArgs,
+      scoredEntries: [...dnaFavorites, ...chenins],
+      color: "red",
+      steer: "focus on Chenin",
+    });
+    assert(!colorGated.candidates.some((c) => /Chenin|Forrester|Huet/.test(c.name)), "color must still gate extras");
+    assert(extras.every((c) => c.steerMatch === true), "extras must carry steerMatch");
   });
 
   console.log("\n═══ validateSommResponse ═══");

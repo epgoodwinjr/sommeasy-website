@@ -449,7 +449,7 @@ export default function JournalPage() {
                                 <div style={{
                                   fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
                                   color: "#1B3D2F", opacity: 0.5, marginTop: 6,
-                                }}>The occasion: {wine.occasion}</div>
+                                }}>That night: {wine.occasion}</div>
                               )}
                             </div>
                           );
