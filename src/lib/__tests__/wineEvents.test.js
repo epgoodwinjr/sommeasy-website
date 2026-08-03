@@ -48,6 +48,8 @@ async function main() {
     buildEventRow,
     ratingEventPayload,
     quizEventPayload,
+    pickChosenPayload,
+    sommBypassedPayload,
     recordEvent,
   } = await import("../wineEvents.js");
   const { CONFIDENCE_GATE, PARTIAL_CONFIDENCE_GATE } = await import("../dnaThresholds.js");
@@ -56,11 +58,12 @@ async function main() {
 
   console.log("\n═══ Suite 1: the catalog ═══");
 
-  await test("catalog is exactly the v1 set (11 types)", () => {
+  await test("catalog is exactly the v2 set (13 types — Table Verdict added pick_chosen + somm_bypassed)", () => {
     const expected = [
       "quiz_completed", "menu_analyzed", "pick_rated", "bottle_logged",
       "rec_rated", "wine_wanted", "wine_skipped", "journal_rerated",
       "journal_deleted", "narrative_regenerated", "somm_curation",
+      "pick_chosen", "somm_bypassed",
     ];
     assert(WINE_EVENT_TYPES.length === expected.length, `got ${WINE_EVENT_TYPES.length} types`);
     for (const t of expected) {
@@ -126,6 +129,57 @@ async function main() {
       p.counts.varietals === 0 && p.counts.wines === 0,
       `got ${JSON.stringify(p.counts)}`
     );
+  });
+
+  await test("pickChosenPayload shapes the table declaration (wine identity + context)", () => {
+    const p = pickChosenPayload({
+      wine: "Ken Forrester Old Vine Chenin Blanc", role: "top", price: 38,
+      steer: "  something South African  ", session: "s_abc123",
+      replaced: "Kanonkop Pinotage",
+    });
+    assert(p.wine === "Ken Forrester Old Vine Chenin Blanc", "wine");
+    assert(p.role === "top", "role");
+    assert(p.price === 38, "price");
+    assert(p.steer === "something South African", "steer trimmed");
+    assert(p.session === "s_abc123", "session");
+    assert(p.replaced === "Kanonkop Pinotage", "replaced (the table changed its mind)");
+  });
+
+  await test("pickChosenPayload defaults context to null; junk price dropped", () => {
+    const p = pickChosenPayload({ wine: "X", price: "not a number" });
+    assert(p.role === null && p.price === null && p.steer === null, "nulls");
+    assert(p.session === null && p.replaced === null, "session/replaced null");
+    const empty = pickChosenPayload({ wine: "X", steer: "   " });
+    assert(empty.steer === null, "whitespace steer → null");
+  });
+
+  await test("pickChosenPayload caps a runaway steer at 200 chars (the shared cap)", () => {
+    const p = pickChosenPayload({ wine: "X", steer: "z".repeat(500) });
+    assert(p.steer.length === 200, `got ${p.steer.length}`);
+  });
+
+  await test("sommBypassedPayload shapes the walk-away (session context, no wine required)", () => {
+    const p = sommBypassedPayload({
+      session: "s_abc123", steer: "big reds", picksShown: 5,
+      hadChosen: "Kanonkop Pinotage",
+    });
+    assert(p.session === "s_abc123", "session");
+    assert(p.steer === "big reds", "steer");
+    assert(p.picks_shown === 5, "picks_shown");
+    assert(p.had_chosen === "Kanonkop Pinotage", "had_chosen (bypass superseded a choice)");
+  });
+
+  await test("sommBypassedPayload tolerates junk (all nulls, junk count dropped)", () => {
+    const p = sommBypassedPayload({ picksShown: "many" });
+    assert(p.session === null && p.steer === null, "nulls");
+    assert(p.picks_shown === null && p.had_chosen === null, "junk count → null");
+  });
+
+  await test("buildEventRow accepts the two new types", () => {
+    const chosen = buildEventRow(USER, "pick_chosen", pickChosenPayload({ wine: "X" }));
+    assert(chosen.event_type === "pick_chosen", "pick_chosen accepted");
+    const bypassed = buildEventRow(USER, "somm_bypassed", sommBypassedPayload({}));
+    assert(bypassed.event_type === "somm_bypassed", "somm_bypassed accepted");
   });
 
   await test("buildEventRow sanitizes: undefined values dropped, payload defaults to {}", () => {

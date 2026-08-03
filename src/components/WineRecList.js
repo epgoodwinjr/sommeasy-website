@@ -29,7 +29,10 @@ export function evolutionToastMessages(items, isDemotion = false) {
   });
 }
 
-function RatingModal({ wine, onRate, onClose }) {
+/** THE rating modal — exported for the home page's table-verdict prompt
+ *  (The Table Verdict session) so "how was it?" reuses this exact UI.
+ *  Never fork a second copy. */
+export function RatingModal({ wine, onRate, onClose }) {
   const ratings = [
     { id: "loved", emoji: "❤️", label: "Loved it" },
     { id: "liked", emoji: "👍", label: "Liked it" },

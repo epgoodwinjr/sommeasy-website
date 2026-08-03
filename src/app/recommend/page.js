@@ -6,7 +6,7 @@ import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, bui
 import { buildSommPayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
-import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
+import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload } from "@/lib/wineEvents";
 import { evolutionToastMessages } from "@/components/WineRecList";
 
 // ─── Image compression utility ───
@@ -54,6 +54,17 @@ const LOADING_MESSAGES = [
   "Finding your perfect picks...",
 ];
 
+// ─── Verdict session id ───
+// One id per table sitting (minted on mount, re-minted on Scan Again). It
+// rides menu_analyzed / pick_chosen / somm_bypassed / pick_rated payloads so
+// the watchtower funnel (§11e) counts dinners, not page-scans or re-asks.
+function mintVerdictSession() {
+  try {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID().slice(0, 8);
+  } catch { /* insecure context — fall through */ }
+  return Math.random().toString(36).slice(2, 10);
+}
+
 // ─── Filter options ───
 const COLOR_OPTIONS = [
   { id: "all", label: "All wines" },
@@ -87,10 +98,16 @@ export default function RecommendPage() {
   const [pageCount, setPageCount] = useState(0);
   const [scanningAdditionalPage, setScanningAdditionalPage] = useState(false);
   const [steer, setSteer] = useState("");
+  // The Table Verdict: the declared ordered wine (one per session,
+  // changeable) and the "went a different way" affordance state
+  const [chosenWine, setChosenWine] = useState(null);
+  const [bypassState, setBypassState] = useState(null); // null | "noted" | "dismissed"
   const [sommState, setSommState] = useState("idle"); // idle | pending | done | fallback
   const [sommNotes, setSommNotes] = useState({});     // wineKey → note
   const [sommSummary, setSommSummary] = useState("");
   const sommSeqRef = useRef(0);
+  const verdictSessionRef = useRef(null);
+  if (!verdictSessionRef.current) verdictSessionRef.current = mintVerdictSession();
   const fileInputRef = useRef(null);
   const addPageInputRef = useRef(null);
   const userDNARef = useRef(null);
@@ -194,6 +211,7 @@ export default function RecommendPage() {
         wines_parsed: analysisMeta.winesParsed,
         match_count: analysisMeta.matchCount,
         steer: steer.trim() || null,
+        session: verdictSessionRef.current,
         somm: null,
       });
     }
@@ -254,6 +272,7 @@ export default function RecommendPage() {
         // What was actually SENT (trimmed/capped), not live input state —
         // the steer box may have been edited while the request was in flight
         steer: payload.steer,
+        session: verdictSessionRef.current,
         somm,
       });
     };
@@ -594,11 +613,15 @@ export default function RecommendPage() {
           console.error("DNA evolution error (non-blocking):", evoErr);
         }
         // The ledger record (The Long Memory) — exactly once per rating,
-        // old→new plus the resolved band; fire-and-forget
-        recordEvent(supabase, user.id, "pick_rated", ratingEventPayload({
-          wine: wineName, rating, previousRating, surface: "recommend",
-          confidence: result?.resolution?.confidence,
-        }));
+        // old→new plus the resolved band; fire-and-forget. The session ties
+        // a table-side rating back to its curation for the §11e funnel.
+        recordEvent(supabase, user.id, "pick_rated", {
+          ...ratingEventPayload({
+            wine: wineName, rating, previousRating, surface: "recommend",
+            confidence: result?.resolution?.confidence,
+          }),
+          session: verdictSessionRef.current,
+        });
         if (result) {
           try {
             if (result.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
@@ -624,6 +647,74 @@ export default function RecommendPage() {
     }
   };
 
+  // ─── The Table Verdict: "this one's on the table" ───
+  // Declaring the ordered wine. One chosen pick per session, changeable —
+  // choosing another pick simply moves the declaration. Choosing is INTENT,
+  // never DNA evidence (standing decision: DNA is tasted-evidence-only;
+  // rating remains the only gate). Two durable writes: the pick_chosen
+  // ledger event, and a journal wishlist row carrying the somm note/role/
+  // steer — the 9pm rating must land them even though this screen is pure
+  // client state and won't survive until then.
+  const handleChoosePick = async (pick) => {
+    const previous = chosenWine && chosenWine !== pick.name ? chosenWine : null;
+    setChosenWine(pick.name);
+    setBypassState(null);
+    setRatingToast("On the table — tell me how it was later.");
+    setTimeout(() => setRatingToast(null), 2500);
+
+    recordEvent(supabase, user.id, "pick_chosen", pickChosenPayload({
+      wine: pick.name,
+      role: pick.pickType || null,
+      price: typeof pick.price === "number" ? pick.price : null,
+      steer,
+      session: verdictSessionRef.current,
+      replaced: previous,
+    }));
+
+    try {
+      // Preserve an existing "had" row — re-ordering an already-rated wine
+      // must not demote it to the wishlist
+      const { data: existing } = await supabase
+        .from("wine_interactions")
+        .select("interaction_type")
+        .eq("user_id", user.id)
+        .eq("wine_name", pick.name)
+        .single();
+      const row = {
+        user_id: user.id,
+        wine_name: pick.name,
+        interaction_type: existing?.interaction_type === "had" ? "had" : "want",
+        source_url: extractedFrom === "url" ? menuUrl : (extractedFrom === "scan" ? "photo_scan" : "text_paste"),
+        updated_at: new Date().toISOString(),
+      };
+      const note = sommNotes[wineKey(pick)];
+      if (note) {
+        row.somm_note = note;
+        if (pick.pickType) row.somm_pick_role = pick.pickType;
+      }
+      const steerNote = steer.trim();
+      if (steerNote) row.occasion = steerNote.slice(0, 200);
+      await supabase.from("wine_interactions").upsert(row, { onConflict: "user_id, wine_name" });
+    } catch (err) {
+      console.error("Choose save error (non-blocking):", err);
+    }
+  };
+
+  // ─── The Table Verdict: "went a different way" ───
+  // Session-level walk-away. Supersedes any chosen pick; the confirmation
+  // offers the bottle-log handoff so a rogue night still feeds DNA through
+  // the normal tasted-evidence path.
+  const handleBypass = () => {
+    setBypassState("noted");
+    recordEvent(supabase, user.id, "somm_bypassed", sommBypassedPayload({
+      session: verdictSessionRef.current,
+      steer,
+      picksShown: picks ? picks.length : null,
+      hadChosen: chosenWine,
+    }));
+    setChosenWine(null);
+  };
+
   const handleReset = () => {
     setPicks(null);
     setScoredEntries(null);
@@ -641,6 +732,10 @@ export default function RecommendPage() {
     setSommNotes({});
     setSommSummary("");
     setSommState("idle");
+    // A new table sitting: fresh verdict session, cleared declarations
+    setChosenWine(null);
+    setBypassState(null);
+    verdictSessionRef.current = mintVerdictSession();
   };
 
   const loadExample = () => {
@@ -1058,6 +1153,26 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                     marginTop: 14, paddingTop: 14,
                     borderTop: "1px solid rgba(27,61,47,0.06)",
                   }}>
+                    {/* The Table Verdict: declare the ordered wine. Intent,
+                        never DNA — rating below remains the only evidence gate */}
+                    {chosenWine === pick.name ? (
+                      <div data-testid="chosen-banner" style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                        padding: "11px 14px", borderRadius: "10px", marginBottom: 8,
+                        background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8",
+                        fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: 700,
+                        letterSpacing: "0.02em", boxShadow: "0 4px 14px rgba(139,35,50,0.25)",
+                      }}>🥂 On the table tonight</div>
+                    ) : (
+                      <button data-testid="choose-pick" onClick={() => handleChoosePick(pick)} style={{
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                        padding: "10px 14px", borderRadius: "10px", marginBottom: 8, minHeight: 40,
+                        border: "1px solid rgba(27,61,47,0.14)", background: "rgba(27,61,47,0.03)",
+                        fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
+                        color: "#1B3D2F", fontWeight: 600, cursor: "pointer",
+                        width: "100%",
+                      }}>🥂 This one&apos;s on the table</button>
+                    )}
                     {pickRatings[pick.name] ? (
                       <div style={{
                         display: "flex", alignItems: "center", gap: "8px",
@@ -1086,6 +1201,41 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ─── The Table Verdict: went a different way (session-level) ─── */}
+        {picks.length > 0 && bypassState === null && (
+          <div style={{ textAlign: "center", marginBottom: 28 }}>
+            <button data-testid="bypass-somm" onClick={handleBypass} style={{
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+              color: "#1B3D2F", opacity: 0.45, background: "none", border: "none",
+              cursor: "pointer", textDecoration: "underline", padding: "10px 16px",
+            }}>We went a different way tonight</button>
+          </div>
+        )}
+        {picks.length > 0 && bypassState === "noted" && (
+          <div data-testid="bypass-noted" style={{
+            padding: "18px 20px", borderRadius: "14px", marginBottom: 28,
+            background: "#F5F0E8", border: "1px solid rgba(139,35,50,0.12)",
+          }}>
+            <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", fontStyle: "italic", color: "#1B3D2F", margin: "0 0 14px", lineHeight: 1.55 }}>
+              Fair enough — the table calls it. Log what you drank and your palate still gets the night.
+            </p>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <a data-testid="bypass-log-link" href="/?log=1" style={{
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                padding: "12px 14px", borderRadius: "10px", textDecoration: "none",
+                background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: 600,
+              }}>📸 Log what you drank</a>
+              <button data-testid="bypass-skip" onClick={() => setBypassState("dismissed")} style={{
+                padding: "12px 18px", borderRadius: "10px",
+                border: "1px solid rgba(27,61,47,0.1)", background: "none",
+                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                color: "#1B3D2F", opacity: 0.55, cursor: "pointer",
+              }}>Skip</button>
+            </div>
           </div>
         )}
 

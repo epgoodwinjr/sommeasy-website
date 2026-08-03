@@ -266,6 +266,67 @@ for** steers the Somm can't honor at the candidate layer (styles like "big
 reds" rely on the model; grapes/places also get slate augmentation). No
 escalation threshold — this one is a product dial, not an alarm.
 
+### 11e. The table verdict (somm conversion funnel — "The Table Verdict", Aug 2026)
+
+Also from real-user feedback: "need to be able to log if you selected one
+of the recommended wines... as well as 'went with a different option'."
+Every /recommend analysis carries a client-minted `session` id on its
+`menu_analyzed` payload, and `pick_chosen` / `somm_bypassed` / `pick_rated`
+carry the same id — so a curation session resolves to chosen(+rated),
+chosen(unrated), bypassed, or silent, and this query IS the Somm's hit
+rate:
+
+```sql
+WITH sessions AS (
+  SELECT DISTINCT user_id, payload->>'session' AS session
+  FROM wine_events
+  WHERE event_type = 'menu_analyzed'
+    AND payload->>'session' IS NOT NULL
+    AND occurred_at > now() - interval '7 days'
+),
+chosen AS (
+  -- Latest declaration per session wins (the table changes its mind;
+  -- pick_chosen is append-only and carries `replaced` for the history)
+  SELECT DISTINCT ON (user_id, payload->>'session')
+         user_id, payload->>'session' AS session,
+         payload->>'wine' AS wine, occurred_at
+  FROM wine_events
+  WHERE event_type = 'pick_chosen'
+    AND occurred_at > now() - interval '7 days'
+  ORDER BY user_id, payload->>'session', occurred_at DESC
+),
+rated AS (
+  SELECT DISTINCT c.user_id, c.session
+  FROM chosen c
+  JOIN wine_events r
+    ON r.user_id = c.user_id
+   AND r.event_type IN ('pick_rated', 'rec_rated', 'journal_rerated', 'bottle_logged')
+   AND lower(trim(r.payload->>'wine')) = lower(trim(c.wine))
+   AND r.occurred_at >= c.occurred_at
+),
+bypassed AS (
+  SELECT DISTINCT user_id, payload->>'session' AS session
+  FROM wine_events
+  WHERE event_type = 'somm_bypassed'
+    AND occurred_at > now() - interval '7 days'
+)
+SELECT
+  (SELECT count(*) FROM sessions)  AS curation_sessions,
+  (SELECT count(*) FROM chosen)    AS chose_a_pick,
+  (SELECT count(*) FROM rated)     AS chosen_and_rated,
+  (SELECT count(*) FROM bypassed)  AS went_a_different_way;
+```
+
+Read it as a funnel: `chose_a_pick / curation_sessions` is how often the
+Somm's picks make it onto the table (with `went_a_different_way` as the
+honest denominator's other half — silence is the remainder, and silence is
+no longer ambiguous). `chosen_and_rated / chose_a_pick` is the follow-
+through — that conversion is the home "how was it?" prompt's one job.
+**Escalate when** chosen stays healthy but chosen_and_rated sits near zero
+for weeks (the ask isn't landing — check the 14-day expiry and the
+verdict-ask query in src/app/page.js), or when bypasses dominate chosen
+(the Somm is losing the table — read the steers in §11d next).
+
 ### 12. The roster (founder CRM)
 
 `SELECT * FROM user_roster;` — one row per user: signup date, title +

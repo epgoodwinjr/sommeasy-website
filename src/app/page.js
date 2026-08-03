@@ -10,8 +10,9 @@ import { saveQuizProfile } from "@/lib/saveQuizProfile";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
+import { resolveOutstandingVerdict, VERDICT_EVENT_TYPES, VERDICT_WINDOW_DAYS, readDismissedVerdicts, dismissVerdict } from "@/lib/tableVerdict";
 import Quiz from "@/components/Quiz";
-import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
+import WineRecList, { evolutionToastMessages, RatingModal } from "@/components/WineRecList";
 import PalateMark from "@/components/PalateMark";
 
 // ─── Saved Profile View ───
@@ -30,6 +31,10 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
   const [bottleError, setBottleError] = useState("");
   const bottleInputRef = useRef(null);
   const bottleGalleryRef = useRef(null);
+  // The Table Verdict: the one quiet "how was it?" ask — a chosen-but-
+  // unrated Somm pick outstanding, resolved from the wine_events ledger
+  const [verdictAsk, setVerdictAsk] = useState(null);
+  const [verdictRating, setVerdictRating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const supabase = createClient();
 
@@ -65,6 +70,41 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
     }
     if (user?.id) { loadWhisper(); }
   }, [user?.id]);
+
+  useEffect(() => {
+    // The Table Verdict ask: read the user's own recent verdict-and-rating
+    // events and let the pure resolver (tableVerdict.js) decide whether ONE
+    // quiet prompt is due. This is a UI read of usage history — the DNA and
+    // identity engines still never read wine_events. Any failure degrades
+    // to silence (same posture as the fire-and-forget write path; the
+    // wine-events blackhole guard drives this page with the table
+    // unreachable, and home must not care).
+    async function loadVerdictAsk() {
+      try {
+        const since = new Date(Date.now() - VERDICT_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from("wine_events")
+          .select("id, event_type, payload, occurred_at")
+          .eq("user_id", user.id)
+          .in("event_type", VERDICT_EVENT_TYPES)
+          .gte("occurred_at", since);
+        if (error || !data) return;
+        setVerdictAsk(resolveOutstandingVerdict(data, { dismissedIds: readDismissedVerdicts() }));
+      } catch { /* the prompt is a courtesy — never break home over it */ }
+    }
+    if (user?.id) loadVerdictAsk();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    // /?log=1 — the bypass flow's bottle-log handoff: open the camera step
+    // ready to tap (the picker itself needs a user gesture, so this stops
+    // at the button, not the camera)
+    if (new URLSearchParams(window.location.search).get("log") === "1") {
+      setBottleStep("camera");
+      window.history.replaceState({}, "", "/");
+    }
+  }, []);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
@@ -240,6 +280,82 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
     }
   };
 
+  // ─── The Table Verdict: rating through the ask ───
+  // Runs the SAME rate flow as every other surface: wine_interactions
+  // upsert → resolveAndAccumulate → milestone recompose → toasts. The somm
+  // note/role/steer already ride the row (written at choose time) and this
+  // upsert doesn't touch those columns, so they survive into the journal.
+  // pick_rated (surface verdict_prompt) carries the choice's session so the
+  // §11e funnel ties the rating back to its curation.
+  const handleVerdictDismiss = () => {
+    if (verdictAsk) dismissVerdict(verdictAsk.id);
+    setVerdictAsk(null);
+    setVerdictRating(false);
+  };
+
+  const handleVerdictRate = async (rating) => {
+    const ask = verdictAsk;
+    setVerdictRating(false);
+    if (!ask) return;
+    setVerdictAsk(null);
+    // Belt and braces: even if the event write below is lost, the ask
+    // stays gone on this device
+    dismissVerdict(ask.id);
+    try {
+      const { data: existing } = await supabase
+        .from("wine_interactions")
+        .select("rating")
+        .eq("user_id", user.id)
+        .eq("wine_name", ask.wine)
+        .single();
+      const previousRating = existing?.rating || null;
+
+      const { error } = await supabase.from("wine_interactions").upsert({
+        user_id: user.id,
+        wine_name: ask.wine,
+        interaction_type: "had",
+        rating,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id, wine_name" });
+      if (error) throw error;
+
+      let evolutionResult = null;
+      let shift = null;
+      try {
+        evolutionResult = await resolveAndAccumulate(supabase, user.id, ask.wine, rating, previousRating);
+        shift = await maybeRecomposeIdentity(supabase, user.id, { ...evolutionResult, rating });
+      } catch (evoErr) {
+        console.error("DNA evolution error (non-blocking):", evoErr);
+      }
+
+      recordEvent(supabase, user.id, "pick_rated", {
+        ...ratingEventPayload({
+          wine: ask.wine, rating, previousRating, surface: "verdict_prompt",
+          confidence: evolutionResult?.resolution?.confidence,
+        }),
+        session: ask.session,
+      });
+
+      setHasJournal(true);
+      showToast("Rating saved!");
+      if (evolutionResult?.promotions?.length > 0) showEvolutionToasts(evolutionResult.promotions, false);
+      if (evolutionResult?.demotions?.length > 0) showEvolutionToasts(evolutionResult.demotions, true);
+      if (shift?.shifted) {
+        const evoCount = (evolutionResult?.promotions?.length || 0) + (evolutionResult?.demotions?.length || 0);
+        const msg = shiftToastMessage(shift);
+        setTimeout(() => {
+          setEvolutionToasts((prev) => [...prev, msg]);
+          setTimeout(() => {
+            setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
+          }, 5000);
+        }, 1500 + evoCount * 1500);
+      }
+    } catch (err) {
+      console.error("Verdict rating failed:", err);
+      showToast("Couldn't save — try again from your journal.");
+    }
+  };
+
   const interactedCount = recCounts?.interactedRecs || 0;
 
   return (
@@ -317,6 +433,44 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
           </div>
         </div>
       </a>
+
+      {/* ─── The Table Verdict: the one quiet "how was it?" ─── */}
+      {verdictAsk && (
+        <div data-testid="verdict-ask" style={{
+          padding: "16px 20px", borderRadius: "14px", marginBottom: 24,
+          background: "#F5F0E8", border: "1px solid rgba(139,35,50,0.12)",
+          borderLeft: "3px solid #8B2332",
+        }}>
+          <div style={{
+            fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", fontWeight: 700,
+            color: "#8B2332", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6,
+          }}>🥂 The table verdict</div>
+          <p style={{
+            fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
+            color: "#1B3D2F", margin: "0 0 12px", lineHeight: 1.4,
+          }}>You ordered {verdictAsk.wine} — how was it?</p>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button data-testid="verdict-rate" onClick={() => setVerdictRating(true)} style={{
+              flex: 1, padding: "11px 14px", borderRadius: "10px", border: "none", minHeight: 40,
+              background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8",
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+            }}>Rate it</button>
+            <button data-testid="verdict-dismiss" onClick={handleVerdictDismiss} style={{
+              padding: "11px 18px", borderRadius: "10px", minHeight: 40,
+              border: "1px solid rgba(27,61,47,0.1)", background: "none",
+              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+              color: "#1B3D2F", opacity: 0.55, cursor: "pointer",
+            }}>Skip</button>
+          </div>
+        </div>
+      )}
+      {verdictRating && verdictAsk && (
+        <RatingModal
+          wine={verdictAsk.wine}
+          onRate={handleVerdictRate}
+          onClose={() => setVerdictRating(false)}
+        />
+      )}
 
       {/* ─── Log a Bottle ─── */}
       {/* Camera input — opens rear camera directly on mobile */}
@@ -411,7 +565,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
             color: "#8B2332", fontWeight: 600, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-          }}>📸 Take another photo</button>
+          }}>📸 Take a photo</button>
           <button onClick={() => { setBottleStep(null); setBottleError(""); }} style={{
             width: "100%", padding: "10px", marginTop: 8,
             fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",

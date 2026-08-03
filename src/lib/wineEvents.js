@@ -30,11 +30,12 @@
 
 import { CONFIDENCE_GATE, PARTIAL_CONFIDENCE_GATE } from "./dnaThresholds.js";
 
-/** The v1 catalog — mirrors the migration-009 CHECK constraint exactly. */
+/** The catalog — mirrors the wine_events CHECK constraint exactly
+ *  (migration 009 v1 set + migration 011's Table Verdict pair). */
 export const WINE_EVENT_TYPES = [
   "quiz_completed",        // mode fresh/refine/restore, dimension counts, composed title
   "menu_analyzed",         // source scan/url/paste/pdf, wines parsed, match count, somm outcome
-  "pick_rated",            // /recommend pick rating: wine, old→new, confidence band
+  "pick_rated",            // Somm-pick rating (surface recommend/verdict_prompt): wine, old→new, confidence band
   "bottle_logged",         // label-scan logging: wine, old→new, confidence band
   "rec_rated",             // WineRecList (home/reveal) rating: wine, old→new, confidence band
   "wine_wanted",           // intent: "Want to try"
@@ -43,6 +44,8 @@ export const WINE_EVENT_TYPES = [
   "journal_deleted",       // what was removed, whether points were reversed
   "narrative_regenerated", // cost record: tokens + estCostUSD (server-side)
   "somm_curation",         // cost record: tokens + estCostUSD + outcome
+  "pick_chosen",           // Table Verdict: "this one's on the table" — intent, never DNA evidence
+  "somm_bypassed",         // Table Verdict: the table went a different way tonight
 ];
 
 /**
@@ -126,6 +129,47 @@ export function quizEventPayload({ mode, raw, title } = {}) {
       wines: (r.specificWines || []).length,
     },
     title: title ?? null,
+  };
+}
+
+/** Trim + cap a diner steer for an event payload — the same 200-char cap the
+ *  somm payload builder and route enforce. Junk or empty → null. */
+function eventSteer(steer) {
+  if (typeof steer !== "string") return null;
+  const trimmed = steer.trim().slice(0, 200);
+  return trimmed || null;
+}
+
+/**
+ * pick_chosen payload (The Table Verdict): the diner declared "this one's on
+ * the table". Intent, not evidence — choosing NEVER touches DNA; rating
+ * remains the only gate. `session` is the client-minted analysis-session id
+ * (also on menu_analyzed / somm_bypassed) so the funnel counts dinners, not
+ * page-scans; `replaced` names the previously chosen wine when the table
+ * changed its mind.
+ */
+export function pickChosenPayload({ wine, role, price, steer, session, replaced } = {}) {
+  return {
+    wine: wine ?? null,
+    role: role ?? null,
+    price: typeof price === "number" && Number.isFinite(price) ? price : null,
+    steer: eventSteer(steer),
+    session: session ?? null,
+    replaced: replaced ?? null,
+  };
+}
+
+/**
+ * somm_bypassed payload (The Table Verdict): the table went a different way.
+ * Session-level — no wine required. `had_chosen` records a pick_chosen this
+ * bypass superseded, so the funnel can resolve that session as bypassed.
+ */
+export function sommBypassedPayload({ session, steer, picksShown, hadChosen } = {}) {
+  return {
+    session: session ?? null,
+    steer: eventSteer(steer),
+    picks_shown: typeof picksShown === "number" && Number.isFinite(picksShown) ? picksShown : null,
+    had_chosen: hadChosen ?? null,
   };
 }
 
