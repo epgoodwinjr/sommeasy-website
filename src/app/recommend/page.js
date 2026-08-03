@@ -108,6 +108,10 @@ export default function RecommendPage() {
   const sommSeqRef = useRef(0);
   const verdictSessionRef = useRef(null);
   if (!verdictSessionRef.current) verdictSessionRef.current = mintVerdictSession();
+  // Wishlist rows THIS sitting's choose created (proven absent before the
+  // upsert). Provenance can't be read back off the columns, but a replacement
+  // can only happen in the sitting that chose — so in-memory is complete.
+  const chooseCreatedRef = useRef(new Set());
   const fileInputRef = useRef(null);
   const addPageInputRef = useRef(null);
   const userDNARef = useRef(null);
@@ -674,12 +678,15 @@ export default function RecommendPage() {
     try {
       // Preserve an existing "had" row — re-ordering an already-rated wine
       // must not demote it to the wishlist
-      const { data: existing } = await supabase
+      const { data: existing, error: existingErr } = await supabase
         .from("wine_interactions")
         .select("interaction_type")
         .eq("user_id", user.id)
         .eq("wine_name", pick.name)
         .single();
+      // PGRST116 (zero rows) is the only outcome that PROVES no row existed;
+      // any other failure means we can't claim this choose created the row
+      const provenAbsent = !existing && existingErr?.code === "PGRST116";
       const row = {
         user_id: user.id,
         wine_name: pick.name,
@@ -694,7 +701,23 @@ export default function RecommendPage() {
       }
       const steerNote = steer.trim();
       if (steerNote) row.occasion = steerNote.slice(0, 200);
-      await supabase.from("wine_interactions").upsert(row, { onConflict: "user_id, wine_name" });
+      const { error: upsertErr } = await supabase.from("wine_interactions").upsert(row, { onConflict: "user_id, wine_name" });
+      if (!upsertErr && provenAbsent) chooseCreatedRef.current.add(pick.name);
+
+      // The banner moved: the previous wine's wishlist row is stale STATE
+      // (the ledger's `replaced` keeps the history). Delete it ONLY if this
+      // sitting's choose created it, and only while it's still an unrated
+      // want — a rating that landed in between is a journal fact, kept.
+      if (previous && chooseCreatedRef.current.has(previous)) {
+        const { error: cleanupErr } = await supabase
+          .from("wine_interactions")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("wine_name", previous)
+          .eq("interaction_type", "want")
+          .is("rating", null);
+        if (!cleanupErr) chooseCreatedRef.current.delete(previous);
+      }
     } catch (err) {
       console.error("Choose save error (non-blocking):", err);
     }
@@ -732,10 +755,14 @@ export default function RecommendPage() {
     setSommNotes({});
     setSommSummary("");
     setSommState("idle");
-    // A new table sitting: fresh verdict session, cleared declarations
+    // A new table sitting: fresh verdict session, cleared declarations —
+    // and cleared provenance: a NEW sitting must never delete rows a
+    // previous sitting's choose created (that choice stands as its last
+    // table moment)
     setChosenWine(null);
     setBypassState(null);
     verdictSessionRef.current = mintVerdictSession();
+    chooseCreatedRef.current = new Set();
   };
 
   const loadExample = () => {

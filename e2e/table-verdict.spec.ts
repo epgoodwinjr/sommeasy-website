@@ -19,6 +19,15 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  *    from the LEDGER — it stays gone across a reload.
  * 3. "We went a different way tonight" must write somm_bypassed and offer
  *    the bottle-log handoff (/?log=1 opens the camera step on home).
+ * 4. Replacing the chosen pick must clean up ONLY the wishlist row the
+ *    choose itself created — a want row that pre-existed the sitting's
+ *    choose must survive the banner moving (provenance is in-session:
+ *    the client marks rows it created; nothing in the columns can tell
+ *    them apart after the fact).
+ *
+ * Test 1 also pins the §11e session join in a REAL flow: menu_analyzed and
+ * pick_chosen from the same sitting must carry the same client-minted
+ * session id — that join is the watchtower funnel's backbone.
  *
  * Do NOT make these outcome-tolerant: if the chosen declaration stops
  * landing durably, a diner who ordered a pick and closed the tab is
@@ -46,6 +55,32 @@ async function findGuardRows(supabase: SupabaseClient, userId: string) {
     .eq("user_id", userId)
     .eq("source_url", "text_paste")
     .ilike("wine_name", "%ken forrester%");
+  return data ?? [];
+}
+
+// Test 5's wines — Stellenbosch / Walker Bay so the fixture DNA scores them
+// into the picks, deliberately NOT any spec's guard wine (Kanonkop =
+// evidence-ledger, Dujac = identity-shift, Ken Forrester = this spec's).
+// Choosing never touches DNA (test 1 pins it), and these rows are cleaned
+// by name here + healed in beforeAll/afterAll.
+const REPLACE_WINE_PATTERNS = ["%meerlust%", "%hamilton russell%"];
+
+async function cleanupReplacementRows(supabase: SupabaseClient, userId: string) {
+  for (const pattern of REPLACE_WINE_PATTERNS) {
+    await supabase
+      .from("wine_interactions")
+      .delete()
+      .eq("user_id", userId)
+      .ilike("wine_name", pattern);
+  }
+}
+
+async function findRowsByName(supabase: SupabaseClient, userId: string, wineName: string) {
+  const { data } = await supabase
+    .from("wine_interactions")
+    .select("wine_name, interaction_type, rating, source_url")
+    .eq("user_id", userId)
+    .eq("wine_name", wineName);
   return data ?? [];
 }
 
@@ -79,6 +114,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
         .eq("user_id", userId)
         .eq("wine_name", row.wine_name);
     }
+    await cleanupReplacementRows(supabase, userId);
     baselineChenin = await readCheninPoints(supabase, userId);
     const { data } = await supabase
       .from("wine_profiles")
@@ -101,6 +137,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
         .eq("user_id", userId)
         .eq("wine_name", row.wine_name);
     }
+    await cleanupReplacementRows(supabase, userId);
     if (baselineIdentity) {
       await supabase.from("wine_profiles").update(baselineIdentity).eq("user_id", userId);
     }
@@ -109,6 +146,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
   test("choosing a pick writes pick_chosen + a durable wishlist row — and never DNA", async ({ page }) => {
     test.setTimeout(120_000);
     const chosenBefore = await countEvents(supabase, userId, "pick_chosen");
+    const menuBefore = await countEvents(supabase, userId, "menu_analyzed");
 
     const recPage = new RecommendPage(page);
     await recPage.goto();
@@ -148,6 +186,16 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     const chenin = await readCheninPoints(supabase, userId);
     expect(chenin?.points ?? null).toBe(baselineChenin?.points ?? null);
     expect(chenin?.interaction_count ?? null).toBe(baselineChenin?.interaction_count ?? null);
+
+    // The §11e session join, proven in a real flow: this sitting's analysis
+    // and its choice must ride the SAME client-minted session id. The
+    // menu_analyzed write waits for the somm outcome, so give it the somm's
+    // worst case to land.
+    await expect
+      .poll(async () => countEvents(supabase, userId, "menu_analyzed"), { timeout: 30_000 })
+      .toBe(menuBefore + 1);
+    const menuEvent = await latestEvent(supabase, userId, "menu_analyzed");
+    expect(menuEvent!.payload.session).toBe(sessionA);
   });
 
   test("home shows the one quiet ask; rating through it runs the real rate flow", async ({ page }) => {
@@ -256,5 +304,106 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     const deleteEvent = await latestEvent(supabase, userId, "journal_deleted");
     expect(deleteEvent!.payload.wine).toBe(guardName);
     expect(deleteEvent!.payload.points_reversed).toBe(false); // "fine" carried no points
+  });
+
+  test("replacing the chosen pick removes only the row the choose created", async ({ page }) => {
+    test.setTimeout(180_000);
+    const TWO_LINES = [
+      "Meerlust Rubicon, Stellenbosch 2018...$92",
+      "Hamilton Russell Pinot Noir, Walker Bay 2020...$85",
+    ].join("\n");
+    const chosenBefore = await countEvents(supabase, userId, "pick_chosen");
+
+    // ── Round 1: both rows are choose-created; replacement cleans the loser ──
+    const recPage = new RecommendPage(page);
+    await recPage.goto();
+    await recPage.pasteAndAnalyze(TWO_LINES);
+    await expect(recPage.resultsHeading).toBeVisible({ timeout: 10_000 });
+
+    const cardP = recPage.pickCards.filter({ hasText: /Meerlust/ }).first();
+    const cardQ = recPage.pickCards.filter({ hasText: /Hamilton Russell/ }).first();
+    await expect(cardP).toBeVisible();
+    await expect(cardQ).toBeVisible();
+
+    await cardP.getByTestId("choose-pick").click();
+    await expect(cardP.getByTestId("chosen-banner")).toBeVisible();
+    await expect
+      .poll(async () => countEvents(supabase, userId, "pick_chosen"), { timeout: 15_000 })
+      .toBe(chosenBefore + 1);
+    const eventP = await latestEvent(supabase, userId, "pick_chosen");
+    const nameP = eventP!.payload.wine as string;
+    expect(eventP!.payload.replaced).toBeNull();
+    // Wait for P's wishlist row (and with it the in-session provenance mark)
+    await expect
+      .poll(async () => (await findRowsByName(supabase, userId, nameP)).length, { timeout: 15_000 })
+      .toBe(1);
+
+    // The change of mind: banner moves, `replaced` records it in the ledger
+    await cardQ.getByTestId("choose-pick").click();
+    await expect(cardQ.getByTestId("chosen-banner")).toBeVisible();
+    await expect(cardP.getByTestId("chosen-banner")).toBeHidden();
+    await expect
+      .poll(async () => countEvents(supabase, userId, "pick_chosen"), { timeout: 15_000 })
+      .toBe(chosenBefore + 2);
+    const eventQ = await latestEvent(supabase, userId, "pick_chosen");
+    const nameQ = eventQ!.payload.wine as string;
+    expect(eventQ!.payload.replaced).toBe(nameP);
+
+    // THE CLEANUP: P's row was created by this sitting's choose — the banner
+    // moving must remove it (state, not history — the ledger keeps `replaced`)
+    await expect
+      .poll(async () => (await findRowsByName(supabase, userId, nameP)).length, { timeout: 15_000 })
+      .toBe(0);
+    // …while Q's row (the new choice) stands, unrated
+    await expect
+      .poll(async () => {
+        const rows = await findRowsByName(supabase, userId, nameQ);
+        return rows.length === 1 ? `${rows[0].interaction_type}:${rows[0].rating}` : "no-row";
+      }, { timeout: 15_000 })
+      .toBe("want:null");
+
+    // ── Round 2: a want row that PRE-EXISTED the sitting's choose survives ──
+    await supabase.from("wine_interactions").insert({
+      user_id: userId,
+      wine_name: nameP,
+      interaction_type: "want",
+      source_url: "e2e_preexist",
+    });
+    await recPage.scanAgainButton.click(); // new sitting: fresh session, cleared provenance
+    await recPage.pasteAndAnalyze(TWO_LINES);
+    await expect(recPage.resultsHeading).toBeVisible({ timeout: 10_000 });
+
+    const cardP2 = recPage.pickCards.filter({ hasText: /Meerlust/ }).first();
+    const cardQ2 = recPage.pickCards.filter({ hasText: /Hamilton Russell/ }).first();
+    await cardP2.getByTestId("choose-pick").click();
+    await expect(cardP2.getByTestId("chosen-banner")).toBeVisible();
+    await expect
+      .poll(async () => countEvents(supabase, userId, "pick_chosen"), { timeout: 15_000 })
+      .toBe(chosenBefore + 3);
+
+    await cardQ2.getByTestId("choose-pick").click();
+    await expect(cardQ2.getByTestId("chosen-banner")).toBeVisible();
+    await expect
+      .poll(async () => countEvents(supabase, userId, "pick_chosen"), { timeout: 15_000 })
+      .toBe(chosenBefore + 4);
+    const eventQ2 = await latestEvent(supabase, userId, "pick_chosen");
+    expect(eventQ2!.payload.replaced).toBe(nameP);
+
+    // Q's fresh row landing proves the replacement flow (upsert + any
+    // cleanup) has run — NOW assert P's pre-existing row survived it
+    await expect
+      .poll(async () => (await findRowsByName(supabase, userId, nameQ)).length, { timeout: 15_000 })
+      .toBe(1);
+    const survivors = await findRowsByName(supabase, userId, nameP);
+    expect(survivors.length).toBe(1);
+    expect(survivors[0].interaction_type).toBe("want");
+
+    // Leave no outstanding ask for later specs: the bypass supersedes
+    await page.getByTestId("bypass-somm").click();
+    await page.getByTestId("bypass-noted").getByTestId("bypass-skip").click();
+
+    // wine_interactions is state, not history — direct cleanup is fine here
+    // (wine_events stays append-forever, untouched)
+    await cleanupReplacementRows(supabase, userId);
   });
 });
