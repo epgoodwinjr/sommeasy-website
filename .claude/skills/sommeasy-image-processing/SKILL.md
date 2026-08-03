@@ -13,80 +13,98 @@ description: >
 
 # Sommeasy Image Processing Skill
 
-This skill governs how Claude Code should approach all image processing and
-OCR work in the Sommeasy Next.js web app. It defines the decision logic,
-preferred libraries, code patterns, and integration points to follow
-consistently across the codebase.
+All image extraction in Sommeasy runs through **Claude Vision** (Anthropic
+API) via server-side Next.js routes. There is no client-side OCR library
+and there is exactly one image-extraction technology. (Plain text — pasted
+or URL-scraped wine lists — is parsed client-side for free; only images and
+uploaded PDFs cost a Claude call.) This skill defines the routing, the
+contracts, and the invariants to follow.
+
+**Source of truth is the code, not this file.** When contracts here and the
+route implementations disagree, trust the routes and fix this file.
 
 ---
 
-## The Core Decision Rule
+## The Routing Table
 
-Sommeasy handles three types of image sources. Always route to the correct
-processing path based on the source type:
+Every *image* input routes to Claude Vision — the only decision is *which
+route*. Text inputs never leave the browser's parser:
 
-| Image Source | Correct Tool | Reason |
+| Input | Path | Payload / mechanism |
 |---|---|---|
-| Wine bottle labels | Claude Vision API | Decorative/calligraphic fonts, curved surfaces, complex backgrounds — classical OCR fails here |
-| Restaurant wine lists / menus | Tesseract.js | Printed text, clean contrast, structured layout — no API cost needed |
-| Wine shop shelf tags / price cards | Tesseract.js | Simple printed text, high contrast — Tesseract handles this well |
+| Wine bottle label photo | `POST /api/scan-label` (Claude Vision) | multipart FormData, `image` field |
+| Restaurant wine list / menu photo | `POST /api/parse-wine-list` (Claude Vision) | JSON `{ imageBase64, mimeType }` |
+| Uploaded wine-list PDF | `POST /api/parse-wine-list` (Claude Vision) | JSON `{ pdfBase64 }` (document block) |
+| Wine list URL (HTML or PDF) | `/api/fetch-menu` (safeFetch, SSRF-guarded; unpdf for PDF URLs) → client-side `parseWineList` | No Claude call — scraped text parsed in the browser |
+| Pasted wine list text | client-side `parseWineList` (matchEngine) | No Claude call |
+| Shelf tag / price card | `POST /api/scan-label` | No dedicated shelf-tag feature exists; a single-wine photo is a label scan |
 
-**When in doubt about source type, ask the user before writing code.**
+Two nuances worth keeping straight:
+
+- **Transport asymmetry is real:** scan-label takes FormData,
+  parse-wine-list takes a JSON body with base64. Don't "unify" them casually.
+- **`{ textContent }` is a route capability, not a live flow:**
+  parse-wine-list also accepts scraped text (capped 15,000 chars) for
+  Vision-grade structured extraction, but no current UI sends it — URL and
+  paste flows deliberately use the free, instant client-side parser. Don't
+  document or build against the textContent path as if it were the URL flow.
 
 ---
 
 ## Stack Context
 
-- Framework: Next.js (App Router preferred unless existing code uses Pages Router)
-- OCR library: `tesseract.js` (runs client-side in the browser — no server, no cost)
-- Vision: Anthropic Claude API with vision capability (already integrated in the app)
-- Image upload: check the existing codebase for the current upload component before building new — extend it rather than replacing it
+- **Framework:** Next.js 14 App Router; routes at `src/app/api/*/route.js`
+- **Vision:** `@anthropic-ai/sdk` server-side only. Model comes from
+  `CLAUDE_MODEL` in `src/lib/anthropicConfig.js` — **never hardcode a model
+  ID** (a retired hardcoded ID silently killed prod scanning for three weeks
+  in June 2026)
+- **No OCR library:** tesseract.js is retired (see History below)
+- **Client-side prep:** images are downscaled + JPEG-compressed in the
+  browser before upload. `compressImage` in `src/lib/image-utils.js`
+  (1600px, 0.82) serves the home-page bottle logger; the recommend page has
+  its own local variant (1200px/0.7, re-compress at 1024/0.6 if still >2MB)
+- **Every Claude route:** `checkRateLimit` before any work, `logClaudeUsage`
+  after the call (both from `src/lib/rateLimit.js`), graceful brand-voice
+  degradation when `ANTHROPIC_API_KEY` is absent
 
 ---
 
-## Tesseract.js Path (Wine Lists & Shelf Tags)
+## The Two Routes
 
-Read `references/tesseract-patterns.md` for full implementation details,
-including the recommended Next.js component pattern, preprocessing steps,
-language settings, and structured data extraction logic.
+Read `references/vision-patterns.md` for full request/response contracts,
+error taxonomies, and parsing behavior **before modifying either route**.
 
-**When to read it:** Any time you are writing or modifying code that uses
-Tesseract.js for wine list or shelf tag processing.
+### `/api/scan-label` — one bottle, one wine
 
-### Key principles to always follow:
-- Run Tesseract client-side — never on the server. It is a browser library.
-- Always preprocess the image before OCR (see references for how). Raw photos
-  perform significantly worse.
-- After extracting raw text, always run a parsing pass to pull out structured
-  fields: wine name, producer, vintage, region, price.
-- Confidence threshold: discard or flag results below 70% confidence rather
-  than passing low-quality extractions to the database.
+Image → `LABEL_EXTRACTION_PROMPT` (defined in the route — the canonical
+prompt; never improvise a per-call variant) → JSON → `parseLabelResponse`
+(`src/lib/wineExtraction.js`) → `WineExtraction`. Returns 422 when neither
+name nor producer was extracted. Consumer: the home-page bottle logger,
+which then feeds `resolveAndAccumulate` (dnaEvolution.js) → DNA evolution.
 
----
+### `/api/parse-wine-list` — a whole menu
 
-## Claude Vision Path (Bottle Labels)
+Image/PDF/text → `EXTRACTION_PROMPT` (in the route) → `{ wines: [...],
+metadata }`. Two response paths, both consumed by `runAnalysis()` on the
+recommend page:
 
-Read `references/vision-patterns.md` for the full prompt template, API call
-pattern, response parsing logic, and error handling approach.
+- **Path A** (structured): `{ wines, metadata, rawText, source: "vision" }`
+  → match engine directly
+- **Path B** (fallback): `{ rawText, source: "vision_text" }` → client-side
+  text parser
 
-**When to read it:** Any time you are writing or modifying code that sends
-a wine label image to the Claude API for extraction.
-
-### Key principles to always follow:
-- Always send the structured extraction prompt from the reference file — do
-  not improvise a new prompt each time. Consistency matters for downstream
-  parsing.
-- Parse the API response into the same structured schema used by the
-  Tesseract path so downstream database matching works identically regardless
-  of which path was used.
-- Handle the case where the API cannot confidently extract a field — return
-  null for that field rather than a guess.
+Malformed JSON gets one rescue attempt (`extractFirstJsonObject`, trusted
+only if it carries a `wines` array) before falling back to Path B.
 
 ---
 
-## Shared Output Schema
+## Output Schemas
 
-Both paths must produce output in this shape before passing to database search:
+Two schemas, not one — they serve different features:
+
+**Label scans** produce `WineExtraction` (JSDoc typedef in
+`src/lib/wineExtraction.js` — mirror it exactly, including
+`source: 'claude-vision'`, the only value):
 
 ```typescript
 interface WineExtraction {
@@ -95,41 +113,54 @@ interface WineExtraction {
   vintage: number | null;
   region: string | null;
   country: string | null;
-  price: string | null;
+  price: string | null;        // always null — labels don't carry pricing
   confidence: 'high' | 'medium' | 'low';
-  source: 'tesseract' | 'claude-vision';
+  source: 'claude-vision';
 }
 ```
 
-Never pass raw OCR text strings directly to the database. Always parse into
-this schema first.
+**Wine-list parses** produce entries shaped by `EXTRACTION_PROMPT`: `name`,
+`vintage`, `price`, `section`, `is_btg`, `color`, `variety`, `region`,
+`country`, `producer`. This shape feeds `matchWinesAgainstDNA` — if you
+change it, check the match engine and the somm payload builder.
+
+Never pass raw model text to matching. Fields the model can't read are
+`null` — the prompts enforce "null is better than an incorrect value."
 
 ---
 
-## Database Integration
+## Invariants
 
-After extraction, the structured result feeds into the existing Sommeasy wine
-database search. Before writing any new search/matching logic:
-1. Check the existing codebase for the current wine matching/search function
-2. Extend it to accept `WineExtraction` input rather than rebuilding from scratch
-3. Prioritise matching on `name` + `vintage` + `producer` in that order
+- **One extraction technology.** Do not add tesseract.js, a WASM OCR
+  library, or any second extraction path. If Vision output is poor, fix the
+  prompt or the image compression — don't reach for a second engine.
+- **Canonical prompts live in the routes.** Edit them in place; consistency
+  is what keeps the parsers reliable.
+- **API key stays server-side.** Never call Anthropic from the browser.
+- **User-supplied URLs go through `safeFetch`** (`src/lib/ssrfGuard.js`) —
+  never a raw `fetch` with `redirect: "follow"`.
+- **New Claude-calling routes** get `checkRateLimit` + `logClaudeUsage` and
+  a friendly no-key fallback, same as the existing ones.
+- **Error copy is brand voice:** warm, no raw error strings, always tells
+  the user what to do next ("Try a clearer, closer photo.").
+- **Cost awareness:** ~$0.009/scan (text path), labels comparable. e2e runs
+  make real Claude calls (~$0.15–0.30/run). The API is approved and
+  encouraged — be mindful, not avoidant.
 
 ---
 
-## Common Pitfalls to Avoid
+## History (why this file looks the way it does)
 
-- **Don't run Tesseract on the server.** It is a browser library. Use it in
-  a client component or a `useEffect`.
-- **Don't skip image preprocessing.** Raw uploads will give poor OCR results.
-  Always resize, convert to greyscale, and increase contrast first.
-- **Don't use a single code path for all image types.** Bottle labels need
-  Vision; menus and shelf tags need Tesseract. Keep them separate.
-- **Don't hardcode the Anthropic API key** in frontend code. Always use an
-  environment variable via a Next.js API route.
+Early Sommeasy ran a hybrid: Tesseract.js in the browser for wine lists and
+shelf tags, Claude Vision for labels. The Tesseract path was retired — it
+was a declared-but-never-called dependency, and its last dead remnants
+(`parseOCRText`, `preprocessForOCR`) were deleted in the Aug 3, 2026
+dead-code removal. `references/tesseract-patterns.md` was deleted with it.
+Don't resurrect any of it; the git history has it if you're curious.
 
 ---
 
 ## Reference Files
 
-- `references/tesseract-patterns.md` — Full Tesseract.js implementation for Next.js
-- `references/vision-patterns.md` — Claude Vision API call pattern + prompt template
+- `references/vision-patterns.md` — request/response contracts, error
+  taxonomies, and client integration patterns for both Vision routes
