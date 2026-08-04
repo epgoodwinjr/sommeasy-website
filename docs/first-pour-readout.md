@@ -178,5 +178,66 @@ can judge whether the 3-of-5 stall moved.
 
 ---
 
-*Main event implementation, e2e, prod verification, and the rest of this readout
-follow after Ed's review.*
+# Build readout (post-approval)
+
+Ed approved Phase 0 as proposed (card set/copy/order verbatim; module yields to its
+card; /palate links authorized; zero-state fixture) and added one item: the bypass
+path gets the same cleanup machinery.
+
+## Bypass-after-choose cleanup (Ed's addition)
+
+`handleBypass` now fires the same `cleanupChooseCreatedRow` the replacement path
+uses — one shared helper, one safe rule: delete only a row this sitting's choose
+provably created, only while it's still an unrated `want`; every failure lingers.
+Fire-and-forget from the bypass (the UI beat never waits on it). TDD: table-verdict
+test 6 failed at exactly the cleanup poll before the implementation; both directions
+covered (created row vanishes on bypass, seeded pre-existing want survives).
+
+## The cards, as built
+
+- `src/lib/firstPour.js` — the pure resolver (tableVerdict pattern), 16-test unit
+  suite written first and watched fail. Teach order [rate-one, log-a-bottle,
+  bring-a-list], MAX_VISIBLE_CARDS 2, completion per the approved rules, and the
+  unknown-≠-empty contract: null/non-array input (a failed read) returns silence;
+  an empty array (a genuinely fresh user) shows cards.
+- Home: cards render in the prompt band only after the verdict read SETTLES
+  (`verdictLoaded`) and no ask is due — the exact stacking rule, with no
+  flash-then-vanish. Dismiss (×, 40px target) re-resolves against the stored
+  inputs so the third card surfaces immediately. CTAs: rate-one scrolls to Wines
+  to Try; log-a-bottle opens the real camera/gallery input; bring-a-list links
+  /recommend. The plain Log a Bottle module hides while its card shows (Ed's ②).
+- /palate: "Recently evolved" empty state carries "Rate a wine you know →" (/),
+  "Building now" carries "Log tonight's bottle →" (/?log=1 — the deep link the
+  bypass handoff already proved). Both quiet, matching "Full history →".
+- Sage left-border on cards (teaching voice) vs the verdict ask's burgundy
+  (timely voice) — same card furniture otherwise.
+
+## The zero-state fixture, as built
+
+`epgoodwin+e2e-fresh@gmail.com` (creds in .env.local as TEST_FRESH_*): created via
+the project's own signUp API + the established confirm-email-via-SQL step, seeded a
+quiz-only profile through the REAL quiz UI by the spec's self-healing
+`ensureProfile` (the seed-test-account selections, minus every rating — bottles
+stay zero forever). `freshDb()` joined `testDb()` in e2e/fixtures/test-db.ts.
+Standing rule, now in CLAUDE.md: never analyze menus or log bottles as this user —
+those events are append-forever and would permanently retire its cards. The
+rate-one cycle (rate → retire → journal-delete → resurrect) is both the guard and
+the restore.
+
+## Verification
+
+- Unit: 14 suites, 386 tests, all green (firstPour 16/16 new).
+- e2e: full suite green — see the run record below. New coverage: fresh account
+  shows exactly [rate-one, log-a-bottle] with the camera module yielded; dismissal
+  is device-local, slot-yielding, reload-persistent; rating through the real UI
+  retires rate-one across a reload and the journal delete honestly resurrects it;
+  a due verdict ask suppresses all cards (synthesized at the network layer — no
+  real pick_chosen row ever dirties the fresh ledger); blackholed wine_events
+  degrades to silence; the RICH account shows zero cards.
+- 375px screenshots: docs/first-pour-screens/ (home with cards, each card's
+  portrait, /palate empty states with links).
+- Watchtower §11f added: per-user quiz → first bottle_logged/menu_analyzed lag +
+  the one-line conversion summary (baseline 2-of-5 at ship). Exclude both e2e
+  accounts before reading percentages.
+
+*(Prod verification evidence appended below after deploy.)*

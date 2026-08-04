@@ -705,22 +705,30 @@ export default function RecommendPage() {
       if (!upsertErr && provenAbsent) chooseCreatedRef.current.add(pick.name);
 
       // The banner moved: the previous wine's wishlist row is stale STATE
-      // (the ledger's `replaced` keeps the history). Delete it ONLY if this
-      // sitting's choose created it, and only while it's still an unrated
-      // want — a rating that landed in between is a journal fact, kept.
-      if (previous && chooseCreatedRef.current.has(previous)) {
-        const { error: cleanupErr } = await supabase
-          .from("wine_interactions")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("wine_name", previous)
-          .eq("interaction_type", "want")
-          .is("rating", null);
-        if (!cleanupErr) chooseCreatedRef.current.delete(previous);
-      }
+      // (the ledger's `replaced` keeps the history).
+      await cleanupChooseCreatedRow(previous);
     } catch (err) {
       console.error("Choose save error (non-blocking):", err);
     }
+  };
+
+  // The walk-away cleanup, shared by replacement and bypass: delete a
+  // wishlist row ONLY if this sitting's choose created it (the in-session
+  // mark), and only while it's still an unrated want — a rating that landed
+  // in between is a journal fact, kept. Every failure degrades to the row
+  // lingering, never to a wrong delete.
+  const cleanupChooseCreatedRow = async (wineName) => {
+    if (!wineName || !chooseCreatedRef.current.has(wineName)) return;
+    try {
+      const { error } = await supabase
+        .from("wine_interactions")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("wine_name", wineName)
+        .eq("interaction_type", "want")
+        .is("rating", null);
+      if (!error) chooseCreatedRef.current.delete(wineName);
+    } catch { /* linger, never wrong-delete */ }
   };
 
   // ─── The Table Verdict: "went a different way" ───
@@ -735,6 +743,9 @@ export default function RecommendPage() {
       picksShown: picks ? picks.length : null,
       hadChosen: chosenWine,
     }));
+    // The table walked away from the chosen wine too — same cleanup as a
+    // replacement (fire-and-forget; the UI beat never waits on it)
+    cleanupChooseCreatedRow(chosenWine);
     setChosenWine(null);
   };
 

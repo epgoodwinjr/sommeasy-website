@@ -22,6 +22,26 @@ export async function testDb(): Promise<{ supabase: SupabaseClient; userId: stri
 }
 
 /**
+ * Same as testDb, for the ZERO-STATE First Pour fixture account
+ * (TEST_FRESH_EMAIL) — quiz-only profile, zero bottles. The first-pour spec
+ * keeps it restorable: its only rated-row test uses the rate → retire →
+ * journal-delete cycle, and rate-one's completion reads wine_interactions
+ * only, so the append-forever wine_events rows it accrues never matter.
+ */
+export async function freshDb(): Promise<{ supabase: SupabaseClient; userId: string }> {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: process.env.TEST_FRESH_EMAIL!,
+    password: process.env.TEST_FRESH_PASSWORD!,
+  });
+  if (error) throw new Error(`fresh-db sign-in failed: ${error.message}`);
+  return { supabase, userId: data.user!.id };
+}
+
+/**
  * The account's one earned-promoted DNA fixture: Chenin Blanc, "earned" by
  * ratings (source='auto', promoted, 6 points = exactly at the varietal
  * threshold — dnaThresholds.js). The uncheck spec removes it through the

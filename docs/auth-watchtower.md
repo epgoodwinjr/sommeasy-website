@@ -327,6 +327,69 @@ for weeks (the ask isn't landing — check the 14-day expiry and the
 verdict-ask query in src/app/page.js), or when bypasses dominate chosen
 (the Somm is losing the table — read the steers in §11d next).
 
+### 11f. The first pour (quiz → first action — "The First Pour", Aug 2026)
+
+The Aug 3 health report's teeth: 3 of 5 new signups stalled at
+quiz-with-zero-bottles. Home's First Pour cards exist to move exactly this
+number, and this query is how the next health report judges them — per
+user: when did the quiz land, and how long until the first real action
+(a logged bottle or an analyzed menu)?
+
+```sql
+WITH first_quiz AS (
+  SELECT user_id, min(occurred_at) AS quiz_at
+  FROM wine_events
+  WHERE event_type = 'quiz_completed'
+  GROUP BY user_id
+),
+first_action AS (
+  SELECT user_id,
+         min(occurred_at) FILTER (WHERE event_type = 'bottle_logged')  AS first_bottle,
+         min(occurred_at) FILTER (WHERE event_type = 'menu_analyzed')  AS first_menu
+  FROM wine_events
+  GROUP BY user_id
+)
+SELECT
+  q.user_id,
+  q.quiz_at::date                                   AS quiz_day,
+  a.first_bottle,
+  a.first_menu,
+  least(a.first_bottle, a.first_menu) - q.quiz_at   AS lag_to_first_action
+FROM first_quiz q
+LEFT JOIN first_action a USING (user_id)
+ORDER BY q.quiz_at DESC;
+```
+
+And the one-line conversion summary:
+
+```sql
+WITH first_quiz AS (
+  SELECT user_id, min(occurred_at) AS quiz_at
+  FROM wine_events WHERE event_type = 'quiz_completed' GROUP BY user_id
+),
+acted AS (
+  SELECT DISTINCT user_id FROM wine_events
+  WHERE event_type IN ('bottle_logged', 'menu_analyzed')
+)
+SELECT
+  count(*)                                        AS quiz_users,
+  count(*) FILTER (WHERE a.user_id IS NOT NULL)   AS reached_first_action,
+  round(100.0 * count(*) FILTER (WHERE a.user_id IS NOT NULL) / greatest(count(*), 1)) AS pct
+FROM first_quiz q LEFT JOIN acted a USING (user_id);
+```
+
+Baseline at ship time (Aug 3): 2 of 5 — the report's 3-of-5 stall. **Escalate
+when** the pct hasn't moved by the Aug 10 health report (the cards aren't
+teaching — check card impressions are even possible: verdict-ask precedence,
+the two head queries in src/app/page.js, and whether new users' home visits
+happen at all), or when lag_to_first_action stretches past a week for users
+who DO convert (the cards teach, but not soon enough — reconsider order or
+copy). Note: rate-one retirements deliberately leave no event trace
+(interactions-only by design) — this funnel watches the two event-bearing
+verbs, which are also the two the stall is made of. Exclude the e2e accounts
+(epgoodwin+e2e@ / epgoodwin+e2e-fresh@) before reading percentages at
+current scale.
+
 ### 12. The roster (founder CRM)
 
 `SELECT * FROM user_roster;` — one row per user: signup date, title +

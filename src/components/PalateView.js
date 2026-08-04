@@ -157,11 +157,18 @@ function RecentlyEvolved({ timeline, accumulation }) {
     <div data-testid="palate-evolution" style={cardStyle}>
       <div style={labelStyle}>Recently evolved</div>
       {events.length === 0 ? (
-        <p style={{ fontFamily: SERIF, fontSize: "14px", fontStyle: "italic", color: GREEN, opacity: 0.75, margin: 0, lineHeight: 1.6 }}>
-          Nothing has shifted yet — and that&apos;s exactly how it should start.
-          Your DNA only changes when real bottles prove a pattern. The proof is
-          already building below.
-        </p>
+        <>
+          <p style={{ fontFamily: SERIF, fontSize: "14px", fontStyle: "italic", color: GREEN, opacity: 0.75, margin: 0, lineHeight: 1.6 }}>
+            Nothing has shifted yet — and that&apos;s exactly how it should start.
+            Your DNA only changes when real bottles prove a pattern. The proof is
+            already building below.
+          </p>
+          {/* The empty state carries its own next pour — never a dead end
+              (First Pour session) */}
+          <a href="/" data-testid="palate-empty-rate-link" style={{ fontFamily: SANS, fontSize: "12px", color: BURGUNDY, fontWeight: 600, textDecoration: "none", marginTop: 8, padding: "8px 0", display: "inline-block" }}>
+            Rate a wine you know →
+          </a>
+        </>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {events.map((e) => {
@@ -224,10 +231,17 @@ function BuildingNow({ accumulation, mounted }) {
     <div data-testid="palate-building" style={cardStyle}>
       <div style={labelStyle}>Building now</div>
       {shown.length === 0 ? (
-        <p style={{ fontFamily: SERIF, fontSize: "14px", fontStyle: "italic", color: GREEN, opacity: 0.75, margin: 0, lineHeight: 1.6 }}>
-          Nothing in motion yet. Rate the bottles you try — every loved one
-          pushes a grape, a place, or an estate toward your DNA.
-        </p>
+        <>
+          <p style={{ fontFamily: SERIF, fontSize: "14px", fontStyle: "italic", color: GREEN, opacity: 0.75, margin: 0, lineHeight: 1.6 }}>
+            Nothing in motion yet. Rate the bottles you try — every loved one
+            pushes a grape, a place, or an estate toward your DNA.
+          </p>
+          {/* /?log=1 is the bottle-log deep link the bypass handoff already
+              uses — the empty state hands you the camera, not a shrug */}
+          <a href="/?log=1" data-testid="palate-empty-log-link" style={{ fontFamily: SANS, fontSize: "12px", color: BURGUNDY, fontWeight: 600, textDecoration: "none", marginTop: 8, padding: "8px 0", display: "inline-block" }}>
+            Log tonight&apos;s bottle →
+          </a>
+        </>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           {shown.map((r, i) => (

@@ -24,6 +24,10 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  *    choose must survive the banner moving (provenance is in-session:
  *    the client marks rows it created; nothing in the columns can tell
  *    them apart after the fact).
+ * 5. Bypassing after a choose ("we went a different way") is the same
+ *    walk-away: the chosen wine wasn't drunk, so the row the choose
+ *    created goes too — under the identical safe rule (marked + still an
+ *    unrated want; pre-existing rows survive).
  *
  * Test 1 also pins the §11e session join in a REAL flow: menu_analyzed and
  * pick_chosen from the same sitting must carry the same client-minted
@@ -404,6 +408,75 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
 
     // wine_interactions is state, not history — direct cleanup is fine here
     // (wine_events stays append-forever, untouched)
+    await cleanupReplacementRows(supabase, userId);
+  });
+
+  test("bypassing after a choose removes only the row the choose created", async ({ page }) => {
+    test.setTimeout(180_000);
+    const LINE = "Meerlust Rubicon, Stellenbosch 2018...$92";
+
+    // ── Round 1: the choose created the row; the bypass walks away from it ──
+    const recPage = new RecommendPage(page);
+    await recPage.goto();
+    await recPage.pasteAndAnalyze(LINE);
+    await expect(recPage.resultsHeading).toBeVisible({ timeout: 10_000 });
+
+    const chosenBefore = await countEvents(supabase, userId, "pick_chosen");
+    const card = recPage.pickCards.filter({ hasText: /Meerlust/ }).first();
+    await card.getByTestId("choose-pick").click();
+    await expect(card.getByTestId("chosen-banner")).toBeVisible();
+    await expect
+      .poll(async () => countEvents(supabase, userId, "pick_chosen"), { timeout: 15_000 })
+      .toBe(chosenBefore + 1);
+    const chosenEvent = await latestEvent(supabase, userId, "pick_chosen");
+    const name = chosenEvent!.payload.wine as string;
+    expect(name).toContain("Meerlust");
+    await expect
+      .poll(async () => (await findRowsByName(supabase, userId, name)).length, { timeout: 15_000 })
+      .toBe(1);
+
+    const bypassedBefore = await countEvents(supabase, userId, "somm_bypassed");
+    await page.getByTestId("bypass-somm").click();
+    await expect(page.getByTestId("bypass-noted")).toBeVisible();
+    await expect
+      .poll(async () => countEvents(supabase, userId, "somm_bypassed"), { timeout: 15_000 })
+      .toBe(bypassedBefore + 1);
+    const bypassEvent = await latestEvent(supabase, userId, "somm_bypassed");
+    expect(bypassEvent!.payload.had_chosen).toBe(name);
+
+    // THE CLEANUP: the wine wasn't drunk and the row was this sitting's
+    // creation — the walk-away removes it (the ledger keeps had_chosen)
+    await expect
+      .poll(async () => (await findRowsByName(supabase, userId, name)).length, { timeout: 15_000 })
+      .toBe(0);
+    await page.getByTestId("bypass-noted").getByTestId("bypass-skip").click();
+
+    // ── Round 2: a want row that PRE-EXISTED the sitting's choose survives ──
+    await supabase.from("wine_interactions").insert({
+      user_id: userId,
+      wine_name: name,
+      interaction_type: "want",
+      source_url: "e2e_preexist",
+    });
+    await recPage.scanAgainButton.click();
+    await recPage.pasteAndAnalyze(LINE);
+    await expect(recPage.resultsHeading).toBeVisible({ timeout: 10_000 });
+    const card2 = recPage.pickCards.filter({ hasText: /Meerlust/ }).first();
+    await card2.getByTestId("choose-pick").click();
+    await expect(card2.getByTestId("chosen-banner")).toBeVisible();
+
+    const bypassedBefore2 = await countEvents(supabase, userId, "somm_bypassed");
+    await page.getByTestId("bypass-somm").click();
+    await expect(page.getByTestId("bypass-noted")).toBeVisible();
+    await expect
+      .poll(async () => countEvents(supabase, userId, "somm_bypassed"), { timeout: 15_000 })
+      .toBe(bypassedBefore2 + 1);
+
+    // The bypass has landed — the pre-existing row must have survived it
+    const survivors = await findRowsByName(supabase, userId, name);
+    expect(survivors.length).toBe(1);
+    expect(survivors[0].interaction_type).toBe("want");
+
     await cleanupReplacementRows(supabase, userId);
   });
 });

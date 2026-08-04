@@ -11,9 +11,32 @@ import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
 import { resolveOutstandingVerdict, VERDICT_EVENT_TYPES, VERDICT_WINDOW_DAYS, readDismissedVerdicts, dismissVerdict } from "@/lib/tableVerdict";
+import { resolveFirstPourCards, readDismissedFirstPour, dismissFirstPourCard } from "@/lib/firstPour";
 import Quiz from "@/components/Quiz";
 import WineRecList, { evolutionToastMessages, RatingModal } from "@/components/WineRecList";
 import PalateMark from "@/components/PalateMark";
+
+// ─── The First Pour: card copy ───
+// Somm voice, present tense — each card states the verb AND what it does to
+// the palate. Cards invite the next pour; they never apologize for an empty
+// journal (the archetypeVoice deferral ban, applied in spirit).
+const FIRST_POUR_COPY = {
+  "rate-one": {
+    title: "Start with a bottle you’ve already met.",
+    body: "Rate a wine below — one tap tells the Somm something true about you.",
+    cta: "Rate one below ↓",
+  },
+  "log-a-bottle": {
+    title: "Pouring something tonight? Snap the label.",
+    body: "Every bottle you rate presses your palate’s shape a little truer — watch your bloom.",
+    cta: "📸 Snap the label",
+  },
+  "bring-a-list": {
+    title: "Next time a wine list lands in front of you, hand it to us.",
+    body: "Photo, link, or paste — tell the Somm what tonight calls for and we’ll find your bottle.",
+    cta: "See how it works →",
+  },
+};
 
 // ─── Saved Profile View ───
 function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
@@ -35,6 +58,14 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
   // unrated Somm pick outstanding, resolved from the wine_events ledger
   const [verdictAsk, setVerdictAsk] = useState(null);
   const [verdictRating, setVerdictRating] = useState(false);
+  // The verdict read must SETTLE before First Pour cards may render — a due
+  // ask outranks them, and cards must never flash in ahead of it
+  const [verdictLoaded, setVerdictLoaded] = useState(false);
+  // The First Pour: which loop verbs this user hasn't poured yet (null =
+  // unresolved or read failed → render nothing)
+  const [firstPourCards, setFirstPourCards] = useState(null);
+  const firstPourDataRef = useRef(null); // resolver inputs, for re-resolve on dismiss
+  const winesRef = useRef(null);
   const [isMobile, setIsMobile] = useState(false);
   const supabase = createClient();
 
@@ -88,13 +119,56 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
           .eq("user_id", user.id)
           .in("event_type", VERDICT_EVENT_TYPES)
           .gte("occurred_at", since);
-        if (error || !data) return;
-        setVerdictAsk(resolveOutstandingVerdict(data, { dismissedIds: readDismissedVerdicts() }));
+        if (!error && data) {
+          setVerdictAsk(resolveOutstandingVerdict(data, { dismissedIds: readDismissedVerdicts() }));
+        }
       } catch { /* the prompt is a courtesy — never break home over it */ }
+      // Settled either way (a failed read = no ask) — cards may render now
+      setVerdictLoaded(true);
     }
     if (user?.id) loadVerdictAsk();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  useEffect(() => {
+    // The First Pour: quiet cards that teach the loop's verbs until each has
+    // genuinely happened. Reads durable truth only (interactions + the two
+    // event types) and resolves through the pure firstPour.js. ANY failure →
+    // no cards — onboarding is a courtesy, never load-bearing (the same
+    // posture as the verdict ask; the blackhole guard drives this page with
+    // wine_events unreachable and home must not care).
+    async function loadFirstPour() {
+      try {
+        const [ints, evts] = await Promise.all([
+          supabase.from("wine_interactions").select("rating, source_url").eq("user_id", user.id),
+          supabase.from("wine_events").select("event_type").eq("user_id", user.id)
+            .in("event_type", ["bottle_logged", "menu_analyzed"]),
+        ]);
+        if (ints.error || evts.error || !ints.data || !evts.data) return;
+        firstPourDataRef.current = { interactions: ints.data, events: evts.data };
+        setFirstPourCards(resolveFirstPourCards({
+          ...firstPourDataRef.current,
+          dismissedIds: readDismissedFirstPour(),
+        }));
+      } catch { /* no cards — never break home */ }
+    }
+    if (user?.id) loadFirstPour();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const handleFirstPourDismiss = (cardId) => {
+    dismissFirstPourCard(cardId);
+    if (firstPourDataRef.current) {
+      setFirstPourCards(resolveFirstPourCards({
+        ...firstPourDataRef.current,
+        dismissedIds: readDismissedFirstPour(),
+      }));
+    }
+  };
+
+  // The stacking rule: a due verdict ask outranks evergreen cards — exactly
+  // one prompt band at a time
+  const visibleFirstPour = verdictLoaded && !verdictAsk && firstPourCards ? firstPourCards : [];
 
   useEffect(() => {
     // /?log=1 — the bypass flow's bottle-log handoff: open the camera step
@@ -472,13 +546,72 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
         />
       )}
 
+      {/* ─── The First Pour: cards that teach the loop, until it's poured ─── */}
+      {visibleFirstPour.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: 24 }}>
+          {visibleFirstPour.map((cardId) => {
+            const copy = FIRST_POUR_COPY[cardId];
+            if (!copy) return null;
+            return (
+              <div key={cardId} data-testid={`first-pour-card-${cardId}`} style={{
+                position: "relative", padding: "16px 20px", borderRadius: "14px",
+                background: "rgba(255,255,255,0.55)", border: "1px solid rgba(27,61,47,0.08)",
+                borderLeft: "3px solid #6B8F5E",
+              }}>
+                <button data-testid="first-pour-dismiss" aria-label="Not now"
+                  onClick={() => handleFirstPourDismiss(cardId)} style={{
+                    position: "absolute", top: 4, right: 4, width: 40, height: 40,
+                    background: "none", border: "none", cursor: "pointer",
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "18px",
+                    color: "#1B3D2F", opacity: 0.3, lineHeight: 1,
+                  }}>×</button>
+                <div style={{
+                  fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
+                  color: "#1B3D2F", fontWeight: 600, lineHeight: 1.35, margin: "0 28px 6px 0",
+                }}>{copy.title}</div>
+                <p style={{
+                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
+                  color: "#1B3D2F", opacity: 0.6, lineHeight: 1.5, margin: "0 0 12px",
+                }}>{copy.body}</p>
+                {cardId === "bring-a-list" ? (
+                  <a href="/recommend" data-testid="first-pour-cta" style={{
+                    display: "inline-block", padding: "10px 20px", borderRadius: "100px",
+                    background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.15)",
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: 600,
+                    color: "#8B2332", textDecoration: "none", minHeight: 40, boxSizing: "border-box",
+                  }}>{copy.cta}</a>
+                ) : (
+                  <button data-testid="first-pour-cta" onClick={() => {
+                    if (cardId === "rate-one") {
+                      setShowWines(true);
+                      winesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    } else {
+                      setBottleStep("camera");
+                      (isMobile ? bottleInputRef : bottleGalleryRef).current?.click();
+                    }
+                  }} style={{
+                    padding: "10px 20px", borderRadius: "100px", cursor: "pointer",
+                    background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.15)",
+                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: 600,
+                    color: "#8B2332", minHeight: 40,
+                  }}>{copy.cta}</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* ─── Log a Bottle ─── */}
       {/* Camera input — opens rear camera directly on mobile */}
       <input ref={bottleInputRef} type="file" accept="image/*" capture="environment" onChange={handleBottlePhoto} style={{ display: "none" }} data-testid="bottle-camera-input" />
       {/* Gallery/upload input — opens photo picker or file dialog */}
       <input ref={bottleGalleryRef} type="file" accept="image/*" onChange={handleBottlePhoto} style={{ display: "none" }} data-testid="bottle-gallery-input" />
 
-      {bottleStep === null && (
+      {/* One camera entry at a time: the plain module yields while its
+          teaching card is on screen, and returns the moment the card
+          retires or is dismissed (Ed's call, First Pour session) */}
+      {bottleStep === null && !visibleFirstPour.includes("log-a-bottle") && (
         <div style={{ marginBottom: 24 }}>
           {/* Collapsed header row */}
           <div style={{
@@ -686,7 +819,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
 
       {/* ─── Wines to Try (Interactive) ─── */}
       {recs.length > 0 && (
-        <div style={{ marginBottom: 28 }}>
+        <div ref={winesRef} style={{ marginBottom: 28 }}>
           <button onClick={() => setShowWines(!showWines)} style={{
             width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
             marginBottom: showWines ? 14 : 0, padding: "12px 2px",
