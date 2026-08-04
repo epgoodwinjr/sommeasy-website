@@ -240,4 +240,25 @@ the restore.
   the one-line conversion summary (baseline 2-of-5 at ship). Exclude both e2e
   accounts before reading percentages.
 
-*(Prod verification evidence appended below after deploy.)*
+## Prod verification (sommeasy.wine, deployed 2e439d6)
+
+Deploy confirmed serving the new page chunk 16s after push (chunk-grep on
+`first-pour-card`). Four guards re-run against the live site with the throwaway
+repo-root prod config (deleted after): **5/5 passed, 24s** —
+- fresh account: exactly [rate-one, log-a-bottle] rendered, camera module yielded;
+- rich account: zero cards (the self-retiring contract on its real history);
+- replacing a chosen pick on prod: created row deleted, seeded pre-existing want
+  survived, `replaced` in the ledger;
+- bypassing after a choose on prod: created row deleted, `had_chosen` in the
+  ledger, pre-existing want survived.
+
+Post-run DB audit (SQL): rich account at its 5 seeded fixture rows, zero stray
+guard rows; fresh account at exactly 0 interaction rows. wine_events untouched by
+any cleanup — append-forever holds.
+
+## Run record
+
+- Unit: 14 suites / 386 tests green (firstPour 16 new).
+- e2e: 73 passed, 5 env-gated skips, 6.5m (local, real Claude calls).
+- Prod: the 4-guard pass above.
+- Commits: `795f34a` (Item 0), `ec19fbc` (Phase 0 readout), `2e439d6` (the build).
