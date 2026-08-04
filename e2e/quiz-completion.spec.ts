@@ -53,6 +53,11 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     const epithet = page.getByTestId("reveal-epithet");
     await expect(epithet).toBeVisible();
     expect((await epithet.textContent())?.trim().length).toBeGreaterThan(0);
+    // The Velvet Rope (Aug 3): the narrative is signed-in payoff — present
+    // here; palate-handoff spec A holds the absence half for anonymous users
+    const narrative = page.getByTestId("reveal-narrative");
+    await expect(narrative).toBeVisible();
+    expect((await narrative.textContent())?.trim().length).toBeGreaterThan(0);
     // The Signature (Act III S4): the visual mark renders in the reveal hero
     // from the saved row's genome
     const revealMark = page.getByTestId("palate-mark").first();

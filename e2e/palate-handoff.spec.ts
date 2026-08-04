@@ -5,7 +5,10 @@ import { testDb } from "./fixtures/test-db";
  * Never Lose a Palate — the anonymous quiz → signup handoff (Sessions 2+5).
  *
  * HARD-FAIL GUARDS (CLAUDE.md rule): spec A fails if the anonymous quiz
- * stops stashing its results; spec B fails if a signed-in landing stops
+ * stops stashing its results — and, since The Velvet Rope (Aug 3), if the
+ * teaser leaks the gated reading (epithet/narrative/signature line must be
+ * absent from the render tree while the stash still carries the COMPLETE
+ * profile); spec B fails if a signed-in landing stops
  * folding the localStorage stash into the account; spec C fails if a
  * signup that carried pending_palate METADATA stops restoring the palate —
  * the cross-device path the July 30 acceptance canary proved is the common
@@ -38,7 +41,10 @@ const SEED_SUBSET_ANSWERS = {
 test.describe("Never Lose a Palate — anonymous quiz stash", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("HARD-FAIL GUARD: anonymous quiz → teaser reveal + stash written", async ({ page }) => {
+  test("HARD-FAIL GUARD: anonymous quiz → velvet-rope teaser + complete stash", async ({ page }) => {
+    // The Velvet Rope (Aug 3): the whole spec runs at 375×812 — the teaser
+    // must compose untruncated at the narrowest real phone width
+    await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
     await page.getByRole("button", { name: "Build My Profile" }).click();
     await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
@@ -57,7 +63,7 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     await expect(page.getByText("Step 5 of 5")).toBeVisible();
     await page.getByRole("button", { name: "See My Wine DNA" }).click();
 
-    // The staged reveal theater still lands for anonymous users
+    // The hook still lands for anonymous users: title + bloom
     const archetype = page.getByTestId("reveal-archetype");
     await expect(archetype).toBeVisible({ timeout: 30_000 });
     expect((await archetype.textContent())?.trim().length).toBeGreaterThan(0);
@@ -68,28 +74,48 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     await expect(teaserMark).toBeVisible();
     await expect(teaserMark.locator("svg circle").first()).toBeAttached();
 
-    // Teaser gate: honest save promise + the fold-in sign-in path (S2.4)
+    // The Velvet Rope (Aug 3): epithet, narrative, and signature line are
+    // ABSENT FROM THE RENDER TREE for anonymous users — count assertions,
+    // not visibility, so CSS-hiding can never fake a pass
+    await expect(page.getByTestId("reveal-epithet")).toHaveCount(0);
+    await expect(page.getByTestId("reveal-narrative")).toHaveCount(0);
+    await expect(page.getByTestId("teaser-signature")).toHaveCount(0);
+
+    // Teaser gate: sells the gated reading, honest save promise, fold-in
+    // sign-in path (S2.4 — the hrefs are the funnel)
     const gate = page.getByTestId("teaser-gate");
     await expect(gate).toBeVisible();
-    await expect(gate).toContainText("Create your account to meet your full palate");
-    await expect(gate.getByRole("link", { name: /Save My Palate/ })).toHaveAttribute("href", "/signup");
+    await expect(gate).toContainText("Your full reading is ready");
+    await expect(gate).toContainText("it evolves with every bottle you rate");
+    await expect(gate).toContainText("Held on this device for 7 days");
+    await expect(gate.getByRole("link", { name: /Save My Wine DNA/ })).toHaveAttribute("href", "/signup");
     const signin = page.getByTestId("teaser-signin");
     await expect(signin).toContainText(/fold this into your palate/);
     await expect(signin).toHaveAttribute("href", "/login");
 
-    // Partial read: the one-line palate signature
-    await expect(page.getByTestId("teaser-signature")).toBeVisible();
-
-    // Recs are a read-only taste: no rating affordances, no rating language
+    // Recs are ONE read-only taste: a single card proves the matching works,
+    // the "more wines" tail sells the rest, no rating affordances anywhere
     await expect(page.getByText(/Rate the ones you know/)).toHaveCount(0);
     const recs = page.getByTestId("reveal-recs");
     await expect(recs).toBeVisible();
+    await expect(recs).toContainText("The first bottle we'd pour you");
+    await expect(recs.getByTestId("rec-card")).toHaveCount(1);
+    await expect(recs.getByText(/more wines to explore/)).toBeVisible();
     await expect(recs.getByRole("button", { name: /Had it/ })).toHaveCount(0);
     await expect(recs.getByRole("button", { name: /Want to try/ })).toHaveCount(0);
 
     // No signed-in furniture leaks into the teaser
     await expect(page.getByTestId("reveal-saved")).toHaveCount(0);
     await expect(page.getByTestId("reveal-palate-cta")).toHaveCount(0);
+
+    // 375px composition guard (the steer-placeholder lesson, programmatic):
+    // nothing overflows horizontally — not the page, not the gate card
+    const pageOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth
+    );
+    expect(pageOverflow, "teaser must not overflow horizontally at 375px").toBeLessThanOrEqual(1);
+    const gateOverflow = await gate.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(gateOverflow, "gate copy must wrap inside its card at 375px").toBeLessThanOrEqual(1);
 
     // THE stash: written at reveal time, versioned, carrying the answers
     const stash = await page.evaluate(
@@ -102,6 +128,26 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     expect(stash.answers.countries).toContain("south_africa");
     expect(stash.answers.regions.south_africa).toContain("stellenbosch");
     expect(stash.answers.varietals).toContain("pinot_noir");
+
+    // Velvet-rope invariant: gating what's SHOWN never gates what's CAPTURED.
+    // The stash must carry the COMPLETE profile — the post-save reveal and
+    // the fold-in deliver the full payoff from exactly this payload
+    expect(stash.profile, "stash must carry the full generated profile").not.toBeNull();
+    expect(typeof stash.profile.narrative).toBe("string");
+    expect(stash.profile.narrative.length).toBeGreaterThan(0);
+    expect(typeof stash.profile.epithet).toBe("string");
+    expect(stash.profile.genome && typeof stash.profile.genome).toBe("object");
+    expect(stash.profile.recommendations.length).toBeGreaterThanOrEqual(1);
+
+    // Content-level backstop: the composed narrative text itself must not be
+    // rendered ANYWHERE on the teaser — testids can move, prose can't hide
+    const firstSentence = stash.profile.narrative.split(/(?<=\.)\s/)[0];
+    expect(firstSentence.length).toBeGreaterThan(10);
+    const bodyText = await page.evaluate(() => document.body.innerText);
+    expect(
+      bodyText.includes(firstSentence),
+      "the gated narrative leaked into the anonymous teaser render"
+    ).toBe(false);
   });
 
   test("HARD-FAIL GUARD: stash → sign-in → auto-save → welcome back (idempotent)", async ({ page }) => {

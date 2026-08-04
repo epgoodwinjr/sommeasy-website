@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { freshDb } from "./fixtures/test-db";
+import { freshDb, testDb } from "./fixtures/test-db";
 
 /**
  * Hard-fail guards for The First Pour (Aug 2026) — onboarding cards that
@@ -248,8 +248,37 @@ test.describe.serial("The First Pour — fresh account (hard-fail)", () => {
 test.describe("The First Pour — rich account (hard-fail)", () => {
   test("a full journal shows zero cards — the self-retiring contract on real history", async ({ page }) => {
     test.setTimeout(120_000);
+
+    // The premise, pinned in the DB (Aug 3 hardening): all three completion
+    // truths must genuinely exist on this account. Without this, the
+    // zero-cards check below is vacuously green whenever the async reads
+    // lose the render race — exactly how a missing bottle_logged truth hid
+    // behind green runs until the verdict-ask state stopped masking it.
+    // If one of these fails: perform the missing act ONCE through the real
+    // UI as the rich account (a bottle log may be journal-deleted after —
+    // the append-forever event is the truth, not the row).
+    const { supabase, userId } = await testDb();
+    const [rated, logged, menus] = await Promise.all([
+      supabase.from("wine_interactions").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).not("rating", "is", null),
+      supabase.from("wine_events").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).eq("event_type", "bottle_logged"),
+      supabase.from("wine_events").select("id", { count: "exact", head: true })
+        .eq("user_id", userId).eq("event_type", "menu_analyzed"),
+    ]);
+    expect(rated.count ?? 0, "rich fixture must have a rated bottle (rate-one truth)").toBeGreaterThan(0);
+    expect(logged.count ?? 0, "rich fixture must have a bottle_logged event (log-a-bottle truth)").toBeGreaterThan(0);
+    expect(menus.count ?? 0, "rich fixture must have a menu_analyzed event (bring-a-list truth)").toBeGreaterThan(0);
+
+    // Settle gate: only after the cards read completes is zero-cards a
+    // resolved conclusion rather than a not-yet-loaded coincidence
+    const cardsRead = page.waitForResponse(
+      (r) => r.url().includes("/rest/v1/wine_events") && r.url().includes("bottle_logged"),
+      { timeout: 15_000 }
+    );
     await page.goto("/");
     await expect(page.getByTestId("palate-strip")).toBeVisible({ timeout: 15_000 });
+    await cardsRead;
     await expect(page.locator('[data-testid^="first-pour-card-"]')).toHaveCount(0);
     // No card → the plain camera module stands
     await expect(page.getByText("Photo a label to add it to your collection")).toBeVisible();
