@@ -93,5 +93,5 @@ export const AUTH_NOTICES = {
 
 /** Copy for a ?notice= key, or null — an unknown key renders nothing. */
 export function authNoticeCopy(key) {
-  return (typeof key === "string" && Object.hasOwn(AUTH_NOTICES, key) && AUTH_NOTICES[key]) || null;
+  return (typeof key === "string" && Object.prototype.hasOwnProperty.call(AUTH_NOTICES, key) && AUTH_NOTICES[key]) || null;
 }
