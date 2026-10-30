@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { RecommendPage } from "./fixtures/sommeasy-page";
+import { RecommendPage, removeFromJournal } from "./fixtures/sommeasy-page";
 import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
 
 /**
@@ -302,16 +302,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     expect(guardName, "earlier tests must have run").toBeTruthy();
     const journalDeletedBefore = await countEvents(supabase, userId, "journal_deleted");
 
-    await page.goto("/journal");
-    await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-    await expect(page.getByText(guardName, { exact: true })).toBeVisible();
-    const journalCard = page
-      .locator("div")
-      .filter({ has: page.getByText(guardName, { exact: true }) })
-      .filter({ has: page.getByRole("button", { name: "×" }) })
-      .last();
-    await journalCard.getByRole("button", { name: "×" }).click();
-    await expect(page.getByText("✓ Removed")).toBeVisible();
+    await removeFromJournal(page, guardName);
 
     await expect
       .poll(async () => (await findGuardRows(supabase, userId)).length, { timeout: 15_000 })
@@ -356,7 +347,11 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
       .poll(async () => (await findRowsByName(supabase, userId, nameP)).length, { timeout: 15_000 })
       .toBe(1);
 
-    // The change of mind: banner moves, `replaced` records it in the ledger
+    // The change of mind: choosing quieted the other picks, Change brings
+    // their choose buttons back (House List Phase 3) — then the banner
+    // moves, and `replaced` records it in the ledger
+    await expect(cardQ.getByTestId("choose-pick")).toHaveCount(0);
+    await cardP.getByTestId("chosen-banner").getByRole("button", { name: "Change" }).click();
     await cardQ.getByTestId("choose-pick").click();
     await expect(cardQ.getByTestId("chosen-banner")).toBeVisible();
     await expect(cardP.getByTestId("chosen-banner")).toBeHidden();
@@ -399,6 +394,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
       .poll(async () => countEvents(supabase, userId, "pick_chosen"), { timeout: 15_000 })
       .toBe(chosenBefore + 3);
 
+    await cardP2.getByTestId("chosen-banner").getByRole("button", { name: "Change" }).click();
     await cardQ2.getByTestId("choose-pick").click();
     await expect(cardQ2.getByTestId("chosen-banner")).toBeVisible();
     await expect

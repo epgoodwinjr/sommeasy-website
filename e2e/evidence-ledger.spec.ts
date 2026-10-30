@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { RecommendPage } from "./fixtures/sommeasy-page";
+import { RecommendPage, removeFromJournal } from "./fixtures/sommeasy-page";
 import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
 
 /**
@@ -136,9 +136,11 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
       await expect(card).toBeVisible();
       await expect(card).toContainText(/Kanonkop/);
 
-      await card.getByRole("button", { name: "Had this wine? Rate it" }).click();
-      await page.getByRole("button", { name: /Loved it/ }).click();
-      await expect(page.getByText("Rating saved!")).toBeVisible();
+      // House List picks rate in place: Had it? → a tile → the done line
+      // (which retired the "Rating saved!" toast)
+      await card.getByRole("button", { name: "Had it? Rate it" }).click();
+      await card.getByTestId("rating-tile-loved").click();
+      await expect(card).toContainText("❤️ Loved it — noted in your journal.");
 
       // The interaction row lands AND resolution stamps it — the metadata
       // write happens inside resolveAndAccumulate a beat after the upsert,
@@ -197,16 +199,7 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
       expect(pickEvent!.payload.confidence_band).toBe("full");
 
       // Leg 2 — deleting the journal row reverses the evidence exactly
-      await page.goto("/journal");
-      await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-      await expect(page.getByText(guardName, { exact: true })).toBeVisible();
-      const journalCard = page
-        .locator("div")
-        .filter({ has: page.getByText(guardName, { exact: true }) })
-        .filter({ has: page.getByRole("button", { name: "×" }) })
-        .last();
-      await journalCard.getByRole("button", { name: "×" }).click();
-      await expect(page.getByText("✓ Removed")).toBeVisible();
+      await removeFromJournal(page, guardName);
 
       await expect
         .poll(async () => {

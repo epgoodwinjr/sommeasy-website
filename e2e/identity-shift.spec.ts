@@ -218,9 +218,11 @@ test.describe("Identity shift — a milestone earned in the real UI moves the st
       await expect(card).toBeVisible();
       await expect(card).toContainText(/Dujac/);
 
-      await card.getByRole("button", { name: "Had this wine? Rate it" }).click();
-      await page.getByRole("button", { name: /Loved it/ }).click();
-      await expect(page.getByText("Rating saved!")).toBeVisible();
+      // House List picks rate in place: Had it? → a tile → the done line
+      // (which retired the "Rating saved!" toast)
+      await card.getByRole("button", { name: "Had it? Rate it" }).click();
+      await card.getByTestId("rating-tile-loved").click();
+      await expect(card).toContainText("❤️ Loved it — noted in your journal.");
 
       // ── The celebrated surface: promotion toast, then the shift toast ──
       await expect(page.getByText(/Domaine Dujac added to your estates/))

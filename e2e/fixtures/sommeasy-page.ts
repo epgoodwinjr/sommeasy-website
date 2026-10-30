@@ -108,7 +108,9 @@ export class RecommendPage {
     await this.fileInput.setInputFiles(filePath);
   }
 
-  /** Wait for Vision API processing to complete (spinner appears then disappears) */
+  /** Wait for the reading state to finish (processing-spinner — "The Somm is
+   *  reading" since House List Phase 3 — appears, then gives way to the
+   *  picks or the input with an error) */
   async waitForProcessing(timeoutMs = 60_000) {
     // Wait for spinner to appear (if not already visible)
     try {
@@ -165,8 +167,17 @@ export class RecommendPage {
     await this.analyzeButton.click();
   }
 
+  /** Open "Paste a link" — the URL row is closed until it's asked for */
+  async openLinkRow() {
+    if (!(await this.urlInput.isVisible())) {
+      await this.page.getByRole("button", { name: /Paste a link/ }).click();
+    }
+    await expect(this.urlInput).toBeVisible();
+  }
+
   /** Fetch wine list from a URL */
   async fetchUrl(url: string) {
+    await this.openLinkRow();
     await this.urlInput.fill(url);
     await this.urlFetchButton.click();
   }
