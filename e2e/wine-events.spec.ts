@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { removeFromJournal, removeFromJournalIfPresent } from "./fixtures/sommeasy-page";
 import { testDb } from "./fixtures/test-db";
 
 /**
@@ -29,6 +30,19 @@ async function countAllEvents(supabase: SupabaseClient, userId: string) {
 }
 
 test.describe("Event ledger — fire-and-forget (hard-fail guard)", () => {
+  // Set the moment before the rating tile is tapped, cleared once the
+  // journal-delete beat lands — if the test dies in between, afterEach
+  // removes the row so a failed run can't strand it on the account
+  let ratedWine: string | null = null;
+
+  test.afterEach(async ({ page }) => {
+    if (!ratedWine) return;
+    const wineName = ratedWine;
+    ratedWine = null;
+    const { supabase, userId } = await testDb();
+    await removeFromJournalIfPresent(page, supabase, userId, wineName);
+  });
+
   test("with wine_events blackholed, every user-visible beat still lands", async ({ page }) => {
     test.setTimeout(120_000);
     const { supabase, userId } = await testDb();
@@ -56,22 +70,14 @@ test.describe("Event ledger — fire-and-forget (hard-fail guard)", () => {
     const wineName = (await firstCard.getAttribute("data-wine")) ?? "";
     expect(wineName.length).toBeGreaterThan(0);
     await firstCard.getByRole("button", { name: /Had it/ }).click();
+    ratedWine = wineName;
     await firstCard.getByTestId("rating-tile-fine").click();
     await expect(firstCard).toContainText("😐 It was fine — noted in your journal.");
     await expect(firstCard.getByRole("button", { name: /Had it/ })).toHaveCount(0);
 
     // Journal delete (journal_deleted blocked underneath) — still works
-    await page.goto("/journal");
-    await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-    await expect(page.getByText(wineName, { exact: true })).toBeVisible();
-    const journalCard = page
-      .locator("div")
-      .filter({ has: page.getByText(wineName, { exact: true }) })
-      .filter({ has: page.getByRole("button", { name: "×" }) })
-      .last();
-    await journalCard.getByRole("button", { name: "×" }).click();
-    await expect(page.getByText("✓ Removed")).toBeVisible();
-    await expect(page.getByText(wineName, { exact: true })).toHaveCount(0);
+    await removeFromJournal(page, wineName);
+    ratedWine = null;
 
     // The ledger gained NOTHING — every insert was aborted and swallowed.
     // Settle a beat first so a straggling (blocked) request can't race the

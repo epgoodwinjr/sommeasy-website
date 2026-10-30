@@ -1,7 +1,57 @@
 import { type Page, type Locator, expect } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import path from "path";
 
 const FIXTURES_DIR = path.join(__dirname, "images");
+
+/**
+ * Remove a journal row the way a user does: the journal's × (delete first,
+ * reverse only what that call removed, then journal_deleted). Guards that
+ * clean up a rating come through here, so when House List Phase 4 moves the
+ * delete to the wine page this is the one place to follow it.
+ */
+export async function removeFromJournal(page: Page, wineName: string) {
+  await page.goto("/journal");
+  await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
+  await expect(page.getByText(wineName, { exact: true })).toBeVisible();
+  const journalCard = page
+    .locator("div")
+    .filter({ has: page.getByText(wineName, { exact: true }) })
+    .filter({ has: page.getByRole("button", { name: "×" }) })
+    .last();
+  await journalCard.getByRole("button", { name: "×" }).click();
+  await expect(page.getByText("✓ Removed")).toBeVisible();
+  await expect(page.getByText(wineName, { exact: true })).toHaveCount(0);
+}
+
+/**
+ * The failure-proof half of a guard's cleanup — call it from test.afterEach,
+ * which Playwright runs after a failed OR timed-out test, on its own time
+ * budget, with the page still open (a finally in the test body doesn't
+ * survive a timeout). A test that dies right after the tap may leave the
+ * upsert still landing, so the row gets a few seconds to appear; if it never
+ * does, there's nothing to clean.
+ */
+export async function removeFromJournalIfPresent(
+  page: Page, supabase: SupabaseClient, userId: string, wineName: string
+) {
+  const rowExists = async () => {
+    const { data } = await supabase
+      .from("wine_interactions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("wine_name", wineName)
+      .maybeSingle();
+    return Boolean(data);
+  };
+  const deadline = Date.now() + 5_000;
+  while (!(await rowExists())) {
+    if (Date.now() > deadline) return;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  await removeFromJournal(page, wineName);
+  await expect.poll(rowExists, { timeout: 15_000 }).toBe(false);
+}
 
 /**
  * Page Object Model for Sommeasy's /recommend page.

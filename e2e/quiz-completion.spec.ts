@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { findRawIdTextNodes } from "./fixtures/raw-id-scan";
+import { removeFromJournalIfPresent } from "./fixtures/sommeasy-page";
 import { testDb, ensureEarnedFixture, readEarnedFixtureRow, EARNED_FIXTURE, countEvents, latestEvent } from "./fixtures/test-db";
 
 /**
@@ -17,10 +18,25 @@ import { testDb, ensureEarnedFixture, readEarnedFixtureRow, EARNED_FIXTURE, coun
  * merges the seeded account's own answers back (content-identical profile),
  * and the rating uses "It was fine" (0 evolution points — the seeded DNA
  * never drifts). The created journal row is deleted through the journal UI
- * afterwards, so repeated runs start from the same state.
+ * in afterEach — even when the test fails or times out — so repeated runs
+ * start from the same state.
  */
 
 test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
+  // Set the moment before the rating tile is tapped. The cleanup lives in
+  // afterEach because an inline one never ran when a later assertion failed:
+  // an Oct 30, 2026 run left a 0-point Dujac row on the rich account
+  let ratedWine: string | null = null;
+
+  test.afterEach(async ({ page }) => {
+    if (!ratedWine) return;
+    const wineName = ratedWine;
+    ratedWine = null;
+    const { supabase, userId } = await testDb();
+    // reverseAccumulation is a no-op for a 0-point rating
+    await removeFromJournalIfPresent(page, supabase, userId, wineName);
+  });
+
   test("complete quiz → auto-saved reveal with ratable recs → rating succeeds", async ({ page }) => {
     // Quiz-save silence (Act III S3, e2e-level pin of Suite 12G): a refine
     // save recomposes the identity but must write ZERO dna_timeline events —
@@ -105,6 +121,7 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     expect(wineName.length).toBeGreaterThan(0);
 
     await firstCard.getByRole("button", { name: /Had it/ }).click();
+    ratedWine = wineName;
     await firstCard.getByTestId("rating-tile-fine").click();
     await expect(firstCard).toContainText("😐 It was fine — noted in your journal.");
     await expect(firstCard.getByRole("button", { name: /Had it/ })).toHaveCount(0);
@@ -122,20 +139,7 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
         return data ? `${data.interaction_type}:${data.rating}` : "no-row";
       }, { timeout: 15_000 })
       .toBe("had:fine");
-
-    // Cleanup: delete the journal row the rating created so the suite is
-    // idempotent (reverseAccumulation is a no-op for a 0-point rating)
-    await page.goto("/journal");
-    await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-    await expect(page.getByText(wineName, { exact: true })).toBeVisible();
-    const journalCard = page
-      .locator("div")
-      .filter({ has: page.getByText(wineName, { exact: true }) })
-      .filter({ has: page.getByRole("button", { name: "×" }) })
-      .last();
-    await journalCard.getByRole("button", { name: "×" }).click();
-    await expect(page.getByText("✓ Removed")).toBeVisible();
-    await expect(page.getByText(wineName, { exact: true })).toHaveCount(0);
+    // The journal-UI delete runs in afterEach
   });
 
   /**
