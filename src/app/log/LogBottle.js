@@ -14,7 +14,9 @@
 // producer + name exactly as home always did (its vintage shows, but stays
 // out of the name). Search, want-list and as-written picks save their stored
 // name byte for byte unless it's edited, so logging a want row turns that
-// SAME journal row into a "had".
+// SAME journal row into a "had" — and when the name IS edited, the unrated
+// row it was picked from moves to the new name (renamedFrom) instead of
+// staying behind as a 📌 beside the bottle just logged.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
@@ -25,7 +27,7 @@ import { resolveWine } from "@/lib/wineResolver";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { ratingFor } from "@/lib/ratings";
 import { numeralCounter } from "@/lib/numerals";
-import { entryFromName, entryFromScan, isFirstRating, nameToSave } from "@/lib/logEntry";
+import { entryFromName, entryFromScan, isFirstRating, nameToSave, renamedFrom } from "@/lib/logEntry";
 import { confidentMeta, metaLine, savedCopy } from "@/lib/houseCopy";
 import { searchWines } from "@/lib/wineSearch";
 import PalateMark from "@/components/PalateMark";
@@ -259,6 +261,9 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     if (!entry || !rating || saving) return;
     const name = nameToSave(entry);
     if (!name) return;
+    // A picked row with no verdict whose name was edited: this save renames
+    // it rather than forking a second row beside it
+    const takeOver = renamedFrom(entry, journal);
     const isFirst = isFirstRating(journal, journalOk);
     const cleanNote = note.trim().slice(0, NOTE_MAX);
     setSaving(true);
@@ -266,13 +271,16 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
 
     try {
       // 1. Read any existing rating first: re-logging an already-rated
-      // bottle must apply the differential, not full points again
-      const { data: existing } = await supabase
+      // bottle must apply the differential, not full points again. A read
+      // that FAILS is not "no row" — guessing "never rated" would count the
+      // bottle twice — so the save stops and says so
+      const { data: existing, error: readErr } = await supabase
         .from("wine_interactions")
         .select("rating")
         .eq("user_id", user.id)
         .eq("wine_name", name)
-        .single();
+        .maybeSingle();
+      if (readErr) throw readErr;
       const previousRating = existing?.rating || null;
 
       const row = {
@@ -285,10 +293,42 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
       };
       // A blank note never erases one written on an earlier night
       if (cleanNote) row.note = cleanNote;
-      const { error: upsertErr } = await supabase
-        .from("wine_interactions")
-        .upsert(row, { onConflict: "user_id, wine_name" });
-      if (upsertErr) throw upsertErr;
+
+      // An edited want (or pass, or verdict-pending had) becomes the logged
+      // bottle: the row moves to the new name, keeping its Somm note and
+      // provenance — and the old name's resolution goes with the old name
+      // (step 2 stamps the new one). Only while it's still unrated.
+      let renamed = false;
+      if (takeOver && !existing) {
+        const { data: moved, error: moveErr } = await supabase
+          .from("wine_interactions")
+          .update({
+            ...row,
+            resolved_winery: null, resolved_region: null, resolved_province: null,
+            resolved_country: null, resolved_varietal: null, match_confidence: null, resolved_at: null,
+          })
+          .eq("user_id", user.id)
+          .eq("wine_name", takeOver.wine_name)
+          .is("rating", null)
+          .select("wine_name");
+        renamed = !moveErr && (moved || []).length > 0;
+      }
+      if (!renamed) {
+        const { error: upsertErr } = await supabase
+          .from("wine_interactions")
+          .upsert(row, { onConflict: "user_id, wine_name" });
+        if (upsertErr) throw upsertErr;
+        // A row already held the new name, so the save landed there: the
+        // picked row carried no verdict and lets go (nothing to reverse)
+        if (takeOver) {
+          await supabase
+            .from("wine_interactions")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("wine_name", takeOver.wine_name)
+            .is("rating", null);
+        }
+      }
 
       // 2. DNA evolution: resolve, accumulate, promote — then the milestone
       // hook may recompose the identity
@@ -354,7 +394,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
             resolved_varietal: resolution.varietal,
           }),
         };
-        return [updated, ...rows.filter((r) => r.wine_name !== name)];
+        return [updated, ...rows.filter((r) => r.wine_name !== name && r.wine_name !== takeOver?.wine_name)];
       });
       setSaved({
         name: [squash(entry.base) || name, entry.vintage].filter(Boolean).join(" "),
