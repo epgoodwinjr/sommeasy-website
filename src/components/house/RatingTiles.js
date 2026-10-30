@@ -14,7 +14,7 @@
 // labels and order come from RATINGS (@/lib/ratings); each carries
 // data-testid rating-tile-{id} and its label as its accessible name.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RATINGS } from "@/lib/ratings";
 import { BURGUNDY, INK, SANS, SERIF, TRANSITION, ink } from "./tokens";
 
@@ -81,12 +81,18 @@ export default function RatingTiles({ onRate, prompt = "How was it?", variant = 
 }
 
 /** The done line that replaces a rec's or pick's actions once acted on
- *  (§7.9): "❤️ Loved it — noted in your journal." */
-export function DoneLine({ children, style }) {
+ *  (§7.9): "❤️ Loved it — noted in your journal." With `autoFocus` it takes
+ *  focus as it replaces the tapped control, so keyboard and screen-reader
+ *  users hear it and keep their place (no ring — it isn't a control). */
+export function DoneLine({ children, autoFocus = false, style }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (autoFocus) ref.current?.focus({ preventScroll: true });
+  }, [autoFocus]);
   return (
-    <p style={{
+    <p ref={ref} tabIndex={autoFocus ? -1 : undefined} style={{
       fontFamily: SANS, fontSize: "13px", fontWeight: 600, lineHeight: 1.45,
-      color: BURGUNDY, marginTop: 10, ...style,
+      color: BURGUNDY, marginTop: 10, outline: "none", ...style,
     }}>{children}</p>
   );
 }

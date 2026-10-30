@@ -197,6 +197,12 @@ async function main() {
     assert(/sign-in link/i.test(copy), "names what was sent");
   });
 
+  test("a failed sign-out has its own copy — never a raw provider string", () => {
+    assert(typeof AUTH_ERRORS.sign_out_failed === "string", "sign_out_failed exists");
+    assert(/sign you out/i.test(AUTH_ERRORS.sign_out_failed), "names what failed");
+    assert(/try again/i.test(AUTH_ERRORS.sign_out_failed), "says what to do next");
+  });
+
   test("the ?notice= landing renders only known notices (House List: signed out)", () => {
     assert(authNoticeCopy("signed_out") === "✓ Signed out", "signed_out copy");
     assert(authNoticeCopy("not_a_notice") === null, "unknown keys render nothing, never the raw param");

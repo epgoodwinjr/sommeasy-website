@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
+import { authErrorCopy } from "@/lib/authCopy";
 import PalateMark from "@/components/PalateMark";
 import RunningHead from "@/components/house/RunningHead";
 import ServiceBar from "@/components/house/ServiceBar";
@@ -22,6 +23,7 @@ export default function AccountPage() {
   const [genome, setGenome] = useState(null);
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -39,12 +41,22 @@ export default function AccountPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // "✓ Signed out" has to be true: when the logout call fails, supabase-js
+  // keeps the session — so say so and stay, never land on a false notice
   const signOut = async () => {
     setSigningOut(true);
+    setSignOutFailed(false);
+    let error = null;
     try {
-      await supabase.auth.signOut();
+      ({ error } = await supabase.auth.signOut());
     } catch (err) {
-      console.error("Sign out failed:", err);
+      error = err;
+    }
+    if (error) {
+      console.error("Sign out failed:", error);
+      setSignOutFailed(true);
+      setSigningOut(false);
+      return;
     }
     router.replace("/login?notice=signed_out");
   };
@@ -111,6 +123,12 @@ export default function AccountPage() {
               cursor: signingOut ? "default" : "pointer", opacity: signingOut ? 0.5 : 1,
             }}
           >{signingOut ? "Signing out…" : "Sign out"}</button>
+          {signOutFailed && (
+            <p role="alert" data-testid="account-signout-error" style={{
+              fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.55,
+              color: BURGUNDY, textAlign: "center", marginTop: 4,
+            }}>{authErrorCopy("sign_out_failed")}</p>
+          )}
         </div>
       </main>
       <ServiceBar />

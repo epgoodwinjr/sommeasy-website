@@ -82,9 +82,9 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate }) {
         </TextActions>
       )}
       {state === "rating" && <RatingTiles autoFocus onRate={onRate} style={{ marginTop: 10 }} />}
-      {done?.kind === "want" && <DoneLine>{REC_DONE.want}</DoneLine>}
-      {done?.kind === "skip" && <DoneLine>{REC_DONE.skip}</DoneLine>}
-      {done?.kind === "rated" && <DoneLine>{ratedDoneLine(done.rating)}</DoneLine>}
+      {done?.kind === "want" && <DoneLine autoFocus>{REC_DONE.want}</DoneLine>}
+      {done?.kind === "skip" && <DoneLine autoFocus>{REC_DONE.skip}</DoneLine>}
+      {done?.kind === "rated" && <DoneLine autoFocus>{ratedDoneLine(done.rating)}</DoneLine>}
     </WineRow>
   );
 }
@@ -109,6 +109,10 @@ export default function WineRecList({
   // The recs not yet acted on when this load's read settled, in rec order —
   // a snapshot, so rows acted on this session keep their place
   const [listed, setListed] = useState(null);
+  // A failed read can't tell which recs are already in the journal: listing
+  // them anyway would let a rated rec be re-rated with no previous rating —
+  // its evidence counted twice. Unknown ≠ empty: the list stays silent.
+  const [readFailed, setReadFailed] = useState(false);
   const [session, setSession] = useState({});
   const own = useToast();
   const toast = pageToast || own.showToast;
@@ -116,12 +120,16 @@ export default function WineRecList({
 
   useEffect(() => {
     async function loadInteractions() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("wine_interactions")
         .select("wine_name, interaction_type, rating")
         .eq("user_id", user.id);
+      if (error || !data) {
+        setReadFailed(true);
+        return;
+      }
       const map = {};
-      (data || []).forEach((d) => { map[d.wine_name] = { type: d.interaction_type, rating: d.rating }; });
+      data.forEach((d) => { map[d.wine_name] = { type: d.interaction_type, rating: d.rating }; });
       setInteractions(map);
       setListed((recs || []).filter((r) => !map[r.wine]).map((r) => r.wine));
     }
@@ -219,7 +227,7 @@ export default function WineRecList({
     saveInteraction(wineName, "had", rating);
   };
 
-  if (!recs || recs.length === 0) return null;
+  if (!recs || recs.length === 0 || readFailed) return null;
   // The section renders when its read settles — never a flash of rows the
   // read is about to filter out
   if (listed === null) return null;

@@ -72,9 +72,14 @@ const replyLine = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5, color: BURGUNDY, marginTop: 12,
 };
 const footerLink = {
-  fontFamily: SANS, fontSize: "13px", fontWeight: 600, color: BURGUNDY,
+  fontFamily: SANS, fontSize: "13px", fontWeight: 600, lineHeight: "20px", color: BURGUNDY,
   padding: "12px 0", textDecoration: "none", whiteSpace: "nowrap",
 };
+
+// How long home waits on the reads behind its layout. A stalled request is
+// neither failure nor success; past this the page stops waiting — the
+// established layout and the plain date — so home always has its actions.
+const HOME_SETTLE_MS = 6000;
 
 // Case/whitespace-insensitive, the way the verdict resolver keys wines
 const sameWine = (a, b) =>
@@ -102,6 +107,10 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   // follow them without another read
   const [ratedNow, setRatedNow] = useState(() => new Set());
   const [firstEntry, setFirstEntry] = useState("");
+  // Set when the settle timer stopped waiting: a whisper or verdict that
+  // lands later stays out of this visit instead of rearranging the page
+  const settleForced = useRef(false);
+  const replyRef = useRef(null);
   const supabase = createClient();
 
   const recs = profile.recommendations || [];
@@ -119,9 +128,9 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           .in("event_type", ["promoted", "shifted"])
           .order("event_at", { ascending: false })
           .limit(1);
-        setWhisper(whisperLine(data?.[0]) || null);
+        if (!settleForced.current) setWhisper(whisperLine(data?.[0]) || null);
       } catch {
-        setWhisper(null);
+        if (!settleForced.current) setWhisper(null);
       }
     }
     if (user?.id) loadWhisper();
@@ -145,7 +154,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           .eq("user_id", user.id)
           .in("event_type", VERDICT_EVENT_TYPES)
           .gte("occurred_at", since);
-        if (!error && data) {
+        if (!error && data && !settleForced.current) {
           const ask = resolveOutstandingVerdict(data, { dismissedIds: readDismissedVerdicts() });
           setVerdict(ask ? { ask } : null);
         }
@@ -194,6 +203,24 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
     if (layout || !verdictLoaded || !journal) return;
     setLayout(journal.newUser && !verdict?.ask ? "new" : "established");
   }, [layout, verdictLoaded, journal, verdict]);
+
+  // …unless a read stalls: then, after HOME_SETTLE_MS, the established layout
+  // (never a guessed "new") and the plain date
+  useEffect(() => {
+    if (layout) return undefined;
+    const timer = setTimeout(() => {
+      settleForced.current = true;
+      setLayout("established");
+      setWhisper((w) => (w === undefined ? null : w));
+    }, HOME_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [layout]);
+
+  // The reply takes focus as it replaces the tiles: announced, and keyboard
+  // users keep their place
+  useEffect(() => {
+    if (verdict?.rating) replyRef.current?.focus({ preventScroll: true });
+  }, [verdict?.rating]);
 
   const hadCount = new Set([
     ...(journal?.rows || []).filter((r) => r.interaction_type === "had").map((r) => r.wine_name),
@@ -321,7 +348,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           style={{ padding: 0, borderBottom: "none" }}
         />
         {rated ? (
-          <p role="status" style={replyLine}>
+          <p ref={replyRef} tabIndex={-1} role="status" style={{ ...replyLine, outline: "none" }}>
             {failed ? "Couldn’t save — try again from your journal." : reply || `${rated.emoji} ${rated.label} — noted.`}
           </p>
         ) : (
@@ -374,7 +401,10 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           color: whisper ? ink(0.65) : ink(0.45),
           opacity: whisper === undefined ? 0 : 1, transition: "opacity 0.3s ease",
         }}>{whisper || homeDateLine()}</span>
-        <Link href="/palate" style={{ color: BURGUNDY, padding: "12px 0", whiteSpace: "nowrap", textDecoration: "none" }}>
+        {/* 44px of hit area at 10px type; the margin keeps the row's spacing */}
+        <Link href="/palate" style={{
+          color: BURGUNDY, padding: "15px 0", margin: "-3px 0", whiteSpace: "nowrap", textDecoration: "none",
+        }}>
           Your palate ›
         </Link>
       </div>
@@ -418,7 +448,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 <span style={{ color: ink(0.55) }}>Or </span>
                 {/* Inline in the sentence, its hit area padded past the line */}
                 <Link href="/log" data-testid="first-entry-snap" style={{
-                  color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "10px 0",
+                  color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "12px 0",
                 }}>📸 snap tonight’s label</Link>
                 <span style={{ color: ink(0.55) }}>. One rating and the Somm rewrites this list around you.</span>
               </p>

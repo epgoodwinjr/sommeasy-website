@@ -10,10 +10,11 @@
 // specific_wines. The saved step is the celebration — no toasts here — and
 // it re-reads the genome after the recompose so the bloom shows the change.
 //
-// Which name gets saved: a label scan saves producer + name exactly as home
-// always did (its vintage shows, but stays out of the name). Search,
-// want-list and as-written picks save their name verbatim unless it's
-// edited, so logging a want row turns that SAME journal row into a "had".
+// Which name gets saved (logEntry.js, unit-tested): a label scan saves
+// producer + name exactly as home always did (its vintage shows, but stays
+// out of the name). Search, want-list and as-written picks save their stored
+// name byte for byte unless it's edited, so logging a want row turns that
+// SAME journal row into a "had".
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
@@ -23,8 +24,8 @@ import { maybeRecomposeIdentity } from "@/lib/identityRecompose";
 import { resolveWine } from "@/lib/wineResolver";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { ratingFor } from "@/lib/ratings";
-import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
+import { entryFromName, entryFromScan, isFirstRating, nameToSave } from "@/lib/logEntry";
 import { confidentMeta, metaLine, savedCopy } from "@/lib/houseCopy";
 import { searchWines } from "@/lib/wineSearch";
 import PalateMark from "@/components/PalateMark";
@@ -59,14 +60,6 @@ const headline = {
 };
 
 const squash = (s) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim() : "");
-
-/** The name to save for an entry: verbatim unless edited (see header). */
-function nameToSave(entry) {
-  const edited = squash(entry.base);
-  if (!edited) return "";
-  if (edited === squash(entry.initialBase)) return entry.original;
-  return entry.appendVintage && entry.vintage ? `${edited} ${entry.vintage}` : edited;
-}
 
 /** The detected name, editable in place (for Ed's review, §12.4): a
  *  borderless textarea laid over a mirror of the same text, so the vintage
@@ -112,6 +105,8 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [journal, setJournal] = useState([]);
+  // Unknown ≠ empty: "your first entry" is only claimed from a read that worked
+  const [journalOk, setJournalOk] = useState(false);
   const [step, setStep] = useState(initialQuery ? "search" : "find");
   const [query, setQuery] = useState(initialQuery);
   const [catalog, setCatalog] = useState(null);
@@ -146,6 +141,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         ]);
         setProfile(profileRes.data || null);
         setJournal(journalRes.data || []);
+        setJournalOk(!journalRes.error && Array.isArray(journalRes.data));
       }
       setLoading(false);
     }
@@ -186,16 +182,16 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     setStep("rate");
   };
 
-  /** A picked or typed name → a rate entry. Region/grape from the journal
-   *  row's resolution when there is one, else the resolver at the gate. */
+  /** A picked or typed name → a rate entry, keyed by the exact stored name.
+   *  Region/grape from the journal row's resolution when there is one, else
+   *  the resolver at the gate. */
   const rateByName = (source, name) => {
-    const original = squash(name);
-    if (!original) return;
-    const { base, vintage } = splitVintage(original);
-    const row = journal.find((r) => r.wine_name === original);
+    const entry = entryFromName(source, name);
+    if (!entry) return;
+    const row = journal.find((r) => r.wine_name === name);
     beginRate({
-      source, original, initialBase: base, base, vintage, appendVintage: true,
-      meta: metaLine(row?.resolved_region, row?.resolved_varietal) || confidentMeta(resolveWine(original)),
+      ...entry,
+      meta: metaLine(row?.resolved_region, row?.resolved_varietal) || confidentMeta(resolveWine(name)),
     });
   };
 
@@ -241,8 +237,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
       }
 
       const scanned = {
-        source, original: displayName, initialBase: displayName, base: displayName,
-        vintage: data.vintage ? String(data.vintage) : null, appendVintage: false,
+        ...entryFromScan(source, displayName, data.vintage),
         meta: confidentMeta(resolveWine(displayName)) || metaLine(data.region, data.country),
       };
       // Let the reading bar complete before the rate step lands
@@ -264,7 +259,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     if (!entry || !rating || saving) return;
     const name = nameToSave(entry);
     if (!name) return;
-    const isFirst = !journal.some((r) => r.rating != null);
+    const isFirst = isFirstRating(journal, journalOk);
     const cleanNote = note.trim().slice(0, NOTE_MAX);
     setSaving(true);
     setSaveError("");

@@ -24,6 +24,8 @@ export const AUTH_ERRORS = {
     "That's the password you already have — pick something new.",
   magic_needs_email:
     "Tell us your email first — type it above and we'll send the link there.",
+  sign_out_failed:
+    "We couldn't sign you out just now — check your connection and try again.",
   unknown:
     "Something went sideways on our end. Give it a moment, then try again.",
 };
