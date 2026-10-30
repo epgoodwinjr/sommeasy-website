@@ -415,6 +415,7 @@ export default function RecommendPage() {
         if (fetchErr.name === "AbortError") {
           setErrorMsg("That wine list took too long to read. Try photographing one page at a time.");
           setProcessing(false);
+          setScanningAdditionalPage(false);
           stopLoadingMessages();
           return;
         }
@@ -934,6 +935,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               </div>
             ) : (
               <button onClick={() => {
+                setErrorMsg(""); // a new attempt starts clean
                 setScanningAdditionalPage(true);
                 const input = addPageInputRef.current;
                 if (input) {
@@ -959,6 +961,20 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#8B2332", fontWeight: 600 }}>Scan another page</span>
               </button>
             )}
+          </div>
+        )}
+
+        {/* ─── Page scan error ─── this early return never reaches the input
+            view's error box, so a failed page renders here, beside the
+            control that retries it; the picks below stay as they were */}
+        {errorMsg && (
+          <div data-testid="add-page-error" role="alert" aria-live="polite" style={{
+            padding: "12px 16px", borderRadius: "12px", marginBottom: 16,
+            background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.15)",
+          }}>
+            <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#8B2332", margin: 0, lineHeight: 1.5 }}>
+              {errorMsg}
+            </p>
           </div>
         )}
 
