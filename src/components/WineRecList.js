@@ -3,12 +3,13 @@
 // WineRecList — THE ratable recommendations surface (The Reveal session;
 // House List rows since Phase 2, README §8.1.6).
 //
-// The single implementation of "Had it / Want it / Pass" for DNA-generated
-// recommendations. Home's recommendations and the post-quiz reveal both
-// render this component, so a rating anywhere runs the same path:
-// wine_interactions upsert → resolveAndAccumulate (accumulation,
-// promotions, demotions) → milestone recompose → ledger → evolution and
-// shift toasts. Never fork a second copy of this logic.
+// The single implementation of "Had it / Want it / Pass". Home's
+// recommendations and the post-quiz reveal render this component, and a
+// wine's own page (/wine, Phase 4) calls its saveInteraction, so a rating
+// anywhere runs the same path: wine_interactions upsert →
+// resolveAndAccumulate (accumulation, promotions, demotions) → milestone
+// recompose → ledger → evolution and shift toasts. Never fork a second copy
+// of this logic.
 //
 // Rows are numbered House List WineRows. "🍷 Had it" opens the RatingTiles
 // in place — a tile rates at once, no modal — while "📌 Want it" and
@@ -47,6 +48,72 @@ export function evolutionToastMessages(items, isDemotion = false) {
   });
 }
 
+/**
+ * THE save behind Had it / Want it / Pass: upsert the journal row, record
+ * the intent or rating event (surface names the door it came through), and
+ * run a rating through the evolution engine and the milestone hook, toasting
+ * what moved. `ratingEvent` is the ledger row a rating writes — rec_rated
+ * for a recommendation, journal_rerated for a bottle already in the journal
+ * (a wine page's verdict). Returns { error, result } (result: the engine's).
+ */
+export async function saveInteraction({
+  supabase, userId, wineName, type, rating = null, previousRating = null,
+  surface, ratingEvent = "rec_rated", toast,
+}) {
+  const { error } = await supabase.from("wine_interactions").upsert({
+    user_id: userId,
+    wine_name: wineName,
+    interaction_type: type,
+    rating: rating || null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id, wine_name" });
+
+  if (error) {
+    console.error("Interaction save error:", error);
+    return { error, result: null };
+  }
+
+  // Intent signals (The Long Memory): today these leave only a state row —
+  // the event is the durable trace. Fire-and-forget.
+  if (type === "want") recordEvent(supabase, userId, "wine_wanted", { wine: wineName, surface });
+  if (type === "skip") recordEvent(supabase, userId, "wine_skipped", { wine: wineName, surface });
+
+  // A rated bottle is evidence — run the evolution engine (non-blocking)
+  let result = null;
+  if (type === "had" && rating) {
+    try {
+      result = await resolveAndAccumulate(supabase, userId, wineName, rating, previousRating);
+    } catch (evoErr) {
+      console.error("DNA evolution error (non-blocking):", evoErr);
+    }
+    // The ledger record — exactly once per rating, old→new plus the band
+    // the engine resolved at (engine hiccup → band "none"); fire-and-forget
+    recordEvent(supabase, userId, ratingEvent, ratingEventPayload({
+      wine: wineName, rating, previousRating, surface,
+      confidence: result?.resolution?.confidence,
+    }));
+    if (result) {
+      try {
+        const evolution = (items, isDemotion) => evolutionToastMessages(items, isDemotion)
+          .forEach((msg, i) => toast?.(msg, { delay: 1500 + i * 1500, duration: 4000 }));
+        if (result.promotions?.length > 0) evolution(result.promotions, false);
+        if (result.demotions?.length > 0) evolution(result.demotions, true);
+        // Milestone hook (Act III S3): recompose the identity strand when
+        // this rating earned the change — celebrated only on a real shift,
+        // after the promotion toasts have had their moment
+        const shift = await maybeRecomposeIdentity(supabase, userId, { ...result, rating });
+        if (shift?.shifted) {
+          const evoCount = (result.promotions?.length || 0) + (result.demotions?.length || 0);
+          toast?.(shiftToastMessage(shift), { delay: 1500 + evoCount * 1500, duration: 5000 });
+        }
+      } catch (evoErr) {
+        console.error("DNA evolution error (non-blocking):", evoErr);
+      }
+    }
+  }
+  return { error: null, result };
+}
+
 const sommNote = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: ink(0.72), marginTop: 8,
 };
@@ -71,7 +138,9 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate }) {
       metaRight={matchTag(rec.matchType)}
       metaTone="accent"
       struck={done?.kind === "skip"}
-      href={HOUSE_PAGES.wine ? wineHref(rec.wine) : undefined}
+      // The signed-out teaser's bottle stays put: its wine page is a
+      // sign-in wall, and leaving would lose the reveal and its gate
+      href={HOUSE_PAGES.wine && !readOnly ? wineHref(rec.wine) : undefined}
     >
       {rec.why && <p style={sommNote}>“{rec.why}”</p>}
       {!readOnly && !state && (
@@ -156,66 +225,12 @@ export default function WineRecList({
     [shown],
   );
 
-  const showEvolutionToasts = (items, isDemotion) => {
-    evolutionToastMessages(items, isDemotion).forEach((msg, i) => {
-      toast(msg, { delay: 1500 + i * 1500, duration: 4000 });
-    });
-  };
-
-  const saveInteraction = async (wineName, type, rating) => {
+  const save = (wineName, type, rating) => {
     const previousRating = interactions[wineName]?.rating || null;
     setInteractions((prev) => ({ ...prev, [wineName]: { type, rating: rating || null } }));
-
-    const { error } = await supabase.from("wine_interactions").upsert({
-      user_id: user.id,
-      wine_name: wineName,
-      interaction_type: type,
-      rating: rating || null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id, wine_name" });
-
-    if (error) console.error("Interaction save error:", error);
-
-    // Intent signals (The Long Memory): today these leave only a state row —
-    // the event is the durable trace. Fire-and-forget.
-    if (!error && type === "want") {
-      recordEvent(supabase, user.id, "wine_wanted", { wine: wineName, surface });
-    }
-    if (!error && type === "skip") {
-      recordEvent(supabase, user.id, "wine_skipped", { wine: wineName, surface });
-    }
-
-    // A rated bottle is evidence — run the evolution engine (non-blocking)
-    if (!error && type === "had" && rating) {
-      let result = null;
-      try {
-        result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
-      } catch (evoErr) {
-        console.error("DNA evolution error (non-blocking):", evoErr);
-      }
-      // The ledger record — exactly once per rating, old→new plus the band
-      // the engine resolved at (engine hiccup → band "none"); fire-and-forget
-      recordEvent(supabase, user.id, "rec_rated", ratingEventPayload({
-        wine: wineName, rating, previousRating, surface,
-        confidence: result?.resolution?.confidence,
-      }));
-      if (result) {
-        try {
-          if (result.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
-          if (result.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
-          // Milestone hook (Act III S3): recompose the identity strand when
-          // this rating earned the change — celebrated only on a real shift,
-          // after the promotion toasts have had their moment
-          const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
-          if (shift?.shifted) {
-            const evoCount = (result.promotions?.length || 0) + (result.demotions?.length || 0);
-            toast(shiftToastMessage(shift), { delay: 1500 + evoCount * 1500, duration: 5000 });
-          }
-        } catch (evoErr) {
-          console.error("DNA evolution error (non-blocking):", evoErr);
-        }
-      }
-    }
+    return saveInteraction({
+      supabase, userId: user.id, wineName, type, rating, previousRating, surface, toast,
+    });
   };
 
   const handleAction = (wineName, kind) => {
@@ -224,13 +239,13 @@ export default function WineRecList({
       return;
     }
     setSession((s) => ({ ...s, [wineName]: { kind } }));
-    saveInteraction(wineName, kind);
+    save(wineName, kind);
   };
 
   const handleRate = (wineName, rating) => {
     setSession((s) => ({ ...s, [wineName]: { kind: "rated", rating } }));
     onRated?.({ wine: wineName, rating });
-    saveInteraction(wineName, "had", rating);
+    save(wineName, "had", rating);
   };
 
   if (!recs || recs.length === 0 || readFailed) return null;

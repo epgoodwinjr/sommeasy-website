@@ -2,10 +2,10 @@
 //
 // The redesign lands one phase at a time and every phase must leave the
 // preview deploy usable, so a link to a page that hasn't shipped yet stays
-// dark instead of 404ing: the wine page (Phase 4) and Search (Phase 5) flip
-// on here when they land. Delete this file once both are true.
+// dark instead of 404ing. The wine page landed in Phase 4; Search (Phase 5)
+// flips on here when it lands. Delete this file once both are true.
 
 export const HOUSE_PAGES = Object.freeze({
-  wine: false,
+  wine: true,
   search: false,
 });

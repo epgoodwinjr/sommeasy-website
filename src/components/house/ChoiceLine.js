@@ -73,8 +73,11 @@ export default function ChoiceLine({ label, options, value, onChange, labelSize 
   );
 }
 
-/** The journal's tabs: TRIED 13 · WANT 3 · PASSED 1 · TIMELINE. */
-export function ChoiceTabs({ tabs, value, onChange, label = "Journal", style }) {
+/** The journal's tabs: TRIED 13 · WANT 3 · PASSED 1 · TIMELINE. With
+ *  `panelId`, each tab controls that panel and is named `${panelId}-${id}`
+ *  (the panel's aria-labelledby). A count is spoken after a comma
+ *  ("Tried, 13") rather than run into the label. */
+export function ChoiceTabs({ tabs, value, onChange, label = "Journal", panelId, style }) {
   const ids = tabs.map((t) => t.id);
   const stop = tabStop(ids, value);
   return (
@@ -91,6 +94,9 @@ export function ChoiceTabs({ tabs, value, onChange, label = "Journal", style }) 
             key={t.id}
             type="button"
             role="tab"
+            id={panelId ? `${panelId}-${t.id}` : undefined}
+            aria-controls={panelId}
+            aria-label={t.count != null ? `${t.label}, ${t.count}` : undefined}
             aria-selected={on}
             tabIndex={t.id === stop ? 0 : -1}
             data-choice={t.id}

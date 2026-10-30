@@ -29,23 +29,29 @@ import { BURGUNDY, COLUMN, SANS, ink } from "./tokens";
 // plain useEffect on the server, where there's no trail to read.
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
+/** The back action: a step back through real history when the trail has
+ *  somewhere to go, else home. The head's ‹ and a page that leaves itself
+ *  (the wine page after "Remove from journal") share it. */
+export function useGoBack() {
+  const router = useRouter();
+  return useCallback(() => {
+    if (stepBack() === "back") router.back();
+    else router.push("/");
+  }, [router]);
+}
+
 /** Record this page in the back trail; returns the back label (null until
  *  the trail is read) and the back action. */
 export function useNavTrail(title) {
-  const router = useRouter();
   const pathname = usePathname();
   const [backLabel, setBackLabel] = useState(null);
+  const goBack = useGoBack();
 
   useBeforePaint(() => {
     const { pathname: path, search } = window.location;
     const trail = recordVisit({ path: path + search, title: title || titleForPath(path) || "Back" });
     setBackLabel(backTarget(trail).label);
   }, [title, pathname]);
-
-  const goBack = useCallback(() => {
-    if (stepBack() === "back") router.back();
-    else router.push("/");
-  }, [router]);
 
   return { backLabel, goBack };
 }

@@ -89,7 +89,9 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   // Home has no running head, but it's the root of the back trail
   useNavTrail(HOME_TITLE);
   const router = useRouter();
-  const { toasts, showToast } = useToast();
+  // Receives too: "Removed from your journal" lands here when a wine page
+  // steps back home
+  const { toasts, showToast } = useToast({ receivesCarried: true });
   // undefined until the read settles — the date line waits, so a whisper
   // never swaps in over the date
   const [whisper, setWhisper] = useState(undefined);

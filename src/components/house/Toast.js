@@ -13,6 +13,14 @@
 // lifetimes) — they queue through here and stack upward, 8px apart. Each
 // pill fades in rising 10px and fades out. The stack is a single polite
 // live region, mounted before any message lands so every one is announced.
+//
+// A toast can outlive its page: a wine page's "Remove from journal" goes
+// back, and the page it lands on says "Removed from your journal" (and any
+// demotion it caused). carryToasts() hands them over; the next queue built
+// with useToast({ receivesCarried: true }) plays them — only a page a wine
+// page can step back to (home, the journal, another wine page), and only
+// within CARRY_MS, so a stale message never surfaces later. Module state:
+// it rides client-side navigation in this tab and nothing else.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CREAM, INK, SANS, SOFT_OUT, TOAST_SHADOW } from "./tokens";
@@ -20,8 +28,16 @@ import { CREAM, INK, SANS, SOFT_OUT, TOAST_SHADOW } from "./tokens";
 export const TOAST_MS = 2600;
 const ENTER_MS = 250;
 const EXIT_MS = 300;
+const CARRY_MS = 5000;
 
-export function useToast() {
+let carried = null; // { at, toasts: [{ message, delay?, duration? }] }
+
+/** Hand toasts to the page the next navigation lands on. */
+export function carryToasts(toasts) {
+  carried = { at: Date.now(), toasts };
+}
+
+export function useToast({ receivesCarried = false } = {}) {
   const [toasts, setToasts] = useState([]);
   const timers = useRef(new Set());
   const lastId = useRef(0);
@@ -48,6 +64,20 @@ export function useToast() {
       later(() => setToasts((list) => list.filter((t) => t.id !== id)), duration);
     }, delay);
   }, [later]);
+
+  // Claimed a tick after mount, so StrictMode's discarded first run can't
+  // spend the hand-off before the run that lives
+  useEffect(() => {
+    if (!receivesCarried || !carried) return undefined;
+    const handoff = carried;
+    const t = setTimeout(() => {
+      if (carried !== handoff) return;
+      carried = null;
+      if (Date.now() - handoff.at > CARRY_MS) return;
+      handoff.toasts.forEach(({ message, ...opts }) => showToast(message, opts));
+    }, 0);
+    return () => clearTimeout(t);
+  }, [receivesCarried, showToast]);
 
   return { toasts, showToast };
 }
