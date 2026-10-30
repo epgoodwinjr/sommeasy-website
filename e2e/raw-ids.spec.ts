@@ -5,7 +5,8 @@ import { findRawIdTextNodes } from "./fixtures/raw-id-scan";
  * Permanent regression guard (Palate Act II brief, non-negotiable):
  * no visible text node may be a raw internal ID like "south_africa",
  * "hemel_en_aarde_walker_bay", or "pinot_noir" — on the home page, the
- * Palate view, or the journal. Display-name discipline everywhere.
+ * Palate view, the journal, or a wine's page. Display-name discipline
+ * everywhere.
  * (The scanner lives in fixtures/raw-id-scan.ts so the quiz-completion
  * reveal spec runs the same check.)
  *
@@ -34,11 +35,24 @@ test.describe("No raw internal IDs (permanent guard)", () => {
 
   test("journal (all tabs) shows no raw IDs", async ({ page }) => {
     await page.goto("/journal");
-    await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-    for (const tab of [/^Tried \(/, /^Want to Try \(/, /^Skipped \(/, /^DNA Timeline$/]) {
-      await page.getByRole("button", { name: tab }).click();
+    await expect(page.getByRole("heading", { name: "Journal", level: 1 })).toBeVisible();
+    for (const tab of [/^Tried/, /^Want/, /^Passed/, /^Timeline$/]) {
+      await page.getByRole("tab", { name: tab }).click();
       const offenders = await findRawIdTextNodes(page);
       expect(offenders, `Raw internal IDs rendered on tab ${tab}: ${offenders.join(", ")}`).toEqual([]);
     }
+  });
+
+  // House List Phase 4: a wine's own page prints facts from the stored
+  // resolution and the resolver — the riskiest page for a raw id to leak
+  test("a wine's page shows no raw IDs", async ({ page }) => {
+    await page.goto("/journal");
+    const row = page.getByTestId("journal-row").first();
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await row.click();
+    const wine = page.getByTestId("wine-page");
+    await expect(wine.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 15_000 });
+    const offenders = await findRawIdTextNodes(page);
+    expect(offenders, `Raw internal IDs rendered: ${offenders.join(", ")}`).toEqual([]);
   });
 });

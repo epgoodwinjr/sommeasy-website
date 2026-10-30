@@ -105,6 +105,10 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     await expect(recs.getByRole("button", { name: /Want it/ })).toHaveCount(0);
     await expect(recs.getByRole("button", { name: /Pass/ })).toHaveCount(0);
     await expect(recs.getByTestId("rating-tile-loved")).toHaveCount(0);
+    // …and no door out: since House List Phase 4 a signed-in rec name links
+    // to its wine page, which signed out is only a sign-in wall — the
+    // teaser's bottle must not lead the anonymous palate away from its gate
+    await expect(recs.getByRole("link")).toHaveCount(0);
 
     // No signed-in furniture leaks into the teaser
     await expect(page.getByTestId("reveal-saved")).toHaveCount(0);

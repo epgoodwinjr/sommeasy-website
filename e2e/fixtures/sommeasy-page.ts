@@ -4,24 +4,33 @@ import path from "path";
 
 const FIXTURES_DIR = path.join(__dirname, "images");
 
+/** A journal row by its exact stored name (rows carry data-wine). */
+export function journalRow(page: Page, wineName: string): Locator {
+  return page.locator(`[data-testid="journal-row"][data-wine=${JSON.stringify(wineName)}]`);
+}
+
 /**
- * Remove a journal row the way a user does: the journal's × (delete first,
- * reverse only what that call removed, then journal_deleted). Guards that
- * clean up a rating come through here, so when House List Phase 4 moves the
- * delete to the wine page this is the one place to follow it.
+ * Remove a journal row the way a user does (House List Phase 4): open it
+ * from the journal's Tried tab, then "Remove from journal" on its wine page
+ * — the journal delete (delete first, reverse only what that call removed,
+ * then journal_deleted). The page steps back to the journal, which says so
+ * and no longer lists the bottle. Every guard that cleans up a rating comes
+ * through here.
  */
 export async function removeFromJournal(page: Page, wineName: string) {
   await page.goto("/journal");
-  await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-  await expect(page.getByText(wineName, { exact: true })).toBeVisible();
-  const journalCard = page
-    .locator("div")
-    .filter({ has: page.getByText(wineName, { exact: true }) })
-    .filter({ has: page.getByRole("button", { name: "×" }) })
-    .last();
-  await journalCard.getByRole("button", { name: "×" }).click();
-  await expect(page.getByText("✓ Removed")).toBeVisible();
-  await expect(page.getByText(wineName, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Journal", level: 1 })).toBeVisible({ timeout: 15_000 });
+  const row = journalRow(page, wineName);
+  await expect(row).toBeVisible();
+  await row.click();
+  const wine = page.getByTestId("wine-page");
+  await expect(wine.getByTestId("wine-remove")).toBeVisible({ timeout: 15_000 });
+  await wine.getByTestId("wine-remove").click();
+  await page.waitForURL(/\/journal/, { timeout: 15_000 });
+  await expect(page.getByText("Removed from your journal")).toBeVisible();
+  // The heading renders once the rows are read — only then is "gone" real
+  await expect(page.getByRole("heading", { name: "Journal", level: 1 })).toBeVisible({ timeout: 15_000 });
+  await expect(journalRow(page, wineName)).toHaveCount(0);
 }
 
 /**

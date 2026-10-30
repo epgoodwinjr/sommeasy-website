@@ -44,8 +44,9 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  * latest-row shape, never absolute state, never deletes. The guard rating
  * is "It was fine" (0 evolution points — the engine early-returns before
  * any accumulation write), and the journal row is removed through the real
- * journal UI in the last test; the finally-style restore only puts back the
- * identity-bearing profile fields the milestone hook may silently refresh.
+ * UI in test 4 (its wine page's Remove from journal, since House List Phase
+ * 4); the afterAll restore only puts back the identity-bearing profile
+ * fields the milestone hook may silently refresh.
  *
  * Guard wine: Ken Forrester (chenin/stellenbosch/south_africa dims — all
  * pre-existing on the seeded account; deliberately NOT Kanonkop, which is

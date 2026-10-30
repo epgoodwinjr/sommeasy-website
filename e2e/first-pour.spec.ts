@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { freshDb, testDb } from "./fixtures/test-db";
+import { removeFromJournal } from "./fixtures/sommeasy-page";
 
 /**
  * Hard-fail guards for The First Pour (Aug 2026), carried into The House
@@ -21,7 +22,7 @@ import { freshDb, testDb } from "./fixtures/test-db";
  * 3. Rating through the real UI opens the Reserved rows IN PLACE while
  *    section II stays put (the page never rearranges under the thumb),
  *    retires the layout from DURABLE truth (established across a reload),
- *    and deleting that rating through the real journal UI honestly
+ *    and deleting that rating through the real UI (its wine page) honestly
  *    restores never-rated state — the new-user layout returns. This cycle
  *    is also what keeps this fixture account zero-state forever.
  * 4. A due verdict ask outranks onboarding: the established layout with
@@ -197,16 +198,9 @@ test.describe.serial("The First Pour — fresh account (hard-fail)", () => {
     await expect(page.getByTestId("reserved-row")).toHaveCount(0);
 
     // The honest restore: deleting the only rated bottle returns the account
-    // to never-rated — through the real journal UI
-    await page.goto("/journal");
-    await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-    const journalCard = page
-      .locator("div")
-      .filter({ has: page.getByText(wineName, { exact: true }) })
-      .filter({ has: page.getByRole("button", { name: "×" }) })
-      .last();
-    await journalCard.getByRole("button", { name: "×" }).click();
-    await expect(page.getByText("✓ Removed")).toBeVisible();
+    // to never-rated — through the real UI (the journal row → its wine
+    // page → Remove from journal, since House List Phase 4)
+    await removeFromJournal(page, wineName);
     await expect
       .poll(async () => {
         const { data } = await supabase
