@@ -5,7 +5,9 @@
 // wrapping are a renderer artifact), on a 40px hit area. Tones: primary
 // (burgundy), secondary (ink), quiet (ink at 0.45; `opacity` for the
 // 0.5–0.55 cases). `underlined` is the quiet underlined link (weight 400).
-// Links keep the global hover underline; TextActions lays out a group.
+// `ariaExpanded` is for a button that opens something in place ("Adjust ›",
+// "or paste the text manually"). Links keep the global hover underline;
+// TextActions lays out a group.
 
 import Link from "next/link";
 import { BURGUNDY, INK, SANS } from "./tokens";
@@ -18,7 +20,7 @@ const TONES = {
 
 export default function TextAction({
   children, tone = "primary", size = 13, weight, opacity, underlined = false,
-  href, onClick, type = "button", disabled = false, testId, ariaLabel, style,
+  href, onClick, type = "button", disabled = false, testId, ariaLabel, ariaExpanded, style,
 }) {
   const t = TONES[tone] || TONES.primary;
   const css = {
@@ -34,7 +36,7 @@ export default function TextAction({
     return <Link href={href} onClick={onClick} data-testid={testId} aria-label={ariaLabel} style={css}>{children}</Link>;
   }
   return (
-    <button type={type} onClick={onClick} disabled={disabled} data-testid={testId} aria-label={ariaLabel} style={css}>
+    <button type={type} onClick={onClick} disabled={disabled} data-testid={testId} aria-label={ariaLabel} aria-expanded={ariaExpanded} style={css}>
       {children}
     </button>
   );

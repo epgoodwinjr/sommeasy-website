@@ -11,6 +11,8 @@
 // is the quieter Log-saved line: 20px label, a 1.5px leader and a › in
 // place of the circle. The sub line under the entry describes it
 // (aria-describedby). A disabled entry is a disabled button at 0.35.
+// `expanded` marks a button entry that opens something in place (Match's
+// Paste a link) — it becomes aria-expanded.
 
 import Link from "next/link";
 import { useId } from "react";
@@ -19,7 +21,7 @@ import { BURGUNDY, CIRCLE_SHADOW, CREAM, GRADIENT, INK, SANS, SERIF, ink, leader
 export default function LeaderEntry({
   label, mark, tone = "outline", size = 24, secondary = false,
   sub, subGap = 6, href, onClick, type = "button", disabled = false,
-  testId, style,
+  expanded, testId, style,
 }) {
   const subId = useId();
   const filled = tone === "filled";
@@ -71,7 +73,7 @@ export default function LeaderEntry({
       {href && !disabled ? (
         <Link href={href} onClick={onClick} {...shared}>{line}</Link>
       ) : (
-        <button type={type} onClick={onClick} disabled={disabled} {...shared}>{line}</button>
+        <button type={type} onClick={onClick} disabled={disabled} aria-expanded={expanded} {...shared}>{line}</button>
       )}
       {sub && (
         <div id={subId} style={{
