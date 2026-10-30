@@ -5,8 +5,8 @@ import { findRawIdTextNodes } from "./fixtures/raw-id-scan";
  * Permanent regression guard (Palate Act II brief, non-negotiable):
  * no visible text node may be a raw internal ID like "south_africa",
  * "hemel_en_aarde_walker_bay", or "pinot_noir" — on the home page, the
- * Palate view, the journal, or a wine's page. Display-name discipline
- * everywhere.
+ * Palate view, the journal, a wine's page, Log a bottle, Search or Account.
+ * Display-name discipline everywhere.
  * (The scanner lives in fixtures/raw-id-scan.ts so the quiz-completion
  * reveal spec runs the same check.)
  *
@@ -52,6 +52,45 @@ test.describe("No raw internal IDs (permanent guard)", () => {
     await row.click();
     const wine = page.getByTestId("wine-page");
     await expect(wine.getByRole("heading", { level: 1 })).toBeVisible({ timeout: 15_000 });
+    const offenders = await findRawIdTextNodes(page);
+    expect(offenders, `Raw internal IDs rendered: ${offenders.join(", ")}`).toEqual([]);
+  });
+
+  // House List Phase 5: the rest of the inner pages that print wine data.
+  // Each waits for its content first — a blank page passing the scan would
+  // be outcome-tolerance in disguise.
+  test("Log a bottle shows no raw IDs", async ({ page }) => {
+    await page.goto("/log");
+    await expect(page.getByRole("heading", { name: "Log a bottle", level: 1 })).toBeVisible({ timeout: 15_000 });
+    // The want list prints REGION · GRAPE from stored resolutions (the
+    // seeded wants are its premise)
+    await expect(page.getByRole("heading", { name: "From your want list" })).toBeVisible({ timeout: 15_000 });
+    const offenders = await findRawIdTextNodes(page);
+    expect(offenders, `Raw internal IDs rendered: ${offenders.join(", ")}`).toEqual([]);
+  });
+
+  test("search shows no raw IDs — browsing the DNA, and a query's results", async ({ page }) => {
+    await page.goto("/search");
+    const browse = page.getByTestId("search-browse");
+    await expect(browse).toBeVisible({ timeout: 15_000 });
+    await expect(browse.getByRole("button", { name: /^Stellenbosch/ })).toBeVisible();
+    let offenders = await findRawIdTextNodes(page);
+    expect(offenders, `Raw internal IDs rendered (browse): ${offenders.join(", ")}`).toEqual([]);
+
+    // Journal rows and the Somm's picks print resolved places; the DNA rows
+    // print display names
+    for (const query of ["domaine", "stellenbosch"]) {
+      await page.getByTestId("search-input").fill(query);
+      const results = page.getByTestId("search-results");
+      await expect(results.getByRole("heading").first()).toBeVisible();
+      offenders = await findRawIdTextNodes(page);
+      expect(offenders, `Raw internal IDs rendered for "${query}": ${offenders.join(", ")}`).toEqual([]);
+    }
+  });
+
+  test("account shows no raw IDs", async ({ page }) => {
+    await page.goto("/account");
+    await expect(page.getByTestId("account-signout")).toBeVisible({ timeout: 15_000 });
     const offenders = await findRawIdTextNodes(page);
     expect(offenders, `Raw internal IDs rendered: ${offenders.join(", ")}`).toEqual([]);
   });
