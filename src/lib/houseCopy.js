@@ -2,7 +2,9 @@
 //
 // Every line whose words depend on data lives here: the From last night
 // reply, the Log saved screen, the home crest's whisper, date and initial,
-// rec meta and match tags, done lines, the Reserved caption. Bottle counts
+// rec meta and match tags, done lines, the Reserved caption — and since
+// Phase 4 the journal's rows, months and timeline lines and a wine page's
+// verdict, eyebrow and particulars. Bottle counts
 // are computed from the engine's REAL thresholds (dnaThresholds.js) and
 // written as words — never a hardcoded "two loved bottles". Rating emoji and
 // labels come from RATINGS (ratings.js), never a local copy.
@@ -283,4 +285,191 @@ export function picksSubline({ wines, pages, picks } = {}) {
   }
   const across = pages > 1 ? ` across ${pages} pages` : "";
   return `${count}${across} — ${picks > 5 ? `here are your top ${picks}` : "here’s where to start"}`;
+}
+
+// ─── The journal + a wine's page (Phase 4) ───
+
+// Little words that stay lowercase inside a place name ("Côte de Beaune",
+// "Hemel-en-Aarde", "Montepulciano d'Abruzzo") — never when they open it
+const PARTICLES = new Set([
+  "de", "del", "della", "dei", "di", "du", "des", "d", "la", "le", "les", "l",
+  "et", "en", "sur", "sous", "y", "e", "am", "an", "der", "im", "von", "van", "of", "and",
+]);
+
+function capitalize(word) {
+  if (/^mc./.test(word)) return `Mc${word.charAt(2).toUpperCase()}${word.slice(3)}`;
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+function casePart(part, opens) {
+  const elided = part.match(/^([a-z]+)['’](.+)$/);
+  if (elided) {
+    const [, head, rest] = elided;
+    const lead = opens || !PARTICLES.has(head) ? capitalize(head) : head;
+    return `${lead}${part.charAt(head.length)}${capitalize(rest)}`;
+  }
+  return !opens && PARTICLES.has(part) ? part : capitalize(part);
+}
+
+/** A place in display case. The resolver stores its lookup term lowercase
+ *  (resolved_region "vouvray", "hemel-en-aarde"); a name that already has
+ *  capitals is left as written. Junk → "". */
+export function placeName(term) {
+  if (typeof term !== "string") return "";
+  const text = term.trim().replace(/\s+/g, " ");
+  if (!text || text !== text.toLowerCase()) return text;
+  return text.split(" ").map((word, w) => word.split("-")
+    .map((part, p) => casePart(part, w === 0 && p === 0))
+    .join("-")).join(" ");
+}
+
+function asDate(value) {
+  const at = value instanceof Date ? value : new Date(value ?? NaN);
+  return Number.isNaN(at.getTime()) ? null : at;
+}
+
+/** "Aug 1" — "Today" when it is; ", 2025" joins a date from another year
+ *  (`year: false` leaves it to a month head that already says it). Junk → "". */
+export function shortDate(value, now = new Date(), { year = true } = {}) {
+  const at = asDate(value);
+  if (!at) return "";
+  const today = new Date(now);
+  if (at.toDateString() === today.toDateString()) return "Today";
+  const day = at.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return year && at.getFullYear() !== today.getFullYear() ? `${day}, ${at.getFullYear()}` : day;
+}
+
+/** A Tried month head: "September", or "September 2025" outside this year. */
+export function monthLabel(value, now = new Date()) {
+  const at = asDate(value);
+  if (!at) return "";
+  const month = at.toLocaleDateString("en-US", { month: "long" });
+  return at.getFullYear() !== new Date(now).getFullYear() ? `${month} ${at.getFullYear()}` : month;
+}
+
+export function bottleCount(n) {
+  return `${n} bottle${n === 1 ? "" : "s"}`;
+}
+
+/** Under the journal's lists: "13 tried · 5 loved · 3 to try". */
+export function journalStats({ tried, loved, want } = {}) {
+  const n = (v) => (Number.isInteger(v) && v > 0 ? v : 0);
+  return `${n(tried)} tried · ${n(loved)} loved · ${n(want)} to try`;
+}
+
+const TIMELINE_TARGETS = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
+
+/** One dna_timeline row, as the journal's Timeline and a wine's page tell
+ *  it: { emoji, text, strong } — "🧬 Chenin Blanc joined your DNA", "🍂 …
+ *  left your estates", "✨ You became The Mosel Purist" (strong). A shift
+ *  that kept its title is the signature moving. Junk → null. */
+export function timelineLine(entry) {
+  if (!entry || typeof entry !== "object" || typeof entry.display_name !== "string" || !entry.display_name) return null;
+  const name = entry.display_name;
+  const target = TIMELINE_TARGETS[entry.dimension] || "your DNA";
+  if (entry.event_type === "promoted") return { emoji: "🧬", text: `${name} joined ${target}`, strong: false };
+  if (entry.event_type === "demoted") return { emoji: "🍂", text: `${name} left ${target}`, strong: false };
+  if (entry.event_type !== "shifted") return null;
+  let text = `You became ${name}`;
+  try {
+    const change = JSON.parse(entry.dimension_value);
+    if (change?.from?.title === change?.to?.title && change?.to?.epithet) {
+      text = `Your signature shifted — ${change.to.epithet}`;
+    }
+  } catch { /* the title line stands */ }
+  return { emoji: "✨", text, strong: true };
+}
+
+/** The Timeline's first entry, dated by the profile's creation. */
+export const FOUNDING_LINE = Object.freeze({ emoji: "🎉", text: "Your palate began — quiz complete", strong: false });
+
+// The pick roles' tags — a mirror of matchEngine's getPickTypeInfo labels,
+// kept here so this module stays dependency-light (matchEngine drags the
+// 2.9MB wineUnified.json behind it)
+const SOMM_ROLE_TAGS = {
+  top: "🏆 Top Pick",
+  splurge: "✨ Splurge",
+  value: "💰 Great Value",
+  adventure: "🧭 Adventure",
+  wildcard: "🍷 Worth Trying",
+};
+
+/** The role the Somm gave a pick ("💰 Great Value"), or null. */
+export function sommRoleTag(role) {
+  return SOMM_ROLE_TAGS[role] || null;
+}
+
+/** The user's mark on a journal row, at the end of its line: the rating's
+ *  emoji, 🥂 for a bottle had but not yet rated (its verdict pending), 📌 a
+ *  want, 👋 a pass. No row → null. Log's search, the journal and a wine
+ *  page's same-vein rows all wear this one. */
+export function journalMark(row) {
+  if (!row || typeof row !== "object") return null;
+  const rated = ratingFor(row.rating);
+  if (rated) return rated.emoji;
+  if (row.interaction_type === "had") return "🥂";
+  if (row.interaction_type === "want") return "📌";
+  if (row.interaction_type === "skip") return "👋";
+  return null;
+}
+
+/** Under a verdict: where the bottle was drunk — the Log's place, else a
+ *  Somm pick's provenance, else nothing. */
+export function verdictWhere(row) {
+  if (row?.place === "home") return "At home";
+  if (row?.place === "out") return "Out";
+  return row?.somm_pick_role ? "From the list at dinner" : "";
+}
+
+/** "Keep ❤️ Loved it" — cancels a verdict change. */
+export function keepLabel(rating) {
+  const r = ratingFor(rating);
+  return r ? `Keep ${r.emoji} ${r.label}` : null;
+}
+
+/**
+ * A journal row's meta line: left "REGION · GRAPE" from the stored
+ * resolution ("REGION · VERDICT PENDING" for a had with no rating), right
+ * the date — "🍷 SOMM PICK · AUG 1" (accent) on a Somm pick, "SAVED …" on a
+ * want. Tried rows sit under month heads, so their dates skip the year.
+ * Uppercased by CSS. → { meta, right, accent }
+ */
+export function journalRowMeta(row, now = new Date()) {
+  if (!row || typeof row !== "object") return { meta: "", right: "", accent: false };
+  const region = placeName(row.resolved_region);
+  const at = row.updated_at ?? row.created_at;
+  if (row.interaction_type === "had") {
+    const meta = ratingFor(row.rating)
+      ? metaLine(region, row.resolved_varietal)
+      : metaLine(region, "Verdict pending");
+    const date = shortDate(at, now, { year: false });
+    return row.somm_pick_role
+      ? { meta, right: metaLine("🍷 Somm pick", date), accent: true }
+      : { meta, right: date, accent: false };
+  }
+  const meta = metaLine(region, row.resolved_varietal);
+  const date = shortDate(at, now);
+  return { meta, right: row.interaction_type === "want" && date ? `Saved ${date}` : date, accent: false };
+}
+
+/** A wine page's eyebrow: "VOUVRAY · FRANCE" (uppercased by CSS). */
+export function wineMeta(facts) {
+  return metaLine(placeName(facts?.region), facts?.country);
+}
+
+/** The particulars, only the ones known: [[label, value], …]. The region
+ *  carries its province when that says something more ("Vouvray, Loire
+ *  Valley"). There's no Style row: the journal has no real source for it. */
+export function particulars(facts, vintage) {
+  const f = facts && typeof facts === "object" ? facts : {};
+  const region = placeName(f.region);
+  const province = placeName(f.province);
+  const rows = [
+    ["Producer", f.producer],
+    ["Region", region && province && province.toLowerCase() !== region.toLowerCase() ? `${region}, ${province}` : region],
+    ["Country", f.country],
+    ["Grape", f.grape],
+    ["Vintage", vintage],
+  ];
+  return rows.filter(([, value]) => typeof value === "string" && value.trim() !== "");
 }

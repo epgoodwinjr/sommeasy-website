@@ -4,7 +4,9 @@
 // The stored name is the journal row's key (wine_interactions is unique on
 // user_id + wine_name), so a picked name — a want row, a journal hit — must
 // save byte for byte unless the user really edits it, or logging a want
-// would fork a second row. Pure; logEntry.test.js runs the real module.
+// would fork a second row — and when they do edit it, renamedFrom names the
+// unrated row the save takes over. Pure; logEntry.test.js runs the real
+// module.
 
 import { splitVintage } from "./vintage.js";
 
@@ -35,6 +37,21 @@ export function nameToSave(entry) {
   if (!edited) return "";
   if (edited === squash(entry.initialBase)) return entry.original;
   return entry.appendVintage && entry.vintage ? `${edited} ${entry.vintage}` : edited;
+}
+
+/** The journal row this save takes over when the name was edited: the row
+ *  stored under the picked name, while it carries no verdict (a want, a
+ *  pass, a had never rated). Saving under the edited name and leaving that
+ *  row behind would fork the bottle — the 📌 entry lingering beside the
+ *  logged one — so the caller renames it instead. A rated row stays put:
+ *  another name is another bottle, and its evidence never moves on its own.
+ *  Null when there's nothing to take over. */
+export function renamedFrom(entry, journal) {
+  if (!entry || !Array.isArray(journal)) return null;
+  const name = nameToSave(entry);
+  if (!name || name === entry.original) return null;
+  const row = journal.find((r) => r && r.wine_name === entry.original);
+  return row && row.rating == null ? row : null;
 }
 
 /** The user's first rated bottle ever — claimed only from a journal read

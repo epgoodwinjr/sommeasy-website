@@ -11,8 +11,7 @@
 // v: grape, r: region, c: country }. Pure; wineSearch.test.js runs the real
 // module in plain node. Junk rows are skipped, never thrown on.
 
-import { ratingFor } from "./ratings.js";
-import { metaLine } from "./houseCopy.js";
+import { journalMark, metaLine } from "./houseCopy.js";
 
 function fold(text) {
   return typeof text === "string"
@@ -33,15 +32,6 @@ function tier(queryWords, nameFields, otherFields) {
   const nameWords = words(...nameFields);
   if (prefixesAll(queryWords, nameWords)) return 0;
   if (prefixesAll(queryWords, [...nameWords, ...words(...otherFields)])) return 1;
-  return null;
-}
-
-/** The user's mark on a journal row: their rating, else 📌 / 👋. */
-function journalMark(row) {
-  const rated = ratingFor(row.rating);
-  if (rated) return rated.emoji;
-  if (row.interaction_type === "want") return "📌";
-  if (row.interaction_type === "skip") return "👋";
   return null;
 }
 

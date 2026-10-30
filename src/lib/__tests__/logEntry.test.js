@@ -12,6 +12,10 @@
 //      never gains one (producer + name, home's semantics since day one).
 //   3. "First rated bottle ever" is only claimed from a journal read that
 //      SUCCEEDED — unknown ≠ empty.
+//   4. (Phase 4) Editing the name of a picked row that carries no verdict —
+//      a want, a pass, a legacy had — renames THAT row instead of forking a
+//      second one (the 📌 entry used to linger beside the logged bottle). A
+//      rated row is never moved: another name is another bottle.
 
 let passed = 0, failed = 0;
 async function test(name, fn) {
@@ -30,7 +34,7 @@ function assertEq(actual, expected, msg) {
 }
 
 async function main() {
-  const { entryFromName, entryFromScan, nameToSave, isFirstRating } = await import("../logEntry.js");
+  const { entryFromName, entryFromScan, nameToSave, isFirstRating, renamedFrom } = await import("../logEntry.js");
   const edit = (entry, base) => ({ ...entry, base });
 
   console.log("\n═══ Suite 1: picked and typed names ═══");
@@ -85,6 +89,41 @@ async function main() {
   await test("a failed or missing read never claims first", () => {
     assertEq(isFirstRating([], false), false, "read failed");
     assertEq(isFirstRating(null, true), false, "no rows");
+  });
+
+  console.log("\n═══ Suite 4: an edited name renames its row ═══");
+
+  const want = { wine_name: "Sadie Family Palladius 2020", interaction_type: "want", rating: null };
+  const journal = [
+    want,
+    { wine_name: "Mullineux Old Vines White 2021", interaction_type: "skip", rating: null },
+    { wine_name: "Hamilton Russell Chardonnay 2022", interaction_type: "had", rating: null },
+    { wine_name: "Raats Original Chenin Blanc 2022", interaction_type: "had", rating: "loved" },
+  ];
+
+  await test("an edited want renames that row — the 📌 entry never lingers", () => {
+    const e = entryFromName("want", "Sadie Family Palladius 2020");
+    assertEq(renamedFrom(edit(e, "Sadie Family Palladius Blanc"), journal), want, "the want row is the one to rename");
+    assertEq(renamedFrom(e, journal), null, "unedited: the upsert already lands on it");
+    assertEq(renamedFrom(edit(e, "Sadie  Family Palladius"), journal), null, "a whitespace-only touch is not an edit");
+  });
+
+  await test("a pass or a legacy unrated had is renamed too; a rated row never moves", () => {
+    assertEq(renamedFrom(edit(entryFromName("search", "Mullineux Old Vines White 2021"), "Mullineux Old Vines"), journal)?.interaction_type,
+      "skip", "a pass");
+    assertEq(renamedFrom(edit(entryFromName("search", "Hamilton Russell Chardonnay 2022"), "Hamilton Russell Chard"), journal)?.interaction_type,
+      "had", "a verdict pending");
+    assertEq(renamedFrom(edit(entryFromName("search", "Raats Original Chenin Blanc 2022"), "Raats Chenin"), journal), null,
+      "rated evidence is never moved implicitly — another name is another bottle");
+  });
+
+  await test("only an exact stored name is a row to rename; junk renames nothing", () => {
+    assertEq(renamedFrom(edit(entryFromName("written", "Sadie family palladius 2020"), "Sadie"), journal), null,
+      "a different spelling is not the stored row");
+    assertEq(renamedFrom(edit(entryFromScan("scan", "Unknown Label", 2020), "Known Label"), journal), null, "no such row");
+    assertEq(renamedFrom(edit(entryFromName("want", "Sadie Family Palladius 2020"), "   "), journal), null, "an emptied name saves nothing");
+    assertEq(renamedFrom(null, journal), null, "no entry");
+    assertEq(renamedFrom(edit(entryFromName("want", "Sadie Family Palladius 2020"), "X"), null), null, "no journal");
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

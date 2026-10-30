@@ -377,6 +377,127 @@ async function main() {
       "no matches");
   });
 
+  // ─── Journal + the wine page (Phase 4) ───
+
+  await test("place names wear display case — particles stay low, capitals pass through", () => {
+    assertEq(copy.placeName("vouvray"), "Vouvray", "one word");
+    assertEq(copy.placeName("côte de beaune"), "Côte de Beaune", "a particle mid-name");
+    assertEq(copy.placeName("hemel-en-aarde"), "Hemel-en-Aarde", "hyphenated");
+    assertEq(copy.placeName("châteauneuf-du-pape"), "Châteauneuf-du-Pape", "a hyphenated particle");
+    assertEq(copy.placeName("saint-émilion"), "Saint-Émilion", "an accented capital");
+    assertEq(copy.placeName("montepulciano d'abruzzo"), "Montepulciano d'Abruzzo", "an elided particle");
+    assertEq(copy.placeName("la clape"), "La Clape", "a particle that opens the name");
+    assertEq(copy.placeName("mclaren vale"), "McLaren Vale", "Mc");
+    assertEq(copy.placeName("  napa   valley "), "Napa Valley", "spacing");
+    assertEq(copy.placeName("Loire Valley"), "Loire Valley", "already display case passes through");
+    assertEq(copy.placeName(null), "", "junk");
+  });
+
+  await test("short dates: Today, Aug 1, and the year only when it isn't this one", () => {
+    const now = new Date(2026, 9, 30, 15, 0);
+    assertEq(copy.shortDate(new Date(2026, 9, 30, 8, 0).toISOString(), now), "Today", "earlier today");
+    assertEq(copy.shortDate(new Date(2026, 7, 1, 20, 0).toISOString(), now), "Aug 1", "this year");
+    assertEq(copy.shortDate(new Date(2025, 8, 12).toISOString(), now), "Sep 12, 2025", "last year");
+    assertEq(copy.shortDate(new Date(2025, 8, 12).toISOString(), now, { year: false }), "Sep 12", "the year left to a month head");
+    assertEq(copy.shortDate("junk", now), "", "junk");
+    assertEq(copy.shortDate(null, now), "", "missing");
+  });
+
+  await test("month heads, bottle counts and the journal's stats line", () => {
+    const now = new Date(2026, 9, 30);
+    assertEq(copy.monthLabel(new Date(2026, 8, 3).toISOString(), now), "September", "this year");
+    assertEq(copy.monthLabel(new Date(2025, 8, 3).toISOString(), now), "September 2025", "another year");
+    assertEq(copy.monthLabel("junk", now), "", "junk");
+    assertEq(copy.bottleCount(1), "1 bottle", "one");
+    assertEq(copy.bottleCount(4), "4 bottles", "many");
+    assertEq(copy.journalStats({ tried: 13, loved: 5, want: 3 }), "13 tried · 5 loved · 3 to try", "the line");
+    assertEq(copy.journalStats({}), "0 tried · 0 loved · 0 to try", "junk counts as zero");
+  });
+
+  await test("timeline lines: joined, left, became — one copy for the journal and the wine page", () => {
+    assertEq(copy.timelineLine({ event_type: "promoted", dimension: "varietal", display_name: "Chenin Blanc" }),
+      { emoji: "🧬", text: "Chenin Blanc joined your DNA", strong: false }, "a grape");
+    assertEq(copy.timelineLine({ event_type: "promoted", dimension: "estate", display_name: "Domaine Dujac" }).text,
+      "Domaine Dujac joined your estates", "an estate");
+    assertEq(copy.timelineLine({ event_type: "promoted", dimension: "region", display_name: "Swartland" }).text,
+      "Swartland joined your regions", "a region");
+    assertEq(copy.timelineLine({ event_type: "promoted", dimension: "country", display_name: "France" }).text,
+      "France joined your DNA", "a country");
+    assertEq(copy.timelineLine({ event_type: "demoted", dimension: "estate", display_name: "Domaine Dujac" }),
+      { emoji: "🍂", text: "Domaine Dujac left your estates", strong: false }, "a demotion");
+    const shift = (from, to) => ({
+      event_type: "shifted", dimension: "identity", display_name: to.title,
+      dimension_value: JSON.stringify({ from, to }),
+    });
+    assertEq(copy.timelineLine(shift({ title: "The South African Curator" }, { title: "The Stellenbosch Loyalist", epithet: "e" })),
+      { emoji: "✨", text: "You became The Stellenbosch Loyalist", strong: true }, "a retitle");
+    assertEq(copy.timelineLine(shift({ title: "The Mosel Purist", epithet: "a" }, { title: "The Mosel Purist", epithet: "estate-loyal, Old World" })).text,
+      "Your signature shifted — estate-loyal, Old World", "only the epithet moved");
+    assertEq(copy.timelineLine({ event_type: "shifted", display_name: "The Mosel Purist", dimension_value: "{junk" }).text,
+      "You became The Mosel Purist", "junk before→after falls back to the title");
+    assertEq(copy.FOUNDING_LINE.text, "Your palate began — quiz complete", "the founding row");
+    assertEq(copy.timelineLine({ event_type: "promoted", dimension: "varietal" }), null, "no name");
+    assertEq(copy.timelineLine({ event_type: "exploded", display_name: "X" }), null, "unknown type");
+    assertEq(copy.timelineLine(null), null, "junk");
+  });
+
+  await test("the Somm's role tag, where it was drunk, and the cancel label", () => {
+    assertEq(copy.sommRoleTag("value"), "💰 Great Value", "value");
+    assertEq(copy.sommRoleTag("top"), "🏆 Top Pick", "top");
+    assertEq(copy.sommRoleTag("mystery"), null, "unknown role");
+    assertEq(copy.verdictWhere({ place: "home" }), "At home", "home");
+    assertEq(copy.verdictWhere({ place: "out", somm_pick_role: "top" }), "Out", "a place beats provenance");
+    assertEq(copy.verdictWhere({ somm_pick_role: "top" }), "From the list at dinner", "a Somm pick");
+    assertEq(copy.verdictWhere({}), "", "nothing known");
+    assertEq(copy.keepLabel("loved"), "Keep ❤️ Loved it", "keep");
+    assertEq(copy.keepLabel("junk"), null, "junk");
+  });
+
+  await test("journal row meta: region · grape, the Somm's mark, saved dates, verdicts pending", () => {
+    const now = new Date(2026, 9, 30, 12);
+    const at = (m, d) => new Date(2026, m, d, 19).toISOString();
+    assertEq(copy.journalRowMeta({
+      interaction_type: "had", rating: "loved", resolved_region: "stellenbosch",
+      resolved_varietal: "Chenin Blanc", updated_at: at(7, 29),
+    }, now), { meta: "Stellenbosch · Chenin Blanc", right: "Aug 29", accent: false }, "a tried row");
+    assertEq(copy.journalRowMeta({
+      interaction_type: "had", rating: "loved", resolved_region: "swartland", somm_pick_role: "value", updated_at: at(8, 12),
+    }, now), { meta: "Swartland", right: "🍷 Somm pick · Sep 12", accent: true }, "a Somm pick");
+    assertEq(copy.journalRowMeta({
+      interaction_type: "had", rating: null, resolved_region: "hemel-en-aarde", updated_at: at(9, 30),
+    }, now).meta, "Hemel-en-Aarde · Verdict pending", "a verdict pending");
+    assertEq(copy.journalRowMeta({ interaction_type: "had", updated_at: at(9, 30) }, now),
+      { meta: "Verdict pending", right: "Today", accent: false }, "pending with nothing resolved");
+    assertEq(copy.journalRowMeta({ interaction_type: "want", updated_at: new Date(2025, 4, 2).toISOString() }, now).right,
+      "Saved May 2, 2025", "a want row, last year");
+    assertEq(copy.journalRowMeta({ interaction_type: "skip", updated_at: at(7, 1) }, now).right, "Aug 1", "a pass");
+    assertEq(copy.journalRowMeta(null, now), { meta: "", right: "", accent: false }, "junk");
+  });
+
+  await test("a row's mark: the rating, a verdict pending, a want, a pass", () => {
+    assertEq(copy.journalMark({ interaction_type: "had", rating: "liked" }), "👍", "rated");
+    assertEq(copy.journalMark({ interaction_type: "had", rating: null }), "🥂", "had, verdict pending");
+    assertEq(copy.journalMark({ interaction_type: "want" }), "📌", "want");
+    assertEq(copy.journalMark({ interaction_type: "skip" }), "👋", "pass");
+    assertEq(copy.journalMark(null), null, "no row");
+  });
+
+  await test("the wine page's meta line and particulars: only what's known, region with its province", () => {
+    const facts = {
+      producer: "Domaine Huët", region: "vouvray", province: "Loire Valley", country: "France", grape: "Chenin Blanc",
+    };
+    assertEq(copy.wineMeta(facts), "Vouvray · France", "region · country");
+    assertEq(copy.wineMeta({ country: "France" }), "France", "a country alone");
+    assertEq(copy.wineMeta(null), "", "junk");
+    assertEq(copy.particulars(facts, "2021"), [
+      ["Producer", "Domaine Huët"], ["Region", "Vouvray, Loire Valley"], ["Country", "France"],
+      ["Grape", "Chenin Blanc"], ["Vintage", "2021"],
+    ], "everything known");
+    assertEq(copy.particulars({ region: "stellenbosch", province: "Stellenbosch" }, null), [["Region", "Stellenbosch"]],
+      "a province that repeats the region joins nothing");
+    assertEq(copy.particulars({}, null), [], "nothing known → nothing printed");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
