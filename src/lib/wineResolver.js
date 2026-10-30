@@ -4,6 +4,7 @@
 // Runs entirely client-side using wineUnified.json
 
 import wineUnified from "./wineUnified.json";
+import { buildCoreNameAliases } from "./producerAliases.js";
 
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
@@ -65,10 +66,12 @@ function normalize(text) {
  * "Máté"), so the apostrophe bounds quoted names but not 's. Missing a
  * possessive producer only lowers confidence; a false hit overrides the
  * wine's country and poisons DNA accumulation.
- * Multi-word/hyphenated needles keep plain substring semantics.
+ * Multi-word/hyphenated needles keep plain substring semantics unless
+ * wholePhrase: core-name aliases must sit on boundaries at both ends
+ * ("lo alto" never inside "cielo alto").
  */
-function containsTerm(haystack, needle) {
-  if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
+function containsTerm(haystack, needle, wholePhrase) {
+  if (!wholePhrase && (needle.includes(" ") || needle.includes("-"))) return haystack.includes(needle);
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
@@ -112,6 +115,7 @@ function getProducerIndex() {
   if (_producerIndex) return _producerIndex;
 
   _producerIndex = [];
+  const byLookupKey = new Map();
 
   // From PRODUCER_LOOKUP (keyed by lowercase name)
   for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
@@ -119,7 +123,7 @@ function getProducerIndex() {
     if (norm.length < 3) continue;
     // Display name: use the original key with first-letter capitalization
     const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-    _producerIndex.push({
+    const entry = {
       name: displayName,
       norm,
       tokens: new Set(tokenize(name)),
@@ -127,7 +131,9 @@ function getProducerIndex() {
       province: data.province || "",
       dnaCountryId: data.country,      // Direct — already a DNA country ID
       dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
-    });
+    };
+    _producerIndex.push(entry);
+    byLookupKey.set(name, entry);
   }
 
   // Also include producers from PRODUCERS (keyed by regionId) —
@@ -159,6 +165,17 @@ function getProducerIndex() {
         dnaEstateId: producer.id,
       });
     }
+  }
+
+  // Core-name aliases (producerAliases.js). normalize() already drops most
+  // designators, so only the ones it misses add a name: "la emperatriz"
+  // (WineMag's "Finca La Emperatriz") outranks Stellenbosch's "Jardin" in
+  // "La Emperatriz el Jardín". Whole-phrase matches only (matchProducer)
+  const norms = new Set(_producerIndex.map(p => p.norm));
+  for (const [core, key] of buildCoreNameAliases(wineUnified)) {
+    const norm = normalize(core);
+    if (norms.has(norm) || !norm.includes(" ") || !byLookupKey.has(key)) continue;
+    _producerIndex.push({ ...byLookupKey.get(key), norm, alias: true });
   }
 
   // Sort by normalized name length descending (longer matches first)
@@ -232,15 +249,22 @@ function getRegionIndex() {
   _regionIndex = [];
   for (const [key, data] of Object.entries(REGION_LOOKUP)) {
     if (key.length < 4 || ["other", "america", "europe"].includes(key)) continue;
-    _regionIndex.push({
-      term: key,
-      country: getCountryDisplayName(data.country), // display name; the DNA id lives in dnaCountryId
-      province: "",
-      subregion: "",
-      dnaCountryId: data.country,      // Direct — already a DNA country ID
-      dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
-      count: 0,
-    });
+    // Combined names ("hemel-en-aarde / walker bay") never appear whole in a
+    // wine name — each part is a term too, or the Step 3.5 conflict guard
+    // can't see the region the name states
+    const terms = key.includes(" / ") ? [key, ...key.split(" / ").map(p => p.trim())] : [key];
+    for (const term of terms) {
+      if (term.length < 4 || (term !== key && REGION_LOOKUP[term])) continue;
+      _regionIndex.push({
+        term,
+        country: getCountryDisplayName(data.country), // display name; the DNA id lives in dnaCountryId
+        province: "",
+        subregion: "",
+        dnaCountryId: data.country,      // Direct — already a DNA country ID
+        dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
+        count: 0,
+      });
+    }
   }
 
   _regionIndex.sort((a, b) => b.term.length - a.term.length);
@@ -319,7 +343,7 @@ function matchProducer(normInput, inputTokens) {
     let score = 0;
 
     // Strategy 1: Boundary-aware substring match (strongest signal)
-    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm)) {
+    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm, prod.alias)) {
       // Score based on what fraction of the input the producer name covers
       const coverage = prod.norm.length / normInput.length;
       score = 0.5 + (coverage * 0.5); // 0.5–1.0 range
