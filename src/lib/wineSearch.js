@@ -9,7 +9,9 @@
 // Journal rows: { wine_name, interaction_type, rating, resolved_winery,
 // resolved_region, resolved_varietal }. Catalog entries: { w: producer,
 // v: grape, r: region, c: country }. Pure; wineSearch.test.js runs the real
-// module in plain node. Junk rows are skipped, never thrown on.
+// module in plain node. Junk rows are skipped, never thrown on. The matcher
+// itself (queryWords + prefixMatch) is /search's too (searchView.js) — one
+// notion of "matches" across both searches.
 
 import { journalMark, metaLine } from "./houseCopy.js";
 
@@ -25,6 +27,17 @@ function words(...texts) {
 
 const prefixesAll = (queryWords, candidateWords) =>
   queryWords.every((q) => candidateWords.some((w) => w.startsWith(q)));
+
+/** A query's words, folded — accents and case fall away. */
+export function queryWords(query) {
+  return words(query);
+}
+
+/** Every query word starts some word of `texts` (junk texts count as
+ *  none). No query words → no match. */
+export function prefixMatch(qWords, ...texts) {
+  return Array.isArray(qWords) && qWords.length > 0 && prefixesAll(qWords, words(...texts));
+}
 
 /** 0 = the name/producer carries every query word, 1 = with region/grape
  *  help, null = no match. */

@@ -498,6 +498,40 @@ async function main() {
     assertEq(copy.particulars({}, null), [], "nothing known → nothing printed");
   });
 
+  // ─── Your palate + Search (Phase 5) ───
+
+  await test("a DNA row's count: bottles as the engine counted them, the quiz when none, silence when unknown", () => {
+    assertEq(copy.dnaCount(1), "1 bottle", "one");
+    assertEq(copy.dnaCount(10), "10 bottles", "many");
+    assertEq(copy.dnaCount(0), "from your quiz", "nothing rated yet — the quiz put it there");
+    assertEq(copy.dnaCount(null), "", "unknown → nothing, never a guess");
+    assertEq(copy.dnaCount("3"), "", "junk → nothing");
+  });
+
+  await test("a DNA search result says its kind, then its count", () => {
+    assertEq(["country", "region", "grape", "estate"].map(copy.dnaKindLabel),
+      ["Country", "Region", "Grape", "Estate"], "the kinds");
+    assertEq(copy.dnaKindLabel("varietal"), "", "an engine dimension isn't a kind");
+    assertEq(copy.dnaResultLine({ kind: "grape", bottles: 5 }), "Grape · 5 bottles", "counted");
+    assertEq(copy.dnaResultLine({ kind: "estate", bottles: 0 }), "Estate · from your quiz", "from the quiz");
+    assertEq(copy.dnaResultLine({ kind: "region", bottles: null }), "Region", "count unknown → the kind alone");
+    assertEq(copy.dnaResultLine(null), "", "junk");
+  });
+
+  await test("building now's distance, written as words", () => {
+    assertEq(copy.bottlesAwayLine(1), "one loved bottle away", "singular");
+    assertEq(copy.bottlesAwayLine(toPromote("region")), `${WORDS[toPromote("region")]} loved bottles away`,
+      "a region from nothing, from the REAL thresholds");
+    assertEq(copy.bottlesAwayLine(0), null, "zero is no distance");
+    assertEq(copy.bottlesAwayLine(null), null, "junk");
+  });
+
+  await test("search's lines: the journal group's head and the nothing-found line", () => {
+    assertEq(copy.journalGroupLabel(9), "In your journal · 9", "with its count");
+    assertEq(copy.nothingFoundLine("  zinfandel "), "Nothing for “zinfandel” on our list yet.", "the query, trimmed");
+    assertEq(copy.nothingFoundLine(null), null, "junk");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

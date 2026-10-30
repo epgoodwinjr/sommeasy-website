@@ -2,9 +2,10 @@
 //
 // Every line whose words depend on data lives here: the From last night
 // reply, the Log saved screen, the home crest's whisper, date and initial,
-// rec meta and match tags, done lines, the Reserved caption — and since
-// Phase 4 the journal's rows, months and timeline lines and a wine page's
-// verdict, eyebrow and particulars. Bottle counts
+// rec meta and match tags, done lines, the Reserved caption — since Phase 4
+// the journal's rows, months and timeline lines and a wine page's verdict,
+// eyebrow and particulars — and since Phase 5 the palate's DNA counts and
+// Search's lines. Bottle counts
 // are computed from the engine's REAL thresholds (dnaThresholds.js) and
 // written as words — never a hardcoded "two loved bottles". Rating emoji and
 // labels come from RATINGS (ratings.js), never a local copy.
@@ -472,4 +473,45 @@ export function particulars(facts, vintage) {
     ["Vintage", vintage],
   ];
   return rows.filter(([, value]) => typeof value === "string" && value.trim() !== "");
+}
+
+// ─── Your palate + Search (Phase 5) ───
+
+/** A DNA row's count: the bottles the engine counted toward it, "from your
+ *  quiz" when there are none, "" when the count is unknown (unreadable
+ *  accumulation) — never a guess. */
+export function dnaCount(bottles) {
+  if (bottles === 0) return "from your quiz";
+  return Number.isInteger(bottles) && bottles > 0 ? bottleCount(bottles) : "";
+}
+
+const DNA_KIND_LABELS = { country: "Country", region: "Region", grape: "Grape", estate: "Estate" };
+
+/** "Grape" — a DNA entry's kind (palateView's kinds, not engine dimensions:
+ *  "varietal" is a grape there). */
+export function dnaKindLabel(kind) {
+  return DNA_KIND_LABELS[kind] || "";
+}
+
+/** A DNA search result's right side: "Grape · 5 bottles", the kind alone
+ *  when the count is unknown. */
+export function dnaResultLine(entry) {
+  if (!entry || typeof entry !== "object") return "";
+  return metaLine(dnaKindLabel(entry.kind), dnaCount(entry.bottles));
+}
+
+/** Building now: "three loved bottles away" (n from lovedBottlesAway). */
+export function bottlesAwayLine(n) {
+  return Number.isInteger(n) && n > 0 ? `${bottlesPhrase(n)} away` : null;
+}
+
+/** Search's first group head: "In your journal · 9" (uppercased by CSS). */
+export function journalGroupLabel(count) {
+  return `In your journal · ${count}`;
+}
+
+/** Search with nothing to show: "Nothing for “zinfandel” on our list yet." */
+export function nothingFoundLine(query) {
+  const q = typeof query === "string" ? query.trim() : "";
+  return q ? `Nothing for “${q}” on our list yet.` : null;
 }
