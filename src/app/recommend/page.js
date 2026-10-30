@@ -8,6 +8,7 @@ import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload } from "@/lib/wineEvents";
 import { evolutionToastMessages } from "@/components/WineRecList";
+import { RATINGS, ratingFor } from "@/lib/ratings";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (default: max 1200px, 0.7 quality — wine list text stays readable)
@@ -844,13 +845,6 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // RESULTS VIEW
   // ═══════════════════════════════════════════════════
   if (picks) {
-    const RATING_OPTIONS = [
-      { id: "loved", emoji: "\u2764\uFE0F", label: "Loved it" },
-      { id: "liked", emoji: "\uD83D\uDC4D", label: "Liked it" },
-      { id: "fine", emoji: "\uD83D\uDE10", label: "It was fine" },
-      { id: "not_for_me", emoji: "\uD83D\uDC4E", label: "Not for me" },
-    ];
-
     return (
       <div style={{ maxWidth: 520, margin: "0 auto", padding: "0 20px", minHeight: "100vh" }}>
         {/* Rating modal */}
@@ -867,7 +861,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.15em", color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600 }}>How was it?</div>
               <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", color: "#1B3D2F", lineHeight: 1.3, marginBottom: 24 }}>{ratingPick}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {RATING_OPTIONS.map((r) => (
+                {RATINGS.map((r) => (
                   <button key={r.id} onClick={() => handleRatePick(ratingPick, r.id)} style={{
                     display: "flex", alignItems: "center", gap: "12px",
                     padding: "14px 18px", borderRadius: "14px",
@@ -1217,8 +1211,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                         fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
                         color: "#1B3D2F", opacity: 0.6,
                       }}>
-                        <span>{{ loved: "\u2764\uFE0F", liked: "\uD83D\uDC4D", fine: "\uD83D\uDE10", not_for_me: "\uD83D\uDC4E" }[pickRatings[pick.name]]}</span>
-                        <span>{{ loved: "Loved it", liked: "Liked it", fine: "It was fine", not_for_me: "Not for me" }[pickRatings[pick.name]]}</span>
+                        <span>{ratingFor(pickRatings[pick.name])?.emoji}</span>
+                        <span>{ratingFor(pickRatings[pick.name])?.label}</span>
                         <button onClick={() => setRatingPick(pick.name)} style={{
                           fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
                           color: "#8B2332", background: "none", border: "none",

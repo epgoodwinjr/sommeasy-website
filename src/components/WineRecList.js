@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
+import { RATINGS } from "@/lib/ratings";
 
 const SERIF = "'Playfair Display', Georgia, serif";
 const SANS = "'Source Sans 3', sans-serif";
@@ -33,13 +34,6 @@ export function evolutionToastMessages(items, isDemotion = false) {
  *  (The Table Verdict session) so "how was it?" reuses this exact UI.
  *  Never fork a second copy. */
 export function RatingModal({ wine, onRate, onClose }) {
-  const ratings = [
-    { id: "loved", emoji: "❤️", label: "Loved it" },
-    { id: "liked", emoji: "👍", label: "Liked it" },
-    { id: "fine", emoji: "😐", label: "It was fine" },
-    { id: "not_for_me", emoji: "👎", label: "Not for me" },
-  ];
-
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 100,
@@ -62,7 +56,7 @@ export function RatingModal({ wine, onRate, onClose }) {
           color: "#1B3D2F", lineHeight: 1.3, marginBottom: 24,
         }}>{wine}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {ratings.map((r) => (
+          {RATINGS.map((r) => (
             <button key={r.id} onClick={() => onRate(r.id)} style={{
               display: "flex", alignItems: "center", gap: "12px",
               padding: "14px 18px", borderRadius: "14px",

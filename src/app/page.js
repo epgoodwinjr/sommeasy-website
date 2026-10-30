@@ -8,6 +8,7 @@ import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { saveQuizProfile } from "@/lib/saveQuizProfile";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
+import { RATINGS } from "@/lib/ratings";
 import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
 import { resolveOutstandingVerdict, VERDICT_EVENT_TYPES, VERDICT_WINDOW_DAYS, readDismissedVerdicts, dismissVerdict } from "@/lib/tableVerdict";
@@ -753,12 +754,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
             color: "#1B3D2F", opacity: 0.5, marginBottom: 12,
           }}>How was it?</div>
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {[
-              { id: "loved", emoji: "❤️", label: "Loved it" },
-              { id: "liked", emoji: "👍", label: "Liked it" },
-              { id: "fine", emoji: "😐", label: "It was fine" },
-              { id: "not_for_me", emoji: "👎", label: "Not for me" },
-            ].map((r) => (
+            {RATINGS.map((r) => (
               <button key={r.id} onClick={() => handleBottleSave(r.id)} style={{
                 display: "flex", alignItems: "center", gap: "10px",
                 padding: "12px 16px", borderRadius: "12px",

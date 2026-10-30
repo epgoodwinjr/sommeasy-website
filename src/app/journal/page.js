@@ -5,13 +5,7 @@ import { createClient } from "@/lib/supabase";
 import { resolveAndAccumulate, reverseAccumulation, fetchDnaTimeline } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { recordEvent, ratingEventPayload, confidenceBand } from "@/lib/wineEvents";
-
-const RATING_DISPLAY = {
-  loved: { emoji: "❤️", label: "Loved it" },
-  liked: { emoji: "👍", label: "Liked it" },
-  fine: { emoji: "😐", label: "It was fine" },
-  not_for_me: { emoji: "👎", label: "Not for me" },
-};
+import { RATINGS, ratingFor } from "@/lib/ratings";
 
 // Local mirror of getPickTypeInfo's labels — deliberately NOT imported from
 // matchEngine, which would drag the 2.9MB wineUnified.json into this bundle
@@ -25,13 +19,6 @@ const SOMM_ROLE_DISPLAY = {
 };
 
 function RatingModal({ wine, currentRating, onRate, onClose }) {
-  const ratings = [
-    { id: "loved", emoji: "❤️", label: "Loved it" },
-    { id: "liked", emoji: "👍", label: "Liked it" },
-    { id: "fine", emoji: "😐", label: "It was fine" },
-    { id: "not_for_me", emoji: "👎", label: "Not for me" },
-  ];
-
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 100,
@@ -52,7 +39,7 @@ function RatingModal({ wine, currentRating, onRate, onClose }) {
           color: "#1B3D2F", lineHeight: 1.3, marginBottom: 24,
         }}>{wine}</div>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {ratings.map((r) => (
+          {RATINGS.map((r) => (
             <button key={r.id} onClick={() => onRate(r.id)} style={{
               display: "flex", alignItems: "center", gap: "12px",
               padding: "14px 18px", borderRadius: "14px",
@@ -387,7 +374,7 @@ export default function JournalPage() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {tried.map((wine) => {
-                const rd = RATING_DISPLAY[wine.rating] || { emoji: "🍷", label: "Tried" };
+                const rd = ratingFor(wine.rating) || { emoji: "🍷", label: "Tried" };
                 return (
                   <div key={wine.id} style={{
                     background: "rgba(255,255,255,0.55)", borderRadius: "16px",

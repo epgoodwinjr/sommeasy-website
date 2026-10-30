@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
 
 * {
   box-sizing: border-box;
@@ -21,6 +21,21 @@ html, body {
 
 input:focus {
   outline: none;
+}
+
+/* Keyboard focus on links and buttons (The House List §9.4); fields keep
+   their own underline focus */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgba(139, 35, 50, 0.45);
+  outline-offset: 2px;
+}
+
+/* RuledField placeholders (src/components/house/RuledField.js) — the one
+   piece of a house field inline styles can't reach */
+.house-field::placeholder {
+  color: rgba(27, 61, 47, 0.38);
+  opacity: 1;
 }
 
 a {
