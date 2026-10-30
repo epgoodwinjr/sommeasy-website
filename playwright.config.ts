@@ -53,6 +53,11 @@ export default defineConfig({
   webServer: {
     command: "npm run dev",
     port: 3000,
+    // Turns off the per-IP rate limiter (src/lib/rateLimit.js; never in
+    // production). A reused server — one already on :3000 — keeps the env it
+    // was started with: run it as `E2E_DISABLE_RATE_LIMIT=1 npm run dev`, or
+    // rate-limit-guard.spec.ts fails the run.
+    env: { E2E_DISABLE_RATE_LIMIT: "1" },
     reuseExistingServer: true,
     timeout: 30_000,
     stdout: "pipe",
