@@ -201,3 +201,86 @@ export function reservedCaption(count) {
     ? "One more selection opens after your first rating."
     : `${numberWord(count, { capitalize: true })} more selections open after your first rating.`;
 }
+
+// ─── Match & picks (Phase 3) ───
+
+const COLOR_TERMS = { all: "All wines", red: "Reds", white: "Whites", sparkling: "Sparkling" };
+
+const digits = (v) => {
+  const s = typeof v === "number" && Number.isFinite(v) ? String(v) : typeof v === "string" ? v.trim() : "";
+  return /^\d+$/.test(s) ? s : "";
+};
+
+/** Tonight's terms in one line — the bar over Your picks (uppercased by
+ *  CSS): "All wines · $40–$90 · “something South African”". */
+export function termsLine({ color, min, max, steer } = {}) {
+  const lo = digits(min), hi = digits(max);
+  const price = lo && hi ? `$${lo}–$${hi}` : hi ? `Up to $${hi}` : lo ? `From $${lo}` : "Any price";
+  const said = typeof steer === "string" ? steer.trim() : "";
+  return [COLOR_TERMS[color] || COLOR_TERMS.all, price, said ? `“${said}”` : "No steer"].join(" · ");
+}
+
+/** The reading state's line, following real progress: "list" while the
+ *  list is read, "count" once the parse returns, "weigh" while matching,
+ *  "done" as the picks appear ("Three bottles, three kinds of yes." — null
+ *  when there are none, so nothing promises a yes). */
+export function readingLine(phase, count) {
+  const n = Number.isInteger(count) && count > 0 ? count : 0;
+  if (phase === "count" && n) return n === 1 ? "Reading one wine…" : `Reading ${numberWord(n)} wines…`;
+  if (phase === "weigh") return `Weighing ${n === 1 ? "it" : "them"} against your DNA…`;
+  if (phase === "done") {
+    if (!n) return null;
+    return n === 1
+      ? "One bottle, one kind of yes."
+      : `${numberWord(n, { capitalize: true })} bottles, ${numberWord(n)} kinds of yes.`;
+  }
+  return "Reading the list…";
+}
+
+/** A pick the user already knows (its journal row — matchTerms'
+ *  findJournalRow): rated → "❤️ Loved it in August" (the year joins when it
+ *  isn't this one); a want → "📌 On your want list". Otherwise null. */
+export function pickFlag(row, now = new Date()) {
+  if (!row || typeof row !== "object") return null;
+  const r = ratingFor(row.rating);
+  if (r) {
+    const at = new Date(row.updated_at ?? NaN);
+    if (Number.isNaN(at.getTime())) return `${r.emoji} ${r.label}`;
+    const month = at.toLocaleDateString("en-US", { month: "long" });
+    const year = at.getFullYear() !== new Date(now).getFullYear() ? ` ${at.getFullYear()}` : "";
+    return `${r.emoji} ${r.label} in ${month}${year}`;
+  }
+  return row.interaction_type === "want" ? "📌 On your want list" : null;
+}
+
+/** A pick's note until the Somm's lands — and when it never does: the match
+ *  engine's strongest reason, said plainly. `reasons` are matchReasons
+ *  types; the names arrive display-ready (never ids), and a reason whose
+ *  name is missing gives way to the next. Nothing from the DNA → null. */
+export function pickNote({ reasons, producer, region, grape, country } = {}) {
+  const has = new Set(Array.isArray(reasons) ? reasons : []);
+  const named = (s) => typeof s === "string" && s.trim() !== "";
+  if (has.has("favorite")) return "One of your favorites — and it’s on tonight’s list.";
+  if (has.has("estate") && named(producer)) return `${producer} — an estate already in your DNA.`;
+  if (has.has("region") && has.has("varietal") && named(region) && named(grape)) {
+    return `${grape} from ${region} — both already in your DNA.`;
+  }
+  if (has.has("varietal") && named(grape)) return `${grape} — a grape already in your DNA.`;
+  if (has.has("region") && named(region)) return `${region} — a region already in your DNA.`;
+  if ((has.has("country") || has.has("country_region")) && named(country)) {
+    return `${country} — a country already in your DNA.`;
+  }
+  return null;
+}
+
+/** Under "Your picks": the list's size (and pages), then where to start —
+ *  or, with no picks, what to try next. */
+export function picksSubline({ wines, pages, picks } = {}) {
+  const n = Number.isInteger(wines) && wines > 0 ? wines : 0;
+  const count = `${n} wine${n === 1 ? "" : "s"}`;
+  if (!(picks > 0)) {
+    return `We read ${count} but couldn’t find matches for your DNA. Try adjusting tonight’s terms or updating your profile.`;
+  }
+  const across = pages > 1 ? ` across ${pages} pages` : "";
+  return `${count}${across} — ${picks > 5 ? `here are your top ${picks}` : "here’s where to start"}`;
+}

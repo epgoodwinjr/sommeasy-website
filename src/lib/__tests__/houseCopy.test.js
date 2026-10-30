@@ -280,6 +280,103 @@ async function main() {
     assertEq(copy.reservedCaption(0), null, "none");
   });
 
+  console.log("\n═══ Suite 7: Match & picks (Phase 3) ═══");
+
+  await test("the terms bar names the color, the spend and the steer", () => {
+    assertEq(copy.termsLine({ color: "all", min: "", max: "", steer: "" }),
+      "All wines · Any price · No steer", "nothing set");
+    assertEq(copy.termsLine({ color: "red" }).split(" · ")[0], "Reds", "red");
+    assertEq(copy.termsLine({ color: "white" }).split(" · ")[0], "Whites", "white");
+    assertEq(copy.termsLine({ color: "sparkling" }).split(" · ")[0], "Sparkling", "sparkling");
+    assertEq(copy.termsLine({ color: "orange" }).split(" · ")[0], "All wines", "unknown color");
+    assertEq(copy.termsLine({ steer: "  something South African " }).split(" · ")[2],
+      "“something South African”", "the steer, trimmed and quoted");
+    assertEq(copy.termsLine(), "All wines · Any price · No steer", "no terms at all");
+  });
+
+  await test("the spend reads as a range, a ceiling, a floor or any price", () => {
+    const spend = (min, max) => copy.termsLine({ min, max }).split(" · ")[1];
+    assertEq(spend("40", "90"), "$40–$90", "both");
+    assertEq(spend("", "90"), "Up to $90", "a ceiling");
+    assertEq(spend("40", ""), "From $40", "a floor");
+    assertEq(spend(40, 90), "$40–$90", "numbers");
+    assertEq(spend("abc", null), "Any price", "junk");
+  });
+
+  await test("the reading line follows real progress", () => {
+    assertEq(copy.readingLine("list"), "Reading the list…", "before the parse returns");
+    assertEq(copy.readingLine("count", 42), "Reading 42 wines…", "a long list");
+    assertEq(copy.readingLine("count", 7), "Reading seven wines…", "a short one, as a word");
+    assertEq(copy.readingLine("count", 1), "Reading one wine…", "one");
+    assertEq(copy.readingLine("count", 0), "Reading the list…", "nothing parsed");
+    assertEq(copy.readingLine("weigh", 42), "Weighing them against your DNA…", "weighing");
+    assertEq(copy.readingLine("weigh", 1), "Weighing it against your DNA…", "weighing one");
+    assertEq(copy.readingLine("junk"), "Reading the list…", "unknown phase");
+  });
+
+  await test("as the picks appear: N bottles, N kinds of yes — written as words", () => {
+    assertEq(copy.readingLine("done", 3), "Three bottles, three kinds of yes.", "three");
+    assertEq(copy.readingLine("done", 1), "One bottle, one kind of yes.", "one");
+    assertEq(copy.readingLine("done", 12), "12 bottles, 12 kinds of yes.", "past nine");
+    assertEq(copy.readingLine("done", 0), null, "no picks — no line");
+  });
+
+  await test("a pick the user rated wears the rating and the month", () => {
+    const now = new Date("2026-10-30T12:00:00Z");
+    assertEq(copy.pickFlag({ interaction_type: "had", rating: "loved", updated_at: "2026-08-15T12:00:00Z" }, now),
+      "❤️ Loved it in August", "this year");
+    assertEq(copy.pickFlag({ interaction_type: "had", rating: "not_for_me", updated_at: "2025-03-15T12:00:00Z" }, now),
+      "👎 Not for me in March 2025", "another year names it");
+    assertEq(copy.pickFlag({ interaction_type: "had", rating: "liked", updated_at: "junk" }, now),
+      "👍 Liked it", "an unreadable date drops the month");
+  });
+
+  await test("a want flags the pick; a pass or an unrated had doesn't", () => {
+    assertEq(copy.pickFlag({ interaction_type: "want", rating: null }), "📌 On your want list", "want");
+    assertEq(copy.pickFlag({ interaction_type: "skip", rating: null }), null, "a pass");
+    assertEq(copy.pickFlag({ interaction_type: "had", rating: null }), null, "legacy had, no rating");
+    assertEq(copy.pickFlag(null), null, "no row");
+    assertEq(copy.pickFlag("junk"), null, "junk");
+  });
+
+  await test("the engine's note says the strongest reason plainly", () => {
+    const names = { producer: "Kanonkop", region: "Stellenbosch", grape: "Pinotage", country: "South Africa" };
+    assertEq(copy.pickNote({ ...names, reasons: ["favorite", "estate"] }),
+      "One of your favorites — and it’s on tonight’s list.", "a favorite first");
+    assertEq(copy.pickNote({ ...names, reasons: ["varietal", "region", "estate"] }),
+      "Kanonkop — an estate already in your DNA.", "then an estate");
+    assertEq(copy.pickNote({ ...names, reasons: ["region", "varietal", "quality"] }),
+      "Pinotage from Stellenbosch — both already in your DNA.", "region and grape together");
+    assertEq(copy.pickNote({ ...names, reasons: ["varietal"] }),
+      "Pinotage — a grape already in your DNA.", "a grape");
+    assertEq(copy.pickNote({ ...names, reasons: ["region"] }),
+      "Stellenbosch — a region already in your DNA.", "a region");
+    assertEq(copy.pickNote({ ...names, reasons: ["country_region"] }),
+      "South Africa — a country already in your DNA.", "a country by its region");
+    assertEq(copy.pickNote({ ...names, reasons: ["country"] }),
+      "South Africa — a country already in your DNA.", "a country");
+  });
+
+  await test("the engine's note never claims what it can't name, and is silent off the DNA", () => {
+    assertEq(copy.pickNote({ reasons: ["estate", "varietal"], producer: null, grape: "Pinotage" }),
+      "Pinotage — a grape already in your DNA.", "no producer name → the next reason");
+    assertEq(copy.pickNote({ reasons: ["region", "varietal"], region: "", grape: "Pinotage" }),
+      "Pinotage — a grape already in your DNA.", "no region name → the grape alone");
+    assertEq(copy.pickNote({ reasons: ["quality", "feedback_boost"], grape: "Pinotage" }), null, "nothing from the DNA");
+    assertEq(copy.pickNote({ reasons: "junk" }), null, "junk reasons");
+    assertEq(copy.pickNote(), null, "nothing at all");
+  });
+
+  await test("the picks sub line counts the list, its pages and the picks", () => {
+    assertEq(copy.picksSubline({ wines: 42, pages: 1, picks: 3 }), "42 wines — here’s where to start", "the usual");
+    assertEq(copy.picksSubline({ wines: 42, pages: 2, picks: 3 }), "42 wines across 2 pages — here’s where to start", "pages");
+    assertEq(copy.picksSubline({ wines: 60, pages: 1, picks: 7 }), "60 wines — here are your top 7", "a long slate");
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 1 }), "1 wine — here’s where to start", "one wine");
+    assertEq(copy.picksSubline({ wines: 12, pages: 1, picks: 0 }),
+      "We read 12 wines but couldn’t find matches for your DNA. Try adjusting tonight’s terms or updating your profile.",
+      "no matches");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
