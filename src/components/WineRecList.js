@@ -28,7 +28,6 @@ import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { splitVintage } from "@/lib/vintage";
 import { romanNumeral } from "@/lib/numerals";
 import { wineHref } from "@/lib/navTrail";
-import { HOUSE_PAGES } from "@/lib/houseRoutes";
 import { REC_DONE, confidentMeta, matchTag, ratedDoneLine, reservedCaption } from "@/lib/houseCopy";
 import WineRow, { ReservedRow } from "@/components/house/WineRow";
 import RatingTiles, { DoneLine } from "@/components/house/RatingTiles";
@@ -140,7 +139,7 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate }) {
       struck={done?.kind === "skip"}
       // The signed-out teaser's bottle stays put: its wine page is a
       // sign-in wall, and leaving would lose the reveal and its gate
-      href={HOUSE_PAGES.wine && !readOnly ? wineHref(rec.wine) : undefined}
+      href={readOnly ? undefined : wineHref(rec.wine)}
     >
       {rec.why && <p style={sommNote}>“{rec.why}”</p>}
       {!readOnly && !state && (

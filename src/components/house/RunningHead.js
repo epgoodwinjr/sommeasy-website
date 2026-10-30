@@ -22,7 +22,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { HOME_TITLE, backTarget, recordVisit, stepBack, titleForPath } from "@/lib/navTrail";
-import { HOUSE_PAGES } from "@/lib/houseRoutes";
 import { BURGUNDY, COLUMN, SANS, ink } from "./tokens";
 
 // Read the trail before paint on client navigations (no label flash);
@@ -60,11 +59,9 @@ const cell = {
   width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
 };
 
-export default function RunningHead({ title, backLabel, onBack, hideSearch: hideOnSearch = false }) {
+export default function RunningHead({ title, backLabel, onBack, hideSearch = false }) {
   const trail = useNavTrail(title);
   const label = backLabel ?? trail.backLabel;
-  // Dark until /search ships (houseRoutes) — never a link to a 404
-  const hideSearch = hideOnSearch || !HOUSE_PAGES.search;
 
   return (
     <header data-testid="running-head" style={{

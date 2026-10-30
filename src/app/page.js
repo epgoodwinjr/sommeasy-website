@@ -16,7 +16,6 @@ import { resolveFirstPourCards } from "@/lib/firstPour";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { HOME_TITLE, wineHref } from "@/lib/navTrail";
-import { HOUSE_PAGES } from "@/lib/houseRoutes";
 import { crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, verdictMeta, verdictReply, whisperLine } from "@/lib/houseCopy";
 import Quiz from "@/components/Quiz";
 import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
@@ -358,7 +357,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
         <SectionHead numeral={next()} label="From last night" style={{ margin: "32px 0 16px" }} />
         <WineRow
           name={base} vintage={vintage} meta={verdictMeta(region)}
-          href={HOUSE_PAGES.wine ? wineHref(ask.wine) : undefined}
+          href={wineHref(ask.wine)}
           style={{ padding: 0, borderBottom: "none" }}
         />
         {rated ? (
@@ -382,11 +381,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
     }}>
       {/* Masthead: search · the wordmark · account */}
       <div style={{ display: "grid", gridTemplateColumns: "44px minmax(0,1fr) 44px", alignItems: "center", margin: "0 -10px" }}>
-        {HOUSE_PAGES.search ? (
-          <Link href="/search" aria-label="Search" style={{ ...mastCell, fontSize: "16px", textDecoration: "none" }}>🔍</Link>
-        ) : (
-          <span aria-hidden="true" style={mastCell} />
-        )}
+        <Link href="/search" aria-label="Search" style={{ ...mastCell, fontSize: "16px", textDecoration: "none" }}>🔍</Link>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <img src="/protea-icon.png" alt="" style={{ height: 22, width: "auto" }} />
           <span style={wordmark}>Sommeasy</span>
