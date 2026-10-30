@@ -1,0 +1,290 @@
+// House copy suite — The House List, Phase 2
+// Run with: node src/lib/__tests__/houseCopy.test.js
+//
+// Tests the REAL module via dynamic import (houseCopy.js depends only on the
+// dependency-free ratings.js and dnaThresholds.js). houseCopy is every line
+// whose words depend on data: the verdict reply, the Log saved screen, the
+// home crest's whisper/date/initial, rec meta and match tags. The rules
+// pinned here:
+//   1. Bottle counts come from the REAL thresholds — never a hardcoded
+//      "two loved bottles" (CLAUDE.md). Expectations below are computed
+//      from PROMOTION_THRESHOLDS / RATING_POINTS, then written as words.
+//   2. The verdict reply takes the FIRST consequence that applies: a
+//      promotion, then (loved only) the nearest un-promoted dimension, then
+//      the rating's own line.
+//   3. The saved screen: a shift takes the headline (and the eyebrow), each
+//      promotion it pushed aside becomes a line under the recap, demotions
+//      are reported too; a first-ever bottle gets its own headline.
+//   4. Junk in → silence (null / "" / a quiet fallback), never a throw.
+
+let passed = 0, failed = 0;
+async function test(name, fn) {
+  try {
+    await fn();
+    passed++;
+    console.log(`  ✓ ${name}`);
+  } catch (err) {
+    failed++;
+    console.log(`  ✗ ${name}\n    ${err.message}`);
+  }
+}
+function assertEq(actual, expected, msg) {
+  const a = JSON.stringify(actual), e = JSON.stringify(expected);
+  if (a !== e) throw new Error(`ASSERT FAILED: ${msg} — expected ${e}, got ${a}`);
+}
+
+async function main() {
+  const copy = await import("../houseCopy.js");
+  const { PROMOTION_THRESHOLDS, RATING_POINTS, CONFIDENCE_GATE } = await import("../dnaThresholds.js");
+  const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+  const toPromote = (dim) => Math.ceil(PROMOTION_THRESHOLDS[dim] / RATING_POINTS.loved);
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+  console.log("\n═══ Suite 1: numbers and the bottles math ═══");
+
+  await test("numberWord writes one through nine as words, digits past that", () => {
+    assertEq([1, 2, 3, 9].map((n) => copy.numberWord(n)), ["one", "two", "three", "nine"], "words");
+    assertEq(copy.numberWord(12), "12", "digits past nine");
+    assertEq(copy.numberWord(2, { capitalize: true }), "Two", "sentence start");
+  });
+
+  await test("bottles to promote come from the real thresholds, per dimension", () => {
+    for (const dim of ["estate", "varietal", "region", "country"]) {
+      assertEq(copy.lovedBottlesToPromote(dim), toPromote(dim), dim);
+    }
+    assertEq(copy.lovedBottlesToPromote("vintage"), null, "unknown dimension");
+  });
+
+  await test("bottles away round up and never drop below one", () => {
+    const t = PROMOTION_THRESHOLDS.region;
+    assertEq(copy.lovedBottlesAway("region", t - 4), Math.ceil(4 / RATING_POINTS.loved), "4 points short");
+    assertEq(copy.lovedBottlesAway("region", t - 1), 1, "1 point short rounds up to a bottle");
+    assertEq(copy.lovedBottlesAway("region", t + 3), 1, "never zero");
+    assertEq(copy.lovedBottlesAway("nope", 2), null, "unknown dimension");
+  });
+
+  await test("bottlesPhrase agrees in number", () => {
+    assertEq(copy.bottlesPhrase(1), "one loved bottle", "singular");
+    assertEq(copy.bottlesPhrase(3), "three loved bottles", "plural");
+  });
+
+  console.log("\n═══ Suite 2: the nearest un-promoted dimension ═══");
+
+  await test("picks the mappable, un-promoted row the fewest loved bottles away", () => {
+    const tR = PROMOTION_THRESHOLDS.region, tC = PROMOTION_THRESHOLDS.country;
+    const rows = [
+      { dimension: "country", display_name: "South Africa", points: tC - 8, promoted: false, mappable: true },
+      { dimension: "region", display_name: "Hemel-en-Aarde", points: tR - 4, promoted: false, mappable: true },
+    ];
+    assertEq(copy.nearestPromotion(rows), { name: "Hemel-en-Aarde", dimension: "region", n: 2 }, "region is closer");
+  });
+
+  await test("promoted, unmappable and pointless rows never count", () => {
+    const rows = [
+      { dimension: "varietal", display_name: "Chardonnay", points: 5, promoted: true, mappable: true },
+      { dimension: "estate", display_name: "Somewhere", points: 3, promoted: false, mappable: false },
+      { dimension: "region", display_name: "Nowhere", points: 0, promoted: false, mappable: true },
+      { dimension: "country", display_name: "Down", points: -2, promoted: false, mappable: true },
+    ];
+    assertEq(copy.nearestPromotion(rows), null, "nothing qualifies");
+  });
+
+  await test("a tie goes to the more specific dimension", () => {
+    const rows = [
+      { dimension: "varietal", display_name: "Chenin Blanc", points: PROMOTION_THRESHOLDS.varietal - 1, promoted: false, mappable: true },
+      { dimension: "estate", display_name: "Raats", points: PROMOTION_THRESHOLDS.estate - 1, promoted: false, mappable: true },
+    ];
+    assertEq(copy.nearestPromotion(rows).name, "Raats", "estate before varietal");
+  });
+
+  await test("junk rows are skipped, junk input is null", () => {
+    assertEq(copy.nearestPromotion(null), null, "null");
+    assertEq(copy.nearestPromotion([null, 7, { dimension: "region" }]), null, "junk rows");
+  });
+
+  console.log("\n═══ Suite 3: the verdict reply (From last night) ═══");
+
+  await test("a promotion is the first consequence", () => {
+    assertEq(
+      copy.verdictReply({ rating: "loved", promotions: [{ displayName: "Hemel-en-Aarde" }] }),
+      "❤️ Loved it — noted. Hemel-en-Aarde just joined your DNA.",
+      "promotion line",
+    );
+    assertEq(
+      copy.verdictReply({ rating: "liked", promotions: [{ displayName: "Chenin Blanc" }] }),
+      "👍 Liked it — noted. Chenin Blanc just joined your DNA.",
+      "any rating that promotes",
+    );
+  });
+
+  await test("a loved bottle names its nearest dimension, in words", () => {
+    assertEq(
+      copy.verdictReply({ rating: "loved", promotions: [], nearest: { name: "Hemel-en-Aarde", n: 2 } }),
+      "❤️ Loved it — noted. Hemel-en-Aarde is now two loved bottles from joining your DNA.",
+      "plural",
+    );
+    assertEq(
+      copy.verdictReply({ rating: "loved", nearest: { name: "Raats", n: 1 } }),
+      "❤️ Loved it — noted. Raats is now one loved bottle from joining your DNA.",
+      "singular",
+    );
+  });
+
+  await test("otherwise, the rating's own line", () => {
+    assertEq(copy.verdictReply({ rating: "loved" }),
+      "❤️ Loved it — noted. Loved bottles pull hardest — your next picks will lean its way.", "loved");
+    assertEq(copy.verdictReply({ rating: "liked", nearest: { name: "X", n: 1 } }),
+      "👍 Liked it — noted. A gentle nudge — your DNA leans a little its way.", "nearest is for loved only");
+    assertEq(copy.verdictReply({ rating: "fine" }),
+      "😐 It was fine — noted. We’ll weigh it lightly next time.", "fine");
+    assertEq(copy.verdictReply({ rating: "not_for_me" }),
+      "👎 Not for me — noted. We’ll steer you around it next time.", "not for me");
+  });
+
+  await test("an unknown rating is silence", () => {
+    assertEq(copy.verdictReply({ rating: "meh" }), null, "junk rating");
+    assertEq(copy.verdictReply(), null, "no args");
+  });
+
+  console.log("\n═══ Suite 4: the Log saved screen ═══");
+
+  const shift = { shifted: true, title: "The Mosel Purist", epithet: "Slate, sugar and patience" };
+
+  await test("a shift takes the eyebrow, the headline and the sub", () => {
+    assertEq(copy.savedCopy({ rating: "loved", promotions: [], shift, isFirst: false }), {
+      eyebrow: "✨ Your palate shifted",
+      headline: "You became The Mosel Purist",
+      sub: "Slate, sugar and patience",
+      lines: [],
+    }, "shift");
+  });
+
+  await test("promotions a shift pushed aside become lines under the recap", () => {
+    const out = copy.savedCopy({ rating: "loved", promotions: [{ displayName: "Ken Forrester", dimension: "estate" }], shift });
+    assertEq(out.headline, "You became The Mosel Purist", "shift keeps the headline");
+    assertEq(out.lines, ["🧬 Ken Forrester joined your DNA"], "promotion line");
+  });
+
+  await test("a promotion says how many loved bottles made the case", () => {
+    assertEq(copy.savedCopy({ rating: "loved", promotions: [{ displayName: "Ken Forrester", dimension: "estate" }] }), {
+      eyebrow: "🧬 Your DNA just grew",
+      headline: "Ken Forrester just joined your DNA",
+      sub: `${cap(WORDS[toPromote("estate")])} loved bottles made the case — we’ll look for it on every list you scan.`,
+      lines: [],
+    }, "estate");
+    const grape = copy.savedCopy({ rating: "loved", promotions: [{ displayName: "Chenin Blanc", dimension: "varietal" }] });
+    assertEq(grape.sub.startsWith(`${cap(WORDS[toPromote("varietal")])} loved bottles`), true, "varietal threshold");
+  });
+
+  await test("a second promotion (a roll-up) is listed, not lost", () => {
+    const out = copy.savedCopy({
+      rating: "loved",
+      promotions: [{ displayName: "Ken Forrester", dimension: "estate" }, { displayName: "Stellenbosch", dimension: "region" }],
+    });
+    assertEq(out.headline, "Ken Forrester just joined your DNA", "first promotion headlines");
+    assertEq(out.lines, ["🧬 Stellenbosch joined your DNA"], "the roll-up is a line");
+  });
+
+  await test("demotions are reported under the recap", () => {
+    const out = copy.savedCopy({ rating: "not_for_me", demotions: [{ displayName: "Pinotage" }] });
+    assertEq(out.lines, ["🍂 Pinotage left your DNA"], "demotion line");
+  });
+
+  await test("the first rated bottle ever gets its own headline", () => {
+    assertEq(copy.savedCopy({ rating: "fine", promotions: [], isFirst: true }), {
+      eyebrow: "😐 It was fine",
+      headline: "Your first entry is in",
+      sub: "The Somm just rewrote your list around it — two more selections are open.",
+      lines: [],
+    }, "first");
+  });
+
+  await test("otherwise: the rating, noted, and its line", () => {
+    assertEq(copy.savedCopy({ rating: "liked", promotions: [] }), {
+      eyebrow: "👍 Liked it",
+      headline: "Noted in your journal",
+      sub: "A gentle nudge — your DNA leans a little its way.",
+      lines: [],
+    }, "liked");
+  });
+
+  console.log("\n═══ Suite 5: the home crest ═══");
+
+  await test("the initial: the name's first letter, else the email's, uppercased", () => {
+    assertEq(copy.crestInitial({ user_metadata: { name: "edward" }, email: "x@y.com" }), "E", "name");
+    assertEq(copy.crestInitial({ user_metadata: { name: "  " }, email: "paula@y.com" }), "P", "blank name → email");
+    assertEq(copy.crestInitial({ email: "zed@y.com" }), "Z", "no metadata");
+    assertEq(copy.crestInitial(null), "", "no user");
+  });
+
+  await test("the date line is US English: weekday, month day", () => {
+    assertEq(copy.homeDateLine(new Date(2026, 8, 30)), "Wednesday, September 30", "Sep 30 2026");
+  });
+
+  await test("the whisper: a promotion or a shift from the last 30 days", () => {
+    const now = new Date("2026-10-30T12:00:00Z").getTime();
+    const day = 24 * 60 * 60 * 1000;
+    assertEq(copy.whisperLine({ event_type: "promoted", display_name: "Chenin Blanc", event_at: new Date(now - 3 * day).toISOString() }, now),
+      "🧬 Chenin Blanc just joined your DNA", "promotion");
+    assertEq(copy.whisperLine({ event_type: "shifted", display_name: "The Mosel Purist", event_at: new Date(now - day).toISOString() }, now),
+      "✨ You became The Mosel Purist", "shift");
+    assertEq(copy.whisperLine({ event_type: "promoted", display_name: "Old News", event_at: new Date(now - 31 * day).toISOString() }, now),
+      null, "too old");
+    assertEq(copy.whisperLine({ event_type: "demoted", display_name: "X", event_at: new Date(now).toISOString() }, now),
+      null, "demotions don't whisper");
+    assertEq(copy.whisperLine(null, now), null, "nothing");
+  });
+
+  await test("the journal link carries its count, bare at zero", () => {
+    assertEq(copy.journalLinkLabel(13), "Journal · 13", "count");
+    assertEq(copy.journalLinkLabel(0), "Journal", "zero");
+  });
+
+  console.log("\n═══ Suite 6: rec rows, the verdict row, Reserved ═══");
+
+  await test("match tags by matchType", () => {
+    assertEq(copy.matchTag("region + grape"), "📍 Region + grape", "both");
+    assertEq(copy.matchTag("grape"), "🍇 Grape match", "grape");
+    assertEq(copy.matchTag("region"), "📍 Region match", "region");
+    assertEq(copy.matchTag("discovery"), "🧭 Discovery", "discovery");
+    assertEq(copy.matchTag(undefined), "🧭 Discovery", "missing");
+  });
+
+  await test("meta lines join what's known with a middle dot", () => {
+    assertEq(copy.metaLine("Stellenbosch", null, "Chenin Blanc"), "Stellenbosch · Chenin Blanc", "skips blanks");
+    assertEq(copy.metaLine(null, ""), "", "nothing known");
+  });
+
+  await test("resolver meta only at or above the real confidence gate", () => {
+    const r = { region: "Vouvray", varietal: "Chenin Blanc" };
+    assertEq(copy.confidentMeta({ ...r, confidence: CONFIDENCE_GATE }), "Vouvray · Chenin Blanc", "at the gate");
+    assertEq(copy.confidentMeta({ ...r, confidence: CONFIDENCE_GATE - 1 }), "", "below the gate");
+    assertEq(copy.confidentMeta(null), "", "no resolution");
+  });
+
+  await test("the verdict row's meta leads with the region when it's known", () => {
+    assertEq(copy.verdictMeta("Hemel-en-Aarde"), "Hemel-en-Aarde · Ordered at the table", "region");
+    assertEq(copy.verdictMeta(null), "Ordered at the table", "unknown");
+  });
+
+  await test("done lines after a rec action", () => {
+    assertEq(copy.REC_DONE.want, "📌 On your want list — we’ll flag it when it turns up on a menu.", "want");
+    assertEq(copy.REC_DONE.skip, "👋 Struck from your list.", "skip");
+    assertEq(copy.ratedDoneLine("fine"), "😐 It was fine — noted in your journal.", "rated");
+    assertEq(copy.ratedDoneLine("junk"), null, "junk");
+  });
+
+  await test("the Reserved caption counts what's held back", () => {
+    assertEq(copy.reservedCaption(2), "Two more selections open after your first rating.", "two");
+    assertEq(copy.reservedCaption(1), "One more selection opens after your first rating.", "one");
+    assertEq(copy.reservedCaption(0), null, "none");
+  });
+
+  console.log(`\n${passed} passed, ${failed} failed`);
+  if (failed > 0) process.exit(1);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
