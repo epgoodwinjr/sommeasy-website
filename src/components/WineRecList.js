@@ -119,11 +119,16 @@ export default function WineRecList({
   const supabase = createClient();
 
   useEffect(() => {
+    // Only the live effect run writes: StrictMode runs this twice in dev,
+    // and a discarded run's read landing after a rating would re-snapshot
+    // the list without the row just rated
+    let live = true;
     async function loadInteractions() {
       const { data, error } = await supabase
         .from("wine_interactions")
         .select("wine_name, interaction_type, rating")
         .eq("user_id", user.id);
+      if (!live) return;
       if (error || !data) {
         setReadFailed(true);
         return;
@@ -135,6 +140,7 @@ export default function WineRecList({
     }
     if (user?.id) loadInteractions();
     else setListed((recs || []).map((r) => r.wine));
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 

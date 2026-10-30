@@ -115,7 +115,13 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
 
   const recs = profile.recommendations || [];
 
+  // Each read below writes only from its live effect run. StrictMode runs
+  // mount effects twice in dev, so a discarded run's read can land after
+  // the user has acted — a late verdict read once resolved the ask against
+  // the dismissal the rating had just written and pulled "From last night"
+  // out from under the reply.
   useEffect(() => {
+    let live = true;
     // The whisper: the latest promotion ("Chenin Blanc just joined your
     // DNA") or identity shift ("You became The Mosel Purist"), when it
     // happened in the last 30 days — it takes the date's place
@@ -128,16 +134,18 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           .in("event_type", ["promoted", "shifted"])
           .order("event_at", { ascending: false })
           .limit(1);
-        if (!settleForced.current) setWhisper(whisperLine(data?.[0]) || null);
+        if (live && !settleForced.current) setWhisper(whisperLine(data?.[0]) || null);
       } catch {
-        if (!settleForced.current) setWhisper(null);
+        if (live && !settleForced.current) setWhisper(null);
       }
     }
     if (user?.id) loadWhisper();
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   useEffect(() => {
+    let live = true;
     // The Table Verdict ask: read the user's own recent verdict-and-rating
     // events and let the pure resolver (tableVerdict.js) decide whether ONE
     // quiet prompt is due. This is a UI read of usage history — the DNA and
@@ -154,19 +162,22 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           .eq("user_id", user.id)
           .in("event_type", VERDICT_EVENT_TYPES)
           .gte("occurred_at", since);
+        if (!live) return;
         if (!error && data && !settleForced.current) {
           const ask = resolveOutstandingVerdict(data, { dismissedIds: readDismissedVerdicts() });
           setVerdict(ask ? { ask } : null);
         }
       } catch { /* the prompt is a courtesy — never break home over it */ }
       // Settled either way (a failed read = no ask)
-      setVerdictLoaded(true);
+      if (live) setVerdictLoaded(true);
     }
     if (user?.id) loadVerdictAsk();
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   useEffect(() => {
+    let live = true;
     // The journal read behind the layout choice (First Pour's durable
     // truth, through the pure firstPour.js): never rated anything → the
     // new-user layout. ANY failure → the established layout — onboarding is
@@ -191,9 +202,10 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           }
         }
       } catch { /* settles as unknown → the established layout */ }
-      setJournal({ rows, newUser });
+      if (live) setJournal({ rows, newUser });
     }
     if (user?.id) loadJournal();
+    return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 

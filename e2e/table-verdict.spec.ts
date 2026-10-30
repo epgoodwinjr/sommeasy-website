@@ -209,6 +209,22 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     expect(guardName, "test 1 must have captured the chosen wine").toBeTruthy();
     const pickRatedBefore = await countEvents(supabase, userId, "pick_rated");
 
+    // StrictMode (dev) fires home's verdict read twice and discards the
+    // first run. Hold that stale read until after the tap: if a late read
+    // could still write, it would resolve the ask against the dismissal
+    // the rating just stored and pull the section out from under the
+    // reply (a real flake, Oct 30 2026). A page that reads once is only
+    // slowed by the fallback.
+    let verdictReads = 0;
+    let tapped: () => void = () => {};
+    const afterTap = new Promise<void>((resolve) => { tapped = resolve; });
+    await page.route(/\/rest\/v1\/wine_events/, async (route) => {
+      const req = route.request();
+      if (req.method() === "GET" && req.url().includes("occurred_at=gte") && ++verdictReads === 1) {
+        await Promise.race([afterTap, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+      }
+      await route.continue();
+    });
     await page.goto("/");
     const ask = page.getByTestId("verdict-ask");
     await expect(ask).toBeVisible({ timeout: 15_000 });
@@ -217,6 +233,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     // A tile rates at once; the reply takes the tiles' place, in the
     // section, until the next load
     await ask.getByTestId("rating-tile-fine").click();
+    tapped();
     await expect(ask.getByTestId("rating-tile-fine")).toHaveCount(0);
     await expect(ask).toContainText("😐 It was fine — noted.");
     // The reply takes focus (announced, and the user keeps their place)
