@@ -1255,7 +1255,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               Fair enough — the table calls it. Log what you drank and your palate still gets the night.
             </p>
             <div style={{ display: "flex", gap: "8px" }}>
-              <a data-testid="bypass-log-link" href="/?log=1" style={{
+              <a data-testid="bypass-log-link" href="/log" style={{
                 flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
                 padding: "12px 14px", borderRadius: "10px", textDecoration: "none",
                 background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8",

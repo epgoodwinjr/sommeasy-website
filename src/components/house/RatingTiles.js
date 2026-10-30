@@ -32,13 +32,14 @@ function isFocusVisible(el) {
   }
 }
 
-function Tile({ rating, v, onRate, disabled }) {
+function Tile({ rating, v, onRate, disabled, autoFocus }) {
   const [hovered, setHovered] = useState(false);
   const [keyboard, setKeyboard] = useState(false);
   const lit = (hovered || keyboard) && !disabled;
   return (
     <button
       type="button"
+      autoFocus={autoFocus}
       aria-label={rating.label}
       title={rating.label}
       data-testid={`rating-tile-${rating.id}`}
@@ -61,7 +62,10 @@ function Tile({ rating, v, onRate, disabled }) {
   );
 }
 
-export default function RatingTiles({ onRate, prompt = "How was it?", variant = "row", disabled = false, style }) {
+// `autoFocus` puts focus on the first tile when the tiles replace the
+// control that opened them (a rec's "Had it"), so keyboard focus never
+// falls back to the top of the page.
+export default function RatingTiles({ onRate, prompt = "How was it?", variant = "row", disabled = false, autoFocus = false, style }) {
   const v = VARIANTS[variant] || VARIANTS.row;
   return (
     <div role="group" aria-label={prompt} style={{ display: "flex", alignItems: "center", gap: 6, ...style }}>
@@ -69,7 +73,9 @@ export default function RatingTiles({ onRate, prompt = "How was it?", variant = 
         marginRight: "auto", fontFamily: SERIF, fontStyle: "italic", fontSize: v.prompt,
         lineHeight: 1.3, color: INK, opacity: v.promptAlpha,
       }}>{prompt}</span>
-      {RATINGS.map((r) => <Tile key={r.id} rating={r} v={v} onRate={onRate} disabled={disabled} />)}
+      {RATINGS.map((r, i) => (
+        <Tile key={r.id} rating={r} v={v} onRate={onRate} disabled={disabled} autoFocus={autoFocus && i === 0} />
+      ))}
     </div>
   );
 }

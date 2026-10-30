@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
-import { AUTH_ERRORS, AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
+import { AUTH_ERRORS, AUTH_MESSAGES, authErrorCopy, authNoticeCopy, mapAuthError } from "@/lib/authCopy";
 import { interpretSignUpResult, sanitizeNext, isOtpNoAccountError } from "@/lib/authFlow";
 import { peekStash, buildMetadataPayload } from "@/lib/pendingPalate";
 import AuthShell, {
@@ -17,7 +17,7 @@ const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "1";
 const MAGIC_ENABLED = process.env.NEXT_PUBLIC_MAGIC_LINK_ENABLED === "1";
 const RESEND_COOLDOWN_SECS = 60;
 
-// params: the page's searchParams server prop (?error, ?email, ?next).
+// params: the page's searchParams server prop (?error, ?email, ?next, ?notice).
 // Values can be string | string[] — take the first.
 const param = (params, key) => {
   const v = params?.[key];
@@ -37,7 +37,8 @@ export default function AuthForm({ mode, params }) {
     if (!errorParam) return null;
     return AUTH_ERRORS[errorParam] ? errorParam : "unknown";
   });
-  const [notice, setNotice] = useState(null);
+  // ?notice=signed_out (Account's Sign out) lands as a quiet notice
+  const [notice, setNotice] = useState(() => authNoticeCopy(param(params, "notice")));
   // "form" | "check_inbox" | "already_registered"
   const [view, setView] = useState("form");
   // What the inbox is waiting for: a signup confirmation or a magic link —

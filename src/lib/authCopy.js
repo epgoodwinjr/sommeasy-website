@@ -84,3 +84,14 @@ export function mapAuthError(error) {
 export function authErrorCopy(key) {
   return AUTH_ERRORS[key] || AUTH_ERRORS.unknown;
 }
+
+// Landings that arrive on /login?notice=<key> — Account's Sign out
+// (The House List, §8.8) lands on signed_out.
+export const AUTH_NOTICES = {
+  signed_out: "✓ Signed out",
+};
+
+/** Copy for a ?notice= key, or null — an unknown key renders nothing. */
+export function authNoticeCopy(key) {
+  return (typeof key === "string" && Object.hasOwn(AUTH_NOTICES, key) && AUTH_NOTICES[key]) || null;
+}

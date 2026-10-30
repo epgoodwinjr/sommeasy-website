@@ -1,25 +1,42 @@
 "use client";
 
-// WineRecList — THE ratable recommendations surface (The Reveal session).
+// WineRecList — THE ratable recommendations surface (The Reveal session;
+// House List rows since Phase 2, README §8.1.6).
 //
-// The single implementation of "Had it / Want to try / Not for me" for
-// DNA-generated recommendations. Both the home page's Wines to Try and the
-// post-quiz reveal render this component, so a rating anywhere runs the same
-// path: wine_interactions upsert → resolveAndAccumulate (accumulation,
-// promotions, demotions) → toasts. Never fork a second copy of this logic.
+// The single implementation of "Had it / Want it / Pass" for DNA-generated
+// recommendations. Home's recommendations and the post-quiz reveal both
+// render this component, so a rating anywhere runs the same path:
+// wine_interactions upsert → resolveAndAccumulate (accumulation,
+// promotions, demotions) → milestone recompose → ledger → evolution and
+// shift toasts. Never fork a second copy of this logic.
+//
+// Rows are numbered House List WineRows. "🍷 Had it" opens the RatingTiles
+// in place — a tile rates at once, no modal — while "📌 Want it" and
+// "👋 Pass" save on the tap; a done line replaces the actions either way.
+// Rows acted on stay put for the session (the list never rearranges under
+// a thumb); the next load filters them out. `holdBack` keeps the last rows
+// Reserved until the first rating (decision D6) — the parent drops it to 0
+// and they open in place. Signed out, the rows are read-only.
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
+import { resolveWine } from "@/lib/wineResolver";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
-import { RATINGS } from "@/lib/ratings";
-
-const SERIF = "'Playfair Display', Georgia, serif";
-const SANS = "'Source Sans 3', sans-serif";
+import { splitVintage } from "@/lib/vintage";
+import { romanNumeral } from "@/lib/numerals";
+import { wineHref } from "@/lib/navTrail";
+import { HOUSE_PAGES } from "@/lib/houseRoutes";
+import { REC_DONE, confidentMeta, matchTag, ratedDoneLine, reservedCaption } from "@/lib/houseCopy";
+import WineRow, { ReservedRow } from "@/components/house/WineRow";
+import RatingTiles, { DoneLine } from "@/components/house/RatingTiles";
+import TextAction, { TextActions } from "@/components/house/TextAction";
+import Toast, { useToast } from "@/components/house/Toast";
+import { SERIF, ink } from "@/components/house/tokens";
 
 /** Somm-voice toast lines for promotion/demotion events — one copy, shared
- *  with the bottle-logging flow on the home page. */
+ *  with the /recommend picks. */
 export function evolutionToastMessages(items, isDemotion = false) {
   const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
   return (items || []).map((p) => {
@@ -30,149 +47,71 @@ export function evolutionToastMessages(items, isDemotion = false) {
   });
 }
 
-/** THE rating modal — exported for the home page's table-verdict prompt
- *  (The Table Verdict session) so "how was it?" reuses this exact UI.
- *  Never fork a second copy. */
-export function RatingModal({ wine, onRate, onClose }) {
+const sommNote = {
+  fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: ink(0.72), marginTop: 8,
+};
+const caption = {
+  textAlign: "center", fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5,
+  color: ink(0.55), marginTop: 16,
+};
+
+// state: undefined (not acted on), "rating" (tiles open), or the done
+// action { kind: "want" | "skip" | "rated", rating? }
+function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate }) {
+  const { base, vintage } = splitVintage(rec.wine);
+  const done = state && state !== "rating" ? state : null;
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 100,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: "rgba(27,61,47,0.4)", backdropFilter: "blur(8px)",
-      padding: 24,
-    }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: "#F5F0E8", borderRadius: "24px", padding: "28px 24px",
-        maxWidth: 360, width: "100%",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
-      }}>
-        <div style={{
-          fontFamily: SANS, fontSize: "11px",
-          textTransform: "uppercase", letterSpacing: "0.15em",
-          color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600,
-        }}>You&apos;ve had this wine</div>
-        <div style={{
-          fontFamily: SERIF, fontSize: "18px",
-          color: "#1B3D2F", lineHeight: 1.3, marginBottom: 24,
-        }}>{wine}</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {RATINGS.map((r) => (
-            <button key={r.id} onClick={() => onRate(r.id)} style={{
-              display: "flex", alignItems: "center", gap: "12px",
-              padding: "14px 18px", borderRadius: "14px",
-              border: "1px solid rgba(27,61,47,0.08)",
-              background: "rgba(255,255,255,0.5)",
-              cursor: "pointer", transition: "all 0.15s ease",
-              fontFamily: SANS, fontSize: "15px",
-              color: "#1B3D2F", fontWeight: 500, width: "100%", textAlign: "left",
-            }}>
-              <span style={{ fontSize: "20px" }}>{r.emoji}</span>
-              {r.label}
-            </button>
-          ))}
-        </div>
-        <button onClick={onClose} style={{
-          marginTop: 16, width: "100%", padding: "10px",
-          fontFamily: SANS, fontSize: "13px",
-          color: "#1B3D2F", opacity: 0.4, background: "none",
-          border: "none", cursor: "pointer",
-        }}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-function WineRecCard({ rec, index, onAction, readOnly }) {
-  const matchLabel = rec.matchType === "region + grape" ? "📍 Region + grape match"
-    : rec.matchType === "grape" ? "🍇 Grape match"
-    : rec.matchType === "region" ? "📍 Region match"
-    : "🧭 Discovery pick";
-
-  return (
-    <div data-testid="rec-card" style={{
-      background: "rgba(255,255,255,0.55)", borderRadius: "16px",
-      padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)",
-    }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
-        <div style={{
-          width: 30, height: 30, borderRadius: "50%",
-          background: index === 0
-            ? "linear-gradient(135deg, #8B2332, #6B1D2A)"
-            : "rgba(27,61,47,0.07)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          color: index === 0 ? "#F5F0E8" : "#1B3D2F",
-          fontFamily: SERIF, fontSize: "13px",
-          fontWeight: 700, flexShrink: 0, marginTop: 1,
-          boxShadow: index === 0 ? "0 2px 8px rgba(139,35,50,0.25)" : "none",
-        }}>{index + 1}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: SERIF, fontSize: "16px",
-            color: "#1B3D2F", lineHeight: 1.35, marginBottom: 5,
-          }}>{rec.wine}</div>
-          <div style={{
-            fontFamily: SANS, fontSize: "13px",
-            color: "#1B3D2F", opacity: 0.5, lineHeight: 1.5,
-          }}>{rec.why}</div>
-          <div style={{
-            fontFamily: SANS, fontSize: "10px",
-            color: "#8B2332", opacity: 0.55, marginTop: 8,
-            textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600,
-          }}>{matchLabel}</div>
-        </div>
-      </div>
-
-      {!readOnly && (
-        <div style={{
-          display: "flex", gap: "8px", marginTop: 14, paddingTop: 14,
-          borderTop: "1px solid rgba(27,61,47,0.06)",
-        }}>
-          <button onClick={() => onAction(rec.wine, "had")} style={{
-            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-            padding: "9px 8px", borderRadius: "10px", minHeight: 40,
-            border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.04)",
-            fontFamily: SANS, fontSize: "12px",
-            color: "#8B2332", fontWeight: 600, cursor: "pointer",
-            transition: "all 0.15s ease",
-          }}>🍷 Had it</button>
-          <button onClick={() => onAction(rec.wine, "want")} style={{
-            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-            padding: "9px 8px", borderRadius: "10px", minHeight: 40,
-            border: "1px solid rgba(27,61,47,0.1)", background: "rgba(27,61,47,0.03)",
-            fontFamily: SANS, fontSize: "12px",
-            color: "#1B3D2F", fontWeight: 500, cursor: "pointer",
-            transition: "all 0.15s ease",
-          }}>📌 Want to try</button>
-          <button onClick={() => onAction(rec.wine, "skip")} style={{
-            flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-            padding: "9px 8px", borderRadius: "10px", minHeight: 40,
-            border: "1px solid rgba(27,61,47,0.06)", background: "transparent",
-            fontFamily: SANS, fontSize: "12px",
-            color: "#1B3D2F", opacity: 0.4, fontWeight: 500, cursor: "pointer",
-            transition: "all 0.15s ease",
-          }}>👋 Not for me</button>
-        </div>
+    <WineRow
+      testId="rec-card"
+      data-wine={rec.wine}
+      numeral={numeral}
+      name={base}
+      vintage={vintage}
+      meta={meta || undefined}
+      metaRight={matchTag(rec.matchType)}
+      metaTone="accent"
+      struck={done?.kind === "skip"}
+      href={HOUSE_PAGES.wine ? wineHref(rec.wine) : undefined}
+    >
+      {rec.why && <p style={sommNote}>“{rec.why}”</p>}
+      {!readOnly && !state && (
+        <TextActions style={{ marginTop: 4 }}>
+          <TextAction onClick={() => onAction("rating")}>🍷 Had it</TextAction>
+          <TextAction tone="secondary" onClick={() => onAction("want")}>📌 Want it</TextAction>
+          <TextAction tone="quiet" onClick={() => onAction("skip")}>👋 Pass</TextAction>
+        </TextActions>
       )}
-    </div>
+      {state === "rating" && <RatingTiles autoFocus onRate={onRate} style={{ marginTop: 10 }} />}
+      {done?.kind === "want" && <DoneLine>{REC_DONE.want}</DoneLine>}
+      {done?.kind === "skip" && <DoneLine>{REC_DONE.skip}</DoneLine>}
+      {done?.kind === "rated" && <DoneLine>{ratedDoneLine(done.rating)}</DoneLine>}
+    </WineRow>
   );
 }
 
 /**
- * @param recs           profile.recommendations
- * @param user           Supabase user (null → read-only list, no actions)
- * @param limit          max cards shown at once
- * @param surface        which door this list is ("home" | "reveal") — rides
- *                       the wine_events payloads so the funnel can tell them apart
- * @param onCountsChange ({ interactedRecs, visibleRecs, hasAnyInteractions })
- * @param emptyState     ReactNode when every rec has been actioned
+ * @param recs       profile.recommendations ({ wine, why, matchType })
+ * @param user       Supabase user (null → read-only rows, no actions)
+ * @param limit      rows shown (4 on home)
+ * @param surface    which door this list is ("home" | "reveal") — rides
+ *                   the wine_events payloads so the funnel can tell them apart
+ * @param holdBack   rows kept Reserved until the first rating (new users)
+ * @param onRated    ({ wine, rating }) the moment a tile is tapped
+ * @param showToast  the page's toast queue (useToast); the list keeps its
+ *                   own when none is given (the reveal)
+ * @param emptyState ReactNode when every rec was acted on before this load
  */
-export default function WineRecList({ recs, user, limit = 5, surface = "home", onCountsChange, emptyState = null }) {
+export default function WineRecList({
+  recs, user, limit = 4, surface = "home", holdBack = 0,
+  onRated, showToast: pageToast, emptyState = null,
+}) {
   const [interactions, setInteractions] = useState({});
-  const [hasAnyInteractions, setHasAnyInteractions] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [ratingWine, setRatingWine] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [evolutionToasts, setEvolutionToasts] = useState([]);
+  // The recs not yet acted on when this load's read settled, in rec order —
+  // a snapshot, so rows acted on this session keep their place
+  const [listed, setListed] = useState(null);
+  const [session, setSession] = useState({});
+  const own = useToast();
+  const toast = pageToast || own.showToast;
   const supabase = createClient();
 
   useEffect(() => {
@@ -181,61 +120,37 @@ export default function WineRecList({ recs, user, limit = 5, surface = "home", o
         .from("wine_interactions")
         .select("wine_name, interaction_type, rating")
         .eq("user_id", user.id);
-      if (data) {
-        const map = {};
-        data.forEach((d) => { map[d.wine_name] = { type: d.interaction_type, rating: d.rating }; });
-        setInteractions(map);
-        setHasAnyInteractions(data.length > 0);
-      }
-      setLoaded(true);
+      const map = {};
+      (data || []).forEach((d) => { map[d.wine_name] = { type: d.interaction_type, rating: d.rating }; });
+      setInteractions(map);
+      setListed((recs || []).filter((r) => !map[r.wine]).map((r) => r.wine));
     }
     if (user?.id) loadInteractions();
-    else setLoaded(true);
+    else setListed((recs || []).map((r) => r.wine));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const visibleRecs = (recs || []).filter((r) => !interactions[r.wine]);
-  const interactedRecs = (recs || []).length - visibleRecs.length;
+  const shown = useMemo(() => {
+    const byWine = new Map((recs || []).map((r) => [r.wine, r]));
+    return (listed || []).slice(0, limit).map((w) => byWine.get(w)).filter(Boolean);
+  }, [recs, listed, limit]);
 
-  useEffect(() => {
-    if (loaded && onCountsChange) {
-      onCountsChange({ interactedRecs, visibleRecs: visibleRecs.length, hasAnyInteractions });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, interactedRecs, hasAnyInteractions]);
+  // REGION · GRAPE only when the resolver is confident — a guess never
+  // prints as a fact
+  const metaByWine = useMemo(
+    () => Object.fromEntries(shown.map((r) => [r.wine, confidentMeta(resolveWine(r.wine))])),
+    [shown],
+  );
 
-  const showToast = useCallback((msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  }, []);
-
-  const showEvolutionToasts = useCallback((items, isDemotion) => {
-    const msgs = evolutionToastMessages(items, isDemotion);
-    msgs.forEach((msg, i) => {
-      setTimeout(() => {
-        setEvolutionToasts((prev) => [...prev, msg]);
-        setTimeout(() => {
-          setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
-        }, 4000);
-      }, 1500 + (i * 1500));
+  const showEvolutionToasts = (items, isDemotion) => {
+    evolutionToastMessages(items, isDemotion).forEach((msg, i) => {
+      toast(msg, { delay: 1500 + i * 1500, duration: 4000 });
     });
-  }, []);
-
-  // The celebrated shift lands after any promotion/demotion toasts have
-  // had their moment — it's the headline, not the opening act
-  const showShiftToast = useCallback((msg, delayMs) => {
-    setTimeout(() => {
-      setEvolutionToasts((prev) => [...prev, msg]);
-      setTimeout(() => {
-        setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
-      }, 5000);
-    }, delayMs);
-  }, []);
+  };
 
   const saveInteraction = async (wineName, type, rating) => {
     const previousRating = interactions[wineName]?.rating || null;
     setInteractions((prev) => ({ ...prev, [wineName]: { type, rating: rating || null } }));
-    setHasAnyInteractions(true);
 
     const { error } = await supabase.from("wine_interactions").upsert({
       user_id: user.id,
@@ -246,9 +161,6 @@ export default function WineRecList({ recs, user, limit = 5, surface = "home", o
     }, { onConflict: "user_id, wine_name" });
 
     if (error) console.error("Interaction save error:", error);
-
-    const labels = { had: "Noted!", want: "Added to your list!", skip: "Removed" };
-    showToast(labels[type] || "Saved!");
 
     // Intent signals (The Long Memory): today these leave only a state row —
     // the event is the durable trace. Fire-and-forget.
@@ -278,11 +190,12 @@ export default function WineRecList({ recs, user, limit = 5, surface = "home", o
           if (result.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
           if (result.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
           // Milestone hook (Act III S3): recompose the identity strand when
-          // this rating earned the change — celebrated only on a real shift
+          // this rating earned the change — celebrated only on a real shift,
+          // after the promotion toasts have had their moment
           const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
           if (shift?.shifted) {
             const evoCount = (result.promotions?.length || 0) + (result.demotions?.length || 0);
-            showShiftToast(shiftToastMessage(shift), 1500 + evoCount * 1500);
+            toast(shiftToastMessage(shift), { delay: 1500 + evoCount * 1500, duration: 5000 });
           }
         } catch (evoErr) {
           console.error("DNA evolution error (non-blocking):", evoErr);
@@ -291,77 +204,58 @@ export default function WineRecList({ recs, user, limit = 5, surface = "home", o
     }
   };
 
-  const handleAction = (wineName, type) => {
-    if (type === "had") {
-      setRatingWine(wineName);
-    } else {
-      saveInteraction(wineName, type);
+  const handleAction = (wineName, kind) => {
+    if (kind === "rating") {
+      setSession((s) => ({ ...s, [wineName]: "rating" }));
+      return;
     }
+    setSession((s) => ({ ...s, [wineName]: { kind } }));
+    saveInteraction(wineName, kind);
   };
 
-  const handleRate = (rating) => {
-    if (ratingWine) {
-      saveInteraction(ratingWine, "had", rating);
-      setRatingWine(null);
-    }
+  const handleRate = (wineName, rating) => {
+    setSession((s) => ({ ...s, [wineName]: { kind: "rated", rating } }));
+    onRated?.({ wine: wineName, rating });
+    saveInteraction(wineName, "had", rating);
   };
 
   if (!recs || recs.length === 0) return null;
+  // The section renders when its read settles — never a flash of rows the
+  // read is about to filter out
+  if (listed === null) return null;
+
+  const readOnly = !user;
+  const reserved = holdBack > 0 ? Math.min(holdBack, Math.max(0, shown.length - Math.max(0, limit - holdBack))) : 0;
+  const open = shown.slice(0, shown.length - reserved);
 
   return (
     <div data-testid="wine-rec-list">
-      {ratingWine && (
-        <RatingModal
-          wine={ratingWine}
-          onRate={handleRate}
-          onClose={() => setRatingWine(null)}
-        />
-      )}
-
-      {toast && (
-        <div style={{
-          position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
-          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
-          borderRadius: "100px", fontFamily: SANS,
-          fontSize: "14px", fontWeight: 600, zIndex: 90,
-          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
-        }}>✓ {toast}</div>
-      )}
-
-      {evolutionToasts.map((msg, i) => (
-        <div key={msg} style={{
-          position: "fixed", top: toast ? 56 + (i * 44) : 16 + (i * 44),
-          left: "50%", transform: "translateX(-50%)",
-          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
-          borderRadius: "100px", fontFamily: SANS,
-          fontSize: "14px", fontWeight: 600, zIndex: 91,
-          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
-          whiteSpace: "nowrap",
-        }}>{msg}</div>
-      ))}
-
-      {visibleRecs.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {visibleRecs.slice(0, limit).map((rec, i) => (
-            <WineRecCard
+      {shown.length === 0 ? emptyState : (
+        <>
+          {open.map((rec, i) => (
+            <RecRow
               key={rec.wine}
               rec={rec}
-              index={i}
-              onAction={handleAction}
-              readOnly={!user}
+              numeral={romanNumeral(i + 1, { lower: true })}
+              meta={metaByWine[rec.wine]}
+              state={session[rec.wine]}
+              readOnly={readOnly}
+              onAction={(kind) => handleAction(rec.wine, kind)}
+              onRate={(rating) => handleRate(rec.wine, rating)}
             />
           ))}
-        </div>
-      ) : loaded ? emptyState : null}
-
-      {visibleRecs.length > limit && (
-        <div style={{ textAlign: "center", marginTop: 12 }}>
-          <span style={{
-            fontFamily: SANS, fontSize: "12px",
-            color: "#1B3D2F", opacity: 0.35,
-          }}>{visibleRecs.length - limit} more wines to explore</span>
-        </div>
+          {Array.from({ length: reserved }, (_, i) => (
+            <ReservedRow key={`reserved-${i}`} numeral={romanNumeral(open.length + i + 1, { lower: true })} />
+          ))}
+          {reserved > 0 && <p style={caption}>{reservedCaption(reserved)}</p>}
+          {/* The anonymous teaser's tail sells the list behind the account
+              (The Velvet Rope) — signed-in lists don't carry it */}
+          {readOnly && listed.length > limit && (
+            <p style={caption}>{listed.length - limit} more wines to explore</p>
+          )}
+        </>
       )}
+      {!pageToast && <Toast toasts={own.toasts} />}
     </div>
   );
 }

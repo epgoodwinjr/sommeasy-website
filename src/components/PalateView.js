@@ -236,9 +236,9 @@ function BuildingNow({ accumulation, mounted }) {
             Nothing in motion yet. Rate the bottles you try — every loved one
             pushes a grape, a place, or an estate toward your DNA.
           </p>
-          {/* /?log=1 is the bottle-log deep link the bypass handoff already
-              uses — the empty state hands you the camera, not a shrug */}
-          <a href="/?log=1" data-testid="palate-empty-log-link" style={{ fontFamily: SANS, fontSize: "12px", color: BURGUNDY, fontWeight: 600, textDecoration: "none", marginTop: 8, padding: "8px 0", display: "inline-block" }}>
+          {/* /log is Log a bottle — the empty state hands you the camera,
+              not a shrug */}
+          <a href="/log" data-testid="palate-empty-log-link" style={{ fontFamily: SANS, fontSize: "12px", color: BURGUNDY, fontWeight: 600, textDecoration: "none", marginTop: 8, padding: "8px 0", display: "inline-block" }}>
             Log tonight&apos;s bottle →
           </a>
         </>

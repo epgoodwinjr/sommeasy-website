@@ -20,7 +20,7 @@ function assert(cond, msg) { if (!cond) throw new Error("ASSERT FAILED: " + msg)
 async function main() {
   const { sanitizeNext, interpretSignUpResult, isValidOtpType, VALID_OTP_TYPES, isOtpNoAccountError } =
     await import("../authFlow.js");
-  const { AUTH_ERRORS, AUTH_MESSAGES, mapAuthError, authErrorCopy } =
+  const { AUTH_ERRORS, AUTH_MESSAGES, mapAuthError, authErrorCopy, authNoticeCopy } =
     await import("../authCopy.js");
 
   console.log("\n═══ sanitizeNext — open-redirect kill table ═══");
@@ -195,6 +195,12 @@ async function main() {
     assert(/if that email has an account/i.test(copy), "conditional phrasing required");
     assert(copy.includes("x@y.com"), "shows the address");
     assert(/sign-in link/i.test(copy), "names what was sent");
+  });
+
+  test("the ?notice= landing renders only known notices (House List: signed out)", () => {
+    assert(authNoticeCopy("signed_out") === "✓ Signed out", "signed_out copy");
+    assert(authNoticeCopy("not_a_notice") === null, "unknown keys render nothing, never the raw param");
+    assert(authNoticeCopy(undefined) === null && authNoticeCopy("") === null, "absent param");
   });
 
   test("password_helper and magic_needs_email exist with the 8-char policy", () => {

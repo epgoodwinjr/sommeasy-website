@@ -14,7 +14,7 @@
 // block only — a link can't hold buttons. `numeral` is home's numbered
 // variant; `struck` the passed variant (struckOpacity 0.4 on home, 0.55 on
 // the journal's Passed tab). Link hrefs come from wineHref() in
-// @/lib/navTrail.
+// @/lib/navTrail. Any other prop (data-wine, aria-*) lands on the row.
 
 import Link from "next/link";
 import { BURGUNDY, INK, SANS, SERIF, ink, leader } from "./tokens";
@@ -30,7 +30,7 @@ export default function WineRow({
   name, vintage, mark, action, chevron = false,
   meta, metaRight, metaTone = "quiet",
   numeral, struck = false, struckOpacity = 0.4,
-  href, onClick, testId, children, style,
+  href, onClick, testId, children, style, ...rest
 }) {
   const hasEnd = Boolean(vintage || mark || action || chevron);
   const interactive = Boolean(href || onClick);
@@ -108,10 +108,10 @@ export default function WineRow({
 
   if (interactive && !children) {
     return href
-      ? <Link href={href} onClick={onClick} data-testid={testId} style={rowStyle}>{body}</Link>
-      : <button type="button" onClick={onClick} data-testid={testId} style={rowStyle}>{body}</button>;
+      ? <Link href={href} onClick={onClick} data-testid={testId} style={rowStyle} {...rest}>{body}</Link>
+      : <button type="button" onClick={onClick} data-testid={testId} style={rowStyle} {...rest}>{body}</button>;
   }
-  return <div data-testid={testId} style={rowStyle}>{body}</div>;
+  return <div data-testid={testId} style={rowStyle} {...rest}>{body}</div>;
 }
 
 /** A selection held back until the first rating (README §8.1.5): a

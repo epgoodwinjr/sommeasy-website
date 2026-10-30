@@ -1,106 +1,131 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
-import { compressImage } from "@/lib/image-utils";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { saveQuizProfile } from "@/lib/saveQuizProfile";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
-import { RATINGS } from "@/lib/ratings";
+import { ratingFor } from "@/lib/ratings";
 import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/lib/pendingPalate";
 import { signatureLine } from "@/lib/palateSignature";
 import { resolveOutstandingVerdict, VERDICT_EVENT_TYPES, VERDICT_WINDOW_DAYS, readDismissedVerdicts, dismissVerdict } from "@/lib/tableVerdict";
-import { resolveFirstPourCards, readDismissedFirstPour, dismissFirstPourCard } from "@/lib/firstPour";
+import { resolveFirstPourCards } from "@/lib/firstPour";
+import { splitVintage } from "@/lib/vintage";
+import { numeralCounter } from "@/lib/numerals";
+import { HOME_TITLE, wineHref } from "@/lib/navTrail";
+import { HOUSE_PAGES } from "@/lib/houseRoutes";
+import { crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, verdictMeta, verdictReply, whisperLine } from "@/lib/houseCopy";
 import Quiz from "@/components/Quiz";
-import WineRecList, { evolutionToastMessages, RatingModal } from "@/components/WineRecList";
+import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
 import PalateMark from "@/components/PalateMark";
+import Divider from "@/components/house/Divider";
+import SectionHead from "@/components/house/SectionHead";
+import LeaderEntry from "@/components/house/LeaderEntry";
+import WineRow from "@/components/house/WineRow";
+import RuledField from "@/components/house/RuledField";
+import RatingTiles from "@/components/house/RatingTiles";
+import TextAction from "@/components/house/TextAction";
+import EmptyState from "@/components/house/EmptyState";
+import Toast, { useToast } from "@/components/house/Toast";
+import useMounted from "@/components/house/useMounted";
+import { useNavTrail } from "@/components/house/RunningHead";
+import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, SOFT_OUT, ink } from "@/components/house/tokens";
 
-// ─── The First Pour: card copy ───
-// Somm voice, present tense — each card states the verb AND what it does to
-// the palate. Cards invite the next pour; they never apologize for an empty
-// journal (the archetypeVoice deferral ban, applied in spirit).
-const FIRST_POUR_COPY = {
-  "rate-one": {
-    title: "Start with a bottle you’ve already met.",
-    body: "Rate a wine below — one tap tells the Somm something true about you.",
-    cta: "Rate one below ↓",
-  },
-  "log-a-bottle": {
-    title: "Pouring something tonight? Snap the label.",
-    body: "Every bottle you rate presses your palate’s shape a little truer — watch your bloom.",
-    cta: "📸 Snap the label",
-  },
-  "bring-a-list": {
-    title: "Next time a wine list lands in front of you, hand it to us.",
-    body: "Photo, link, or paste — tell the Somm what tonight calls for and we’ll find your bottle.",
-    cta: "See how it works →",
-  },
+// ─── Home: The House List (README §8.1) ───
+// The signed-in home reads like a wine list written for one person: a crest
+// (the bloom, "Prepared for", the strand's title and epithet), actions as
+// dotted-leader entries in numbered sections, and the recommendations as
+// by-the-bottle rows. Two layouts: the established one, and — until the
+// first rating anywhere — the new-user one (Your first entry + Reserved
+// rows). The choice is made once per load, after the reads settle, and
+// never flips mid-visit: the page doesn't rearrange under the user's thumb.
+
+const mastCell = { width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" };
+const wordmark = {
+  fontFamily: SANS, fontSize: "10px", fontWeight: 700, letterSpacing: "0.36em",
+  textTransform: "uppercase", color: BURGUNDY,
+};
+const initialRing = {
+  width: 30, height: 30, borderRadius: "50%", border: "1px solid rgba(139,35,50,0.3)",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1, color: BURGUNDY,
+};
+const preparedFor = {
+  fontFamily: SANS, fontSize: "10px", fontWeight: 600, letterSpacing: "0.3em",
+  textTransform: "uppercase", color: ink(0.45), marginTop: 16,
+};
+const crestTitle = {
+  fontFamily: SERIF, fontSize: "28px", fontWeight: 700, lineHeight: 1.12,
+  letterSpacing: "-0.01em", color: INK, marginTop: 8, textWrap: "balance",
+};
+const crestEpithet = {
+  fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.4,
+  color: BURGUNDY, marginTop: 8, transition: "opacity 0.3s ease",
+};
+const smallCaps = {
+  fontFamily: SANS, fontSize: "10px", fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase",
+};
+const replyLine = {
+  fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5, color: BURGUNDY, marginTop: 12,
+};
+const footerLink = {
+  fontFamily: SANS, fontSize: "13px", fontWeight: 600, color: BURGUNDY,
+  padding: "12px 0", textDecoration: "none", whiteSpace: "nowrap",
 };
 
-// ─── Saved Profile View ───
-function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
-  const [showWines, setShowWines] = useState(true);
-  // Rec interactions live inside WineRecList (the shared ratable surface);
-  // this view only needs the counts it reports back
-  const [recCounts, setRecCounts] = useState(null);
-  const [hasJournal, setHasJournal] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [evolutionToasts, setEvolutionToasts] = useState([]);
-  // Bottle logging
-  const [bottleStep, setBottleStep] = useState(null); // null | "camera" | "processing" | "confirm"
-  const [bottleData, setBottleData] = useState(null);
-  const [bottleName, setBottleName] = useState("");
-  const [bottleError, setBottleError] = useState("");
-  const bottleInputRef = useRef(null);
-  const bottleGalleryRef = useRef(null);
-  // The Table Verdict: the one quiet "how was it?" ask — a chosen-but-
-  // unrated Somm pick outstanding, resolved from the wine_events ledger
-  const [verdictAsk, setVerdictAsk] = useState(null);
-  const [verdictRating, setVerdictRating] = useState(false);
-  // The verdict read must SETTLE before First Pour cards may render — a due
-  // ask outranks them, and cards must never flash in ahead of it
+// Case/whitespace-insensitive, the way the verdict resolver keys wines
+const sameWine = (a, b) =>
+  typeof a === "string" && typeof b === "string" && a.trim().toLowerCase() === b.trim().toLowerCase();
+
+function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
+  // Home has no running head, but it's the root of the back trail
+  useNavTrail(HOME_TITLE);
+  const router = useRouter();
+  const { toasts, showToast } = useToast();
+  // undefined until the read settles — the date line waits, so a whisper
+  // never swaps in over the date
+  const [whisper, setWhisper] = useState(undefined);
+  // The Table Verdict: the one quiet "how was it?" — a chosen-but-unrated
+  // Somm pick, resolved from the wine_events ledger. { ask, rating?, reply?,
+  // failed? }: after a rating the reply takes the tiles' place and the
+  // section stays until the next load
+  const [verdict, setVerdict] = useState(null);
   const [verdictLoaded, setVerdictLoaded] = useState(false);
-  // The First Pour: which loop verbs this user hasn't poured yet (null =
-  // unresolved or read failed → render nothing)
-  const [firstPourCards, setFirstPourCards] = useState(null);
-  const firstPourDataRef = useRef(null); // resolver inputs, for re-resolve on dismiss
-  const winesRef = useRef(null);
-  const [isMobile, setIsMobile] = useState(false);
+  // The journal read: { rows, newUser } once settled (rows null = failed)
+  const [journal, setJournal] = useState(null);
+  // "new" | "established" — decided once both reads settle, then frozen
+  const [layout, setLayout] = useState(null);
+  // Wines rated on this visit: the journal count and the Reserved rows
+  // follow them without another read
+  const [ratedNow, setRatedNow] = useState(() => new Set());
+  const [firstEntry, setFirstEntry] = useState("");
   const supabase = createClient();
 
   const recs = profile.recommendations || [];
-  const displayName = user?.email?.split("@")[0] || "";
-  const [whisper, setWhisper] = useState(null);
-  // The identity strand's epithet (Act III) is the strip's line; the live
-  // signature computation is the fallback for a not-yet-recomposed row
-  const palateLine = profile.identity?.epithet || signatureLine(profile);
 
   useEffect(() => {
-    setIsMobile(/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
-  }, []);
-
-  useEffect(() => {
-    // A whisper of recent evolution on the strip — the latest promotion
-    // ("Chenin Blanc just joined your DNA") or identity shift ("You became
-    // The Mosel Purist"), only when it happened in the last 30 days
+    // The whisper: the latest promotion ("Chenin Blanc just joined your
+    // DNA") or identity shift ("You became The Mosel Purist"), when it
+    // happened in the last 30 days — it takes the date's place
     async function loadWhisper() {
-      const { data } = await supabase
-        .from("dna_timeline")
-        .select("display_name, event_type, event_at")
-        .eq("user_id", user.id)
-        .in("event_type", ["promoted", "shifted"])
-        .order("event_at", { ascending: false })
-        .limit(1);
-      const latest = data?.[0];
-      if (latest && Date.now() - new Date(latest.event_at).getTime() < 30 * 24 * 60 * 60 * 1000) {
-        setWhisper(latest.event_type === "shifted"
-          ? `You became ${latest.display_name}`
-          : `${latest.display_name} just joined your DNA`);
+      try {
+        const { data } = await supabase
+          .from("dna_timeline")
+          .select("display_name, event_type, event_at")
+          .eq("user_id", user.id)
+          .in("event_type", ["promoted", "shifted"])
+          .order("event_at", { ascending: false })
+          .limit(1);
+        setWhisper(whisperLine(data?.[0]) || null);
+      } catch {
+        setWhisper(null);
       }
     }
-    if (user?.id) { loadWhisper(); }
+    if (user?.id) loadWhisper();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   useEffect(() => {
@@ -121,10 +146,11 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
           .in("event_type", VERDICT_EVENT_TYPES)
           .gte("occurred_at", since);
         if (!error && data) {
-          setVerdictAsk(resolveOutstandingVerdict(data, { dismissedIds: readDismissedVerdicts() }));
+          const ask = resolveOutstandingVerdict(data, { dismissedIds: readDismissedVerdicts() });
+          setVerdict(ask ? { ask } : null);
         }
       } catch { /* the prompt is a courtesy — never break home over it */ }
-      // Settled either way (a failed read = no ask) — cards may render now
+      // Settled either way (a failed read = no ask)
       setVerdictLoaded(true);
     }
     if (user?.id) loadVerdictAsk();
@@ -132,226 +158,66 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
   }, [user?.id]);
 
   useEffect(() => {
-    // The First Pour: quiet cards that teach the loop's verbs until each has
-    // genuinely happened. Reads durable truth only (interactions + the two
-    // event types) and resolves through the pure firstPour.js. ANY failure →
-    // no cards — onboarding is a courtesy, never load-bearing (the same
-    // posture as the verdict ask; the blackhole guard drives this page with
-    // wine_events unreachable and home must not care).
-    async function loadFirstPour() {
+    // The journal read behind the layout choice (First Pour's durable
+    // truth, through the pure firstPour.js): never rated anything → the
+    // new-user layout. ANY failure → the established layout — onboarding is
+    // a courtesy, never a guess (the blackhole guard drives this page with
+    // wine_events unreachable). The same rows give the journal count and
+    // the verdict row's region.
+    async function loadJournal() {
+      let rows = null;
+      let newUser = false;
       try {
         const [ints, evts] = await Promise.all([
-          supabase.from("wine_interactions").select("rating, source_url").eq("user_id", user.id),
+          supabase.from("wine_interactions")
+            .select("wine_name, interaction_type, rating, source_url, resolved_region")
+            .eq("user_id", user.id),
           supabase.from("wine_events").select("event_type").eq("user_id", user.id)
             .in("event_type", ["bottle_logged", "menu_analyzed"]),
         ]);
-        if (ints.error || evts.error || !ints.data || !evts.data) return;
-        firstPourDataRef.current = { interactions: ints.data, events: evts.data };
-        setFirstPourCards(resolveFirstPourCards({
-          ...firstPourDataRef.current,
-          dismissedIds: readDismissedFirstPour(),
-        }));
-      } catch { /* no cards — never break home */ }
+        if (!ints.error && ints.data) {
+          rows = ints.data;
+          if (!evts.error && evts.data) {
+            newUser = resolveFirstPourCards({ interactions: ints.data, events: evts.data }).includes("rate-one");
+          }
+        }
+      } catch { /* settles as unknown → the established layout */ }
+      setJournal({ rows, newUser });
     }
-    if (user?.id) loadFirstPour();
+    if (user?.id) loadJournal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const handleFirstPourDismiss = (cardId) => {
-    dismissFirstPourCard(cardId);
-    if (firstPourDataRef.current) {
-      setFirstPourCards(resolveFirstPourCards({
-        ...firstPourDataRef.current,
-        dismissedIds: readDismissedFirstPour(),
-      }));
-    }
-  };
-
-  // The stacking rule: a due verdict ask outranks evergreen cards — exactly
-  // one prompt band at a time
-  const visibleFirstPour = verdictLoaded && !verdictAsk && firstPourCards ? firstPourCards : [];
-
+  // The layout is chosen once. A due verdict ask outranks onboarding — the
+  // established layout carries From last night (First Pour's stacking rule)
   useEffect(() => {
-    // /?log=1 — the bypass flow's bottle-log handoff: open the camera step
-    // ready to tap (the picker itself needs a user gesture, so this stops
-    // at the button, not the camera)
-    if (new URLSearchParams(window.location.search).get("log") === "1") {
-      setBottleStep("camera");
-      window.history.replaceState({}, "", "/");
-    }
-  }, []);
+    if (layout || !verdictLoaded || !journal) return;
+    setLayout(journal.newUser && !verdict?.ask ? "new" : "established");
+  }, [layout, verdictLoaded, journal, verdict]);
 
-  const showToast = useCallback((msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  }, []);
+  const hadCount = new Set([
+    ...(journal?.rows || []).filter((r) => r.interaction_type === "had").map((r) => r.wine_name),
+    ...ratedNow,
+  ]).size;
 
-  const handleRecCounts = useCallback(({ interactedRecs, visibleRecs, hasAnyInteractions }) => {
-    setRecCounts({ interactedRecs, visibleRecs });
-    if (hasAnyInteractions) setHasJournal(true);
-  }, []);
+  const markRated = (wine) => setRatedNow((prev) => new Set(prev).add(wine));
 
-  // ─── Bottle logging (Claude Vision via /api/scan-label) ───
-  const handleBottlePhoto = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = ""; // allow re-selecting same file
-    setBottleStep("processing");
-    setBottleError("");
-
+  // The dimension this rating moved that's nearest to joining the DNA —
+  // for the "{name} is now two loved bottles from joining your DNA" reply
+  const readNearest = async (dimensions) => {
     try {
-      const blob = await compressImage(file);
-
-      const formData = new FormData();
-      formData.append("image", blob, "label.jpg");
-
-      const res = await fetch("/api/scan-label", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || data.error) {
-        setBottleError(data.error || "Couldn't read the label. Try a clearer photo.");
-        setBottleStep("camera");
-        return;
-      }
-
-      // Build display name: producer + name, or whichever is available
-      const displayName = [data.producer, data.name].filter(Boolean).join(" ") || null;
-
-      if (!displayName || displayName.length < 2) {
-        setBottleError("Couldn't make out the wine name. Try a clearer photo.");
-        setBottleStep("camera");
-        return;
-      }
-
-      setBottleData({
-        wineName: displayName,
-        vintage: data.vintage ? String(data.vintage) : null,
-        region: data.region || null,
-        country: data.country || null,
-        confidence: data.confidence || "low",
-      });
-      setBottleName(displayName);
-      setBottleStep("confirm");
-    } catch (err) {
-      setBottleError("Failed to process image. Please try again.");
-      setBottleStep("camera");
-    }
-  };
-
-  const showEvolutionToasts = useCallback((items, isDemotion = false) => {
-    if (!items || items.length === 0) return;
-    const toasts = evolutionToastMessages(items, isDemotion);
-    // Show sequentially with 1s gaps, starting after the standard toast
-    toasts.forEach((msg, i) => {
-      setTimeout(() => {
-        setEvolutionToasts((prev) => [...prev, msg]);
-        setTimeout(() => {
-          setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
-        }, 4000);
-      }, 1500 + (i * 1500));
-    });
-  }, []);
-
-  const handleBottleSave = async (rating) => {
-    if (!bottleName.trim()) return;
-    const name = bottleName.trim();
-
-    try {
-      // 1. Save to wine_interactions — but first read any existing rating:
-      // re-logging an already-rated bottle must apply the differential, not
-      // full points again
-      const { data: existing } = await supabase
-        .from("wine_interactions")
-        .select("rating")
+      const touched = (dimensions || []).filter((d) => d?.mappable && d.dimensionValue);
+      if (touched.length === 0) return null;
+      const { data, error } = await supabase
+        .from("dna_accumulation")
+        .select("dimension, dimension_value, display_name, points, promoted, mappable")
         .eq("user_id", user.id)
-        .eq("wine_name", name)
-        .single();
-      const previousRating = existing?.rating || null;
-
-      const { error: upsertErr } = await supabase.from("wine_interactions").upsert({
-        user_id: user.id,
-        wine_name: name,
-        interaction_type: "had",
-        rating: rating,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id, wine_name" });
-
-      if (upsertErr) throw upsertErr;
-
-      // 2. DNA Evolution: resolve metadata, accumulate points, check
-      // promotions — then the milestone hook may recompose the identity
-      let evolutionResult = null;
-      let shift = null;
-      try {
-        evolutionResult = await resolveAndAccumulate(supabase, user.id, name, rating, previousRating);
-        shift = await maybeRecomposeIdentity(supabase, user.id, { ...evolutionResult, rating });
-      } catch (evoErr) {
-        console.error("DNA evolution error (non-blocking):", evoErr);
-      }
-
-      // The ledger record (The Long Memory) — old→new plus the band the
-      // engine actually resolved at; fire-and-forget
-      recordEvent(supabase, user.id, "bottle_logged", ratingEventPayload({
-        wine: name, rating, previousRating,
-        surface: "log_bottle",
-        confidence: evolutionResult?.resolution?.confidence,
-      }));
-
-      // 3. Update specific_wines based on rating (existing logic)
-      const currentSpecific = profile.specific_wines || [];
-      const nameLower = name.toLowerCase();
-
-      if (rating === "loved" || rating === "liked") {
-        if (!currentSpecific.some((w) => w.toLowerCase() === nameLower)) {
-          const { error: updateErr } = await supabase.from("wine_profiles").update({
-            specific_wines: [...currentSpecific, name],
-          }).eq("user_id", user.id);
-          if (updateErr) console.error("Profile update failed:", updateErr);
-        }
-      } else if (rating === "not_for_me") {
-        const filtered = currentSpecific.filter((w) => w.toLowerCase() !== nameLower);
-        if (filtered.length !== currentSpecific.length) {
-          const { error: updateErr } = await supabase.from("wine_profiles").update({
-            specific_wines: filtered,
-          }).eq("user_id", user.id);
-          if (updateErr) console.error("Profile update failed:", updateErr);
-        }
-      }
-
-      setHasJournal(true);
-      setBottleStep(null);
-      setBottleData(null);
-      setBottleName("");
-
-      // 4. Show standard toast
-      showToast("Added to your collection!");
-
-      // 5. Show evolution toasts if any promotions/demotions fired (a re-log
-      // downgrade can demote now that the differential is applied), then the
-      // celebrated shift as the closing beat
-      if (evolutionResult?.promotions?.length > 0) {
-        showEvolutionToasts(evolutionResult.promotions, false);
-      }
-      if (evolutionResult?.demotions?.length > 0) {
-        showEvolutionToasts(evolutionResult.demotions, true);
-      }
-      if (shift?.shifted) {
-        const evoCount = (evolutionResult?.promotions?.length || 0) + (evolutionResult?.demotions?.length || 0);
-        const msg = shiftToastMessage(shift);
-        setTimeout(() => {
-          setEvolutionToasts((prev) => [...prev, msg]);
-          setTimeout(() => {
-            setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
-          }, 5000);
-        }, 1500 + evoCount * 1500);
-      }
-    } catch (err) {
-      console.error("Bottle save failed:", err);
-      setBottleError("Couldn't save — please try again.");
+        .in("dimension_value", touched.map((d) => d.dimensionValue));
+      if (error || !data) return null;
+      const keys = new Set(touched.map((d) => `${d.dimension}:${d.dimensionValue}`));
+      return nearestPromotion(data.filter((r) => keys.has(`${r.dimension}:${r.dimension_value}`)));
+    } catch {
+      return null;
     }
   };
 
@@ -363,16 +229,14 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
   // pick_rated (surface verdict_prompt) carries the choice's session so the
   // §11e funnel ties the rating back to its curation.
   const handleVerdictDismiss = () => {
-    if (verdictAsk) dismissVerdict(verdictAsk.id);
-    setVerdictAsk(null);
-    setVerdictRating(false);
+    if (verdict?.ask) dismissVerdict(verdict.ask.id);
+    setVerdict(null);
   };
 
   const handleVerdictRate = async (rating) => {
-    const ask = verdictAsk;
-    setVerdictRating(false);
-    if (!ask) return;
-    setVerdictAsk(null);
+    const ask = verdict?.ask;
+    if (!ask || verdict.rating) return;
+    setVerdict({ ask, rating, reply: null });
     // Belt and braces: even if the event write below is lost, the ask
     // stays gone on this device
     dismissVerdict(ask.id);
@@ -393,6 +257,7 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
         updated_at: new Date().toISOString(),
       }, { onConflict: "user_id, wine_name" });
       if (error) throw error;
+      markRated(ask.wine);
 
       let evolutionResult = null;
       let shift = null;
@@ -411,523 +276,226 @@ function SavedProfileView({ profile, onRefine, onSignOut, user, welcomeBack }) {
         session: ask.session,
       });
 
-      setHasJournal(true);
-      showToast("Rating saved!");
-      if (evolutionResult?.promotions?.length > 0) showEvolutionToasts(evolutionResult.promotions, false);
-      if (evolutionResult?.demotions?.length > 0) showEvolutionToasts(evolutionResult.demotions, true);
+      const promotions = evolutionResult?.promotions || [];
+      const nearest = rating === "loved" && promotions.length === 0
+        ? await readNearest(evolutionResult?.dimensions)
+        : null;
+      setVerdict((v) => (v ? { ...v, reply: verdictReply({ rating, promotions, nearest }) } : v));
+
+      const demotions = evolutionResult?.demotions || [];
+      [...evolutionToastMessages(promotions, false), ...evolutionToastMessages(demotions, true)]
+        .forEach((msg, i) => showToast(msg, { delay: 1500 + i * 1500, duration: 4000 }));
       if (shift?.shifted) {
-        const evoCount = (evolutionResult?.promotions?.length || 0) + (evolutionResult?.demotions?.length || 0);
-        const msg = shiftToastMessage(shift);
-        setTimeout(() => {
-          setEvolutionToasts((prev) => [...prev, msg]);
-          setTimeout(() => {
-            setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
-          }, 5000);
-        }, 1500 + evoCount * 1500);
+        showToast(shiftToastMessage(shift), {
+          delay: 1500 + (promotions.length + demotions.length) * 1500, duration: 5000,
+        });
       }
     } catch (err) {
       console.error("Verdict rating failed:", err);
-      showToast("Couldn't save — try again from your journal.");
+      setVerdict((v) => (v ? { ...v, failed: true } : v));
     }
   };
 
-  const interactedCount = recCounts?.interactedRecs || 0;
+  const submitFirstEntry = () => {
+    const q = firstEntry.trim();
+    router.push(q ? `/log?q=${encodeURIComponent(q)}` : "/log");
+  };
+
+  const next = numeralCounter();
+  const isNew = layout === "new";
+  const epithet = isNew
+    ? "Your first list — it rewrites itself as you rate"
+    : profile.identity?.epithet || signatureLine(profile);
+
+  const renderVerdict = () => {
+    const { ask, rating, reply, failed } = verdict;
+    const { base, vintage } = splitVintage(ask.wine);
+    const region = (journal?.rows || []).find((r) => sameWine(r.wine_name, ask.wine))?.resolved_region;
+    const rated = ratingFor(rating);
+    return (
+      <section data-testid="verdict-ask">
+        <SectionHead numeral={next()} label="From last night" style={{ margin: "32px 0 16px" }} />
+        <WineRow
+          name={base} vintage={vintage} meta={verdictMeta(region)}
+          href={HOUSE_PAGES.wine ? wineHref(ask.wine) : undefined}
+          style={{ padding: 0, borderBottom: "none" }}
+        />
+        {rated ? (
+          <p role="status" style={replyLine}>
+            {failed ? "Couldn’t save — try again from your journal." : reply || `${rated.emoji} ${rated.label} — noted.`}
+          </p>
+        ) : (
+          <>
+            <RatingTiles variant="verdict" onRate={handleVerdictRate} style={{ marginTop: 14 }} />
+            <TextAction tone="quiet" onClick={handleVerdictDismiss} testId="verdict-dismiss">Not tonight</TextAction>
+          </>
+        )}
+      </section>
+    );
+  };
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 24px", minHeight: "100vh" }}>
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
-          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
-          borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif",
-          fontSize: "14px", fontWeight: 600, zIndex: 90,
-          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
-        }}>✓ {toast}</div>
-      )}
-
-      {/* Evolution toasts */}
-      {evolutionToasts.map((msg, i) => (
-        <div key={msg} style={{
-          position: "fixed", top: toast ? 56 + (i * 44) : 16 + (i * 44),
-          left: "50%", transform: "translateX(-50%)",
-          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
-          borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif",
-          fontSize: "14px", fontWeight: 600, zIndex: 91,
-          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
-          whiteSpace: "nowrap",
-        }}>{msg}</div>
-      ))}
-
-      {/* Header */}
-      <header style={{
-        padding: "20px 0 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
-        position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(16px)",
-        zIndex: 10,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />
-          <span style={{
-            fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px",
-            color: "#8B2332", fontWeight: 700, letterSpacing: "-0.01em",
-          }}>Sommeasy</span>
+    <div style={{
+      maxWidth: COLUMN, margin: "0 auto", minHeight: "100vh",
+      padding: `calc(env(safe-area-inset-top) + 8px) ${GUTTER}px 56px`,
+    }}>
+      {/* Masthead: search · the wordmark · account */}
+      <div style={{ display: "grid", gridTemplateColumns: "44px minmax(0,1fr) 44px", alignItems: "center", margin: "0 -10px" }}>
+        {HOUSE_PAGES.search ? (
+          <Link href="/search" aria-label="Search" style={{ ...mastCell, fontSize: "16px", textDecoration: "none" }}>🔍</Link>
+        ) : (
+          <span aria-hidden="true" style={mastCell} />
+        )}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <img src="/protea-icon.png" alt="" style={{ height: 22, width: "auto" }} />
+          <span style={wordmark}>Sommeasy</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <span style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            color: "#1B3D2F", opacity: 0.45,
-          }}>{displayName}</span>
-          <button onClick={onSignOut} style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#1B3D2F",
-            background: "none", border: "1px solid rgba(27,61,47,0.12)", borderRadius: "100px",
-            padding: "5px 14px", cursor: "pointer", opacity: 0.45,
-          }}>Sign Out</button>
+        <Link href="/account" aria-label="Account" style={{ ...mastCell, textDecoration: "none" }}>
+          <span style={initialRing}>{crestInitial(user)}</span>
+        </Link>
+      </div>
+
+      {/* The crest — the door to the palate */}
+      <Link href="/palate" data-testid="palate-strip" style={{ display: "block", textAlign: "center", textDecoration: "none", color: INK }}>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+          <PalateMark genome={profile.identity?.genome} size={76} />
         </div>
-      </header>
+        <div style={preparedFor}>Prepared for</div>
+        <div style={crestTitle}>{profile.archetype}</div>
+        {/* Held back until the layout is known — a new user's line never
+            swaps in over the established one */}
+        {epithet && <div style={{ ...crestEpithet, opacity: layout ? 1 : 0 }}>{epithet}</div>}
+      </Link>
+
+      <Divider style={{ marginTop: 22 }} />
+      <div style={{ ...smallCaps, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <span style={{
+          minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          color: whisper ? ink(0.65) : ink(0.45),
+          opacity: whisper === undefined ? 0 : 1, transition: "opacity 0.3s ease",
+        }}>{whisper || homeDateLine()}</span>
+        <Link href="/palate" style={{ color: BURGUNDY, padding: "12px 0", whiteSpace: "nowrap", textDecoration: "none" }}>
+          Your palate ›
+        </Link>
+      </div>
 
       {/* Welcome-back moment — the pending palate just landed (Session 2:
           Never Lose a Palate). A quiet beat, not a toast. */}
       {welcomeBack && <WelcomeBackMoment />}
 
-      {/* Hero: Restaurant CTA */}
-      <a href="/recommend" style={{
-        display: "block", textDecoration: "none", marginTop: 8, marginBottom: 24,
-        background: "linear-gradient(155deg, #8B2332 0%, #7A1E2C 40%, #5C1620 100%)",
-        borderRadius: "24px", padding: "36px 32px 32px",
-        color: "#F5F0E8", position: "relative", overflow: "hidden",
-        boxShadow: "0 12px 40px rgba(139,35,50,0.3), 0 2px 8px rgba(139,35,50,0.15)",
-      }}>
-        <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
-        <div style={{ position: "absolute", bottom: -40, left: 20, width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.03)" }} />
-        <div style={{ position: "relative" }}>
-          <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.22em", textTransform: "uppercase", opacity: 0.45, marginBottom: 12, fontWeight: 500 }}>At a restaurant?</div>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px", fontWeight: 700, lineHeight: 1.15, marginBottom: 12, letterSpacing: "-0.01em" }}>Get your picks</div>
-          <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", opacity: 0.65, lineHeight: 1.55, maxWidth: 300 }}>Share a wine list and we&#39;ll match it to your DNA</div>
-          <div style={{ marginTop: 24, display: "inline-flex", alignItems: "center", gap: "10px", background: "rgba(255,255,255,0.13)", borderRadius: "100px", padding: "11px 26px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, border: "1px solid rgba(255,255,255,0.08)" }}>
-            <span style={{ fontSize: "16px" }}>📋</span> Paste, snap, or link a menu
-          </div>
-        </div>
-      </a>
-
-      {/* ─── The Table Verdict: the one quiet "how was it?" ─── */}
-      {verdictAsk && (
-        <div data-testid="verdict-ask" style={{
-          padding: "16px 20px", borderRadius: "14px", marginBottom: 24,
-          background: "#F5F0E8", border: "1px solid rgba(139,35,50,0.12)",
-          borderLeft: "3px solid #8B2332",
-        }}>
-          <div style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", fontWeight: 700,
-            color: "#8B2332", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6,
-          }}>🥂 The table verdict</div>
-          <p style={{
-            fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
-            color: "#1B3D2F", margin: "0 0 12px", lineHeight: 1.4,
-          }}>You ordered {verdictAsk.wine} — how was it?</p>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button data-testid="verdict-rate" onClick={() => setVerdictRating(true)} style={{
-              flex: 1, padding: "11px 14px", borderRadius: "10px", border: "none", minHeight: 40,
-              background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8",
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: 600, cursor: "pointer",
-            }}>Rate it</button>
-            <button data-testid="verdict-dismiss" onClick={handleVerdictDismiss} style={{
-              padding: "11px 18px", borderRadius: "10px", minHeight: 40,
-              border: "1px solid rgba(27,61,47,0.1)", background: "none",
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-              color: "#1B3D2F", opacity: 0.55, cursor: "pointer",
-            }}>Skip</button>
-          </div>
-        </div>
-      )}
-      {verdictRating && verdictAsk && (
-        <RatingModal
-          wine={verdictAsk.wine}
-          onRate={handleVerdictRate}
-          onClose={() => setVerdictRating(false)}
-        />
-      )}
-
-      {/* ─── The First Pour: cards that teach the loop, until it's poured ─── */}
-      {visibleFirstPour.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: 24 }}>
-          {visibleFirstPour.map((cardId) => {
-            const copy = FIRST_POUR_COPY[cardId];
-            if (!copy) return null;
-            return (
-              <div key={cardId} data-testid={`first-pour-card-${cardId}`} style={{
-                position: "relative", padding: "16px 20px", borderRadius: "14px",
-                background: "rgba(255,255,255,0.55)", border: "1px solid rgba(27,61,47,0.08)",
-                borderLeft: "3px solid #6B8F5E",
-              }}>
-                <button data-testid="first-pour-dismiss" aria-label="Not now"
-                  onClick={() => handleFirstPourDismiss(cardId)} style={{
-                    position: "absolute", top: 4, right: 4, width: 40, height: 40,
-                    background: "none", border: "none", cursor: "pointer",
-                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "18px",
-                    color: "#1B3D2F", opacity: 0.3, lineHeight: 1,
-                  }}>×</button>
-                <div style={{
-                  fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
-                  color: "#1B3D2F", fontWeight: 600, lineHeight: 1.35, margin: "0 28px 6px 0",
-                }}>{copy.title}</div>
-                <p style={{
-                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-                  color: "#1B3D2F", opacity: 0.6, lineHeight: 1.5, margin: "0 0 12px",
-                }}>{copy.body}</p>
-                {cardId === "bring-a-list" ? (
-                  <a href="/recommend" data-testid="first-pour-cta" style={{
-                    display: "inline-block", padding: "10px 20px", borderRadius: "100px",
-                    background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.15)",
-                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: 600,
-                    color: "#8B2332", textDecoration: "none", minHeight: 40, boxSizing: "border-box",
-                  }}>{copy.cta}</a>
-                ) : (
-                  <button data-testid="first-pour-cta" onClick={() => {
-                    if (cardId === "rate-one") {
-                      setShowWines(true);
-                      winesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    } else {
-                      setBottleStep("camera");
-                      (isMobile ? bottleInputRef : bottleGalleryRef).current?.click();
-                    }
-                  }} style={{
-                    padding: "10px 20px", borderRadius: "100px", cursor: "pointer",
-                    background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.15)",
-                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", fontWeight: 600,
-                    color: "#8B2332", minHeight: 40,
-                  }}>{copy.cta}</button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ─── Log a Bottle ─── */}
-      {/* Camera input — opens rear camera directly on mobile */}
-      <input ref={bottleInputRef} type="file" accept="image/*" capture="environment" onChange={handleBottlePhoto} style={{ display: "none" }} data-testid="bottle-camera-input" />
-      {/* Gallery/upload input — opens photo picker or file dialog */}
-      <input ref={bottleGalleryRef} type="file" accept="image/*" onChange={handleBottlePhoto} style={{ display: "none" }} data-testid="bottle-gallery-input" />
-
-      {/* One camera entry at a time: the plain module yields while its
-          teaching card is on screen, and returns the moment the card
-          retires or is dismissed (Ed's call, First Pour session) */}
-      {bottleStep === null && !visibleFirstPour.includes("log-a-bottle") && (
-        <div style={{ marginBottom: 24 }}>
-          {/* Collapsed header row */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: "16px",
-            padding: "18px 24px", borderRadius: isMobile ? "18px 18px 0 0" : "18px",
-            border: "1px solid rgba(27,61,47,0.08)",
-            borderBottom: isMobile ? "none" : "1px solid rgba(27,61,47,0.08)",
-            background: "rgba(255,255,255,0.5)",
-          }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: "12px",
-              background: "linear-gradient(135deg, rgba(139,35,50,0.08), rgba(139,35,50,0.04))",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "22px", flexShrink: 0,
-            }}>📸</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px", color: "#1B3D2F", fontWeight: 600, lineHeight: 1.3 }}>Log a Bottle</div>
-              <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.45, lineHeight: 1.4, marginTop: 2 }}>Photo a label to add it to your collection</div>
-            </div>
-          </div>
-          {/* Action buttons */}
-          <div style={{ display: "flex", gap: "1px" }}>
-            {isMobile && (
-              <button onClick={() => { setBottleStep("camera"); bottleInputRef.current?.click(); }} style={{
-                flex: 1, padding: "13px 8px", borderRadius: "0 0 0 18px",
-                border: "1px solid rgba(27,61,47,0.08)", borderTop: "none",
-                background: "rgba(139,35,50,0.04)", cursor: "pointer",
-                fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-                color: "#8B2332", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-              }}>📷 Take Photo</button>
-            )}
-            <button onClick={() => { setBottleStep("camera"); bottleGalleryRef.current?.click(); }} style={{
-              flex: 1, padding: "13px 8px",
-              borderRadius: isMobile ? "0 0 18px 0" : "0 0 18px 18px",
-              border: "1px solid rgba(27,61,47,0.08)", borderTop: "none",
-              background: "rgba(255,255,255,0.4)", cursor: "pointer",
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-              color: "#1B3D2F", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
-            }}>{isMobile ? "🖼 Choose Photo" : "⬆️ Upload Photo"}</button>
-          </div>
-        </div>
-      )}
-
-      {bottleStep === "processing" && (
-        <div data-testid="bottle-processing" style={{
-          padding: "32px 24px", borderRadius: "18px", marginBottom: 24,
-          border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.5)",
-          textAlign: "center",
-        }}>
-          <div style={{
-            width: 32, height: 32, border: "3px solid rgba(139,35,50,0.15)",
-            borderTopColor: "#8B2332", borderRadius: "50%",
-            animation: "spin 0.8s linear infinite",
-            margin: "0 auto 16px",
-          }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          <p style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
-            color: "#8B2332", fontWeight: 600, margin: "0 0 4px",
-          }}>Reading the label...</p>
-          <p style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-            color: "#1B3D2F", opacity: 0.4, margin: 0,
-          }}>May take up to 30 seconds on first use</p>
-        </div>
-      )}
-
-      {bottleStep === "camera" && (
-        <div style={{
-          padding: "24px", borderRadius: "18px", marginBottom: 24,
-          border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.5)",
-        }}>
-          {bottleError && (
-            <div data-testid="bottle-error" style={{
-              padding: "12px 16px", borderRadius: "12px", marginBottom: 16,
-              background: "rgba(139,35,50,0.06)", border: "1px solid rgba(139,35,50,0.12)",
-            }}>
-              <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#8B2332", margin: 0, lineHeight: 1.4 }}>{bottleError}</p>
-            </div>
-          )}
-          <button onClick={() => bottleInputRef.current?.click()} style={{
-            width: "100%", padding: "16px", borderRadius: "14px",
-            border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.03)",
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
-            color: "#8B2332", fontWeight: 600, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
-          }}>📸 Take a photo</button>
-          <button onClick={() => { setBottleStep(null); setBottleError(""); }} style={{
-            width: "100%", padding: "10px", marginTop: 8,
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            color: "#1B3D2F", opacity: 0.4, background: "none",
-            border: "none", cursor: "pointer",
-          }}>Cancel</button>
-        </div>
-      )}
-
-      {bottleStep === "confirm" && (
-        <div data-testid="bottle-confirm" style={{
-          padding: "24px", borderRadius: "18px", marginBottom: 24,
-          border: "1px solid rgba(27,61,47,0.08)", background: "rgba(255,255,255,0.6)",
-        }}>
-          <div style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-            textTransform: "uppercase", letterSpacing: "0.15em",
-            color: "#1B3D2F", opacity: 0.4, marginBottom: 12, fontWeight: 600,
-          }}>We detected this wine</div>
-          <textarea
-            data-testid="bottle-wine-name"
-            value={bottleName}
-            onChange={(e) => {
-              setBottleName(e.target.value);
-              e.target.style.height = "auto";
-              e.target.style.height = e.target.scrollHeight + "px";
-            }}
-            rows={1}
-            style={{
-              width: "100%", padding: "14px 16px", borderRadius: "12px",
-              border: "1px solid rgba(27,61,47,0.1)", background: "rgba(255,255,255,0.7)",
-              fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px",
-              color: "#1B3D2F", outline: "none", boxSizing: "border-box",
-              marginBottom: 6, resize: "none", overflow: "hidden",
-              lineHeight: 1.4, minHeight: "50px",
-            }}
-            ref={(el) => {
-              if (el) {
-                el.style.height = "auto";
-                el.style.height = el.scrollHeight + "px";
-              }
-            }}
+      {/* Sections render once the reads behind the layout settle */}
+      {layout && (
+        <>
+          <SectionHead numeral={next()} label="Tonight, out" style={{ margin: "22px 0 16px" }} />
+          <LeaderEntry
+            tone="filled" mark="📋" label="Match the wine list" href="/recommend" subGap={8}
+            sub={isNew
+              ? "Photo, paste or link — we’ll pick a top bottle, a value and an adventure."
+              : "Photo, paste or link — we’ll find your bottle."}
           />
-          {(bottleData?.region || bottleData?.country || bottleData?.vintage) && (
-            <p style={{
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-              color: "#1B3D2F", opacity: 0.5, margin: "0 0 16px 4px",
-            }}>📍 {[bottleData.region, bottleData.country].filter(Boolean).join(", ")}{bottleData.vintage ? ` · ${bottleData.vintage}` : ""}</p>
+
+          {isNew ? (
+            <section data-testid="first-entry">
+              <SectionHead numeral={next()} label="Your first entry" style={{ margin: "32px 0 16px" }} />
+              <p style={{ fontFamily: SERIF, fontSize: "21px", fontWeight: 600, lineHeight: 1.25, color: INK }}>
+                Name a bottle you already love
+              </p>
+              <RuledField
+                variant="entry"
+                value={firstEntry}
+                onChange={(e) => setFirstEntry(e.target.value)}
+                onSubmit={submitFirstEntry}
+                submitLabel="Find it"
+                submitTestId="first-entry-submit"
+                placeholder="Cloudy Bay Sauvignon Blanc…"
+                aria-label="Name a bottle you already love"
+                autoComplete="off"
+                enterKeyHint="go"
+                data-testid="first-entry-input"
+                style={{ marginTop: 6 }}
+              />
+              <p style={{ fontFamily: SANS, fontSize: "13px", lineHeight: 1.5, marginTop: 10 }}>
+                <span style={{ color: ink(0.55) }}>Or </span>
+                {/* Inline in the sentence, its hit area padded past the line */}
+                <Link href="/log" data-testid="first-entry-snap" style={{
+                  color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "10px 0",
+                }}>📸 snap tonight’s label</Link>
+                <span style={{ color: ink(0.55) }}>. One rating and the Somm rewrites this list around you.</span>
+              </p>
+            </section>
+          ) : (
+            <>
+              <SectionHead numeral={next()} label="Tonight, in" style={{ margin: "32px 0 16px" }} />
+              <LeaderEntry
+                mark="📸" label="Log a bottle" href="/log" subGap={8}
+                sub="Snap the label and rate it — every rating sharpens your DNA."
+              />
+            </>
           )}
-          <div style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            color: "#1B3D2F", opacity: 0.5, marginBottom: 12,
-          }}>How was it?</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {RATINGS.map((r) => (
-              <button key={r.id} onClick={() => handleBottleSave(r.id)} style={{
-                display: "flex", alignItems: "center", gap: "10px",
-                padding: "12px 16px", borderRadius: "12px",
-                border: "1px solid rgba(27,61,47,0.08)",
-                background: "rgba(255,255,255,0.5)", cursor: "pointer",
-                fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
-                color: "#1B3D2F", fontWeight: 500, width: "100%", textAlign: "left",
-              }}>
-                <span style={{ fontSize: "18px" }}>{r.emoji}</span> {r.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: "8px", marginTop: 12 }}>
-            <button onClick={() => { setBottleStep("camera"); bottleInputRef.current?.click(); }} style={{
-              flex: 1, padding: "10px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-              color: "#8B2332", background: "none", border: "1px solid rgba(139,35,50,0.12)",
-              borderRadius: "10px", cursor: "pointer",
-            }}>Retake photo</button>
-            <button onClick={() => { setBottleStep(null); setBottleData(null); setBottleName(""); }} style={{
-              flex: 1, padding: "10px", fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-              color: "#1B3D2F", opacity: 0.4, background: "none", border: "1px solid rgba(27,61,47,0.06)",
-              borderRadius: "10px", cursor: "pointer",
-            }}>Cancel</button>
-          </div>
-        </div>
-      )}
 
-      {/* DNA Strip — the door to the Palate view, not a dead end */}
-      <a href="/palate" data-testid="palate-strip" style={{
-        display: "block", textDecoration: "none",
-        background: "linear-gradient(155deg, #1B3D2F 0%, #234A38 40%, #1B3D2F 100%)",
-        borderRadius: "18px", padding: "20px 24px",
-        color: "#F5F0E8", marginBottom: 28,
-        boxShadow: "0 6px 24px rgba(27,61,47,0.2), 0 2px 6px rgba(27,61,47,0.1)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1, minWidth: 0 }}>
-            {/* The visual signature at strip size — 44px keeps the strip's
-                height owned by the text block, never the mark */}
-            <PalateMark genome={profile.identity?.genome} size={44} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, lineHeight: 1.2 }}>{profile.archetype}</div>
-              {palateLine && (
-                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "13px", fontStyle: "italic", opacity: 0.6, marginTop: 4 }}>
-                  {palateLine}
-                </div>
-              )}
-              {whisper && (
-                <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px", color: "#C9DAC4", marginTop: 6, fontWeight: 600 }}>
-                  🧬 {whisper}
-                </div>
-              )}
-            </div>
-          </div>
-          <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "22px", opacity: 0.5, flexShrink: 0 }}>›</span>
-        </div>
-      </a>
+          {!isNew && verdict && renderVerdict()}
 
-      {/* ─── Wines to Try (Interactive) ─── */}
-      {recs.length > 0 && (
-        <div ref={winesRef} style={{ marginBottom: 28 }}>
-          <button onClick={() => setShowWines(!showWines)} style={{
-            width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-            marginBottom: showWines ? 14 : 0, padding: "12px 2px",
-            background: "none", border: "none", cursor: "pointer", textAlign: "left",
-          }}>
-            <h3 style={{
-              fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px",
-              color: "#1B3D2F", fontWeight: 600, margin: 0,
-            }}>Wines to Try</h3>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {interactedCount > 0 && (
-                <span style={{
-                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-                  color: "#8B2332", opacity: 0.6, fontWeight: 600,
-                }}>{interactedCount} reviewed</span>
-              )}
-              <span style={{
-                fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-                color: "#1B3D2F", opacity: 0.35, fontWeight: 500,
-                transform: showWines ? "rotate(180deg)" : "rotate(0deg)",
-                transition: "transform 0.25s ease", display: "inline-block",
-              }}>▼</span>
-            </div>
-          </button>
-
-          {showWines && (
-            <WineRecList
-              recs={recs}
-              user={user}
-              limit={5}
-              surface="home"
-              onCountsChange={handleRecCounts}
-              emptyState={
-                <div style={{
-                  textAlign: "center", padding: "32px 20px",
-                  background: "rgba(255,255,255,0.4)", borderRadius: "16px",
-                  border: "1px solid rgba(27,61,47,0.06)",
-                }}>
-                  <div style={{ fontSize: "32px", marginBottom: 12 }}>🎉</div>
-                  <div style={{
-                    fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px",
-                    color: "#1B3D2F", marginBottom: 8,
-                  }}>You&apos;ve reviewed all your wines!</div>
-                  <p style={{
-                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
-                    color: "#1B3D2F", opacity: 0.5, lineHeight: 1.5, maxWidth: 300,
-                    margin: "0 auto 16px",
-                  }}>Your best picks now come from real menus — share a wine list and we&apos;ll match it to your palate.</p>
-                  <a href="/recommend" style={{
-                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
-                    fontWeight: 600, color: "#F5F0E8", textDecoration: "none",
-                    display: "inline-block",
-                    background: "linear-gradient(135deg, #8B2332, #7A1E2C)",
-                    border: "none", borderRadius: "100px", padding: "12px 32px",
-                    cursor: "pointer", boxShadow: "0 4px 16px rgba(139,35,50,0.2)",
-                  }}>Scan a Wine List</a>
-                  <div style={{ marginTop: 10 }}>
-                    <button onClick={onRefine} style={{
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-                      color: "#1B3D2F", opacity: 0.35, background: "none", border: "none",
-                      cursor: "pointer", textDecoration: "underline", padding: "10px 12px",
-                    }}>or adjust your quiz answers</button>
-                  </div>
-                </div>
-              }
-            />
+          {recs.length > 0 && (
+            <>
+              <SectionHead
+                numeral={next()}
+                label={isNew ? "Chosen from your quiz" : "Chosen for your palate"}
+                style={{ margin: "34px 0 2px" }}
+              />
+              <WineRecList
+                recs={recs}
+                user={user}
+                limit={4}
+                surface="home"
+                holdBack={isNew && ratedNow.size === 0 ? 2 : 0}
+                onRated={({ wine }) => markRated(wine)}
+                showToast={showToast}
+                emptyState={
+                  <EmptyState
+                    emoji="🎉"
+                    title="You’ve reviewed all your wines"
+                    sub="Your best picks now come from real menus — share a wine list and we’ll match it to your palate."
+                    action="📋 Match a wine list"
+                    href="/recommend"
+                  >
+                    <div style={{ marginTop: 6 }}>
+                      <TextAction tone="quiet" underlined onClick={onRefine}>or adjust your quiz answers</TextAction>
+                    </div>
+                  </EmptyState>
+                }
+              />
+            </>
           )}
-        </div>
+
+          <Divider style={{ marginTop: 36 }} />
+          <nav aria-label="Your Sommeasy" style={{ display: "flex", justifyContent: "center", gap: 22, marginTop: 4 }}>
+            <Link href="/palate" style={footerLink}>Your palate</Link>
+            <Link href="/journal" style={footerLink}>{journalLinkLabel(hadCount)}</Link>
+            <Link href="/account" style={footerLink}>Account</Link>
+          </nav>
+          <p style={{
+            fontFamily: SERIF, fontStyle: "italic", fontSize: "12px", color: ink(0.4),
+            textAlign: "center", marginTop: 8,
+          }}>Never guess at a wine list again.</p>
+        </>
       )}
 
-      {/* Journal link */}
-      {hasJournal && (
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
-          <a href="/journal" style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-            color: "#8B2332", fontWeight: 600, textDecoration: "none",
-            display: "inline-flex", alignItems: "center", gap: "6px",
-            padding: "10px 20px", borderRadius: "100px",
-            border: "1px solid rgba(139,35,50,0.12)",
-            background: "rgba(139,35,50,0.03)",
-            transition: "all 0.15s ease",
-          }}>🍷 Wine Journal →</a>
-        </div>
-      )}
-
-      {/* The full palate lives at /palate now — the strip above is the door */}
-      <div style={{ paddingBottom: 48 }} />
+      <Toast toasts={toasts} />
     </div>
   );
 }
 
 // ─── Welcome-back moment ───
 function WelcomeBackMoment() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 80);
-    return () => clearTimeout(t);
-  }, []);
+  const mounted = useMounted(80);
   return (
-    <div data-testid="welcome-back" style={{
-      marginTop: 8, marginBottom: 20, padding: "18px 22px",
-      borderRadius: "16px", textAlign: "center",
-      background: "rgba(107,143,94,0.08)", border: "1px solid rgba(107,143,94,0.22)",
+    <p data-testid="welcome-back" style={{
+      fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5,
+      color: ink(0.75), textAlign: "center", marginTop: 18,
       opacity: mounted ? 1 : 0,
       transform: mounted ? "none" : "translateY(10px)",
-      transition: "opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1)",
-    }}>
-      <p style={{
-        fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px",
-        color: "#1B3D2F", margin: 0, lineHeight: 1.5,
-      }}>Welcome back. Your palate was waiting.</p>
-    </div>
+      transition: `opacity 0.7s ${SOFT_OUT}, transform 0.7s ${SOFT_OUT}`,
+    }}>Welcome back. Your palate was waiting.</p>
   );
 }
 
@@ -1003,6 +571,7 @@ function WelcomeScreen({ onStart, user, onSignOut }) {
 
 // ─── Main Controller ───
 export default function Home() {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savedProfile, setSavedProfile] = useState(null);
@@ -1100,6 +669,12 @@ export default function Home() {
   const initRan = useRef(false);
 
   useEffect(() => {
+    // /?log=1 is the old bottle-log deep link (the bypass handoff, old
+    // bookmarks) — logging lives at /log now
+    if (new URLSearchParams(window.location.search).get("log") === "1") {
+      router.replace("/log");
+      return undefined;
+    }
     // Quiet quiz entry points from the Palate view (?quiz=refine|fresh).
     // Read from location directly — useSearchParams would force a Suspense
     // boundary on this statically prerendered page.
@@ -1207,7 +782,7 @@ export default function Home() {
   }
 
   if (view === "profile" && savedProfile) {
-    return <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} onSignOut={handleSignOut} welcomeBack={welcomeBack} />;
+    return <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} welcomeBack={welcomeBack} />;
   }
 
   return <WelcomeScreen onStart={handleStartQuiz} user={user} onSignOut={handleSignOut} />;
