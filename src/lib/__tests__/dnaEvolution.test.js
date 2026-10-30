@@ -597,7 +597,7 @@ async function checkDemotions(supabase, userId, dimensionUpdates) {
   return demotions;
 }
 
-async function applyPromotions(supabase, userId, promotions) {
+async function applyPromotions(supabase, userId, promotions, wineName = null) {
   const { data: profile } = await supabase.from("wine_profiles")
     .select("countries, regions, estates, varietals").eq("user_id", userId).single();
   if (!profile) return;
@@ -618,12 +618,12 @@ async function applyPromotions(supabase, userId, promotions) {
       if (!varietals.includes(dimensionValue)) { varietals = [...varietals, dimensionValue]; changed = true; }
     }
     await supabase.from("dna_accumulation").update({ promoted: true, promoted_at: new Date().toISOString(), demoted_at: null }).eq("id", id);
-    await supabase.from("dna_timeline").insert({ user_id: userId, event_type: "promoted", dimension, dimension_value: dimensionValue, display_name: promo.displayName, event_at: new Date().toISOString() });
+    await supabase.from("dna_timeline").insert({ user_id: userId, event_type: "promoted", dimension, dimension_value: dimensionValue, display_name: promo.displayName, wine_name: wineName, event_at: new Date().toISOString() });
   }
   if (changed) await supabase.from("wine_profiles").update({ countries, regions, estates, varietals }).eq("user_id", userId);
 }
 
-async function applyDemotions(supabase, userId, demotions) {
+async function applyDemotions(supabase, userId, demotions, wineName = null) {
   const { data: profile } = await supabase.from("wine_profiles")
     .select("countries, regions, estates, varietals").eq("user_id", userId).single();
   if (!profile) return;
@@ -636,7 +636,7 @@ async function applyDemotions(supabase, userId, demotions) {
     else if (dimension === "estate") { for (const [rId, eList] of Object.entries(estates)) { const f = eList.filter(e => e !== dimensionValue); if (f.length !== eList.length) { estates = { ...estates, [rId]: f }; changed = true; } } }
     else if (dimension === "varietal") { const f = varietals.filter(v => v !== dimensionValue); if (f.length !== varietals.length) { varietals = f; changed = true; } }
     await supabase.from("dna_accumulation").update({ promoted: false, demoted_at: new Date().toISOString() }).eq("id", id);
-    await supabase.from("dna_timeline").insert({ user_id: userId, event_type: "demoted", dimension, dimension_value: dimensionValue, display_name: demo.displayName, event_at: new Date().toISOString() });
+    await supabase.from("dna_timeline").insert({ user_id: userId, event_type: "demoted", dimension, dimension_value: dimensionValue, display_name: demo.displayName, wine_name: wineName, event_at: new Date().toISOString() });
   }
   if (changed) await supabase.from("wine_profiles").update({ countries, regions, estates, varietals }).eq("user_id", userId);
 }
@@ -652,8 +652,10 @@ async function resolveAndAccumulate(supabase, userId, wineName, rating, previous
       resolved_at: new Date().toISOString(),
     }).eq("user_id", userId).eq("wine_name", wineName);
   }
+  // wineName rides every result: the hook names the rated wine on the
+  // timeline rows it writes (dna_timeline.wine_name, House List §10.1)
   const pointsTable = pointsTableFor(resolution.confidence);
-  if (!pointsTable) return { resolution, dimensions: [], promotions: [], demotions: [] };
+  if (!pointsTable) return { resolution, dimensions: [], promotions: [], demotions: [], wineName };
   const partial = pointsTable === PARTIAL_RATING_POINTS;
   // Dimensions are built (and returned) before the delta check — the
   // milestone hook judges the wine, not the delta
@@ -661,13 +663,13 @@ async function resolveAndAccumulate(supabase, userId, wineName, rating, previous
   const newPts = pointsTable[rating] ?? 0;
   const oldPts = previousRating ? (pointsTable[previousRating] ?? 0) : 0;
   const pointDelta = newPts - oldPts;
-  if (pointDelta === 0) return { resolution, dimensions: dimUpdates, promotions: [], demotions: [] };
+  if (pointDelta === 0) return { resolution, dimensions: dimUpdates, promotions: [], demotions: [], wineName };
   for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, pointDelta);
   const promotions = await checkPromotions(supabase, userId, dimUpdates);
   const demotions = await checkDemotions(supabase, userId, dimUpdates);
-  if (promotions.length > 0) await applyPromotions(supabase, userId, promotions);
-  if (demotions.length > 0) await applyDemotions(supabase, userId, demotions);
-  return { resolution, dimensions: dimUpdates, promotions, demotions };
+  if (promotions.length > 0) await applyPromotions(supabase, userId, promotions, wineName);
+  if (demotions.length > 0) await applyDemotions(supabase, userId, demotions, wineName);
+  return { resolution, dimensions: dimUpdates, promotions, demotions, wineName };
 }
 
 async function reverseAccumulation(supabase, userId, wineName, interactionData = null) {
@@ -688,7 +690,8 @@ async function reverseAccumulation(supabase, userId, wineName, interactionData =
   const dimUpdates = buildDimensionUpdates(resolution, { partial });
   for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, -points);
   const demotions = await checkDemotions(supabase, userId, dimUpdates);
-  if (demotions.length > 0) await applyDemotions(supabase, userId, demotions);
+  // A deletion names no wine: the bottle has left the journal
+  if (demotions.length > 0) await applyDemotions(supabase, userId, demotions, null);
   return { demotions };
 }
 
@@ -866,14 +869,11 @@ async function simulateSurfaceRate(supabase, wineName, rating) {
   return resolveAndAccumulate(supabase, TEST_USER, wineName, rating, previousRating);
 }
 
-// Mirrors the fixed journal handleDelete sequence: read the row, delete
-// FIRST (returning what was removed), reverse only when this call actually
-// removed the row. failDelete simulates a delete that errors out.
+// Mirrors the journal delete (on a wine's page since House List Phase 4):
+// delete FIRST, returning what was removed, and reverse exactly the rating
+// the removed row held — only when this call actually removed it.
+// failDelete simulates a delete that errors out.
 async function simulateJournalDelete(supabase, wineName, { failDelete = false } = {}) {
-  const row = supabase.tables.wine_interactions.find(
-    r => r.user_id === TEST_USER && r.wine_name === wineName
-  );
-  const interaction = row ? { rating: row.rating, match_confidence: row.match_confidence } : null;
   if (failDelete) return { demotions: [], deletedCount: 0 };
   const deleted = supabase.tables.wine_interactions.filter(
     r => r.user_id === TEST_USER && r.wine_name === wineName
@@ -882,6 +882,7 @@ async function simulateJournalDelete(supabase, wineName, { failDelete = false } 
     r => !(r.user_id === TEST_USER && r.wine_name === wineName)
   );
   if (deleted.length === 0) return { demotions: [], deletedCount: 0 };
+  const interaction = { rating: deleted[0].rating, match_confidence: deleted[0].match_confidence };
   const result = await reverseAccumulation(supabase, TEST_USER, wineName, interaction);
   return { ...result, deletedCount: deleted.length };
 }
@@ -1978,6 +1979,7 @@ async function suite12() {
     assert(events.length === 1, `exactly one shifted event, got ${events.length}`);
     assert(events[0].dimension === "identity", "shifted rows use the identity dimension");
     assert(events[0].display_name === "The South African Loyalist", "display_name is the new title");
+    assert(events[0].wine_name === "Meerlust Rubicon", `the shift names the wine whose rating moved it, got "${events[0].wine_name}"`);
     const change = JSON.parse(events[0].dimension_value);
     assert(change.from.title === before.title && change.to.title === shift.title,
       "dimension_value carries before→after titles");
@@ -2175,6 +2177,47 @@ async function suite12() {
     assert(change.from.title === "The South African Curator" && change.to.title.startsWith("The Stellenbosch"),
       "the event carries the country→region retitle");
   });
+
+  await runTest("Suite 12", "12K: Timeline rows name the wine whose rating moved them — a deletion names none", async () => {
+    // House List §10.1: the wine page's "What it did to your palate" reads
+    // dna_timeline.wine_name. A rating names its wine on the promotion AND
+    // the shift; a deletion's demotion and shift stay unlinked — the bottle
+    // has left the journal, so there is no page to tell its story on.
+    let tables = freshTables();
+    let sb = createMockSupabase(tables);
+    seedStrandProfile(tables, S12_RAW);
+    tables.dna_accumulation.push({
+      id: genId(), user_id: TEST_USER, dimension: "estate", dimension_value: "meerlust",
+      display_name: "Meerlust", points: 2, interaction_count: 1,
+      promoted: false, source: "auto", mappable: true,
+    });
+    const rated = await rateAndHook(sb, "Meerlust Rubicon", "loved");
+    assert(rated?.shifted === true, "premise: the estate promotion shifts the strand");
+    const promoted = tables.dna_timeline.find(e => e.event_type === "promoted" && e.dimension_value === "meerlust");
+    assert(promoted?.wine_name === "Meerlust Rubicon", `the promotion names its wine, got "${promoted?.wine_name}"`);
+    assert(shiftedRows(tables)[0]?.wine_name === "Meerlust Rubicon", "the shift names its wine");
+
+    // The way back: a Loyalist whose second estate hangs on at the auto
+    // demotion edge; deleting its loved bottle demotes it and retitles
+    tables = freshTables();
+    sb = createMockSupabase(tables);
+    const loyal = seedStrandProfile(tables, { ...S12_RAW, estates: { stellenbosch: ["kanonkop", "meerlust"] } });
+    tables.dna_accumulation.push({
+      id: genId(), user_id: TEST_USER, dimension: "estate", dimension_value: "meerlust",
+      display_name: "Meerlust", points: DEMOTION_THRESHOLDS.auto + RATING_POINTS.loved, interaction_count: 4,
+      promoted: true, source: "auto", mappable: true,
+    });
+    tables.wine_interactions.push({
+      id: genId(), user_id: TEST_USER, wine_name: "Meerlust Rubicon",
+      interaction_type: "had", rating: "loved", match_confidence: 90,
+    });
+    const removed = await deleteAndHook(sb, "Meerlust Rubicon");
+    assert(removed?.shifted === true, `premise: the demotion retitles (from "${loyal.title}")`);
+    const demoted = tables.dna_timeline.find(e => e.event_type === "demoted" && e.dimension_value === "meerlust");
+    assert(demoted, "premise: the deletion demoted the estate");
+    assert(demoted.wine_name == null, `a deletion's demotion names no wine, got "${demoted.wine_name}"`);
+    assert(shiftedRows(tables)[0]?.wine_name == null, "a deletion's shift names no wine");
+  });
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2186,12 +2229,12 @@ function suite8() {
   console.log("  8A: Evolution toast — Log a bottle that triggers promotion");
   console.log("       Verify: standard toast first, then 🧬 evolution toast");
   console.log("       Verify: #1B3D2F background, ~4s duration, sequential if multiple");
-  console.log("  8B: DNA Timeline tab — Navigate to /journal → DNA Timeline");
-  console.log("       Verify: 4th tab, reverse chronological, 🧬 prefix");
-  console.log("       Verify: empty state message when no events");
+  console.log("  8B: Timeline tab — Navigate to /journal → Timeline");
+  console.log("       Verify: 4th tab, reverse chronological, 🧬 / 🍂 / ✨ lines, the 🎉 founding row last");
+  console.log("       Verify: a row naming its wine opens that wine's page; others open /palate");
   console.log("  8C: Profile reflects promotions — view DNA profile after promotions");
   console.log("       Verify: new varietals/regions/countries/estates appear");
-  console.log("  8D: Journal rating change — change Loved to Not for me");
+  console.log("  8D: Verdict change — a wine's page (/wine) → Change → Loved to Not for me");
   console.log("       Verify: points adjust, demotion toast if threshold crossed");
 }
 
