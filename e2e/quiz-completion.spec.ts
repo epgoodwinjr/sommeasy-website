@@ -108,6 +108,9 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     await firstCard.getByTestId("rating-tile-fine").click();
     await expect(firstCard).toContainText("😐 It was fine — noted in your journal.");
     await expect(firstCard.getByRole("button", { name: /Had it/ })).toHaveCount(0);
+    // Focus lands on the done line — keyboard and screen-reader users keep
+    // their place instead of falling back to the top of the page
+    await expect(firstCard.getByText("😐 It was fine — noted in your journal.")).toBeFocused();
     await expect
       .poll(async () => {
         const { data } = await supabase

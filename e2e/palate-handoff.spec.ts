@@ -122,6 +122,13 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
         timeout: 5_000,
       })
       .toBeLessThanOrEqual(1);
+    // …and it stays settled after the 0.2s entrance: one more sample, so an
+    // overflow that appears late can't slip past the poll
+    await page.waitForTimeout(300);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+      "teaser must not overflow horizontally at 375px (settled)"
+    ).toBeLessThanOrEqual(1);
     const gateOverflow = await gate.evaluate((el) => el.scrollWidth - el.clientWidth);
     expect(gateOverflow, "gate copy must wrap inside its card at 375px").toBeLessThanOrEqual(1);
 

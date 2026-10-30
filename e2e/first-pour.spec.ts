@@ -130,6 +130,9 @@ test.describe.serial("The First Pour — fresh account (hard-fail)", () => {
     const entry = page.getByTestId("first-entry");
     await expect(entry).toBeVisible({ timeout: 15_000 });
     await expect(entry).toContainText("Name a bottle you already love");
+    // The inline "snap tonight's label" link still clears the 40px tap floor
+    const snapBox = await entry.getByTestId("first-entry-snap").boundingBox();
+    expect(snapBox!.height, "first-entry-snap tap target").toBeGreaterThanOrEqual(40);
     const recs = page.getByTestId("wine-rec-list");
     await expect(recs.getByTestId("rec-card")).toHaveCount(2);
     await expect(recs.getByTestId("reserved-row")).toHaveCount(2);
@@ -265,6 +268,40 @@ test.describe.serial("The First Pour — fresh account (hard-fail)", () => {
     await expect(page.getByTestId("first-entry")).toHaveCount(0);
     await expect(page.getByTestId("reserved-row")).toHaveCount(0);
     await expect(page.getByTestId("verdict-ask")).toHaveCount(0);
+  });
+
+  test("a stalled ledger read can't hold home hostage: the established layout lands anyway", async ({ page }) => {
+    test.setTimeout(120_000);
+    await signInFresh(page);
+    // Every wine_events read hangs — neither failure nor success, the way a
+    // stalled request on a phone does. Home must stop waiting and show its
+    // actions (and still never guess the new-user layout)
+    await page.route("**/rest/v1/wine_events**", () => new Promise(() => {}));
+    await page.goto("/");
+    await expect(page.getByTestId("palate-strip")).toBeVisible({ timeout: 15_000 });
+    await expect(logEntry(page)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("first-entry")).toHaveCount(0);
+    await expect(page.getByTestId("verdict-ask")).toHaveCount(0);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  });
+
+  test("a failed journal read is silence: no recommendation rows from a guess", async ({ page }) => {
+    test.setTimeout(120_000);
+    await signInFresh(page);
+    let failedReads = 0;
+    page.on("requestfailed", (r) => { if (r.url().includes("/rest/v1/wine_interactions")) failedReads++; });
+    await page.route("**/rest/v1/wine_interactions**", (route) =>
+      route.request().method() === "GET" ? route.abort() : route.continue());
+    await page.goto("/");
+    // Home's read failed → the established layout (never a guess)…
+    await expect(logEntry(page)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("first-entry")).toHaveCount(0);
+    // …and once the list's own read has failed too, it renders no rows it
+    // couldn't vet (a rated rec re-rated with no previous rating would
+    // double-count its evidence)
+    await expect.poll(() => failedReads, { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+    await page.waitForTimeout(500);
+    await expect(page.getByTestId("rec-card")).toHaveCount(0);
   });
 });
 

@@ -219,6 +219,8 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await ask.getByTestId("rating-tile-fine").click();
     await expect(ask.getByTestId("rating-tile-fine")).toHaveCount(0);
     await expect(ask).toContainText("😐 It was fine — noted.");
+    // The reply takes focus (announced, and the user keeps their place)
+    await expect(ask.getByRole("status")).toBeFocused();
     await expect(ask).toContainText("We’ll weigh it lightly next time.");
 
     // The real rate flow: the wishlist row became a rated journal row…

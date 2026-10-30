@@ -59,6 +59,15 @@ test.describe("Palate view (hard-fail guard)", () => {
     const markBox = await stripMark.boundingBox();
     expect(markBox, "the crest mark must render").not.toBeNull();
     expect(Math.abs(markBox!.height - 76)).toBeLessThanOrEqual(1);
+    // The date line's link and the footer links hold the 40px tap floor
+    // (CLAUDE.md) even at 10px / 13px type
+    const footerLinks = page.getByRole("navigation", { name: "Your Sommeasy" }).getByRole("link");
+    await expect(footerLinks).toHaveCount(3, { timeout: 15_000 });
+    const targets = [page.getByRole("link", { name: "Your palate ›" }), ...(await footerLinks.all())];
+    for (const link of targets) {
+      const box = await link.boundingBox();
+      expect(box!.height, `tap target: ${await link.textContent()}`).toBeGreaterThanOrEqual(40);
+    }
     await strip.click();
     await page.waitForURL("/palate");
     await expect(page.getByTestId("palate-archetype")).toBeVisible();
