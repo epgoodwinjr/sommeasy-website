@@ -138,7 +138,9 @@ export class RecommendPage {
 }
 
 /**
- * Page Object Model for the home page's Log a Bottle feature.
+ * Page Object Model for Log a bottle (/log — moved out of home in The House
+ * List, Phase 2). The label inputs keep their ids; a failed scan returns to
+ * the find step with bottle-error, a read one lands on bottle-confirm.
  */
 export class BottleLogPage {
   readonly page: Page;
@@ -161,7 +163,10 @@ export class BottleLogPage {
   }
 
   async goto() {
-    await this.page.goto("/");
+    await this.page.goto("/log");
+    // The inputs mount once the session read settles — the find step is
+    // the hydration signal
+    await expect(this.page.getByTestId("log-find")).toBeVisible({ timeout: 15_000 });
   }
 
   /** Upload a bottle label image from fixtures */

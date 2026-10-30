@@ -87,23 +87,32 @@ test.describe("Seed the dedicated test account", () => {
     await expect(page.getByTestId("reveal-saved")).toBeVisible({ timeout: 30_000 });
 
     // Rate recs through the reveal: loved, liked, want — real rating path,
-    // so accumulation/building-now rows are genuine
+    // so accumulation/building-now rows are genuine. Rows acted on stay put
+    // with a done line (House List rows), so each step pins the first row
+    // still offering its actions by its data-wine
     const recs = page.getByTestId("reveal-recs");
-    const rateFirst = async (rating: string) => {
-      const card = recs.getByTestId("rec-card").first();
-      if (!(await card.isVisible().catch(() => false))) return;
-      await card.getByRole("button", { name: /Had it/ }).click();
-      await page.getByRole("button", { name: new RegExp(rating) }).click();
-      await expect(page.getByText("✓ Noted!")).toBeVisible();
+    const nextOpenRow = async () => {
+      const open = recs.getByTestId("rec-card")
+        .filter({ has: page.getByRole("button", { name: /Had it/ }) }).first();
+      if (!(await open.isVisible().catch(() => false))) return null;
+      const wine = (await open.getAttribute("data-wine")) ?? "";
+      return recs.locator(`[data-testid="rec-card"][data-wine="${wine.replace(/"/g, '\\"')}"]`);
+    };
+    const rateNext = async (ratingId: string, label: string) => {
+      const row = await nextOpenRow();
+      if (!row) return;
+      await row.getByRole("button", { name: /Had it/ }).click();
+      await row.getByTestId(`rating-tile-${ratingId}`).click();
+      await expect(row).toContainText(`${label} — noted in your journal.`);
       await page.waitForTimeout(2500); // let resolveAndAccumulate settle
     };
     if (await recs.isVisible().catch(() => false)) {
-      await rateFirst("Loved it");
-      await rateFirst("Liked it");
-      const wantCard = recs.getByTestId("rec-card").first();
-      if (await wantCard.isVisible().catch(() => false)) {
-        await wantCard.getByRole("button", { name: /Want to try/ }).click();
-        await expect(page.getByText("✓ Added to your list!")).toBeVisible();
+      await rateNext("loved", "Loved it");
+      await rateNext("liked", "Liked it");
+      const wantRow = await nextOpenRow();
+      if (wantRow) {
+        await wantRow.getByRole("button", { name: /Want it/ }).click();
+        await expect(wantRow).toContainText("On your want list");
       }
     }
 

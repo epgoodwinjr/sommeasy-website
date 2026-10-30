@@ -7,7 +7,7 @@ import { testDb } from "./fixtures/test-db";
  * Memory): event writes appear in ZERO critical paths. With every
  * wine_events request blackholed at the network layer, the full quiz →
  * reveal → rate → journal-delete flow must behave IDENTICALLY — same
- * beats, same toasts, same data — and the ledger must gain nothing.
+ * beats, same done lines, same data — and the ledger must gain nothing.
  *
  * If this spec fails on a UI beat, an event write crept into a critical
  * path (an await before a user-visible step, an unswallowed rejection). If
@@ -49,17 +49,16 @@ test.describe("Event ledger — fire-and-forget (hard-fail guard)", () => {
     await page.getByRole("button", { name: "Update My Wine DNA" }).click();
     await expect(page.getByTestId("reveal-saved")).toBeVisible({ timeout: 30_000 });
 
-    // Rate a rec (rec_rated blocked underneath) — the toast must still land
+    // Rate a rec (rec_rated blocked underneath) — the done line must still land
     const recs = page.getByTestId("reveal-recs");
     await expect(recs).toBeVisible();
     const firstCard = recs.getByTestId("rec-card").first();
-    const cardText = await firstCard.innerText();
-    const wineName = cardText.split("\n").map((l) => l.trim()).filter(Boolean)[1];
-    expect(wineName?.length).toBeGreaterThan(0);
+    const wineName = (await firstCard.getAttribute("data-wine")) ?? "";
+    expect(wineName.length).toBeGreaterThan(0);
     await firstCard.getByRole("button", { name: /Had it/ }).click();
-    await page.getByRole("button", { name: /It was fine/ }).click();
-    await expect(page.getByText("✓ Noted!")).toBeVisible();
-    await expect(recs.getByText(wineName, { exact: true })).toHaveCount(0);
+    await firstCard.getByTestId("rating-tile-fine").click();
+    await expect(firstCard).toContainText("😐 It was fine — noted in your journal.");
+    await expect(firstCard.getByRole("button", { name: /Had it/ })).toHaveCount(0);
 
     // Journal delete (journal_deleted blocked underneath) — still works
     await page.goto("/journal");

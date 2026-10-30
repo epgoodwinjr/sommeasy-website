@@ -13,12 +13,14 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  *    chenin_blanc earned fixture sits at exactly its promotion threshold,
  *    so any leak here would be a visible corruption).
  * 2. Returning to HOME with a chosen-but-unrated pick outstanding must show
- *    the one quiet "how was it?" prompt, and rating through it must run the
- *    real rate flow: wine_interactions upsert + pick_rated event (surface
- *    verdict_prompt, session carried from the choice). The ask must resolve
- *    from the LEDGER — it stays gone across a reload.
+ *    the one quiet "how was it?" prompt (From last night, House List
+ *    Phase 2), and rating through its tiles must run the real rate flow:
+ *    wine_interactions upsert + pick_rated event (surface verdict_prompt,
+ *    session carried from the choice). The ask must resolve from the
+ *    LEDGER — it stays gone across a reload.
  * 3. "We went a different way tonight" must write somm_bypassed and offer
- *    the bottle-log handoff (/?log=1 opens the camera step on home).
+ *    the bottle-log handoff (→ /log; the old /?log=1 deep link redirects
+ *    there).
  * 4. Replacing the chosen pick must clean up ONLY the wishlist row the
  *    choose itself created — a want row that pre-existed the sitting's
  *    choose must survive the banner moving (provenance is in-session:
@@ -212,9 +214,12 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await expect(ask).toBeVisible({ timeout: 15_000 });
     await expect(ask).toContainText(/Ken Forrester/);
 
-    await ask.getByTestId("verdict-rate").click();
-    await page.getByRole("button", { name: /It was fine/ }).click();
-    await expect(ask).toBeHidden();
+    // A tile rates at once; the reply takes the tiles' place, in the
+    // section, until the next load
+    await ask.getByTestId("rating-tile-fine").click();
+    await expect(ask.getByTestId("rating-tile-fine")).toHaveCount(0);
+    await expect(ask).toContainText("😐 It was fine — noted.");
+    await expect(ask).toContainText("We’ll weigh it lightly next time.");
 
     // The real rate flow: the wishlist row became a rated journal row…
     await expect
@@ -239,10 +244,11 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     const chenin = await readCheninPoints(supabase, userId);
     expect(chenin?.points ?? null).toBe(baselineChenin?.points ?? null);
 
-    // Resolved from the LEDGER, not component state: gone across a reload
+    // Resolved from the LEDGER, not component state: gone across a reload.
+    // Home's sections render only after the verdict read settles, so the
+    // Log a bottle entry is the settle gate
     await page.reload();
-    await expect(page.getByTestId("wine-rec-list").or(page.getByText("Log a Bottle")).first())
-      .toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("link", { name: "Log a bottle", exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("verdict-ask")).toBeHidden();
   });
 
@@ -258,7 +264,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await page.getByTestId("bypass-somm").click();
     const noted = page.getByTestId("bypass-noted");
     await expect(noted).toBeVisible();
-    await expect(noted.getByTestId("bypass-log-link")).toHaveAttribute("href", "/?log=1");
+    await expect(noted.getByTestId("bypass-log-link")).toHaveAttribute("href", "/log");
 
     await expect
       .poll(async () => countEvents(supabase, userId, "somm_bypassed"), { timeout: 15_000 })
@@ -272,14 +278,20 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await noted.getByTestId("bypass-skip").click();
     await expect(noted).toBeHidden();
 
-    // The handoff lands: /?log=1 opens the camera step, ready to tap
+    // The handoff lands on Log a bottle's find step, the label one tap away
+    // (desktop in e2e: the photo upload is the primary entry)
+    await page.goto("/log");
+    await expect(page.getByTestId("log-find")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: /Snap the label|Upload a label photo/ }).first()).toBeVisible();
+    await expect(page.getByTestId("bottle-camera-input")).toBeAttached();
+    // …and the old deep link still lands there
     await page.goto("/?log=1");
-    await expect(page.getByRole("button", { name: /Take a photo/ })).toBeVisible({ timeout: 15_000 });
+    await page.waitForURL("/log", { timeout: 15_000 });
+    await expect(page.getByTestId("log-find")).toBeVisible({ timeout: 15_000 });
 
     // No ask on home now — the latest table moment is the bypass
     await page.goto("/");
-    await expect(page.getByTestId("wine-rec-list").or(page.getByText("Log a Bottle")).first())
-      .toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("link", { name: "Log a bottle", exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("verdict-ask")).toBeHidden();
   });
 

@@ -36,8 +36,11 @@ setup("authenticate", async ({ page }) => {
   // Wait for redirect to home page after successful login
   await page.waitForURL("/", { timeout: 15_000 });
 
-  // Verify we're logged in — home page should show user content
-  await expect(page.locator("text=Sign Out")).toBeVisible({ timeout: 10_000 });
+  // Verify we're logged in: the House List masthead's Account link (a
+  // profile exists) or the Welcome screen's Sign Out (signed in, no profile)
+  await expect(
+    page.getByRole("link", { name: "Account" }).or(page.getByRole("button", { name: "Sign Out" })).first()
+  ).toBeVisible({ timeout: 10_000 });
 
   // Save the authenticated state
   await page.context().storageState({ path: "e2e/.auth/user.json" });

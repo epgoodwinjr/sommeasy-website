@@ -47,16 +47,18 @@ test.describe("Palate view (hard-fail guard)", () => {
     await expect(dna.getByText("Pinot Noir").first()).toBeVisible();
   });
 
-  test("the DNA strip on home is the door to the palate", async ({ page }) => {
+  test("the crest on home is the door to the palate", async ({ page }) => {
     await page.goto("/");
     const strip = page.getByTestId("palate-strip");
     await expect(strip).toBeVisible();
-    // The strip carries the visual mark (Act III S4) without growing: the
-    // mark is capped at 44px so the text block still owns the strip height
+    // The House List crest (Phase 2, §8.1.2) carries the visual mark at its
+    // designed 76px, above the strand's title — the old strip's 44px cap
+    // retired with the strip
     const stripMark = strip.getByTestId("palate-mark");
     await expect(stripMark).toBeVisible();
     const markBox = await stripMark.boundingBox();
-    expect(markBox && markBox.height).toBeLessThanOrEqual(44);
+    expect(markBox, "the crest mark must render").not.toBeNull();
+    expect(Math.abs(markBox!.height - 76)).toBeLessThanOrEqual(1);
     await strip.click();
     await page.waitForURL("/palate");
     await expect(page.getByTestId("palate-archetype")).toBeVisible();

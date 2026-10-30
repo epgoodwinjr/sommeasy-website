@@ -102,18 +102,26 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     await expect(recs.getByTestId("rec-card")).toHaveCount(1);
     await expect(recs.getByText(/more wines to explore/)).toBeVisible();
     await expect(recs.getByRole("button", { name: /Had it/ })).toHaveCount(0);
-    await expect(recs.getByRole("button", { name: /Want to try/ })).toHaveCount(0);
+    await expect(recs.getByRole("button", { name: /Want it/ })).toHaveCount(0);
+    await expect(recs.getByRole("button", { name: /Pass/ })).toHaveCount(0);
+    await expect(recs.getByTestId("rating-tile-loved")).toHaveCount(0);
 
     // No signed-in furniture leaks into the teaser
     await expect(page.getByTestId("reveal-saved")).toHaveCount(0);
     await expect(page.getByTestId("reveal-palate-cta")).toHaveCount(0);
 
     // 375px composition guard (the steer-placeholder lesson, programmatic):
-    // nothing overflows horizontally — not the page, not the gate card
-    const pageOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth
-    );
-    expect(pageOverflow, "teaser must not overflow horizontally at 375px").toBeLessThanOrEqual(1);
+    // nothing overflows horizontally — not the page, not the gate card. The
+    // reveal mounts inside the quiz's step container as it slides back from
+    // translateX(20px) (a 0.2s transition), so this measures the SETTLED
+    // composition: poll until the entrance is over — a real overflow never
+    // settles, and still fails here
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), {
+        message: "teaser must not overflow horizontally at 375px",
+        timeout: 5_000,
+      })
+      .toBeLessThanOrEqual(1);
     const gateOverflow = await gate.evaluate((el) => el.scrollWidth - el.clientWidth);
     expect(gateOverflow, "gate copy must wrap inside its card at 375px").toBeLessThanOrEqual(1);
 
