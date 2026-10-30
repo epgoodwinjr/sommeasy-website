@@ -106,23 +106,34 @@ recommend page aborts its fetch at 180s client-side.
 - **Path A (structured):** model returned parseable JSON with a `wines`
   array → `{ wines, metadata, rawText, source: "vision" }`. The recommend
   page's `runAnalysis()` feeds this straight to the match engine.
-- **Path B (raw text fallback):** JSON parsing failed but the model
-  returned ≥20 chars of text → `{ rawText, source: "vision_text" }`. The
-  client runs its text parser (`parseWineList`) instead. Path B is why any
-  new client consumer must handle BOTH shapes.
+- **Path B (raw text fallback):** JSON parsing failed but the reply reads
+  as a wine list → `{ rawText, source: "vision_text" }`. The client shows
+  it for review as "Extracted from your photo", then runs its text parser
+  (`parseWineList`). Path B is why any new client consumer must handle BOTH
+  shapes.
 
 **JSON rescue:** before falling back to Path B, the route tries
 `extractFirstJsonObject` — a string-aware balanced-brace scan that pulls
 the first JSON object out of output with prose around it. The rescued
 candidate is trusted **only if it carries a `wines` array**, so genuine
-raw-text responses still take Path B untouched.
+raw-text responses still reach the Path B gate untouched.
+
+**The Path B gate:** `looksLikeWineList` (`src/lib/wineListText.js`,
+pinned by `wineListText.test.js`) requires at least two lines carrying a
+price or vintage outside conversation, at least matching the model's
+conversational lines (second person, please/sorry, "I" + verb). It exists
+because Claude sometimes ignores the JSON instruction when it can't see a
+list — a blank or tiny image gets "I don't see any image attached…" — and
+that prose once landed in the paste box as the user's "extracted" list
+(Oct 2026). A reply that fails the gate returns `no_wines`. Don't loosen
+it back to a length check.
 
 **Error taxonomy** (every error body carries `errorType` for the client):
 
 | `errorType` | Status | When |
 |---|---|---|
 | `rate_limited` | 429 | our own limiter (`checkRateLimit`), `Retry-After` header set |
-| `no_wines` | 200/— | model found nothing (empty `wines` array, or <20 chars raw text) |
+| `no_wines` | 200/— | model found nothing: an empty `wines` array, or a non-JSON reply that fails the Path B gate (prose, refusal, or too little list-like text) |
 | `timeout` | 504 | Anthropic call timed out — copy suggests one page at a time |
 | `rate_limit` | 429 | Anthropic's own 429 bubbled up |
 | `bad_input` | 422 | Anthropic 400 — unprocessable file |

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit, getClientIp, logClaudeUsage, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
+import { looksLikeWineList } from "@/lib/wineListText";
 
 export const maxDuration = 300;
 
@@ -214,10 +215,16 @@ export async function POST(request) {
       });
     }
 
-    // Path B fallback: JSON parsing failed, return raw text for parseWineList
-    if (rawText.length < 20) {
+    // Path B fallback: JSON parsing failed, so the raw text goes to the
+    // client's parseWineList and is shown as "Extracted from your photo".
+    // Only when it reads as a wine list — when Vision can't see one it
+    // sometimes answers in prose instead ("I don't see any image
+    // attached…"), and that must land as the scan error, never as editable
+    // "extracted" text. Too-short replies fail the same check.
+    if (!looksLikeWineList(rawText)) {
+      console.log(`[parse-wine-list] ${inputType} reply has no JSON and doesn't read as a wine list (${rawText.length} chars) — returning no_wines`);
       return NextResponse.json({
-        error: "Couldn't read any wines from this image. Try a clearer, well-lit photo.",
+        error: "Couldn't find a wine list in that scan. Try a clearer, well-lit photo — or paste the list as text.",
         errorType: "no_wines",
       });
     }
