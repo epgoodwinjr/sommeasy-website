@@ -97,7 +97,11 @@ recommend page:
 - **Path A** (structured): `{ wines, metadata, rawText, source: "vision" }`
   → match engine directly
 - **Path B** (fallback): `{ rawText, source: "vision_text" }` → client-side
-  text parser
+  text parser — only when the non-JSON reply reads as a wine list
+  (`looksLikeWineList`, `src/lib/wineListText.js`). Claude sometimes
+  answers a blank or tiny image in prose ("I don't see any image
+  attached…") despite the JSON instruction; anything conversational or too
+  thin becomes the `no_wines` error, never editable "extracted" text.
 
 Malformed JSON gets one rescue attempt (`extractFirstJsonObject`, trusted
 only if it carries a `wines` array) before falling back to Path B.
@@ -153,9 +157,12 @@ Never pass raw model text to matching. Fields the model can't read are
   a friendly no-key fallback, same as the existing ones.
 - **Error copy is brand voice:** warm, no raw error strings, always tells
   the user what to do next ("Try a clearer, closer photo.").
-- **Real coverage is e2e:** no unit test hits either Vision route —
-  `npm run test:e2e` (with its hard-fail fail-if-no-picks guard) is the
-  coverage, and every local run makes real Claude calls (~$0.15–0.30/run).
+- **Real-model coverage is e2e:** `npm run test:e2e` (with its hard-fail
+  fail-if-no-picks guard) exercises both Vision routes with real Claude
+  calls (~$0.15–0.30/run). parse-wine-list's Path B contract also has a
+  free, deterministic route test — `wineListText.test.js` drives the real
+  handler with Claude scripted via `globalThis.fetch` (the sommRoute
+  pattern).
 - **Cost awareness:** ~$0.009/scan (text path), labels comparable;
   worst-case engaged session ≈ ≤$0.12. The API is approved and
   encouraged — be mindful, not avoidant.
