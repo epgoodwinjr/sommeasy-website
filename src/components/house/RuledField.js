@@ -12,11 +12,12 @@
 // The rule is dotted at rest and solid burgundy on focus. Optional extras:
 // `label` (a real <label>), `trailing` (on the rule's right end — the
 // password Show/Hide), `onSubmit` (the round → beside the rule; Enter
-// submits too). Every other prop lands on the <input>. The placeholder
-// color lives in globals.css (.house-field): inline styles can't reach
+// submits too). Every other prop lands on the <input>, and the ref reaches
+// it (Search's Clear puts focus back in the field). The placeholder color
+// lives in globals.css (.house-field): inline styles can't reach
 // ::placeholder.
 
-import { useId, useState } from "react";
+import { forwardRef, useId, useState } from "react";
 import { BURGUNDY, INK, SANS, SERIF, TYPE, ink } from "./tokens";
 
 const VARIANTS = {
@@ -27,10 +28,10 @@ const VARIANTS = {
   auth: { family: SANS, italic: false, size: "17px", padding: "10px 0 8px", rule: 0.35 },
 };
 
-export default function RuledField({
+const RuledField = forwardRef(function RuledField({
   variant = "note", label, trailing, onSubmit, submitLabel = "Submit", submitTestId,
   id, style, onFocus, onBlur, onChange, onKeyDown, ...inputProps
-}) {
+}, ref) {
   const fallbackId = useId();
   const inputId = id || fallbackId;
   const [focused, setFocused] = useState(false);
@@ -43,6 +44,7 @@ export default function RuledField({
   if (variant === "amount") {
     return (
       <input
+        ref={ref}
         id={inputId}
         className="house-field"
         inputMode="numeric"
@@ -78,6 +80,7 @@ export default function RuledField({
           borderBottom: focused ? `1.5px solid ${BURGUNDY}` : `1.5px dotted ${ink(v.rule)}`,
         }}>
           <input
+            ref={ref}
             id={inputId}
             className="house-field"
             {...inputProps}
@@ -110,7 +113,9 @@ export default function RuledField({
       </div>
     </div>
   );
-}
+});
+
+export default RuledField;
 
 /** "$ [min] to $ [max]" — Spend on Match, Usual spend on Account. The
  *  callbacks receive the digits string. */

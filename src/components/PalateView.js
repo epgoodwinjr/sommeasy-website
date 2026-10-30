@@ -1,432 +1,266 @@
 "use client";
 
-// PalateView — the full Palate experience (Palate Act II, Pillars 2/3/4).
+// PalateView — the palate, in full (Palate Act II; The House List §8.7
+// since Phase 5): the bloom and the strand's title, the palate signature,
+// then numbered sections — the Somm's words, what recently evolved, what's
+// building now, the DNA itself — ruled rows, no cards.
 //
-// Pure presentation: profile, timeline, and accumulation rows come in as
-// props, so a partial/teaser variant can later render a subset of the same
-// sections without touching data fetching (anonymous-teaser roadmap item).
+// Presentation only: profile, timeline and accumulation come in as props
+// (/palate reads them). A read that failed comes in as null and its
+// section says so — unknown ≠ empty, never "nothing yet" on a guess. The
+// decisions (the DNA rows, Building now, Recently evolved) live in
+// palateView.js, pure and tested; this file lays them out.
 
-import { useState, useEffect } from "react";
-import wineUnified from "@/lib/wineUnified.json";
-import { getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName, getVarietalColor, formatWineName } from "@/lib/matchEngine";
+import { useRef, useState } from "react";
+import { formatWineName } from "@/lib/matchEngine";
 import { computeSignature, concentrationPhrase, signatureLine } from "@/lib/palateSignature";
+import { DNA_NAMES } from "@/lib/dnaNames";
+import { TIMELINE_HREF, buildingNow, dnaEntries, dnaGroups, evolutionRows } from "@/lib/palateView";
+import { bottlesAwayLine, dnaCount, dnaKindLabel } from "@/lib/houseCopy";
+import { numeralCounter } from "@/lib/numerals";
 import PalateMark from "./PalateMark";
-import { PROMOTION_THRESHOLDS, RATING_POINTS } from "@/lib/dnaThresholds";
+import Divider from "./house/Divider";
+import SectionHead from "./house/SectionHead";
+import Rail from "./house/Rail";
+import ProgressLine from "./house/ProgressLine";
+import TimelineRow from "./house/TimelineRow";
+import TextAction, { TextActions } from "./house/TextAction";
+import { StartFreshConfirm } from "./house/ConfirmBlock";
+import { BURGUNDY, INK, SANS, SERIF, TYPE, ink, leader } from "./house/tokens";
 
-const SERIF = "'Playfair Display', Georgia, serif";
-const SANS = "'Source Sans 3', sans-serif";
-const GREEN = "#1B3D2F";
-const BURGUNDY = "#8B2332";
-const SAGE = "#6B8F5E";
-const CREAM = "#F5F0E8";
-
-const PRODUCERS = wineUnified.producers;
-
-// ─── Display helpers (never show an internal ID) ───
-
-function prettifyId(id) {
-  if (!id || typeof id !== "string") return "";
-  return id.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-}
-
-function displayCountry(countryId) {
-  const name = getCountryName(countryId) || prettifyId(countryId);
-  const flag = getCountryFlag(countryId);
-  return flag ? `${flag} ${name}` : name;
-}
-
-function displayVarietal(varietalId) {
-  const name = getVarietalDisplayName(varietalId) || prettifyId(varietalId);
-  const color = getVarietalColor(varietalId);
-  const emoji =
-    color === "white" ? "🥂"
-    : color === "sparkling" ? "🍾"
-    : color === "rosé" || color === "rose" ? "🌸"
-    : "🍇";
-  return `${emoji} ${name}`;
-}
-
-function displayEstate(estateId, regionId) {
-  const list = PRODUCERS[regionId] || [];
-  const found = list.find((p) => p.id === estateId);
-  if (found) return found.name;
-  for (const producers of Object.values(PRODUCERS)) {
-    const p = producers.find((x) => x.id === estateId);
-    if (p) return p.name;
-  }
-  return prettifyId(estateId);
-}
-
-const DIMENSION_LABELS = { varietal: "grape", region: "region", country: "country", estate: "estate" };
-const NUMBER_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
-
-function bottlesAwayPhrase(pointsNeeded) {
-  const n = Math.max(1, Math.ceil(pointsNeeded / RATING_POINTS.loved));
-  if (n === 1) return "one loved bottle away";
-  return `${NUMBER_WORDS[n - 1] || n} loved bottles away`;
-}
-
-function formatDate(dateStr) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-// ─── Shared shells ───
-
-const cardStyle = {
-  background: "rgba(255,255,255,0.4)", borderRadius: "16px",
-  padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)",
-  marginBottom: 12,
+const prose = {
+  fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.6, color: ink(0.7),
+  marginTop: 12, textWrap: "pretty",
 };
-
-const labelStyle = {
-  fontFamily: SANS, fontSize: "11px", textTransform: "uppercase",
-  letterSpacing: "0.12em", color: GREEN, opacity: 0.35,
-  marginBottom: 12, fontWeight: 600,
+const smallCaps = {
+  fontFamily: SANS, fontSize: "10px", fontWeight: 600, letterSpacing: "0.14em",
+  textTransform: "uppercase", color: INK, opacity: 0.45,
 };
+const quietLine = { fontFamily: SANS, fontSize: "12px", lineHeight: 1.5, color: ink(0.5) };
 
-// ═══════════════════════════════════════════════════════
-// PALATE SIGNATURE (Pillar 4) — reads like a wine label
-// ═══════════════════════════════════════════════════════
-
-function SignatureRail({ leftLabel, rightLabel, position, mounted, delay }) {
-  const pct = Math.round(Math.min(1, Math.max(0, position)) * 100);
-  return (
-    <div style={{ marginBottom: 22 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ fontFamily: SANS, fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.14em", color: GREEN, opacity: 0.5, fontWeight: 600 }}>{leftLabel}</span>
-        <span style={{ fontFamily: SANS, fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.14em", color: GREEN, opacity: 0.5, fontWeight: 600 }}>{rightLabel}</span>
-      </div>
-      <div style={{ position: "relative", height: 12 }}>
-        <div style={{ position: "absolute", top: 5, left: 0, right: 0, height: 2, background: "rgba(27,61,47,0.14)", borderRadius: 1 }} />
-        {/* Quarter ticks, like the shoulder markings on a label scale */}
-        {[0, 25, 50, 75, 100].map((t) => (
-          <div key={t} style={{ position: "absolute", top: 3, left: `${t}%`, width: 1, height: 6, background: "rgba(27,61,47,0.18)", transform: "translateX(-0.5px)" }} />
-        ))}
-        <div style={{
-          position: "absolute", top: 1, width: 10, height: 10,
-          left: mounted ? `${pct}%` : "50%",
-          transform: "translateX(-5px) rotate(45deg)",
-          background: BURGUNDY, boxShadow: "0 1px 4px rgba(139,35,50,0.35)",
-          transition: `left 0.9s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
-        }} />
-      </div>
-    </div>
-  );
-}
-
-function PalateSignature({ signature, mounted }) {
+function Signature({ profile, accumulation }) {
+  const signature = computeSignature(profile, accumulation);
   const phrase = concentrationPhrase(signature);
   const hasWorlds = signature.oldWorldCount + signature.newWorldCount > 0;
   const hasColor = signature.redCount + signature.whiteCount > 0;
   return (
-    <div data-testid="palate-signature" style={{
-      background: CREAM, borderRadius: "16px", marginBottom: 12,
-      border: "1px solid rgba(139,35,50,0.14)", padding: "22px 24px 16px",
-      boxShadow: "0 2px 12px rgba(139,35,50,0.05)",
-    }}>
-      <div style={{ textAlign: "center", marginBottom: 20 }}>
-        <div style={{ fontFamily: SANS, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.22em", color: BURGUNDY, fontWeight: 700 }}>Palate Signature</div>
-        <div style={{ width: 44, height: 1, background: "rgba(139,35,50,0.25)", margin: "10px auto 0" }} />
-      </div>
+    <section data-testid="palate-signature">
+      <Divider style={{ marginTop: 22 }} />
+      <h2 style={{ ...TYPE.eyebrow, textAlign: "center", marginTop: 14 }}>Palate Signature</h2>
       {hasWorlds && (
-        <SignatureRail leftLabel="Old World" rightLabel="New World" position={signature.newWorldShare} mounted={mounted} delay={0} />
+        <Rail left="Old World" right="New World" value={signature.newWorldShare} style={{ marginTop: 18 }} />
       )}
-      <SignatureRail leftLabel="Focused" rightLabel="Wide-ranging" position={signature.focusShare} mounted={mounted} delay={140} />
+      <Rail left="Focused" right="Wide-ranging" value={signature.focusShare} delay={140}
+        style={{ marginTop: hasWorlds ? 16 : 18 }} />
       {hasColor && (
-        <SignatureRail leftLabel="Red" rightLabel="White" position={signature.whiteShare} mounted={mounted} delay={280} />
+        <Rail left="Red" right="White" value={signature.whiteShare} delay={280} style={{ marginTop: 16 }} />
       )}
       {phrase && (
-        <p style={{ fontFamily: SERIF, fontSize: "15px", fontStyle: "italic", color: GREEN, textAlign: "center", margin: "4px 0 6px", lineHeight: 1.5 }}>
-          {phrase}
+        <p style={{
+          fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5, color: INK,
+          textAlign: "center", marginTop: 18, textWrap: "balance",
+        }}>{phrase}</p>
+      )}
+    </section>
+  );
+}
+
+function RecentlyEvolved({ numeral, timeline }) {
+  const rows = evolutionRows(timeline);
+  return (
+    <section data-testid="palate-evolution">
+      <SectionHead numeral={numeral} label="Recently evolved" style={{ margin: "32px 0 2px" }} />
+      {rows === null ? (
+        <p style={prose}>We couldn’t read your recent changes just now.</p>
+      ) : rows.length === 0 ? (
+        <>
+          <p style={prose}>
+            Nothing has shifted yet — and that’s exactly how it should start. Your DNA only changes when
+            real bottles prove a pattern. The proof is already building below.
+          </p>
+          {/* The empty state carries its own next pour — never a dead end */}
+          <TextAction href="/" testId="palate-empty-rate-link" style={{ marginTop: 4 }}>Rate a wine you know →</TextAction>
+        </>
+      ) : (
+        rows.map((r) => <TimelineRow key={r.key} line={r.line} date={r.date} href={r.href} style={{ padding: "13px 0" }} />)
+      )}
+      {rows?.length !== 0 && (
+        <TextAction href={TIMELINE_HREF} size={12} weight={700} style={{ marginTop: 2 }}>Full history →</TextAction>
+      )}
+    </section>
+  );
+}
+
+function BuildingRow({ row, delay }) {
+  return (
+    <div style={{ padding: "14px 0", borderBottom: `1px solid ${ink(0.07)}` }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
+        <span style={{
+          fontFamily: SERIF, fontSize: "17px", lineHeight: 1.35, color: INK, minWidth: 0, overflowWrap: "anywhere",
+        }}>{row.name}</span>
+        <span aria-hidden="true" style={{ flex: 1, minWidth: 14, borderBottom: leader(1.5), marginBottom: 6 }} />
+        <span style={{
+          fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.35, color: ink(0.7), whiteSpace: "nowrap",
+        }}>{bottlesAwayLine(row.away)}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
+        <span style={{ ...smallCaps, width: 52, flexShrink: 0 }}>{dnaKindLabel(row.kind)}</span>
+        <ProgressLine value={row.ratio} delay={delay} style={{ flex: 1 }} />
+      </div>
+    </div>
+  );
+}
+
+function BuildingNow({ numeral, accumulation }) {
+  const building = buildingNow(accumulation);
+  return (
+    <section data-testid="palate-building">
+      <SectionHead numeral={numeral} label="Building now" style={{ margin: "28px 0 2px" }} />
+      {building === null ? (
+        <p style={prose}>We couldn’t read what’s building just now.</p>
+      ) : building.rows.length === 0 ? (
+        <>
+          <p style={prose}>
+            Nothing in motion yet. Rate the bottles you try — every loved one pushes a grape, a place, or
+            an estate toward your DNA.
+          </p>
+          {/* /log is Log a bottle — the empty state hands over the camera, not a shrug */}
+          <TextAction href="/log" testId="palate-empty-log-link" style={{ marginTop: 4 }}>Log tonight’s bottle →</TextAction>
+        </>
+      ) : (
+        <>
+          {building.rows.map((r, i) => <BuildingRow key={r.key} row={r} delay={200 + i * 90} />)}
+          {building.more > 0 && (
+            <p style={{ ...quietLine, marginTop: 12 }}>+ {building.more} more building quietly</p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function DnaRow({ name, flag, earned, count }) {
+  return (
+    <div data-testid="palate-dna-row" style={{
+      display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 0", borderBottom: `1px solid ${ink(0.06)}`,
+    }}>
+      <span style={{ fontFamily: SERIF, fontSize: "16px", lineHeight: 1.35, color: INK, minWidth: 0, overflowWrap: "anywhere" }}>
+        {flag && <span aria-hidden="true">{flag} </span>}
+        {name}
+        {earned && <span role="img" aria-label="earned by your ratings" style={{ color: BURGUNDY }}> ✦</span>}
+      </span>
+      {/* A leader only when something sits at its end — an unknown count leaves none */}
+      {count && <span aria-hidden="true" style={{ flex: 1, minWidth: 14, borderBottom: leader(1.5, 0.22), marginBottom: 6 }} />}
+      {count && (
+        <span style={{
+          fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.35, color: ink(0.6), whiteSpace: "nowrap",
+        }}>{count}</span>
+      )}
+    </div>
+  );
+}
+
+const groupLabel = {
+  fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", fontWeight: 400, color: BURGUNDY, marginTop: 20,
+};
+
+function YourDna({ numeral, profile, accumulation }) {
+  const entries = dnaEntries({ profile, accumulation, names: DNA_NAMES });
+  const groups = dnaGroups(entries);
+  // The quiz's named wines aren't dimensions the engine evolves, but they're
+  // the user's own answers — they stay on the page they've always had
+  const named = (Array.isArray(profile.specific_wines) ? profile.specific_wines : [])
+    .filter((w) => typeof w === "string" && w.trim());
+  return (
+    <section data-testid="palate-dna">
+      <SectionHead numeral={numeral} label="Your DNA" style={{ margin: "28px 0 0" }} />
+      {groups.map((g) => (
+        <div key={g.kind}>
+          <h3 style={groupLabel}>{g.label}</h3>
+          {g.entries.map((e) => (
+            <DnaRow key={e.id} name={e.name} flag={e.flag} earned={e.earned} count={dnaCount(e.bottles)} />
+          ))}
+        </div>
+      ))}
+      {named.length > 0 && (
+        <div>
+          <h3 style={groupLabel}>Wines you named</h3>
+          {named.map((w, i) => <DnaRow key={`${i}:${w}`} name={formatWineName(w)} count={dnaCount(0)} />)}
+        </div>
+      )}
+      {entries.some((e) => e.earned) && (
+        <p style={{ ...quietLine, marginTop: 14 }}>
+          <span aria-hidden="true" style={{ color: BURGUNDY }}>✦</span> earned by your ratings, not the quiz
         </p>
       )}
+    </section>
+  );
+}
+
+// Quiet quiz links — never a primary action. Start fresh asks first (D2).
+function QuizLinks() {
+  const [confirming, setConfirming] = useState(false);
+  const trigger = useRef(null);
+  const cancel = () => {
+    setConfirming(false);
+    trigger.current?.focus();
+  };
+  return (
+    <div style={{ marginTop: 24 }}>
+      <TextActions centered gap={24}>
+        <TextAction tone="quiet" underlined href="/?quiz=refine">Adjust quiz answers</TextAction>
+        <TextAction
+          ref={trigger}
+          tone="quiet"
+          underlined
+          testId="start-fresh"
+          ariaExpanded={confirming}
+          onClick={() => setConfirming((open) => !open)}
+        >Start fresh</TextAction>
+      </TextActions>
+      {confirming && <StartFreshConfirm centered onCancel={cancel} style={{ marginTop: 8 }} />}
     </div>
   );
 }
-
-// ═══════════════════════════════════════════════════════
-// THE LIVING PALATE (Pillar 3)
-// ═══════════════════════════════════════════════════════
-
-function RecentlyEvolved({ timeline, accumulation }) {
-  const events = (timeline || []).slice(0, 6);
-  const accByKey = new Map((accumulation || []).map((r) => [`${r.dimension}:${r.dimension_value}`, r]));
-
-  return (
-    <div data-testid="palate-evolution" style={cardStyle}>
-      <div style={labelStyle}>Recently evolved</div>
-      {events.length === 0 ? (
-        <>
-          <p style={{ fontFamily: SERIF, fontSize: "14px", fontStyle: "italic", color: GREEN, opacity: 0.75, margin: 0, lineHeight: 1.6 }}>
-            Nothing has shifted yet — and that&apos;s exactly how it should start.
-            Your DNA only changes when real bottles prove a pattern. The proof is
-            already building below.
-          </p>
-          {/* The empty state carries its own next pour — never a dead end
-              (First Pour session) */}
-          <a href="/" data-testid="palate-empty-rate-link" style={{ fontFamily: SANS, fontSize: "12px", color: BURGUNDY, fontWeight: 600, textDecoration: "none", marginTop: 8, padding: "8px 0", display: "inline-block" }}>
-            Rate a wine you know →
-          </a>
-        </>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {events.map((e) => {
-            // A shifted event is the identity itself moving — its own kind of
-            // entry, not a dimension line. dimension_value carries the
-            // before→after strand; the title line is the fallback.
-            let line, glyph;
-            if (e.event_type === "shifted") {
-              glyph = "✨";
-              line = `You became ${e.display_name}`;
-              try {
-                const change = JSON.parse(e.dimension_value);
-                if (change?.from?.title === change?.to?.title && change?.to?.epithet) {
-                  line = `Your signature shifted — ${change.to.epithet}`;
-                }
-              } catch { /* the title line stands */ }
-            } else {
-              const acc = accByKey.get(`${e.dimension}:${e.dimension_value}`);
-              const bottles = acc?.interaction_count || 0;
-              glyph = e.event_type === "promoted" ? "🧬" : "🍂";
-              line = e.event_type === "promoted"
-                ? `${e.display_name} earned its place${bottles > 0 ? ` — ${bottles === 1 ? "one bottle" : `${NUMBER_WORDS[bottles - 1] || bottles} bottles`} made the case` : ""}`
-                : `${e.display_name} rotated out — your ratings stopped backing it`;
-            }
-            return (
-              <div key={e.id} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px" }}>
-                <div style={{ fontFamily: SERIF, fontSize: "14px", color: GREEN, lineHeight: 1.45, fontWeight: e.event_type === "shifted" ? 600 : 400 }}>
-                  <span style={{ marginRight: 8 }}>{glyph}</span>
-                  {line}
-                </div>
-                <span style={{ fontFamily: SANS, fontSize: "11px", color: GREEN, opacity: 0.3, flexShrink: 0, whiteSpace: "nowrap" }}>{formatDate(e.event_at)}</span>
-              </div>
-            );
-          })}
-          <a href="/journal?tab=timeline" style={{ fontFamily: SANS, fontSize: "12px", color: BURGUNDY, fontWeight: 600, textDecoration: "none", marginTop: 4, padding: "8px 0", display: "inline-block" }}>
-            Full history →
-          </a>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BuildingNow({ accumulation, mounted }) {
-  // Only what can genuinely promote: positive points, not yet promoted, and
-  // mappable (unmappable rows accumulate but can never join the DNA — showing
-  // them as "progress" would be a lie)
-  const building = (accumulation || [])
-    .filter((r) => !r.promoted && r.points > 0 && r.mappable !== false)
-    .map((r) => {
-      const threshold = PROMOTION_THRESHOLDS[r.dimension] || 10;
-      return { ...r, threshold, ratio: Math.min(1, r.points / threshold) };
-    })
-    .sort((a, b) => b.ratio - a.ratio);
-
-  const shown = building.slice(0, 6);
-  const more = building.length - shown.length;
-
-  return (
-    <div data-testid="palate-building" style={cardStyle}>
-      <div style={labelStyle}>Building now</div>
-      {shown.length === 0 ? (
-        <>
-          <p style={{ fontFamily: SERIF, fontSize: "14px", fontStyle: "italic", color: GREEN, opacity: 0.75, margin: 0, lineHeight: 1.6 }}>
-            Nothing in motion yet. Rate the bottles you try — every loved one
-            pushes a grape, a place, or an estate toward your DNA.
-          </p>
-          {/* /log is Log a bottle — the empty state hands you the camera,
-              not a shrug */}
-          <a href="/log" data-testid="palate-empty-log-link" style={{ fontFamily: SANS, fontSize: "12px", color: BURGUNDY, fontWeight: 600, textDecoration: "none", marginTop: 8, padding: "8px 0", display: "inline-block" }}>
-            Log tonight&apos;s bottle →
-          </a>
-        </>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-          {shown.map((r, i) => (
-            <div key={`${r.dimension}:${r.dimension_value}`}>
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "10px", marginBottom: 6 }}>
-                <div style={{ fontFamily: SANS, fontSize: "14px", fontWeight: 600, color: GREEN }}>
-                  {r.display_name}
-                  <span style={{ fontFamily: SANS, fontSize: "10px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em", color: GREEN, opacity: 0.35, marginLeft: 8 }}>
-                    {DIMENSION_LABELS[r.dimension] || r.dimension}
-                  </span>
-                </div>
-                <span style={{ fontFamily: SANS, fontSize: "12px", color: BURGUNDY, opacity: 0.75, flexShrink: 0 }}>
-                  {bottlesAwayPhrase(r.threshold - r.points)}
-                </span>
-              </div>
-              <div style={{ height: 5, borderRadius: 3, background: "rgba(27,61,47,0.08)", overflow: "hidden" }}>
-                <div style={{
-                  height: "100%", borderRadius: 3, background: SAGE,
-                  width: mounted ? `${Math.max(5, Math.round(r.ratio * 100))}%` : "0%",
-                  transition: `width 0.9s cubic-bezier(0.22, 1, 0.36, 1) ${200 + i * 90}ms`,
-                }} />
-              </div>
-            </div>
-          ))}
-          {more > 0 && (
-            <span style={{ fontFamily: SANS, fontSize: "12px", color: GREEN, opacity: 0.4 }}>
-              + {more} more building quietly
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════
-// DNA SECTIONS (Pillar 2 discipline + founding vs earned)
-// ═══════════════════════════════════════════════════════
-
-function Chip({ label, earned }) {
-  return (
-    <span style={{ fontFamily: SANS, fontSize: "13px", color: GREEN, background: "rgba(27,61,47,0.05)", padding: "5px 14px", borderRadius: "100px" }}>
-      {label}
-      {earned && <span style={{ color: BURGUNDY, marginLeft: 5, fontSize: "11px" }}>✦</span>}
-    </span>
-  );
-}
-
-function ProfileTagSection({ label, items }) {
-  if (!items || items.length === 0) return null;
-  return (
-    <div style={cardStyle}>
-      <div style={labelStyle}>{label}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-        {items.map((item) => <Chip key={item.key} label={item.label} earned={item.earned} />)}
-      </div>
-    </div>
-  );
-}
-
-function GroupedSection({ label, groups }) {
-  const entries = groups.filter((g) => g.items.length > 0);
-  if (entries.length === 0) return null;
-  return (
-    <div style={cardStyle}>
-      <div style={labelStyle}>{label}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {entries.map((g) => (
-          <div key={g.key}>
-            <div style={{ fontFamily: SANS, fontSize: "12px", fontWeight: 600, color: GREEN, opacity: 0.55, marginBottom: 6 }}>{g.heading}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {g.items.map((item) => <Chip key={item.key} label={item.label} earned={item.earned} />)}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════
-// MAIN VIEW
-// ═══════════════════════════════════════════════════════
 
 export default function PalateView({ profile, timeline, accumulation }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 60);
-    return () => clearTimeout(t);
-  }, []);
-
-  const signature = computeSignature(profile, accumulation);
   // The strand's epithet leads (Act III); the live signature line is the
   // fallback for a row the engine hasn't composed yet
-  const sigLine = profile.identity?.epithet || signatureLine(profile, accumulation);
-
-  // Founding vs earned: promoted DNA whose points came from real bottles, not
-  // the quiz. Rendered as a quiet mark, not a badge wall.
-  const earnedSet = new Set(
-    (accumulation || [])
-      .filter((r) => r.promoted && r.source === "auto")
-      .map((r) => `${r.dimension}:${r.dimension_value}`)
-  );
-
-  const countryItems = (profile.countries || []).map((id) => ({
-    key: id, label: displayCountry(id), earned: earnedSet.has(`country:${id}`),
-  }));
-  const regionGroups = Object.entries(profile.regions || {}).map(([countryId, regionIds]) => ({
-    key: countryId,
-    heading: displayCountry(countryId),
-    items: (regionIds || []).map((rid) => ({
-      key: rid,
-      label: getRegionDisplayName(rid, countryId) || prettifyId(rid),
-      earned: earnedSet.has(`region:${rid}`),
-    })),
-  }));
-  const estateGroups = Object.entries(profile.estates || {}).map(([regionId, estateIds]) => ({
-    key: regionId,
-    heading: getRegionDisplayName(regionId) || prettifyId(regionId),
-    items: (estateIds || []).map((eid) => ({
-      key: eid,
-      label: displayEstate(eid, regionId),
-      earned: earnedSet.has(`estate:${eid}`),
-    })),
-  }));
-  const varietalItems = (profile.varietals || []).map((id) => ({
-    key: id, label: displayVarietal(id), earned: earnedSet.has(`varietal:${id}`),
-  }));
-  const wineItems = (profile.specific_wines || []).map((name) => ({
-    key: name, label: formatWineName(name), earned: false,
-  }));
-  const hasEarned = earnedSet.size > 0;
+  const epithet = profile.identity?.epithet || signatureLine(profile, accumulation);
+  const next = numeralCounter();
 
   return (
     <div>
-      {/* ─── Identity (the strand: title + epithet + the visual signature —
-          the mark is the hero, generated from the genome) ─── */}
-      <div style={{ textAlign: "center", padding: "30px 0 24px" }}>
-        <PalateMark genome={profile.identity?.genome} size={192} style={{ marginBottom: 18 }} />
-        <h1 data-testid="palate-archetype" style={{ fontFamily: SERIF, fontSize: "32px", color: GREEN, margin: "0 0 8px", fontWeight: 700, letterSpacing: "-0.01em" }}>
-          {profile.archetype}
-        </h1>
-        {sigLine && (
-          <p data-testid="palate-epithet" style={{ fontFamily: SERIF, fontSize: "15px", fontStyle: "italic", color: BURGUNDY, margin: 0, opacity: 0.85 }}>
-            {sigLine}
-          </p>
-        )}
-      </div>
-
-      {/* ─── Signature (Pillar 4) ─── */}
-      <PalateSignature signature={signature} mounted={mounted} />
-
-      {/* ─── The Somm's read ─── */}
-      {profile.narrative && (
-        <div style={cardStyle}>
-          <div style={labelStyle}>In the Somm&apos;s words</div>
-          <p style={{ fontFamily: SANS, fontSize: "15px", color: GREEN, opacity: 0.65, lineHeight: 1.65, margin: 0, fontStyle: "italic" }}>
-            {profile.narrative}
-          </p>
+      {/* The strand: the bloom (generated from the genome) is the hero */}
+      <header style={{ textAlign: "center" }}>
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <PalateMark genome={profile.identity?.genome} size={176} />
         </div>
+        <h1 data-testid="palate-archetype" style={{
+          ...TYPE.h1, marginTop: 16, textWrap: "balance", overflowWrap: "anywhere",
+        }}>{profile.archetype}</h1>
+        {epithet && (
+          <p data-testid="palate-epithet" style={{
+            fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.45, color: BURGUNDY, marginTop: 8,
+          }}>{epithet}</p>
+        )}
+      </header>
+
+      <Signature profile={profile} accumulation={accumulation} />
+
+      {profile.narrative && (
+        <section>
+          <SectionHead numeral={next()} label="In the Somm’s words" style={{ margin: "32px 0 12px" }} />
+          <p style={{
+            fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.65, color: ink(0.78), textWrap: "pretty",
+          }}>{profile.narrative}</p>
+        </section>
       )}
 
-      {/* ─── The living palate (Pillar 3) ─── */}
-      <RecentlyEvolved timeline={timeline} accumulation={accumulation} />
-      <BuildingNow accumulation={accumulation} mounted={mounted} />
-
-      {/* ─── The DNA itself ─── */}
-      <div data-testid="palate-dna">
-        <ProfileTagSection label="Countries" items={countryItems} />
-        <GroupedSection label="Regions" groups={regionGroups} />
-        <ProfileTagSection label="Grapes" items={varietalItems} />
-        <GroupedSection label="Estates" groups={estateGroups} />
-        <ProfileTagSection label="Wines you named" items={wineItems} />
-        {hasEarned && (
-          <p style={{ fontFamily: SANS, fontSize: "12px", color: GREEN, opacity: 0.45, margin: "2px 4px 0" }}>
-            <span style={{ color: BURGUNDY }}>✦</span> earned by your ratings, not the quiz
-          </p>
-        )}
-      </div>
-
-      {/* ─── Quiet quiz links — never a primary action ─── */}
-      <div style={{ textAlign: "center", marginTop: 28, paddingBottom: 48, display: "flex", justifyContent: "center", gap: "8px", flexWrap: "wrap" }}>
-        <a href="/?quiz=refine" style={{ fontFamily: SANS, fontSize: "13px", color: GREEN, opacity: 0.35, textDecoration: "underline", padding: "12px 10px" }}>Adjust quiz answers</a>
-        <a href="/?quiz=fresh" style={{ fontFamily: SANS, fontSize: "13px", color: GREEN, opacity: 0.35, textDecoration: "underline", padding: "12px 10px" }}>Start fresh</a>
-      </div>
+      <RecentlyEvolved numeral={next()} timeline={timeline} />
+      <BuildingNow numeral={next()} accumulation={accumulation} />
+      <YourDna numeral={next()} profile={profile} accumulation={accumulation} />
+      <QuizLinks />
     </div>
   );
 }

@@ -15,7 +15,6 @@
 // shows "the first page is always blank" or a zero count on a guess.
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { wineHref } from "@/lib/navTrail";
 import {
@@ -27,10 +26,11 @@ import ServiceBar from "@/components/house/ServiceBar";
 import Toast, { useToast } from "@/components/house/Toast";
 import { ChoiceTabs } from "@/components/house/ChoiceLine";
 import WineRow from "@/components/house/WineRow";
+import TimelineRow from "@/components/house/TimelineRow";
 import Divider from "@/components/house/Divider";
 import EmptyState from "@/components/house/EmptyState";
 import TextAction from "@/components/house/TextAction";
-import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink, leader } from "@/components/house/tokens";
+import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
 const TABS = ["tried", "want", "skipped", "timeline"];
 const PANEL = "journal-panel";
@@ -78,23 +78,6 @@ function JournalRow({ row, now }) {
       struckOpacity={0.55}
       href={wineHref(row.wine_name)}
     />
-  );
-}
-
-function TimelineRow({ line, date, href }) {
-  return (
-    <Link href={href} style={{
-      display: "flex", alignItems: "flex-end", gap: 8, padding: "15px 0",
-      borderBottom: `1px solid ${ink(0.07)}`, textDecoration: "none", color: INK,
-    }}>
-      <span aria-hidden="true" style={{ fontSize: "15px", width: 22, flexShrink: 0, lineHeight: 1.4 }}>{line.emoji}</span>
-      <span style={{
-        fontFamily: SERIF, fontSize: "16px", lineHeight: 1.4, color: INK, fontWeight: line.strong ? 700 : 400,
-        minWidth: 0, overflowWrap: "anywhere",
-      }}>{line.text}</span>
-      <span aria-hidden="true" style={{ flex: 1, minWidth: 14, borderBottom: leader(1.5), marginBottom: 6 }} />
-      <span style={{ ...smallCaps, lineHeight: 2 }}>{date}</span>
-    </Link>
   );
 }
 
