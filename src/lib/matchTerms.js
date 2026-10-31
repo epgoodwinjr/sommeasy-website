@@ -28,6 +28,30 @@ export function termsFromPreferences(preferences) {
   };
 }
 
+// A saved price as preferences hold it: a whole number, or null
+function price(value) {
+  const digits = amount(value);
+  return digits ? Number(digits) : null;
+}
+
+/** Account's amount pair (digit strings) as preferences.spend: numbers or
+ *  null — a reversed pair ("$90 to $40") saves the way it was meant. */
+export function spendFromAmounts(min, max) {
+  let lo = price(min), hi = price(max);
+  if (lo != null && hi != null && lo > hi) [lo, hi] = [hi, lo];
+  return { min: lo, max: hi };
+}
+
+/** The preferences with one setting changed — { spend } or { color } —
+ *  everything else kept. A value that isn't one changes nothing. */
+export function preferencesWith(preferences, change) {
+  const next = preferences && typeof preferences === "object" && !Array.isArray(preferences) ? { ...preferences } : {};
+  const c = change && typeof change === "object" ? change : {};
+  if (c.spend && typeof c.spend === "object") next.spend = { min: price(c.spend.min), max: price(c.spend.max) };
+  if (COLORS.includes(c.color)) next.color = c.color;
+  return next;
+}
+
 /** A wine name folded for matching: accents, case, punctuation and runs of
  *  space all fall away. */
 export function normalizeWineName(name) {

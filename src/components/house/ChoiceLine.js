@@ -9,7 +9,8 @@
 // margin) so it meets the 40px tap floor without moving a pixel, and the
 // selected underline rides an inner span so it stays word-width.
 // ChoiceTabs is the journal's tab variant (role="tablist"); TermLine is the
-// bare skeleton for a term that ends in something else (Spend … $ to $).
+// bare skeleton for a term that ends in something else (Spend … $ to $);
+// ChoiceOptions is the options alone, for a setting that names them itself.
 //
 // options / tabs: [{ id, label, testId? }] (tabs also take `count`).
 
@@ -32,44 +33,52 @@ export function TermLine({ label, labelId, labelSize = 18, testId, children, sty
 
 export default function ChoiceLine({ label, options, value, onChange, labelSize = 18, testId, style }) {
   const labelId = useId();
+  return (
+    <TermLine label={label} labelId={labelId} labelSize={labelSize} testId={testId} style={style}>
+      <ChoiceOptions options={options} value={value} onChange={onChange} labelledBy={labelId} />
+    </TermLine>
+  );
+}
+
+/** The options alone — a radiogroup named by an element elsewhere
+ *  (`labelledBy`): Account's Color opens these under its own row. */
+export function ChoiceOptions({ options, value, onChange, labelledBy, style }) {
   const ids = options.map((o) => o.id);
   const stop = tabStop(ids, value);
   return (
-    <TermLine label={label} labelId={labelId} labelSize={labelSize} testId={testId} style={style}>
-      <div
-        role="radiogroup"
-        aria-labelledby={labelId}
-        onKeyDown={(e) => choiceKeyDown(e, ids, value, onChange)}
-        style={{ display: "flex", gap: 14 }}
-      >
-        {options.map((o) => {
-          const on = o.id === value;
-          return (
-            <button
-              key={o.id}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              tabIndex={o.id === stop ? 0 : -1}
-              data-choice={o.id}
-              data-testid={o.testId}
-              onClick={() => onChange?.(o.id)}
-              style={{
-                padding: "19px 7px 0", margin: "-9px -7px 0", border: "none", background: "none",
-                cursor: "pointer", whiteSpace: "nowrap",
-              }}
-            >
-              <span style={{
-                display: "block", paddingBottom: 2,
-                borderBottom: `1.5px solid ${on ? BURGUNDY : "transparent"}`,
-                fontFamily: SANS, fontSize: "14px", fontWeight: 700,
-                color: on ? BURGUNDY : ink(0.5), transition: TRANSITION,
-              }}>{o.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </TermLine>
+    <div
+      role="radiogroup"
+      aria-labelledby={labelledBy}
+      onKeyDown={(e) => choiceKeyDown(e, ids, value, onChange)}
+      style={{ display: "flex", gap: 14, ...style }}
+    >
+      {options.map((o) => {
+        const on = o.id === value;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            tabIndex={o.id === stop ? 0 : -1}
+            data-choice={o.id}
+            data-testid={o.testId}
+            onClick={() => onChange?.(o.id)}
+            style={{
+              padding: "19px 7px 0", margin: "-9px -7px 0", border: "none", background: "none",
+              cursor: "pointer", whiteSpace: "nowrap",
+            }}
+          >
+            <span style={{
+              display: "block", paddingBottom: 2,
+              borderBottom: `1.5px solid ${on ? BURGUNDY : "transparent"}`,
+              fontFamily: SANS, fontSize: "14px", fontWeight: 700,
+              color: on ? BURGUNDY : ink(0.5), transition: TRANSITION,
+            }}>{o.label}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

@@ -90,6 +90,31 @@ async function main() {
     assertEq(terms.findJournalRow("Kanonkop", [null, 7, { wine_name: 5 }]), null, "junk rows");
   });
 
+  console.log("\n═══ Suite 3: Account › At the table writes the preferences (Phase 6) ═══");
+
+  await test("the amount pair saves as numbers or null — and a reversed pair reads the way it was meant", () => {
+    assertEq(terms.spendFromAmounts("40", "90"), { min: 40, max: 90 }, "both");
+    assertEq(terms.spendFromAmounts("", "90"), { min: null, max: 90 }, "a ceiling");
+    assertEq(terms.spendFromAmounts("40", ""), { min: 40, max: null }, "a floor");
+    assertEq(terms.spendFromAmounts("", ""), { min: null, max: null }, "cleared");
+    assertEq(terms.spendFromAmounts("90", "40"), { min: 40, max: 90 }, "$90 to $40 means 40–90");
+    assertEq(terms.spendFromAmounts("4a", null), { min: null, max: null }, "junk → open");
+  });
+
+  await test("a preference change keeps the rest of the preferences, and only real values land", () => {
+    const saved = { spend: { min: 40, max: 90 }, color: "white", future: "kept" };
+    assertEq(terms.preferencesWith(saved, { color: "red" }),
+      { spend: { min: 40, max: 90 }, color: "red", future: "kept" }, "color changes, the rest stays");
+    assertEq(terms.preferencesWith(saved, { spend: { min: null, max: 60 } }),
+      { spend: { min: null, max: 60 }, color: "white", future: "kept" }, "spend changes, the rest stays");
+    assertEq(terms.preferencesWith(saved, { color: "rosé" }), saved, "a color that isn't one changes nothing");
+    assertEq(terms.preferencesWith(null, { color: "sparkling" }), { color: "sparkling" }, "nothing saved yet");
+    assertEq(terms.preferencesWith("junk", { spend: "junk" }), {}, "junk in → a clean object");
+    // Round trip: what Account writes, Match reads
+    assertEq(terms.termsFromPreferences(terms.preferencesWith({}, { spend: terms.spendFromAmounts("90", "40") })),
+      { color: "all", min: "40", max: "90" }, "Match pre-fills what Account saved");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

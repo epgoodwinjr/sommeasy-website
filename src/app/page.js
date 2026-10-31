@@ -17,6 +17,7 @@ import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { HOME_TITLE, wineHref } from "@/lib/navTrail";
 import { crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, verdictMeta, verdictReply, whisperLine } from "@/lib/houseCopy";
+import { welcomeNoticeCopy } from "@/lib/authCopy";
 import Quiz from "@/components/Quiz";
 import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
 import PalateMark from "@/components/PalateMark";
@@ -539,7 +540,7 @@ function WelcomeBackMoment() {
 }
 
 // ─── Welcome Screen ───
-function WelcomeScreen({ onStart, user, onSignOut }) {
+function WelcomeScreen({ onStart, user, onSignOut, notice }) {
   const steps = [
     {
       n: "1",
@@ -568,6 +569,11 @@ function WelcomeScreen({ onStart, user, onSignOut }) {
 
       {/* Logo */}
       <img src="/logo.png" alt="Sommeasy" style={{ height: 200, width: "auto", marginBottom: 32, filter: "drop-shadow(0 8px 24px rgba(139,35,50,0.12))" }} />
+
+      {/* Where Delete account lands (/?notice=account_deleted) */}
+      {notice && (
+        <p role="status" data-testid="welcome-notice" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: "16px", lineHeight: 1.5, color: "#1B3D2F", opacity: 0.8, maxWidth: 380, margin: "-8px auto 28px" }}>{notice}</p>
+      )}
 
       {/* Hero copy */}
       <div style={{ maxWidth: 380, margin: "0 auto 40px" }}>
@@ -624,6 +630,8 @@ export default function Home() {
   const [quizEarned, setQuizEarned] = useState([]);
   // A pending palate (anonymous quiz stash) was just folded in on this load
   const [welcomeBack, setWelcomeBack] = useState(false);
+  // The Welcome screen's landing line — only its own ?notice= (account_deleted)
+  const [welcomeNotice, setWelcomeNotice] = useState(null);
   const supabase = createClient();
 
   const rowToRaw = (row) => ({
@@ -718,6 +726,13 @@ export default function Home() {
     // Read from location directly — useSearchParams would force a Suspense
     // boundary on this statically prerendered page.
     const quizParam = new URLSearchParams(window.location.search).get("quiz");
+    // Delete account lands on /?notice=account_deleted — said once, then
+    // the address goes back to plain "/"
+    const notice = welcomeNoticeCopy(new URLSearchParams(window.location.search).get("notice"));
+    if (notice) {
+      setWelcomeNotice(notice);
+      window.history.replaceState({}, "", "/");
+    }
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
       const currentUser = session?.user || null;
@@ -824,5 +839,5 @@ export default function Home() {
     return <SavedProfileView profile={savedProfile} user={user} onRefine={handleRefine} welcomeBack={welcomeBack} />;
   }
 
-  return <WelcomeScreen onStart={handleStartQuiz} user={user} onSignOut={handleSignOut} />;
+  return <WelcomeScreen onStart={handleStartQuiz} user={user} onSignOut={handleSignOut} notice={welcomeNotice} />;
 }

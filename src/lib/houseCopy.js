@@ -523,6 +523,21 @@ export function nothingFoundLine(query) {
 /** Remove from journal's confirm: the question, then what leaves with the
  *  row — the verdict and its pull on the palate (the delete reverses the
  *  rating's evidence), the note. A had with no verdict pulled on nothing. */
+/** Account › Usual spend's value: "$40 – $90", "Up to $90", "From $40",
+ *  or "Not set" (preferences.spend, numbers or null). */
+export function usualSpendLine(spend) {
+  const s = spend && typeof spend === "object" ? spend : {};
+  const lo = digits(s.min), hi = digits(s.max);
+  if (lo && hi) return `$${lo} – $${hi}`;
+  if (hi) return `Up to $${hi}`;
+  return lo ? `From $${lo}` : "Not set";
+}
+
+/** Account › Color's value — the terms bar's words: "All wines", "Reds"… */
+export function colorTerm(color) {
+  return COLOR_TERMS[color] || COLOR_TERMS.all;
+}
+
 export function removeConfirmCopy(what) {
   const { rated = false, note = false } = what && typeof what === "object" ? what : {};
   const ask = "Remove this bottle from your journal?";

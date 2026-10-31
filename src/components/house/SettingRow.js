@@ -6,19 +6,26 @@
 //
 // The › shows only when the row does something (href/onClick; override
 // with `chevron`). A setting's value never wraps — a long email ellipsizes
-// rather than push the page sideways. `children` renders under the line:
-// Account's inline editors open there, and such a row links its line only.
+// rather than push the page sideways. A row given `children` — even ones
+// that render nothing yet, like {open && <Editor/>} — renders them under
+// the line and links its line only (`expanded` marks that line button as
+// opening them); the line keeps the row's padding, so its hit area stays
+// ≥40px, and the element never changes as an editor or error comes and
+// goes (focus would drop). The ref reaches the row's own control — the
+// whole-row button, or the line — so an editor that closes can hand focus
+// back. `disabled` holds a button row still while its action runs.
 // FactRow is the wine page's quieter cousin: 16px key, a value that may
 // wrap (right-aligned), never a chevron.
 
+import { Children, forwardRef } from "react";
 import Link from "next/link";
 import { BURGUNDY, INK, SANS, SERIF, ink, leader } from "./tokens";
 
 const leaderStyle = { flex: 1, minWidth: 12, borderBottom: leader(1.5, 0.22), marginBottom: 5 };
 
-export default function SettingRow({
-  label, value, chevron, href, onClick, testId, children, style,
-}) {
+const SettingRow = forwardRef(function SettingRow({
+  label, value, chevron, href, onClick, expanded, disabled = false, testId, children, style,
+}, ref) {
   const interactive = Boolean(href || onClick);
   const showChevron = chevron ?? interactive;
 
@@ -43,31 +50,44 @@ export default function SettingRow({
     </span>
   );
 
+  const wholeRow = interactive && children === undefined;
   const rowStyle = {
     display: "block", width: "100%", textAlign: "left", textDecoration: "none", color: INK,
     padding: "14px 0", border: "none", borderBottom: `1px solid ${ink(0.07)}`,
-    background: "none", cursor: interactive && !children ? "pointer" : "auto",
+    background: "none", cursor: wholeRow && !disabled ? "pointer" : "auto",
     ...style,
   };
-  const lineButton = {
-    display: "block", width: "100%", padding: 0, border: "none", background: "none",
-    textAlign: "left", textDecoration: "none", color: INK, cursor: "pointer",
-  };
 
-  if (interactive && !children) {
+  if (wholeRow) {
     return href
-      ? <Link href={href} onClick={onClick} data-testid={testId} style={rowStyle}>{line}</Link>
-      : <button type="button" onClick={onClick} data-testid={testId} style={rowStyle}>{line}</button>;
+      ? <Link ref={ref} href={href} onClick={onClick} data-testid={testId} style={rowStyle}>{line}</Link>
+      : (
+        <button ref={ref} type="button" onClick={onClick} disabled={disabled} aria-expanded={expanded}
+          data-testid={testId} style={rowStyle}>{line}</button>
+      );
   }
+  // The line carries the row's padding (the hit area); what's under it
+  // takes the bottom padding only once there's something there
+  const lineStyle = {
+    display: "block", width: "100%", padding: "14px 0", border: "none", background: "none",
+    textAlign: "left", textDecoration: "none", color: INK, cursor: disabled ? "default" : "pointer",
+  };
+  // {error && <p/>} with an empty error leaves "" — that's nothing too
+  const under = Children.toArray(children).filter((child) => child !== "");
   return (
-    <div data-testid={testId} style={rowStyle}>
-      {!interactive ? line
-        : href ? <Link href={href} style={lineButton}>{line}</Link>
-        : <button type="button" onClick={onClick} style={lineButton}>{line}</button>}
-      {children}
+    <div data-testid={testId} style={{ ...rowStyle, padding: 0 }}>
+      {!interactive ? <div style={{ padding: "14px 0" }}>{line}</div>
+        : href ? <Link ref={ref} href={href} onClick={onClick} style={lineStyle}>{line}</Link>
+        : (
+          <button ref={ref} type="button" onClick={onClick} disabled={disabled} aria-expanded={expanded}
+            style={lineStyle}>{line}</button>
+        )}
+      {under.length > 0 && <div style={{ paddingBottom: 14 }}>{under}</div>}
     </div>
   );
-}
+});
+
+export default SettingRow;
 
 export function FactRow({ label, value, style }) {
   return (

@@ -554,6 +554,18 @@ async function main() {
     assertEq(copy.removeConfirmCopy(null), "Remove this bottle from your journal?", "junk → the plain question");
   });
 
+  await test("Account › At the table reads its settings back", () => {
+    assertEq(copy.usualSpendLine({ min: 40, max: 90 }), "$40 – $90", "a range");
+    assertEq(copy.usualSpendLine({ min: null, max: 90 }), "Up to $90", "a ceiling");
+    assertEq(copy.usualSpendLine({ min: 40, max: null }), "From $40", "a floor");
+    assertEq(copy.usualSpendLine({ min: null, max: null }), "Not set", "cleared");
+    assertEq(copy.usualSpendLine(undefined), "Not set", "never set");
+    assertEq(copy.usualSpendLine({ min: "40", max: -3 }), "From $40", "junk ignored");
+    assertEq(["all", "red", "white", "sparkling"].map(copy.colorTerm), ["All wines", "Reds", "Whites", "Sparkling"],
+      "the terms bar's words");
+    assertEq(copy.colorTerm("rosé"), "All wines", "anything else reads as all");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
