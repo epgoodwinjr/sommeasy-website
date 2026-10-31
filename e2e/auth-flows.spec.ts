@@ -225,8 +225,10 @@ test.describe("Auth — signed-out flows", () => {
 
   test("create account asks for all three — in brand voice, before anything is sent", async ({ page }) => {
     let signupCalls = 0;
+    let signupBody: any = null;
     await routeAuth(page, "**/auth/v1/signup**", (route) => {
       signupCalls++;
+      signupBody = route.request().postDataJSON();
       return fulfillJson(route, fakeUser([{ identity_id: "i-1", provider: "email" }]));
     });
     await page.goto("/signup");
@@ -255,11 +257,15 @@ test.describe("Auth — signed-out flows", () => {
     await expect(error).toContainText(/at least 8 characters/);
     expect(signupCalls, "nothing may reach Supabase until the form is complete").toBe(0);
 
-    // Complete: it goes
+    // Complete: it goes — a padded address trimmed, the inbox naming that one
+    await page.locator("input#email").fill(`  ${FAKE_EMAIL} `);
     await page.locator("input#password").fill("a-fine-vintage-6");
     await submit.click();
-    await expect(page.getByTestId("auth-check-inbox")).toBeVisible({ timeout: 15_000 });
+    const inbox = page.getByTestId("auth-check-inbox");
+    await expect(inbox).toBeVisible({ timeout: 15_000 });
     expect(signupCalls).toBe(1);
+    expect(signupBody?.email).toBe(FAKE_EMAIL);
+    await expect(inbox).toContainText(`${FAKE_EMAIL}.`);
   });
 
   test("create account says the quiz comes along only when a palate is waiting", async ({ page }) => {

@@ -151,10 +151,13 @@ export default function AuthForm({ mode, params }) {
         router.refresh();
       } else {
         // The name (D5) and the pending palate ride together as
-        // user_metadata; the palate keeps its own 8KB guard
+        // user_metadata; the palate keeps its own 8KB guard. The trimmed
+        // address is the one the inbox state shows and a resend uses
         const pendingPalate = pendingPalateMetadata();
+        const signupEmail = email.trim();
+        setEmail(signupEmail);
         const { data, error } = await supabase.auth.signUp({
-          email: email.trim(), password,
+          email: signupEmail, password,
           options: {
             emailRedirectTo: emailRedirectTo(),
             data: { name: cleanName(name), ...(pendingPalate ? { pending_palate: pendingPalate } : {}) },

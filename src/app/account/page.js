@@ -167,16 +167,18 @@ export default function AccountPage() {
     setNameDraft(savedName);
     setEditing("name");
   };
-  const closeName = () => {
+  // Enter and Escape hand focus back to the row; a blur leaves it wherever
+  // it was going (a Tab, a tap elsewhere)
+  const closeName = ({ refocus = true } = {}) => {
     setEditing(null);
-    nameRow.current?.focus();
+    if (refocus) nameRow.current?.focus();
   };
   // Enter or blur saves (once); a cleared field keeps the name it had
-  const commitName = async () => {
+  const commitName = async ({ refocus = true } = {}) => {
     if (nameCommitted.current) return;
     nameCommitted.current = true;
     const next = cleanName(nameDraft);
-    closeName();
+    closeName({ refocus });
     if (!next || next === savedName) return;
     setNameSaving(true);
     try {
@@ -239,8 +241,15 @@ export default function AccountPage() {
     }
     setEditing((open) => (open === which ? null : which));
   };
-  // The pair saves as focus leaves it (README: on blur)
-  const saveSpend = () => changePrefs({ spend: spendFromAmounts(spendDraft.min, spendDraft.max) });
+  // The pair saves as focus leaves it (README: on blur) — only when it says
+  // something new: opening and leaving it never writes
+  const saveSpend = () => {
+    const next = spendFromAmounts(spendDraft.min, spendDraft.max);
+    const terms = termsFromPreferences(prefsWanted.current);
+    const now = spendFromAmounts(terms.min, terms.max);
+    if (next.min === now.min && next.max === now.max) return;
+    changePrefs({ spend: next });
+  };
 
   // ─── III. Your data ───
   const exportJournal = async () => {
@@ -399,7 +408,7 @@ export default function AccountPage() {
                 autoFocus
                 value={nameDraft}
                 onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={commitName}
+                onBlur={() => commitName({ refocus: false })}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                     e.preventDefault();

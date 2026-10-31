@@ -127,6 +127,16 @@ test.describe("Account — You, At the table, Your data (hard-fail)", () => {
     // …and the page reads it back after a reload
     await page.reload();
     await expect(page.getByTestId("account-name-heading")).toHaveText("E2E Taster", { timeout: 15_000 });
+
+    // Tab (a blur) saves too — and focus goes where the Tab sent it, not back
+    await line.click();
+    await input.fill("E2E Taster Too");
+    await input.press("Tab");
+    await expect(row).toContainText("E2E Taster Too");
+    await expect(page.getByTestId("account-password").getByRole("button", { name: /Password/ })).toBeFocused();
+    await expect
+      .poll(async () => (await supabase.auth.getUser()).data.user?.user_metadata?.name, { timeout: 15_000 })
+      .toBe("E2E Taster Too");
   });
 
   test("Password › Change sends the reset link to the account's own address", async ({ page }) => {
@@ -164,6 +174,16 @@ test.describe("Account — You, At the table, Your data (hard-fail)", () => {
     // it — a reversed pair saves the way it was meant
     await spend.getByRole("button", { name: /Usual spend/ }).click();
     await expect(page.getByLabel("Usual spend, from")).toBeFocused();
+    // Opening the pair and leaving it says nothing new — so nothing is written
+    let profileWrites = 0;
+    page.on("request", (req) => {
+      if (req.method() === "PATCH" && req.url().includes("/rest/v1/wine_profiles")) profileWrites++;
+    });
+    await page.getByLabel("Usual spend, from").press("Tab");
+    await page.getByLabel("Usual spend, up to").press("Tab");
+    await page.waitForTimeout(800);
+    expect(profileWrites, "leaving the pair untouched must not write").toBe(0);
+    await expect(spend).toContainText("Not set");
     await page.getByLabel("Usual spend, from").fill("90");
     await page.getByLabel("Usual spend, up to").fill("40");
     await page.getByLabel("Usual spend, up to").press("Tab");
