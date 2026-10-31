@@ -1259,14 +1259,21 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             </TextActions>
           </Rise>
         )}
+        {/* Only another page can fail over the picks (they're untouched —
+            a page commits nothing until it reads): its error sits beside
+            the control that retries it, under its own id, never the input
+            view's error-message (PR #21) */}
         {errorMsg && (
-          <p role="alert" data-testid="error-message" style={{ ...alertLine, textAlign: "center", marginTop: 18 }}>
+          <p role="alert" aria-live="polite" data-testid="add-page-error" style={{ ...alertLine, textAlign: "center", marginTop: 18 }}>
             {errorMsg}
           </p>
         )}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 8 }}>
           {extractedFrom === "scan" && (
-            <TextAction tone="secondary" onClick={() => addPageInputRef.current?.click()}>📸 Add another page</TextAction>
+            <TextAction tone="secondary" onClick={() => {
+              setErrorMsg(""); // a new attempt starts clean
+              addPageInputRef.current?.click();
+            }}>📸 Add another page</TextAction>
           )}
           <TextAction testId="scan-again-button" onClick={handleReset}>📋 Scan another list</TextAction>
         </div>
