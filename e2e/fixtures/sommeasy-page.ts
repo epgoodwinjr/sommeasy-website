@@ -4,6 +4,30 @@ import path from "path";
 const FIXTURES_DIR = path.join(__dirname, "images");
 
 /**
+ * Records every 429 our own API answers on this page. A throttled scan
+ * renders as an ordinary error-message / bottle-error, and the scan specs'
+ * outcome checks accept "error" — so a live rate limiter used to turn them
+ * vacuously green. getOutcome() runs the returned check before classifying.
+ */
+function watchFor429s(page: Page): () => Promise<void> {
+  const seen: Promise<string>[] = [];
+  page.on("response", (res) => {
+    const { pathname } = new URL(res.url());
+    if (res.status() !== 429 || !pathname.startsWith("/api/")) return;
+    seen.push(res.json().then((body) => `${pathname} → "${body?.error}"`, () => pathname));
+  });
+  return async () => {
+    if (seen.length === 0) return;
+    throw new Error(
+      `${(await Promise.all(seen)).join("; ")}: a 429 from our API means this spec never ` +
+        "exercised the path it tests. If that's the scan-limit copy, the dev server isn't running " +
+        "with E2E_DISABLE_RATE_LIMIT=1 — Playwright reuses whatever already listens on :3000: " +
+        "stop it, or restart it with `E2E_DISABLE_RATE_LIMIT=1 npm run dev`."
+    );
+  };
+}
+
+/**
  * Page Object Model for Sommeasy's /recommend page.
  * Encapsulates all interactions for the wine list scan/paste/URL flow.
  */
@@ -31,6 +55,9 @@ export class RecommendPage {
   // Error
   readonly errorMessage: Locator;
 
+  /** Throws if our API answered this page with a 429 (see watchFor429s) */
+  readonly assertNo429s: () => Promise<void>;
+
   constructor(page: Page) {
     this.page = page;
     this.fileInput = page.locator('[data-testid="file-input-scan"]');
@@ -46,6 +73,7 @@ export class RecommendPage {
     this.pickCards = page.locator('[data-testid="pick-card"]');
     this.scanAgainButton = page.locator('[data-testid="scan-again-button"]');
     this.errorMessage = page.locator('[data-testid="error-message"]');
+    this.assertNo429s = watchFor429s(page);
   }
 
   async goto() {
@@ -72,6 +100,7 @@ export class RecommendPage {
 
   /** Check if results or error appeared after processing */
   async getOutcome(): Promise<"results" | "no-matches" | "error" | "unknown"> {
+    await this.assertNo429s();
     // Check for error first
     if (await this.errorMessage.isVisible()) return "error";
     // Check for results heading
@@ -150,6 +179,9 @@ export class BottleLogPage {
   readonly wineNameInput: Locator;
   readonly errorState: Locator;
 
+  /** Throws if our API answered this page with a 429 (see watchFor429s) */
+  readonly assertNo429s: () => Promise<void>;
+
   constructor(page: Page) {
     this.page = page;
     this.galleryInput = page.locator('[data-testid="bottle-gallery-input"]');
@@ -158,6 +190,7 @@ export class BottleLogPage {
     this.confirmState = page.locator('[data-testid="bottle-confirm"]');
     this.wineNameInput = page.locator('[data-testid="bottle-wine-name"]');
     this.errorState = page.locator('[data-testid="bottle-error"]');
+    this.assertNo429s = watchFor429s(page);
   }
 
   async goto() {
@@ -190,6 +223,7 @@ export class BottleLogPage {
 
   /** Check outcome after processing */
   async getOutcome(): Promise<"confirm" | "error" | "unknown"> {
+    await this.assertNo429s();
     if (await this.confirmState.isVisible()) return "confirm";
     if (await this.errorState.isVisible()) return "error";
     return "unknown";
