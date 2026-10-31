@@ -14,6 +14,7 @@ register("./helpers/alias-loader.mjs", pathToFileURL(__filename));
 // Unified data architecture (wineUnified.json) — the same shapes the
 // production resolver consumes. ESTATES = producers keyed by DNA region id.
 const wineUnified = require("../wineUnified.json");
+const aliasMirror = require("./helpers/producerAliasesMirror.js");
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
 const VARIETALS = wineUnified.varietals;
@@ -211,9 +212,10 @@ function tokenize(text) { return normalize(text).split(/\s+/).filter(t => t.leng
 
 // Mirrors wineResolver.containsTerm — boundary-aware containment so short
 // producer norms ("cass", "rozes") can't match inside longer words, and a
-// possessive ("mate's") never counts as a mention of the base word
-function containsTerm(haystack, needle) {
-  if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
+// possessive ("mate's") never counts as a mention of the base word; core-name
+// aliases match as whole phrases
+function containsTerm(haystack, needle, wholePhrase) {
+  if (!wholePhrase && (needle.includes(" ") || needle.includes("-"))) return haystack.includes(needle);
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
@@ -228,16 +230,19 @@ function isBlend(v) {
 
 // Build indices (mirror wineResolver.getProducerIndex)
 const producerIndex = [];
+const byLookupKey = new Map();
 for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
   const norm = normalize(name);
   if (norm.length < 3) continue;
   const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  producerIndex.push({
+  const entry = {
     name: displayName, norm, tokens: new Set(tokenize(name)),
     country: getCountryDisplayName(data.country), province: data.province || "",
     dnaCountryId: data.country,
     dnaRegionId: data.regionId || null,
-  });
+  };
+  producerIndex.push(entry);
+  byLookupKey.set(name, entry);
 }
 for (const [regionId, estates] of Object.entries(ESTATES)) {
   for (const estate of estates) {
@@ -258,6 +263,15 @@ for (const [regionId, estates] of Object.entries(ESTATES)) {
       country: countryObj ? countryObj.name : "", province: "",
       dnaCountryId: countryId, dnaRegionId: regionId, dnaEstateId: estate.id,
     });
+  }
+}
+// Core-name aliases (helpers/producerAliasesMirror.js), normalized
+{
+  const norms = new Set(producerIndex.map(p => p.norm));
+  for (const [core, key] of aliasMirror.buildCoreNameAliases(wineUnified)) {
+    const norm = normalize(core);
+    if (norms.has(norm) || !norm.includes(" ") || !byLookupKey.has(key)) continue;
+    producerIndex.push({ ...byLookupKey.get(key), norm, alias: true });
   }
 }
 producerIndex.sort((a, b) => b.norm.length - a.norm.length);
@@ -288,15 +302,20 @@ const varietalIndex = [];
 }
 varietalIndex.sort((a, b) => b.norm.length - a.norm.length);
 
-// Region index (mirrors wineResolver.getRegionIndex)
+// Region index (mirrors wineResolver.getRegionIndex): combined names
+// ("hemel-en-aarde / walker bay") also index each part
 const regionIndex = [];
 for (const [key, data] of Object.entries(REGION_LOOKUP)) {
   if (key.length < 4 || ["other","america","europe"].includes(key)) continue;
-  regionIndex.push({
-    term: key, country: getCountryDisplayName(data.country), province: "", subregion: "",
-    dnaCountryId: data.country,
-    dnaRegionId: data.regionId || null,
-  });
+  const terms = key.includes(" / ") ? [key, ...key.split(" / ").map(p => p.trim())] : [key];
+  for (const term of terms) {
+    if (term.length < 4 || (term !== key && REGION_LOOKUP[term])) continue;
+    regionIndex.push({
+      term, country: getCountryDisplayName(data.country), province: "", subregion: "",
+      dnaCountryId: data.country,
+      dnaRegionId: data.regionId || null,
+    });
+  }
 }
 regionIndex.sort((a, b) => b.term.length - a.term.length);
 
@@ -316,7 +335,7 @@ function matchProducer(normInput, inputTokens) {
   let bestMatch = null, bestScore = 0;
   for (const prod of producerIndex) {
     let score = 0;
-    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm)) {
+    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm, prod.alias)) {
       score = 0.5 + (prod.norm.length / normInput.length * 0.5);
     } else {
       const overlap = tokenOverlap(inputTokens, prod.tokens);
