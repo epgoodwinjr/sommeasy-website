@@ -8,7 +8,8 @@
 // added, for anyone.
 //
 // The user id comes ONLY from the cookie session; the body is never read,
-// so a request naming someone else deletes no one but its own owner. The
+// so a request naming someone else deletes no one but its own owner, and
+// only a JSON request gets that far (no cross-site form can send one). The
 // service key is server-only (never NEXT_PUBLIC_) and rides the admin call
 // alone. Success clears the session cookies on the response; any failure
 // keeps the session so the user can try again.
@@ -27,6 +28,14 @@ export async function POST(request) {
   const rate = checkRateLimit("account-delete", getClientIp(request));
   if (!rate.allowed) {
     return fail("rate_limit", 429, { "Retry-After": String(rate.retryAfterSec) });
+  }
+
+  // Only Account's own JSON request. A cross-site <form> can't send
+  // application/json, and a cross-origin fetch that tries is preflighted —
+  // which this route never answers — so no other site can post a delete
+  // with the user's cookies (defense in depth over the SameSite=Lax session)
+  if (!(request.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) {
+    return fail("unknown", 415);
   }
 
   const { supabase, applyCookies } = createRouteClient(request);

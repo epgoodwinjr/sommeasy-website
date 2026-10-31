@@ -234,6 +234,20 @@ async function main() {
     assert(typeof body.error === "string" && body.error.length > 0, "brand copy");
   });
 
+  await test("only the page's own JSON request: what a cross-site form can send → 415, nothing called", async () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = SERVICE_KEY;
+    for (const type of ["application/x-www-form-urlencoded", "multipart/form-data; boundary=x", "text/plain", null]) {
+      fetchLog = [];
+      const headers = { "x-forwarded-for": `203.0.113.${++ipSeq}`, cookie: sessionCookie() };
+      if (type) headers["content-type"] = type;
+      const res = await route.POST(new NextRequest("http://localhost:3000/api/account/delete", {
+        method: "POST", headers, body: "user_id=x",
+      }));
+      assert(res.status === 415, `${type}: status ${res.status}`);
+      assert(fetchLog.length === 0, `${type}: nothing past the check, got ${JSON.stringify(fetchLog)}`);
+    }
+  });
+
   await test("GET is not a delete", async () => {
     assert(typeof route.GET === "undefined", "the route exports only POST");
     assert(route.dynamic === "force-dynamic", "never statically prerendered");
