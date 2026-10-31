@@ -93,6 +93,8 @@ test.describe("Auth — signed-out flows", () => {
         })
       )
     );
+    // Create account asks for a name too (House List D5)
+    await page.locator("input#name").fill("  Front Door Tester ");
     await page.locator('input[type="email"]').fill(FAKE_EMAIL);
     await page.locator('input[type="password"]').fill("a-fine-vintage-6");
     await page.locator('button[type="submit"]').click();
@@ -121,6 +123,8 @@ test.describe("Auth — signed-out flows", () => {
     expect(carried.answers.regions.south_africa).toContain("stellenbosch");
     expect(carried.answers.varietals).toContain("pinot_noir");
     expect(carried.answers.narrative, "only compact answers may travel").toBeUndefined();
+    // …and the name rides beside it as user_metadata.name, trimmed (D5)
+    expect(signupBody?.data?.name, "signup must store the name in user_metadata").toBe("Front Door Tester");
 
     // Peek, never claim: abandoning signup must leave the same-browser
     // localStorage path intact, so the stash survives the carry.
@@ -138,6 +142,7 @@ test.describe("Auth — signed-out flows", () => {
     );
 
     await page.goto("/signup");
+    await page.locator("input#name").fill("Front Door Tester");
     await page.locator('input[type="email"]').fill(FAKE_EMAIL);
     await page.locator('input[type="password"]').fill("a-fine-vintage-6");
     await page.locator('button[type="submit"]').click();
@@ -218,6 +223,66 @@ test.describe("Auth — signed-out flows", () => {
     await expect(page.locator('input[type="password"]')).toHaveCount(0);
   });
 
+  test("create account asks for all three — in brand voice, before anything is sent", async ({ page }) => {
+    let signupCalls = 0;
+    await routeAuth(page, "**/auth/v1/signup**", (route) => {
+      signupCalls++;
+      return fulfillJson(route, fakeUser([{ identity_id: "i-1", provider: "email" }]));
+    });
+    await page.goto("/signup");
+    const submit = page.locator('button[type="submit"]');
+    await expect(submit).toBeEnabled({ timeout: 15_000 });
+    const error = page.getByTestId("auth-error");
+
+    // Nothing filled: the README's line, focused — never a browser bubble
+    await submit.click();
+    await expect(error).toHaveText("We need all three to save your palate — a name, an email and a password.");
+    await expect(error).toBeFocused();
+    // A name of spaces is no name
+    await page.locator("input#name").fill("   ");
+    await page.locator("input#email").fill(FAKE_EMAIL);
+    await page.locator("input#password").fill("a-fine-vintage-6");
+    await submit.click();
+    await expect(error).toContainText("We need all three");
+    // The email's shape, then the 8-character policy
+    await page.locator("input#name").fill("Front Door Tester");
+    await page.locator("input#email").fill("front-door-e2e@example");
+    await submit.click();
+    await expect(error).toContainText(/doesn't look quite right/);
+    await page.locator("input#email").fill(FAKE_EMAIL);
+    await page.locator("input#password").fill("short77");
+    await submit.click();
+    await expect(error).toContainText(/at least 8 characters/);
+    expect(signupCalls, "nothing may reach Supabase until the form is complete").toBe(0);
+
+    // Complete: it goes
+    await page.locator("input#password").fill("a-fine-vintage-6");
+    await submit.click();
+    await expect(page.getByTestId("auth-check-inbox")).toBeVisible({ timeout: 15_000 });
+    expect(signupCalls).toBe(1);
+  });
+
+  test("create account says the quiz comes along only when a palate is waiting", async ({ page }) => {
+    await page.goto("/signup");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await expect(page.getByText("Your quiz answers come with you.")).toHaveCount(0);
+
+    // The stash an anonymous quiz leaves, planted before the page loads
+    await page.addInitScript(() => {
+      window.localStorage.setItem("sommeasy.pendingPalate", JSON.stringify({
+        version: 1, createdAt: Date.now(),
+        answers: { countries: ["france"], regions: {}, estates: {}, varietals: ["chenin_blanc"], specificWines: [] },
+        profile: null,
+      }));
+    });
+    await page.goto("/signup");
+    await expect(page.getByText("Your quiz answers come with you.")).toBeVisible({ timeout: 15_000 });
+    // Sign in never says it
+    await page.goto("/login");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await expect(page.getByText("Your quiz answers come with you.")).toHaveCount(0);
+  });
+
   test("Google button stays hidden while the provider flag is off", async ({ page }) => {
     // A real user hit "provider is not enabled" twice — the button must not
     // render unless NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=1.
@@ -259,10 +324,14 @@ test.describe("Auth — polish (Session 3)", () => {
   test("labels, autofocus, helper, and visibility toggle", async ({ page }) => {
     await page.goto("/signup");
     // Visible labels, properly associated
+    await expect(page.getByLabel("Your name", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
-    // Email autofocused for the fast path
-    await expect(page.locator("input#email")).toBeFocused();
+    // The first field autofocused for the fast path — the name, since
+    // create account asks for one first (House List D5)
+    await expect(page.locator("input#name")).toBeFocused();
+    await expect(page.locator("input#name")).toHaveAttribute("autocomplete", "name");
+    await expect(page.locator("input#name")).toHaveAttribute("maxlength", "60");
     // The quiet requirements helper
     await expect(page.getByText("At least 8 characters.")).toBeVisible();
 
@@ -274,6 +343,11 @@ test.describe("Auth — polish (Session 3)", () => {
     await expect(password).toHaveAttribute("type", "text");
     await page.getByRole("button", { name: "Hide password" }).click();
     await expect(password).toHaveAttribute("type", "password");
+
+    // Sign in's first field is the email
+    await page.goto("/login");
+    await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+    await expect(page.locator("input#email")).toBeFocused();
 
     // Forgot-password page has the same field discipline
     await page.goto("/forgot-password");
@@ -331,7 +405,7 @@ test.describe("Auth — polish (Session 3)", () => {
 
     const magic = page.getByTestId("magic-link");
     await expect(magic).toBeVisible();
-    await expect(magic).toContainText("Email me a sign-in link instead");
+    await expect(magic).toContainText("Email me a sign-in link");
 
     // Without an email: a warm nudge, not a dead click
     await magic.click();

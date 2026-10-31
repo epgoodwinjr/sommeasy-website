@@ -7,6 +7,7 @@
 //   note   — Playfair italic 16px: journal, wine and log notes
 //   search — Playfair italic 20px, roomier, a 0.35 rule: search fields
 //   url    — Source Sans 16px: the wine-list link
+//   sans   — the same, for plain text: Account's name
 //   auth   — Source Sans 17px, a 0.35 rule: sign in / create account
 //   amount — 52px of centered digits on a solid rule (see AmountRange)
 // The rule is dotted at rest and solid burgundy on focus. Optional extras:
@@ -17,7 +18,7 @@
 // lives in globals.css (.house-field): inline styles can't reach
 // ::placeholder.
 
-import { forwardRef, useId, useState } from "react";
+import { forwardRef, useCallback, useEffect, useId, useRef, useState } from "react";
 import { BURGUNDY, INK, SANS, SERIF, TYPE, ink } from "./tokens";
 
 const VARIANTS = {
@@ -25,6 +26,7 @@ const VARIANTS = {
   note: { family: SERIF, italic: true, size: "16px", padding: "10px 0 8px", rule: 0.3 },
   search: { family: SERIF, italic: true, size: "20px", padding: "12px 0 10px", rule: 0.35 },
   url: { family: SANS, italic: false, size: "16px", padding: "10px 0 8px", rule: 0.3 },
+  sans: { family: SANS, italic: false, size: "16px", padding: "10px 0 8px", rule: 0.3 },
   auth: { family: SANS, italic: false, size: "17px", padding: "10px 0 8px", rule: 0.35 },
 };
 
@@ -35,6 +37,18 @@ const RuledField = forwardRef(function RuledField({
   const fallbackId = useId();
   const inputId = id || fallbackId;
   const [focused, setFocused] = useState(false);
+  // The input, for us and for the caller's ref alike
+  const input = useRef(null);
+  const setInput = useCallback((node) => {
+    input.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) ref.current = node;
+  }, [ref]);
+  // A server-rendered autoFocus can land before React is listening, so its
+  // focus event never arrives: a field that already holds focus says so
+  useEffect(() => {
+    if (input.current && document.activeElement === input.current) setFocused(true);
+  }, []);
 
   const focusHandlers = {
     onFocus: (e) => { setFocused(true); onFocus?.(e); },
@@ -44,7 +58,7 @@ const RuledField = forwardRef(function RuledField({
   if (variant === "amount") {
     return (
       <input
-        ref={ref}
+        ref={setInput}
         id={inputId}
         className="house-field"
         inputMode="numeric"
@@ -80,7 +94,7 @@ const RuledField = forwardRef(function RuledField({
           borderBottom: focused ? `1.5px solid ${BURGUNDY}` : `1.5px dotted ${ink(v.rule)}`,
         }}>
           <input
-            ref={ref}
+            ref={setInput}
             id={inputId}
             className="house-field"
             {...inputProps}
