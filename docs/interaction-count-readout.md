@@ -9,8 +9,8 @@
 | Unit suites (16) | ✅ 494/494 on the merged tree. dnaEvolution **97** (78 + Suite 13's 19) |
 | Mutation pins | ✅ 5/5 wrong count rules applied to the real engine each fail at least one real-engine test (§3), re-run on the merged tree |
 | `npm run build` | ✅ clean, 17/17 static pages, before and after the `main` sync |
-| `npm run test:e2e` | ⏭ not run. Another worktree's Playwright run held the shared test accounts during this session, and no e2e spec asserts `interaction_count` (evidence-ledger and identity-shift only write it back in their restores). No guard's flow changes |
-| Production data | SELECT-only, `epgoodwin+e2e` and `epgoodwin+e2e-fresh` only. Ed's account and every other account were not read |
+| `npm run test:e2e` | ✅ 76/76 passed (5 env-gated skips), run after the merge (Oct 31, 00:50–00:56 UTC) on a tree identical to production. The rate-limit canary was green and both test ledgers ended at their exact baselines. No e2e spec asserts `interaction_count` itself (evidence-ledger and identity-shift only write it back in their restores) |
+| Production data | Oct 30: SELECT-only on the two e2e accounts. Oct 31, with Ed's explicit approval: a read-only recount of every account, then a guarded reconciliation of Ed's own two accounts (§6) |
 
 ## 1. The drift, confirmed
 
@@ -117,7 +117,7 @@ Dry run Oct 31, 2026, 00:18 UTC, on the merged tree's resolver. A pre-merge run 
 |---|---|---|---|---|---|
 | `epgoodwin+e2e` (rich fixture) | 3: 1 accumulating (Huet, liked @ 90), 1 below the gate (Roulot @ 40), 1 never resolved (Kumeu River Maté's; today conf 0) | 11 | **0** | 4, all fixture-seeded | **exclude** |
 | `epgoodwin+e2e-fresh` (zero-state) | 0 | 4 (quiz rows, 0/0) | **0** | 0 | nothing to do |
-| `epgoodwin@gmail.com` (Ed), `edward.goodwin@fti…`, `+local`, `+prod`, every other account | — | — | — | — | **not read** (rule: data checks use the test account). Run the script as the owner |
+| `epgoodwin@gmail.com` (Ed), `edward.goodwin@fti…`, `+local`, `+prod`, every other account | — | — | — | — | not read on Oct 30 (rule: data checks use the test account). **Read Oct 31 with Ed's approval — §6** |
 
 The rich account's needs-review rows are all synthetic:
 
@@ -173,7 +173,66 @@ BACKFILL_EMAIL=... BACKFILL_PASSWORD=... node scripts/recount-interaction-count.
 
   `CLAUDE.md` already conflicts between `house-list` and `main` at the test counts. After both land, the dnaEvolution count is 78 + house-list's additions + 19.
 
+## 6. Oct 31: every account recounted, Ed's two accounts reconciled
+
+**Approvals (Ed, in this session).** First "Yes, all accounts": read every account for the dry run, his and Nicola's included. Then, after seeing the numbers, "Yes, reconcile them": write the two fixes below on his own accounts. The fix itself shipped before either step. PR #25 merged at 00:34:54 UTC and production was READY at 00:35:20 UTC.
+
+**Method.** The owner-sign-in script can't see other accounts, so the read went through a privileged SELECT:
+
+1. The 23 rated interactions were copied locally and verified byte-for-byte against a Postgres md5, accents and quotes included.
+2. Each was valued with the real `bottleEvidence`.
+3. The 44 expected per-dimension totals were sent back as a `VALUES` list, so Postgres diffed them against every ledger row.
+
+The test accounts were left out, because another session's e2e run had them in flux; their quiet-time dry run is in §4.
+
+**Result: zero count-only drift on every real account.** The §4 triage query agrees: not one drift-causing event on any real account since Aug 1. The bug was real, but it never inflated a production count, because no real user had re-rated upward or deleted a rated bottle.
+
+| Account | Ledger rows | Rated bottles | Count drift | Other discrepancies |
+|---|---|---|---|---|
+| Ed (personal) | 70 | 8 | 0 | 7 rows (both classes below) |
+| Ed (FTI) | 33 | 1 | 0 | 6 rows (the Jardín move) |
+| Nicola | 53 | 8 | 0 | none |
+| one other user with a rating | 39 | 1 | 0 | none |
+| Ed's `+local` and `+prod` | 4 and 6 | 1 and 1 | 0 | none |
+| three quiz-only users, one empty Ed account | 0–12 | 0 | 0 | none |
+
+**Two discrepancies remained.** Neither was caused by the count bug, and both were on Ed's accounts:
+
+1. **The Jardín re-attribution.** "La Emperatriz el Jardín de La Emperatriz" was rated (Jul 22 and Jul 30) while the resolver read it as Stellenbosch's *Jardin*. Since PR #22 it resolves to *Finca La Emperatriz* (Rioja, Spain), at the same confidence of 82. The ledger still held its +2/+1 on jardin/stellenbosch/south_africa, so deleting the bottle would have reversed it from rioja/spain instead: the old points would stay, and the new rows would go negative.
+2. **A torn write.** Ed's Sep 19 rating of "Luigi Ferrando 'Canavese' Nebbiolo, Piemonte, ITA, 2022" (loved, conf 60, partial band) wrote `varietal:nebbiolo` (15:12:45.03) and `region:piedmont` (15:12:45.74), then stopped before `country:italy`. Its rating event is missing too. Every surface records that event after the engine returns, even when the engine throws, so the browser context died mid-loop; most likely the tab closed seconds after the tap. The cause is structural: the engine's per-dimension writes aren't transactional. A separate task proposes making accumulation atomic.
+
+**The reconciliation.** One atomic `DO` block ran at 01:52:57 UTC. Each UPDATE was pinned by row id and asserted the exact current points and count; any mismatch would have rolled back the whole block.
+
+| Account | Row | Before (points / bottles) | After |
+|---|---|---|---|
+| Ed (personal) | estate:jardin | 2 / 1 | **0 / 0** |
+| | region:stellenbosch | 6 / 3 | **4 / 2** |
+| | country:south_africa | 8 / 4 | **6 / 3** |
+| | region:rioja | 0 / 0 | **2 / 1** |
+| | country:spain | 0 / 0 | **2 / 1** |
+| | estate:finca_la_emperatriz | — | **created: auto, 2 / 1, unpromoted** |
+| | country:italy (the torn write) | 0 / 0 | **1 / 1** |
+| Ed (FTI) | estate:jardin | 2 / 1 | **0 / 0** |
+| | region:stellenbosch | 2 / 1 | **0 / 0** |
+| | country:south_africa | 2 / 1 | **0 / 0** |
+| | region:rioja | 0 / 0 | **2 / 1** |
+| | country:spain | 0 / 0 | **2 / 1** |
+| | estate:finca_la_emperatriz | — | **created: auto, 2 / 1, unpromoted** |
+
+Both Jardín interactions were re-stamped with today's resolution (Finca La Emperatriz / Northern Spain / Spain @ 82). `wine_interactions` has no `updated_at` trigger, so their journal dates didn't move.
+
+**Rules honored:**
+
+- **The strand doesn't move.** Before writing, both accounts were recomposed with the real `composeIdentity`, exactly as the milestone hook does it. The current evidence reproduced the stored "The Stellenbosch Loyalist · Stellenbosch-centered · red-leaning · estate-loyal". The corrected evidence composed the same title, epithet, traits and genome. So no profile or identity write was needed, the mark is unchanged, and no future milestone can celebrate a migration-caused shift.
+- **No events, no promotions.** Both accounts have zero `dna_timeline` rows before and after; the transaction asserts it. Nothing promotes or demotes: every row that moved is either quiz-promoted already or below its threshold.
+- **Verified after.** The full diff was run again: 224 rows compared, **0 differing**. The production ledger now equals today's engine over today's journal, exactly once per rated bottle.
+
+**Not written:** the torn write's missing rating event. `wine_events` is append-forever usage history, and that event's surface and session can't be reconstructed, so the funnel keeps the gap.
+
 ## Decisions for Ed
+
+**Status, Oct 31:** 1 shipped as built (PR #25). 2 is done: every account was read, there were no count-only rows anywhere, and Ed's two accounts were reconciled (§6). 4 is done on the `house-list` branch, where Phase 6 keys "from your quiz" on the row's `source`. 3 and 5 are still open.
+
 
 1. **The definition.** Bottles that push (loved and liked). The alternative, every rated bottle including fine and not-for-me, would make "N bottles made the case" count bottles that argued against the case. Recommended as built.
 2. **The real accounts.** Run the triage SQL, then the dry run per account as the owner (or authorize a one-time read-only run by a session), then decide `--apply` for the count-only rows. Nothing has been written. **Order matters: merge and deploy the fix first.** Until it ships, every re-rate and delete in production keeps adding drift, so a backfill run before the deploy would start going stale at once.
