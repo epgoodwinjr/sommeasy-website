@@ -110,6 +110,7 @@ test.describe("Edge Cases", () => {
     });
 
     test("Invalid URL shows error", async () => {
+      await recPage.openLinkRow();
       await recPage.urlInput.fill("not-a-url");
       await recPage.urlFetchButton.click();
 

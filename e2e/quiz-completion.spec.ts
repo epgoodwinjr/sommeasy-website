@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { findRawIdTextNodes } from "./fixtures/raw-id-scan";
+import { removeFromJournalIfPresent } from "./fixtures/sommeasy-page";
 import { testDb, ensureEarnedFixture, readEarnedFixtureRow, EARNED_FIXTURE, countEvents, latestEvent } from "./fixtures/test-db";
 
 /**
@@ -17,10 +18,25 @@ import { testDb, ensureEarnedFixture, readEarnedFixtureRow, EARNED_FIXTURE, coun
  * merges the seeded account's own answers back (content-identical profile),
  * and the rating uses "It was fine" (0 evolution points — the seeded DNA
  * never drifts). The created journal row is deleted through the journal UI
- * afterwards, so repeated runs start from the same state.
+ * in afterEach — even when the test fails or times out — so repeated runs
+ * start from the same state.
  */
 
 test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
+  // Set the moment before the rating tile is tapped. The cleanup lives in
+  // afterEach because an inline one never ran when a later assertion failed:
+  // an Oct 30, 2026 run left a 0-point Dujac row on the rich account
+  let ratedWine: string | null = null;
+
+  test.afterEach(async ({ page }) => {
+    if (!ratedWine) return;
+    const wineName = ratedWine;
+    ratedWine = null;
+    const { supabase, userId } = await testDb();
+    // reverseAccumulation is a no-op for a 0-point rating
+    await removeFromJournalIfPresent(page, supabase, userId, wineName);
+  });
+
   test("complete quiz → auto-saved reveal with ratable recs → rating succeeds", async ({ page }) => {
     // Quiz-save silence (Act III S3, e2e-level pin of Suite 12G): a refine
     // save recomposes the identity but must write ZERO dna_timeline events —
@@ -90,38 +106,40 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     const offenders = await findRawIdTextNodes(page);
     expect(offenders, `Raw internal IDs rendered on reveal: ${offenders.join(", ")}`).toEqual([]);
 
-    // Ratable recs via the shared component
+    // Ratable recs via the shared component (House List rows since Phase 2)
     const recs = page.getByTestId("reveal-recs");
     await expect(recs).toBeVisible();
     const firstCard = recs.getByTestId("rec-card").first();
     await expect(firstCard).toBeVisible();
     await expect(firstCard.getByRole("button", { name: /Had it/ })).toBeVisible();
-    await expect(firstCard.getByRole("button", { name: /Want to try/ })).toBeVisible();
-    await expect(firstCard.getByRole("button", { name: /Not for me/ })).toBeVisible();
+    await expect(firstCard.getByRole("button", { name: /Want it/ })).toBeVisible();
+    await expect(firstCard.getByRole("button", { name: /Pass/ })).toBeVisible();
 
-    // Rating one succeeds: Had it → rating modal → saved toast → card leaves
-    const cardText = await firstCard.innerText();
-    const wineName = cardText.split("\n").map((l) => l.trim()).filter(Boolean)[1];
-    expect(wineName?.length).toBeGreaterThan(0);
+    // Rating one succeeds: Had it → tiles in place → a tile rates at once →
+    // the done line replaces the actions, and the journal row lands
+    const wineName = (await firstCard.getAttribute("data-wine")) ?? "";
+    expect(wineName.length).toBeGreaterThan(0);
 
     await firstCard.getByRole("button", { name: /Had it/ }).click();
-    await page.getByRole("button", { name: /It was fine/ }).click();
-    await expect(page.getByText("✓ Noted!")).toBeVisible();
-    await expect(recs.getByText(wineName, { exact: true })).toHaveCount(0);
-
-    // Cleanup: delete the journal row the rating created so the suite is
-    // idempotent (reverseAccumulation is a no-op for a 0-point rating)
-    await page.goto("/journal");
-    await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-    await expect(page.getByText(wineName, { exact: true })).toBeVisible();
-    const journalCard = page
-      .locator("div")
-      .filter({ has: page.getByText(wineName, { exact: true }) })
-      .filter({ has: page.getByRole("button", { name: "×" }) })
-      .last();
-    await journalCard.getByRole("button", { name: "×" }).click();
-    await expect(page.getByText("✓ Removed")).toBeVisible();
-    await expect(page.getByText(wineName, { exact: true })).toHaveCount(0);
+    ratedWine = wineName;
+    await firstCard.getByTestId("rating-tile-fine").click();
+    await expect(firstCard).toContainText("😐 It was fine — noted in your journal.");
+    await expect(firstCard.getByRole("button", { name: /Had it/ })).toHaveCount(0);
+    // Focus lands on the done line — keyboard and screen-reader users keep
+    // their place instead of falling back to the top of the page
+    await expect(firstCard.getByText("😐 It was fine — noted in your journal.")).toBeFocused();
+    await expect
+      .poll(async () => {
+        const { data } = await supabase
+          .from("wine_interactions")
+          .select("interaction_type, rating")
+          .eq("user_id", userId)
+          .eq("wine_name", wineName)
+          .maybeSingle();
+        return data ? `${data.interaction_type}:${data.rating}` : "no-row";
+      }, { timeout: 15_000 })
+      .toBe("had:fine");
+    // The journal-UI delete runs in afterEach
   });
 
   /**

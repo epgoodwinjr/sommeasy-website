@@ -99,7 +99,9 @@ function isOutsideDna(dimensions, profile) {
  * @param {object} supabase - Supabase client
  * @param {string} userId - Current user ID
  * @param {object} engineResult - what the evolution engine just returned,
- *   plus context: { promotions, demotions, dimensions, rating, isReversal }
+ *   plus context: { promotions, demotions, dimensions, rating, isReversal,
+ *   wineName } — wineName (resolveAndAccumulate returns it) names the wine
+ *   whose rating triggered the recompose on the 'shifted' row
  * @returns {object|null} null when no milestone fired; otherwise
  *   { shifted, titleChanged, title, previousTitle, epithet, previousEpithet }
  *   — shifted=true means a 'shifted' event was written and the surface
@@ -211,7 +213,9 @@ export async function maybeRecomposeIdentity(supabase, userId, engineResult = {}
   }
 
   // The celebrated record: display_name is what every surface renders (the
-  // new title); dimension_value carries the full before→after strand.
+  // new title); dimension_value carries the full before→after strand;
+  // wine_name links the shift to the bottle whose rating earned it — never
+  // on a reversal, whose deleted bottle has no page left to link to.
   await supabase.from("dna_timeline").insert({
     user_id: userId,
     event_type: "shifted",
@@ -221,6 +225,7 @@ export async function maybeRecomposeIdentity(supabase, userId, engineResult = {}
       to: { title: strand.title, epithet: strand.epithet },
     }),
     display_name: strand.title,
+    wine_name: engineResult.isReversal ? null : (engineResult.wineName ?? null),
   });
 
   return {

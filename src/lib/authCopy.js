@@ -24,6 +24,18 @@ export const AUTH_ERRORS = {
     "That's the password you already have — pick something new.",
   magic_needs_email:
     "Tell us your email first — type it above and we'll send the link there.",
+  sign_out_failed:
+    "We couldn't sign you out just now — check your connection and try again.",
+  // The House List, Phase 6 — create account asks for a name too (D5)
+  signup_missing_fields:
+    "We need all three to save your palate — a name, an email and a password.",
+  invalid_email:
+    "That email doesn't look quite right — check it and try again.",
+  // Account › Delete account (README §8.8.4) and its route
+  account_delete_failed:
+    "We couldn’t close your account just now. Give it a minute and try again.",
+  session_missing:
+    "You're signed out — sign in again, then try once more.",
   unknown:
     "Something went sideways on our end. Give it a moment, then try again.",
 };
@@ -45,6 +57,11 @@ export const AUTH_MESSAGES = {
   password_updated: "Your password is updated — welcome back.",
   reset_session_missing:
     "This page needs a fresh reset link to work its magic. Request one below and click it from your inbox.",
+  // Create account, when an anonymous quiz is waiting to ride the signup
+  quiz_comes_with_you: "Your quiz answers come with you.",
+  // Account › Password › Change (the user's own address — no
+  // anti-enumeration needed: they're signed in)
+  reset_link_toast: "✓ Check your inbox — a reset link is on its way",
 };
 
 /**
@@ -71,6 +88,9 @@ export function mapAuthError(error) {
   if (/expired|invalid/i.test(message) && /link|token|otp/i.test(message)) {
     return "link_expired";
   }
+  if (/validate email|email address .* is invalid|invalid format/i.test(message)) {
+    return "invalid_email";
+  }
   if (/password should be at least|password.*too short|weak.?password/i.test(message)) {
     return "weak_password";
   }
@@ -83,4 +103,30 @@ export function mapAuthError(error) {
 /** Copy for a mapped key; always returns something renderable. */
 export function authErrorCopy(key) {
   return AUTH_ERRORS[key] || AUTH_ERRORS.unknown;
+}
+
+// Landings that arrive on /login?notice=<key> — Account's Sign out
+// (The House List, §8.8) lands on signed_out.
+export const AUTH_NOTICES = {
+  signed_out: "✓ Signed out",
+};
+
+/** Copy for a ?notice= key, or null — an unknown key renders nothing. */
+export function authNoticeCopy(key) {
+  return noticeFrom(AUTH_NOTICES, key);
+}
+
+// The Welcome screen's own landing: /?notice=account_deleted, where Delete
+// account ends (README §8.8.4). A separate map, so sign in never shows it.
+export const WELCOME_NOTICES = {
+  account_deleted: "Your account is closed. Everything in it is gone.",
+};
+
+/** Copy for the Welcome screen's ?notice= key, or null. */
+export function welcomeNoticeCopy(key) {
+  return noticeFrom(WELCOME_NOTICES, key);
+}
+
+function noticeFrom(notices, key) {
+  return (typeof key === "string" && Object.prototype.hasOwnProperty.call(notices, key) && notices[key]) || null;
 }

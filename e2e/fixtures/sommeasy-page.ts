@@ -1,7 +1,68 @@
 import { type Page, type Locator, expect } from "@playwright/test";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import path from "path";
 
 const FIXTURES_DIR = path.join(__dirname, "images");
+
+/** A journal row by its exact stored name (rows carry data-wine). */
+export function journalRow(page: Page, wineName: string): Locator {
+  return page.locator(`[data-testid="journal-row"][data-wine=${JSON.stringify(wineName)}]`);
+}
+
+/**
+ * Remove a journal row the way a user does (House List Phase 4): open it
+ * from the journal's Tried tab, then "Remove from journal" on its wine page
+ * and its in-place confirm (Phase 6) — the journal delete (delete first,
+ * reverse only what that call removed, then journal_deleted). The page
+ * steps back to the journal, which says so and no longer lists the bottle.
+ * Every guard that cleans up a rating comes through here.
+ */
+export async function removeFromJournal(page: Page, wineName: string) {
+  await page.goto("/journal");
+  await expect(page.getByRole("heading", { name: "Journal", level: 1 })).toBeVisible({ timeout: 15_000 });
+  const row = journalRow(page, wineName);
+  await expect(row).toBeVisible();
+  await row.click();
+  const wine = page.getByTestId("wine-page");
+  await expect(wine.getByTestId("wine-remove")).toBeVisible({ timeout: 15_000 });
+  await wine.getByTestId("wine-remove").click();
+  // Remove asks first, in place (House List Phase 6)
+  await wine.getByTestId("wine-remove-confirm").getByRole("button", { name: "Remove it" }).click();
+  await page.waitForURL(/\/journal/, { timeout: 15_000 });
+  await expect(page.getByText("Removed from your journal")).toBeVisible();
+  // The heading renders once the rows are read — only then is "gone" real
+  await expect(page.getByRole("heading", { name: "Journal", level: 1 })).toBeVisible({ timeout: 15_000 });
+  await expect(journalRow(page, wineName)).toHaveCount(0);
+}
+
+/**
+ * The failure-proof half of a guard's cleanup — call it from test.afterEach,
+ * which Playwright runs after a failed OR timed-out test, on its own time
+ * budget, with the page still open (a finally in the test body doesn't
+ * survive a timeout). A test that dies right after the tap may leave the
+ * upsert still landing, so the row gets a few seconds to appear; if it never
+ * does, there's nothing to clean.
+ */
+export async function removeFromJournalIfPresent(
+  page: Page, supabase: SupabaseClient, userId: string, wineName: string
+) {
+  const rowExists = async () => {
+    const { data } = await supabase
+      .from("wine_interactions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("wine_name", wineName)
+      .maybeSingle();
+    return Boolean(data);
+  };
+  const deadline = Date.now() + 5_000;
+  while (!(await rowExists())) {
+    if (Date.now() > deadline) return;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  await removeFromJournal(page, wineName);
+  await expect.poll(rowExists, { timeout: 15_000 }).toBe(false);
+}
 
 /**
  * Records every 429 our own API answers on this page. A throttled scan
@@ -86,7 +147,9 @@ export class RecommendPage {
     await this.fileInput.setInputFiles(filePath);
   }
 
-  /** Wait for Vision API processing to complete (spinner appears then disappears) */
+  /** Wait for the reading state to finish (processing-spinner — "The Somm is
+   *  reading" since House List Phase 3 — appears, then gives way to the
+   *  picks or the input with an error) */
   async waitForProcessing(timeoutMs = 60_000) {
     // Wait for spinner to appear (if not already visible)
     try {
@@ -144,8 +207,17 @@ export class RecommendPage {
     await this.analyzeButton.click();
   }
 
+  /** Open "Paste a link" — the URL row is closed until it's asked for */
+  async openLinkRow() {
+    if (!(await this.urlInput.isVisible())) {
+      await this.page.getByRole("button", { name: /Paste a link/ }).click();
+    }
+    await expect(this.urlInput).toBeVisible();
+  }
+
   /** Fetch wine list from a URL */
   async fetchUrl(url: string) {
+    await this.openLinkRow();
     await this.urlInput.fill(url);
     await this.urlFetchButton.click();
   }
@@ -167,7 +239,9 @@ export class RecommendPage {
 }
 
 /**
- * Page Object Model for the home page's Log a Bottle feature.
+ * Page Object Model for Log a bottle (/log — moved out of home in The House
+ * List, Phase 2). The label inputs keep their ids; a failed scan returns to
+ * the find step with bottle-error, a read one lands on bottle-confirm.
  */
 export class BottleLogPage {
   readonly page: Page;
@@ -194,7 +268,10 @@ export class BottleLogPage {
   }
 
   async goto() {
-    await this.page.goto("/");
+    await this.page.goto("/log");
+    // The inputs mount once the session read settles — the find step is
+    // the hydration signal
+    await expect(this.page.getByTestId("log-find")).toBeVisible({ timeout: 15_000 });
   }
 
   /** Upload a bottle label image from fixtures */
