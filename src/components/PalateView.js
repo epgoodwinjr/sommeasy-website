@@ -178,14 +178,14 @@ function YourDna({ numeral, profile, accumulation }) {
         <div key={g.kind}>
           <h3 style={groupLabel}>{g.label}</h3>
           {g.entries.map((e) => (
-            <DnaRow key={e.id} name={e.name} flag={e.flag} earned={e.earned} count={dnaCount(e.bottles)} />
+            <DnaRow key={e.id} name={e.name} flag={e.flag} earned={e.earned} count={dnaCount(e.bottles, e.source)} />
           ))}
         </div>
       ))}
       {named.length > 0 && (
         <div>
           <h3 style={groupLabel}>Wines you named</h3>
-          {named.map((w, i) => <DnaRow key={`${i}:${w}`} name={formatWineName(w)} count={dnaCount(0)} />)}
+          {named.map((w, i) => <DnaRow key={`${i}:${w}`} name={formatWineName(w)} count={dnaCount(0, "quiz")} />)}
         </div>
       )}
       {entries.some((e) => e.earned) && (

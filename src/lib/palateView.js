@@ -69,11 +69,13 @@ const byStanding = (a, b) =>
   (b.earned - a.earned) || ((b.bottles ?? 0) - (a.bottles ?? 0)) || (a.order - b.order);
 
 /**
- * The DNA as rows: [{ kind, id, name, flag, earned, bottles }], countries →
- * regions → grapes → estates. `names` resolves display names: { country(id),
- * flag(id), region(id, countryId), grape(id), estate(id, regionId) }; a miss
- * falls back to the engine's display_name, then a prettified id. bottles is
- * null when the accumulation is unknown (null).
+ * The DNA as rows: [{ kind, id, name, flag, earned, bottles, source }],
+ * countries → regions → grapes → estates. `names` resolves display names:
+ * { country(id), flag(id), region(id, countryId), grape(id), estate(id,
+ * regionId) }; a miss falls back to the engine's display_name, then a
+ * prettified id. source is the row's own ("quiz" | "auto"); a listed item
+ * with no accumulation row is the quiz's (every earned item has a row).
+ * bottles and source are null when the accumulation is unknown (null).
  */
 export function dnaEntries({ profile, accumulation, names = {} } = {}) {
   if (!profile || typeof profile !== "object") return [];
@@ -97,6 +99,7 @@ export function dnaEntries({ profile, accumulation, names = {} } = {}) {
       flag: kind === "country" ? lookup(names.flag, id) || "" : "",
       earned: Boolean(known && row?.promoted && row.source === "auto"),
       bottles: known ? bottlesOf(row) : null,
+      source: known ? (row ? text(row.source) : "quiz") : null,
       order,
     };
   });

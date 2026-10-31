@@ -102,6 +102,28 @@ async function main() {
       "quiz source or not promoted → no ✦");
   });
 
+  await test("where a row came from rides on its source, never its count", () => {
+    const entries = view.dnaEntries({
+      profile: { regions: { france: ["burgundy"] }, varietals: ["chenin_blanc", "pinot_noir", "chardonnay"] },
+      accumulation: [
+        // Earned, then every bottle behind it deleted (honest counts reach 0),
+        // and a rollup-created region that never had a bottle of its own
+        acc("varietal", "chenin_blanc", { source: "auto", interaction_count: 0, points: 0 }),
+        acc("region", "burgundy", { source: "auto", interaction_count: 0 }),
+        acc("varietal", "pinot_noir", { source: "quiz", interaction_count: 4 }),
+      ],
+      names: NAMES,
+    });
+    assertEq(entries.map((e) => [e.id, e.earned, e.bottles, e.source]), [
+      ["burgundy", true, 0, "auto"],
+      ["chenin_blanc", true, 0, "auto"],
+      ["pinot_noir", false, 4, "quiz"],
+      ["chardonnay", false, 0, "quiz"],
+    ], "an earned row at zero stays earned; a listed row with no accumulation row is the quiz's");
+    const unknown = view.dnaEntries({ profile: { varietals: ["chardonnay"] }, accumulation: null, names: NAMES });
+    assertEq(unknown[0].source, null, "unreadable accumulation → the source is unknown too");
+  });
+
   await test("names: the lookup first, then the engine's display name, then a prettified id — never a raw one", () => {
     const calls = [];
     const names = {

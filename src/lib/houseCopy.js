@@ -477,12 +477,14 @@ export function particulars(facts, vintage) {
 
 // ─── Your palate + Search (Phase 5) ───
 
-/** A DNA row's count: the bottles the engine counted toward it, "from your
- *  quiz" when there are none, "" when the count is unknown (unreadable
- *  accumulation) — never a guess. */
-export function dnaCount(bottles) {
-  if (bottles === 0) return "from your quiz";
-  return Number.isInteger(bottles) && bottles > 0 ? bottleCount(bottles) : "";
+/** A DNA row's count: the bottles the engine counted toward it; with none,
+ *  "from your quiz" only when the quiz put it there (`source` "quiz") — an
+ *  earned row can reach zero (its bottles deleted, or a rollup that never
+ *  had one) and is never the quiz's. "" when the count is unknown
+ *  (unreadable accumulation) — never a guess. */
+export function dnaCount(bottles, source) {
+  if (Number.isInteger(bottles) && bottles > 0) return bottleCount(bottles);
+  return bottles === 0 && source === "quiz" ? "from your quiz" : "";
 }
 
 const DNA_KIND_LABELS = { country: "Country", region: "Region", grape: "Grape", estate: "Estate" };
@@ -497,7 +499,7 @@ export function dnaKindLabel(kind) {
  *  when the count is unknown. */
 export function dnaResultLine(entry) {
   if (!entry || typeof entry !== "object") return "";
-  return metaLine(dnaKindLabel(entry.kind), dnaCount(entry.bottles));
+  return metaLine(dnaKindLabel(entry.kind), dnaCount(entry.bottles, entry.source));
 }
 
 /** Building now: "three loved bottles away" (n from lovedBottlesAway). */

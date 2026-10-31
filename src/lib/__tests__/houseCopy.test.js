@@ -500,20 +500,25 @@ async function main() {
 
   // ─── Your palate + Search (Phase 5) ───
 
-  await test("a DNA row's count: bottles as the engine counted them, the quiz when none, silence when unknown", () => {
-    assertEq(copy.dnaCount(1), "1 bottle", "one");
-    assertEq(copy.dnaCount(10), "10 bottles", "many");
-    assertEq(copy.dnaCount(0), "from your quiz", "nothing rated yet — the quiz put it there");
-    assertEq(copy.dnaCount(null), "", "unknown → nothing, never a guess");
-    assertEq(copy.dnaCount("3"), "", "junk → nothing");
+  await test("a DNA row's count: bottles as the engine counted them, the quiz only when the quiz put it there", () => {
+    assertEq(copy.dnaCount(1, "auto"), "1 bottle", "one");
+    assertEq(copy.dnaCount(10, "quiz"), "10 bottles", "a quiz row the bottles backed up counts them");
+    assertEq(copy.dnaCount(0, "quiz"), "from your quiz", "nothing rated yet — the quiz put it there");
+    assertEq(copy.dnaCount(0, "auto"), "",
+      "an earned row at zero (its bottles deleted, or a rollup) is never the quiz's");
+    assertEq(copy.dnaCount(0), "", "a zero with no source claims nothing");
+    assertEq(copy.dnaCount(null, "quiz"), "", "unknown → nothing, never a guess");
+    assertEq(copy.dnaCount("3", "quiz"), "", "junk → nothing");
   });
 
   await test("a DNA search result says its kind, then its count", () => {
     assertEq(["country", "region", "grape", "estate"].map(copy.dnaKindLabel),
       ["Country", "Region", "Grape", "Estate"], "the kinds");
     assertEq(copy.dnaKindLabel("varietal"), "", "an engine dimension isn't a kind");
-    assertEq(copy.dnaResultLine({ kind: "grape", bottles: 5 }), "Grape · 5 bottles", "counted");
-    assertEq(copy.dnaResultLine({ kind: "estate", bottles: 0 }), "Estate · from your quiz", "from the quiz");
+    assertEq(copy.dnaResultLine({ kind: "grape", bottles: 5, source: "auto" }), "Grape · 5 bottles", "counted");
+    assertEq(copy.dnaResultLine({ kind: "estate", bottles: 0, source: "quiz" }), "Estate · from your quiz", "from the quiz");
+    assertEq(copy.dnaResultLine({ kind: "grape", bottles: 0, source: "auto" }), "Grape",
+      "earned with no bottles left → the kind alone, never the quiz");
     assertEq(copy.dnaResultLine({ kind: "region", bottles: null }), "Region", "count unknown → the kind alone");
     assertEq(copy.dnaResultLine(null), "", "junk");
   });
