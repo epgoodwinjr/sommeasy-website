@@ -16,6 +16,7 @@ register("./helpers/alias-loader.mjs", pathToFileURL(__filename));
 // Unified data architecture (wineUnified.json) — the same shapes the
 // production resolver consumes. ESTATES = producers keyed by DNA region id.
 const wineUnified = require("../wineUnified.json");
+const aliasMirror = require("./helpers/producerAliasesMirror.js");
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
 const VARIETALS = wineUnified.varietals;
@@ -200,12 +201,21 @@ for (const v of VARIETALS) {
   DNA_TO_VARIETY_NAME[v.id] = v.name.split("/")[0].trim();
 }
 
-function normalize(text) {
-  return text.toLowerCase()
+// Menus write designators loosely ("Ch. Margaux", "Dry Creek Vineyards"), so
+// a full name is compared with each designator in one spelling
+function spellDesignators(text) {
+  return text
+    .replace(/\bch\.\s/g, "chateau ")
+    .replace(/\bdom\.\s/g, "domaine ")
+    .replace(/\b(vineyard|wine|cellar|estate)s\b/g, "$1");
+}
+
+function normalize(text, keepDesignators = false) {
+  const lowered = text.toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[''`]/g, "'")
-    .replace(/\b(19|20)\d{2}\b/g, "")
-    .replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, "")
+    .replace(/\b(19|20)\d{2}\b/g, "");
+  return (keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
     .replace(/[^a-z0-9\s'.-]/g, " ")
     .replace(/\s+/g, " ").trim();
 }
@@ -213,9 +223,10 @@ function tokenize(text) { return normalize(text).split(/\s+/).filter(t => t.leng
 
 // Mirrors wineResolver.containsTerm — boundary-aware containment so short
 // producer norms ("cass", "rozes") can't match inside longer words, and a
-// possessive ("mate's") never counts as a mention of the base word
-function containsTerm(haystack, needle) {
-  if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
+// possessive ("mate's") never counts as a mention of the base word; core-name
+// aliases match as whole phrases
+function containsTerm(haystack, needle, wholePhrase) {
+  if (!wholePhrase && (needle.includes(" ") || needle.includes("-"))) return haystack.includes(needle);
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
@@ -228,18 +239,29 @@ function isBlend(v) {
   return false;
 }
 
-// Build indices (mirror wineResolver.getProducerIndex)
+// Build indices (mirror wineResolver.getProducerIndex). A name normalize()
+// shortened keeps its full form; one the core-name guardrails reject (a
+// place, or a preposition before one) is placeLike: it counts only written
+// in full
+const isPlaceLike = aliasMirror.buildShortNameGuard(wineUnified, t => normalize(t, true));
+function nameForms(name, norm) {
+  const full = normalize(name, true);
+  return full === norm ? {} : { full, placeLike: isPlaceLike(norm, full) };
+}
 const producerIndex = [];
+const byLookupKey = new Map();
 for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
   const norm = normalize(name);
   if (norm.length < 3) continue;
   const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  producerIndex.push({
-    name: displayName, norm, tokens: new Set(tokenize(name)),
+  const entry = {
+    name: displayName, norm, ...nameForms(name, norm), tokens: new Set(tokenize(name)),
     country: getCountryDisplayName(data.country), province: data.province || "",
     dnaCountryId: data.country,
     dnaRegionId: data.regionId || null,
-  });
+  };
+  producerIndex.push(entry);
+  byLookupKey.set(name, entry);
 }
 for (const [regionId, estates] of Object.entries(ESTATES)) {
   for (const estate of estates) {
@@ -256,10 +278,19 @@ for (const [regionId, estates] of Object.entries(ESTATES)) {
     }
     const countryObj = countryId ? COUNTRIES.find(c => c.id === countryId) : null;
     producerIndex.push({
-      name: estate.name, norm, tokens: new Set(tokenize(estate.name)),
+      name: estate.name, norm, ...nameForms(estate.name, norm), tokens: new Set(tokenize(estate.name)),
       country: countryObj ? countryObj.name : "", province: "",
       dnaCountryId: countryId, dnaRegionId: regionId, dnaEstateId: estate.id,
     });
+  }
+}
+// Core-name aliases (helpers/producerAliasesMirror.js), normalized
+{
+  const norms = new Set(producerIndex.map(p => p.norm));
+  for (const [core, key] of aliasMirror.buildCoreNameAliases(wineUnified)) {
+    const norm = normalize(core);
+    if (norms.has(norm) || !norm.includes(" ") || !byLookupKey.has(key)) continue;
+    producerIndex.push({ ...byLookupKey.get(key), norm, alias: true });
   }
 }
 producerIndex.sort((a, b) => b.norm.length - a.norm.length);
@@ -290,38 +321,65 @@ const varietalIndex = [];
 }
 varietalIndex.sort((a, b) => b.norm.length - a.norm.length);
 
-// Region index (mirrors wineResolver.getRegionIndex)
+// Region index (mirrors wineResolver.getRegionIndex): combined names
+// ("hemel-en-aarde / walker bay") also index each part
 const regionIndex = [];
 for (const [key, data] of Object.entries(REGION_LOOKUP)) {
   if (key.length < 4 || ["other","america","europe"].includes(key)) continue;
-  regionIndex.push({
-    term: key, country: getCountryDisplayName(data.country), province: "", subregion: "",
-    dnaCountryId: data.country,
-    dnaRegionId: data.regionId || null,
-  });
+  const terms = key.includes(" / ") ? [key, ...key.split(" / ").map(p => p.trim())] : [key];
+  for (const term of terms) {
+    if (term.length < 4 || (term !== key && REGION_LOOKUP[term])) continue;
+    regionIndex.push({
+      term, country: getCountryDisplayName(data.country), province: "", subregion: "",
+      dnaCountryId: data.country,
+      dnaRegionId: data.regionId || null,
+    });
+  }
+}
+// One name, two countries ("Central Valley"): a line naming it states either
+for (const [countryId, regs] of Object.entries(REGIONS)) {
+  for (const region of regs) {
+    const entry = regionIndex.find(r => r.term === region.name.toLowerCase());
+    if (entry && entry.dnaCountryId !== countryId) entry.sharedWith = (entry.sharedWith || []).concat(countryId);
+  }
 }
 regionIndex.sort((a, b) => b.term.length - a.term.length);
 
-function tokenOverlap(inputTokens, candidateTokens) {
+// An overlap made only of the words the line spends on its region names no producer
+function tokenOverlap(inputTokens, candidateTokens, placeWords) {
   if (inputTokens.length === 0 || candidateTokens.size === 0) return 0;
-  let matches = 0;
+  let matches = 0, named = false;
   for (const t of inputTokens) {
-    if (candidateTokens.has(t)) matches++;
-    else { for (const ct of candidateTokens) {
-      if ((t.length >= 4 && ct.startsWith(t)) || (ct.length >= 4 && t.startsWith(ct))) { matches += 0.7; break; }
+    let hit = candidateTokens.has(t) ? 1 : 0;
+    if (!hit) { for (const ct of candidateTokens) {
+      if ((t.length >= 4 && ct.startsWith(t)) || (ct.length >= 4 && t.startsWith(ct))) { hit = 0.7; break; }
     }}
+    matches += hit;
+    if (hit && !placeWords.has(t)) named = true;
   }
-  return matches / Math.max(inputTokens.length, candidateTokens.size);
+  return named ? matches / Math.max(inputTokens.length, candidateTokens.size) : 0;
 }
 
-function matchProducer(normInput, inputTokens) {
+// A name the line writes only inside longer region names it states is the
+// region's word ("Alexander" in "Alexander Valley")
+function namedOnlyInRegions(normInput, prod, statedRegions) {
+  const around = statedRegions.filter(t => t !== prod.norm && t.includes(prod.norm));
+  if (around.length === 0) return false;
+  const rest = around.reduce((text, t) => text.split(t).join(" "), normInput);
+  return !containsTerm(rest, prod.norm, prod.alias);
+}
+
+// A placeLike name counts only where the line writes it in full
+function matchProducer(normInput, inputTokens, fullInput, statedRegions) {
+  const placeWords = new Set(statedRegions.flatMap(t => t.split(" ")));
   let bestMatch = null, bestScore = 0;
   for (const prod of producerIndex) {
+    if (prod.placeLike && !containsTerm(fullInput, prod.full, true)) continue;
     let score = 0;
-    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm)) {
+    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm, prod.alias) && !namedOnlyInRegions(normInput, prod, statedRegions)) {
       score = 0.5 + (prod.norm.length / normInput.length * 0.5);
     } else {
-      const overlap = tokenOverlap(inputTokens, prod.tokens);
+      const overlap = tokenOverlap(inputTokens, prod.tokens, placeWords);
       if (overlap >= 0.4) score = overlap * 0.7;
     }
     if (score > bestScore) { bestScore = score; bestMatch = prod; }
@@ -335,8 +393,10 @@ function matchVarietal(normInput) {
   for (const v of varietalIndex) { if (v.norm.length >= 4 && normInput.includes(v.norm)) return v; }
   return null;
 }
-function matchRegion(normInput) {
-  for (const r of regionIndex) { if (r.term.length >= 4 && normInput.includes(r.term)) return r; }
+// A place term that is a proper part of the producer's written name is the name
+function insideName(ownName, term) { return ownName !== term && ownName.includes(term); }
+function matchRegion(normInput, ownName) {
+  for (const r of regionIndex) { if (r.term.length >= 4 && normInput.includes(r.term) && !insideName(ownName, r.term)) return r; }
   return null;
 }
 
@@ -373,9 +433,9 @@ function calculateConfidence(producerResult, varietalMatch, regionMatch, country
 const countryTermIndex = COUNTRIES
   .map(c => ({ id: c.id, norm: normalize(c.name) }))
   .filter(c => c.norm.length >= 4);
-function detectExplicitCountries(normInput) {
+function detectExplicitCountries(normInput, ownName) {
   const ids = new Set();
-  for (const c of countryTermIndex) { if (containsTerm(normInput, c.norm)) ids.add(c.id); }
+  for (const c of countryTermIndex) { if (containsTerm(normInput, c.norm) && !insideName(ownName, c.norm)) ids.add(c.id); }
   return ids;
 }
 
@@ -385,13 +445,21 @@ function resolveWine(wineName) {
   }
   const normInput = normalize(wineName);
   const inputTokens = tokenize(wineName);
-  const producerResult = matchProducer(normInput, inputTokens);
+  const statedRegions = regionIndex.filter(r => normInput.includes(r.term)).map(r => r.term);
+  const producerResult = matchProducer(normInput, inputTokens, normalize(wineName, true), statedRegions);
+  // Geography inside the producer's name as the line writes it says nothing
+  // about the bottle (a token-overlap match never wrote the name)
+  const ownName = producerResult && containsTerm(normInput, producerResult.producer.norm, producerResult.producer.alias)
+    ? producerResult.producer.norm : "";
   const varietalMatch = matchVarietal(normInput);
-  const regionMatch = matchRegion(normInput);
+  const regionMatch = matchRegion(normInput, ownName);
   let countryConflict = false;
   if (producerResult && producerResult.producer.dnaCountryId) {
-    const explicit = detectExplicitCountries(normInput);
-    if (regionMatch && regionMatch.dnaCountryId) explicit.add(regionMatch.dnaCountryId);
+    const explicit = detectExplicitCountries(normInput, ownName);
+    if (regionMatch && regionMatch.dnaCountryId) {
+      explicit.add(regionMatch.dnaCountryId);
+      for (const c of regionMatch.sharedWith || []) explicit.add(c);
+    }
     countryConflict = explicit.size > 0 && !explicit.has(producerResult.producer.dnaCountryId);
   }
   const confidence = calculateConfidence(producerResult, varietalMatch, regionMatch, countryConflict);
@@ -1044,6 +1112,34 @@ async function suite1() {
 
   await runTest("Suite 1", "1D: Single grape Syrah → isBlend=false", async () => {
     assert(isBlend("Syrah") === false, "single grape should not be blend");
+  });
+
+  // 1E: the line's own words outrank a producer guess (countryAttribution
+  // runs the same lines through the real module)
+  await runTest("Suite 1", "1E: Geography inside a producer's own name never caps it (Concha y Toro, Central Valley)", async () => {
+    const toro = resolveWine("Concha y Toro Casillero del Diablo Cabernet Sauvignon");
+    assert(toro.confidence === 90 && toro.dnaMapping.dnaCountryId === "chile",
+      `Concha y Toro: ${toro.confidence} / ${toro.dnaMapping.dnaCountryId}`);
+    const torres = resolveWine("Miguel Torres Santa Digna Cabernet Sauvignon, Central Valley 2020");
+    assert(torres.confidence === 90 && torres.dnaMapping.dnaCountryId === "chile",
+      `Miguel Torres: ${torres.confidence} / ${torres.dnaMapping.dnaCountryId}`);
+  });
+
+  await runTest("Suite 1", "1E: A place-named producer claims no place; the estate on the line wins", async () => {
+    const zin = resolveWine("Zinfandel, Dry Creek Valley 2019");
+    assert(zin.winery === null && zin.confidence === 60, `Dry Creek Valley: ${zin.winery} / ${zin.confidence}`);
+    const kanonkop = resolveWine("Kanonkop Pinotage, Stellenbosch 2019");
+    assert(kanonkop.dnaMapping.dnaEstateId === "kanonkop" && kanonkop.confidence === 90,
+      `Kanonkop: ${kanonkop.dnaMapping.dnaEstateId} / ${kanonkop.confidence}`);
+    const dcv = resolveWine("Dry Creek Vineyard Fumé Blanc, Sonoma County 2022");
+    assert(dcv.dnaMapping.dnaEstateId === "dry_creek_vineyard", `Dry Creek Vineyard: ${dcv.dnaMapping.dnaEstateId}`);
+  });
+
+  await runTest("Suite 1", "1E: Region words name no producer (Alexander Valley, Mendoza)", async () => {
+    const jordan = resolveWine("Jordan Cabernet Sauvignon, Alexander Valley 2018");
+    assert(jordan.winery === "Jordan" && jordan.confidence === 90, `Jordan: ${jordan.winery} / ${jordan.confidence}`);
+    const malbec = resolveWine("Malbec, Mendoza 2021");
+    assert(malbec.winery === null && malbec.confidence === 60, `Mendoza: ${malbec.winery} / ${malbec.confidence}`);
   });
 }
 
@@ -1698,9 +1794,13 @@ async function suite10() {
   console.log("\n═══ Suite 10: Partial Credit ═══");
 
   // Fixture names verified against the real resolver:
-  //   "Barossa Shiraz"  → 60 (varietal+region+country, no producer)
-  //   "Sancerre"        → 60 (fuzzy producer, region loire_valley)
-  //   "Chablis 2021"    → 40 (region only — below the partial gate)
+  //   "Barossa Shiraz"            → 60 (varietal+region+country, no producer)
+  //   "Beaucastel Grenache 2018"  → 60 (fuzzy producer on its own word, with
+  //                                  an estate the partial band must not accrue;
+  //                                  "Sancerre" was this fixture until the
+  //                                  appellation stopped reading as Château de
+  //                                  Sancerre — a token match on region words)
+  //   "Chablis 2021"              → 40 (region only — below the partial gate)
 
   await runTest("Suite 10", "10A: 60-band loved accumulates +1 on varietal/region/country, no estate", async () => {
     const tables = freshTables(); ensureProfile(tables);
@@ -1722,11 +1822,12 @@ async function suite10() {
   await runTest("Suite 10", "10B: Fuzzy producer in the partial band accrues no estate", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
-    const r = resolveWine("Sancerre");
+    const r = resolveWine("Beaucastel Grenache 2018");
     assert(r.confidence >= PARTIAL_CONFIDENCE_GATE && r.confidence < CONFIDENCE_GATE,
       `fixture must sit in the partial band, got ${r.confidence}`);
     assert(r.winery, "fixture premise: a (fuzzy) winery was matched");
-    await simulateSurfaceRate(sb, "Sancerre", "loved");
+    assert(r.dnaMapping.dnaEstateId, "fixture premise: the producer maps to an estate");
+    await simulateSurfaceRate(sb, "Beaucastel Grenache 2018", "loved");
     const estateRows = tables.dna_accumulation.filter(x => x.dimension === "estate");
     assert(estateRows.length === 0, "fuzzy producer must not accrue an estate row");
     assert(getAcc(tables, "country", "france")?.points === 1, "country still accumulates at +1");

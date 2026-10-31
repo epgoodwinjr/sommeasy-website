@@ -2,6 +2,7 @@
 // Single data source: wineUnified.json (built from 130k WineMag reviews)
 
 import wineUnified from "./wineUnified.json";
+import { buildCoreNameAliases } from "./producerAliases.js";
 
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
@@ -30,10 +31,25 @@ function buildSearchIndex() {
   for (const [countryId, regions] of Object.entries(REGIONS)) {
     for (const region of regions) {
       const term = region.name.toLowerCase();
-      if (term.length < 4 || idx.regionTerms.some(r => r.term === term)) continue;
+      if (term.length < 4) continue;
+      const existing = idx.regionTerms.find(r => r.term === term);
+      if (existing) {
+        // One name, two countries ("Central Valley": California's and Chile's)
+        if (existing.dnaCountryId !== countryId) existing.sharedWith = (existing.sharedWith || []).concat(countryId);
+        continue;
+      }
       idx.regionTerms.push({
         term, dnaRegionId: region.id, dnaCountryId: countryId, count: region.reviewCount || 0,
       });
+    }
+  }
+  // Combined names ("Hemel-en-Aarde / Walker Bay") never appear whole on a
+  // menu line — index each part, as the varietals do for "Syrah / Shiraz"
+  for (const combined of idx.regionTerms.filter(r => r.term.includes(" / "))) {
+    for (const part of combined.term.split(" / ")) {
+      const term = part.trim();
+      if (term.length < 4 || idx.regionTerms.some(r => r.term === term)) continue;
+      idx.regionTerms.push({ ...combined, term });
     }
   }
   idx.regionTerms.sort((a, b) => b.term.length - a.term.length);
@@ -54,7 +70,6 @@ function buildSearchIndex() {
       idx.producerTerms.push({ term: v.toLowerCase(), name, dnaCountryId: data.country || null });
     }
   }
-  idx.producerTerms.sort((a, b) => b.term.length - a.term.length);
 
   // Varietals from unified varietals array (71 entries)
   for (const v of VARIETALS) {
@@ -111,6 +126,14 @@ function buildSearchIndex() {
     }
   }
 
+  // Core-name aliases: menus write "Newton Johnson", WineMag keys "Newton
+  // Johnson Vineyards" — without the alias the longest-first scan falls
+  // through to Napa's "Newton". Whole-phrase matches only (producerAliases.js)
+  for (const [core, name] of buildCoreNameAliases(wineUnified)) {
+    idx.producerTerms.push({ term: core, name, dnaCountryId: PRODUCER_LOOKUP[name].country || null, alias: true });
+  }
+  idx.producerTerms.sort((a, b) => b.term.length - a.term.length);
+
   return idx;
 }
 
@@ -135,9 +158,11 @@ const GRAPE_SKIP_LIST = new Set([
 // MATCHING HELPERS
 // ═══════════════════════════════════════════════════════
 
-function termMatchesInText(term, text) {
+// Multi-word terms match as plain substrings unless wholePhrase: core-name
+// aliases must sit on boundaries at both ends ("lo alto" never in "Cielo Alto")
+function termMatchesInText(term, text, wholePhrase) {
   if (term.length <= 2) return false;
-  if (term.includes(" ") || term.includes("-")) return text.includes(term);
+  if (!wholePhrase && (term.includes(" ") || term.includes("-"))) return text.includes(term);
   const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // (?!'s...): a possessive never counts as a mention -- "Mate's Vineyard"
   // is not the producer Mate (the apostrophe still bounds quoted names)
@@ -481,24 +506,25 @@ function detectWineAttributes(wineName) {
   // Producer detection — word-boundary matching, NOT raw substring:
   // producers named "Cass"/"Pier"/"Rozès" must not hit inside
   // "Cassis"/"Pierre"/"Crozes-Hermitage" (the country-misattribution bugs)
+  var producer = null;
   for (var pi = 0; pi < SEARCH_INDEX.producerTerms.length; pi++) {
     const prod = SEARCH_INDEX.producerTerms[pi];
     if (prod.term.length < 4) continue;
-    if (termMatchesInText(prod.term, text)) {
-      producerTerms.add(prod.term);
-      if (prod.dnaCountryId) countryIds.add(prod.dnaCountryId);
+    if (termMatchesInText(prod.term, text, prod.alias)) {
+      producer = prod;
       claimed.add(prod.term);
       break;
     }
   }
 
   // Region detection
+  var region = null;
   for (var ri = 0; ri < SEARCH_INDEX.regionTerms.length; ri++) {
     const reg = SEARCH_INDEX.regionTerms[ri];
     if (claimed.has(reg.term)) continue;
     if (termMatchesInText(reg.term, text)) {
+      region = reg;
       if (reg.dnaRegionId) regionIds.add(reg.dnaRegionId);
-      if (reg.dnaCountryId) countryIds.add(reg.dnaCountryId);
       claimed.add(reg.term);
       break;
     }
@@ -517,14 +543,43 @@ function detectWineAttributes(wineName) {
   }
 
   // Country detection
+  var statedCountry = null;
   for (var ci = 0; ci < SEARCH_INDEX.countryTerms.length; ci++) {
     const c = SEARCH_INDEX.countryTerms[ci];
     if (c.term.length < 4) continue;
     if (termMatchesInText(c.term, text)) {
-      if (c.dnaCountryId) countryIds.add(c.dnaCountryId);
+      statedCountry = c;
       break;
     }
   }
+
+  // A producer hit is a guess; the region or country a line names outright
+  // is not. A producer whose home contradicts it is a namesake — Sonoma's
+  // Jordan on a Stellenbosch line, Israel's Alexander inside "Alexander
+  // Valley" — and contributes nothing (the engine's half of wineResolver's
+  // Step 3.5 guard). Geography inside the producer's own name ("Concha y
+  // Toro", "Vega Sicilia") says nothing about the bottle, and a region name
+  // two countries share ("Central Valley") agrees with either.
+  if (producer && producer.dnaCountryId) {
+    const stated = [region, statedCountry].filter(function(g) {
+      return g && g.dnaCountryId && producer.term.indexOf(g.term) < 0;
+    });
+    const agrees = function(g) {
+      return g.dnaCountryId === producer.dnaCountryId || (g.sharedWith || []).indexOf(producer.dnaCountryId) >= 0;
+    };
+    if (stated.length > 0 && !stated.some(agrees)) {
+      producer = null;
+    }
+  }
+
+  // Canonical name, whichever form matched ("& Fils", a core-name alias), so
+  // estate, feedback and producer-id lookups see one producer
+  if (producer) {
+    producerTerms.add(producer.name);
+    if (producer.dnaCountryId) countryIds.add(producer.dnaCountryId);
+  }
+  if (region && region.dnaCountryId) countryIds.add(region.dnaCountryId);
+  if (statedCountry && statedCountry.dnaCountryId) countryIds.add(statedCountry.dnaCountryId);
 
   return { regionIds, countryIds, varietalIds, producerTerms, color };
 }

@@ -4,6 +4,7 @@
 // Runs entirely client-side using wineUnified.json
 
 import wineUnified from "./wineUnified.json";
+import { buildCoreNameAliases, buildShortNameGuard } from "./producerAliases.js";
 
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
@@ -44,13 +45,24 @@ for (const v of VARIETALS) {
 // NORMALIZATION
 // ═══════════════════════════════════════════════════════
 
-function normalize(text) {
+// Menus write designators loosely ("Ch. Margaux", "Dry Creek Vineyards"), so
+// a full name is compared with each designator in one spelling
+function spellDesignators(text) {
   return text
+    .replace(/\bch\.\s/g, "chateau ")
+    .replace(/\bdom\.\s/g, "domaine ")
+    .replace(/\b(vineyard|wine|cellar|estate)s\b/g, "$1");
+}
+
+// keepDesignators: the full name as written ("dry creek vineyard"), for the
+// place-named producers that must match in full (getProducerIndex)
+function normalize(text, keepDesignators = false) {
+  const lowered = text
     .toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // strip accents
     .replace(/[''`]/g, "'")        // normalize quotes
-    .replace(/\b(19|20)\d{2}\b/g, "")  // strip vintage years
-    .replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, "")
+    .replace(/\b(19|20)\d{2}\b/g, "");  // strip vintage years
+  return (keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
     .replace(/[^a-z0-9\s'.-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -65,10 +77,12 @@ function normalize(text) {
  * "Máté"), so the apostrophe bounds quoted names but not 's. Missing a
  * possessive producer only lowers confidence; a false hit overrides the
  * wine's country and poisons DNA accumulation.
- * Multi-word/hyphenated needles keep plain substring semantics.
+ * Multi-word/hyphenated needles keep plain substring semantics unless
+ * wholePhrase: core-name aliases must sit on boundaries at both ends
+ * ("lo alto" never inside "cielo alto").
  */
-function containsTerm(haystack, needle) {
-  if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
+function containsTerm(haystack, needle, wholePhrase) {
+  if (!wholePhrase && (needle.includes(" ") || needle.includes("-"))) return haystack.includes(needle);
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
@@ -112,6 +126,20 @@ function getProducerIndex() {
   if (_producerIndex) return _producerIndex;
 
   _producerIndex = [];
+  const byLookupKey = new Map();
+
+  // normalize() drops designators anywhere, which turns some producers into
+  // places: "Dry Creek Vineyard" -> "dry creek" claimed every Dry Creek
+  // Valley wine at 90, estate and all; "Cantina di Montalcino" -> "di
+  // montalcino" every Brunello. A shortened name keeps its full form, and
+  // one buildShortNameGuard rejects (a place or grape, or a preposition
+  // before one) is placeLike: it counts only where the line writes it in
+  // full (matchProducer)
+  const isPlaceLike = buildShortNameGuard(wineUnified, t => normalize(t, true));
+  const nameForms = (name, norm) => {
+    const full = normalize(name, true);
+    return full === norm ? {} : { full, placeLike: isPlaceLike(norm, full) };
+  };
 
   // From PRODUCER_LOOKUP (keyed by lowercase name)
   for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
@@ -119,15 +147,18 @@ function getProducerIndex() {
     if (norm.length < 3) continue;
     // Display name: use the original key with first-letter capitalization
     const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-    _producerIndex.push({
+    const entry = {
       name: displayName,
       norm,
+      ...nameForms(name, norm),
       tokens: new Set(tokenize(name)),
       country: getCountryDisplayName(data.country), // display name; the DNA id lives in dnaCountryId
       province: data.province || "",
       dnaCountryId: data.country,      // Direct — already a DNA country ID
       dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
-    });
+    };
+    _producerIndex.push(entry);
+    byLookupKey.set(name, entry);
   }
 
   // Also include producers from PRODUCERS (keyed by regionId) —
@@ -151,6 +182,7 @@ function getProducerIndex() {
       _producerIndex.push({
         name: producer.name,
         norm,
+        ...nameForms(producer.name, norm),
         tokens: new Set(tokenize(producer.name)),
         country: countryObj ? countryObj.name : "",
         province: "",
@@ -159,6 +191,17 @@ function getProducerIndex() {
         dnaEstateId: producer.id,
       });
     }
+  }
+
+  // Core-name aliases (producerAliases.js). normalize() already drops most
+  // designators, so only the ones it misses add a name: "la emperatriz"
+  // (WineMag's "Finca La Emperatriz") outranks Stellenbosch's "Jardin" in
+  // "La Emperatriz el Jardín". Whole-phrase matches only (matchProducer)
+  const norms = new Set(_producerIndex.map(p => p.norm));
+  for (const [core, key] of buildCoreNameAliases(wineUnified)) {
+    const norm = normalize(core);
+    if (norms.has(norm) || !norm.includes(" ") || !byLookupKey.has(key)) continue;
+    _producerIndex.push({ ...byLookupKey.get(key), norm, alias: true });
   }
 
   // Sort by normalized name length descending (longer matches first)
@@ -232,15 +275,31 @@ function getRegionIndex() {
   _regionIndex = [];
   for (const [key, data] of Object.entries(REGION_LOOKUP)) {
     if (key.length < 4 || ["other", "america", "europe"].includes(key)) continue;
-    _regionIndex.push({
-      term: key,
-      country: getCountryDisplayName(data.country), // display name; the DNA id lives in dnaCountryId
-      province: "",
-      subregion: "",
-      dnaCountryId: data.country,      // Direct — already a DNA country ID
-      dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
-      count: 0,
-    });
+    // Combined names ("hemel-en-aarde / walker bay") never appear whole in a
+    // wine name — each part is a term too, or the Step 3.5 conflict guard
+    // can't see the region the name states
+    const terms = key.includes(" / ") ? [key, ...key.split(" / ").map(p => p.trim())] : [key];
+    for (const term of terms) {
+      if (term.length < 4 || (term !== key && REGION_LOOKUP[term])) continue;
+      _regionIndex.push({
+        term,
+        country: getCountryDisplayName(data.country), // display name; the DNA id lives in dnaCountryId
+        province: "",
+        subregion: "",
+        dnaCountryId: data.country,      // Direct — already a DNA country ID
+        dnaRegionId: data.regionId || null, // Direct — already a DNA region ID
+        count: 0,
+      });
+    }
+  }
+
+  // One name, two countries ("Central Valley": California's in regionLookup,
+  // and Chile's own) — a line naming it states either
+  for (const [countryId, regionList] of Object.entries(REGIONS)) {
+    for (const region of regionList) {
+      const entry = _regionIndex.find(r => r.term === region.name.toLowerCase());
+      if (entry && entry.dnaCountryId !== countryId) entry.sharedWith = (entry.sharedWith || []).concat(countryId);
+    }
   }
 
   _regionIndex.sort((a, b) => b.term.length - a.term.length);
@@ -269,14 +328,38 @@ function getCountryTermIndex() {
 /**
  * Countries the wine name mentions explicitly ("...Marlborough, New Zealand").
  * Used ONLY as a conflict guard against producer-derived geography — never
- * as an attribution source on its own.
+ * as an attribution source on its own. A country inside the producer's own
+ * name ("Rios de Chile") is the name, not a statement.
  */
-function detectExplicitCountries(normInput) {
+function detectExplicitCountries(normInput, ownName) {
   const ids = new Set();
   for (const c of getCountryTermIndex()) {
-    if (containsTerm(normInput, c.norm)) ids.add(c.id);
+    if (containsTerm(normInput, c.norm) && !insideName(ownName, c.norm)) ids.add(c.id);
   }
   return ids;
+}
+
+/**
+ * Whether a place term is a proper part of the producer's name as the line
+ * writes it: "toro" in Concha y Toro, "sicilia" in Vega Sicilia. A name that
+ * IS a place ("Wellington") still states it — exempting it would hide every
+ * Wellington conflict behind the US producer of that name.
+ */
+function insideName(ownName, term) {
+  return ownName !== term && ownName.includes(term);
+}
+
+/**
+ * The reverse: whether the line writes a producer's name ONLY inside longer
+ * region names it states — Israel's "Alexander" in "Alexander Valley",
+ * Italy's "Santa Barbara" in "Santa Barbara County". Those words are the
+ * region's. "Leyda Sauvignon Blanc, Leyda Valley" still names Viña Leyda.
+ */
+function namedOnlyInRegions(normInput, prod, statedRegions) {
+  const around = statedRegions.filter(t => t !== prod.norm && t.includes(prod.norm));
+  if (around.length === 0) return false;
+  const rest = around.reduce((text, t) => text.split(t).join(" "), normInput);
+  return !containsTerm(rest, prod.norm, prod.alias);
 }
 
 
@@ -286,47 +369,59 @@ function detectExplicitCountries(normInput) {
 
 /**
  * Calculate token overlap score between two token sets.
- * Returns a ratio (0-1) based on how many input tokens appear in the candidate.
+ * Returns a ratio (0-1) based on how many input tokens appear in the candidate,
+ * or 0 when every shared token is one of placeWords: an overlap made only of
+ * the words the line spends on its region is that region, not a producer
+ * ("Malbec, Mendoza" is not Spain's Enrique Mendoza).
  */
-function tokenOverlap(inputTokens, candidateTokens) {
+function tokenOverlap(inputTokens, candidateTokens, placeWords) {
   if (inputTokens.length === 0 || candidateTokens.size === 0) return 0;
   let matches = 0;
+  let named = false;
   for (const t of inputTokens) {
-    if (candidateTokens.has(t)) matches++;
+    let hit = candidateTokens.has(t) ? 1 : 0;
     // Also check partial matches (input token starts with candidate or vice versa)
-    else {
+    if (!hit) {
       for (const ct of candidateTokens) {
         if ((t.length >= 4 && ct.startsWith(t)) || (ct.length >= 4 && t.startsWith(ct))) {
-          matches += 0.7;
+          hit = 0.7;
           break;
         }
       }
     }
+    matches += hit;
+    if (hit && !placeWords.has(t)) named = true;
   }
-  return matches / Math.max(inputTokens.length, candidateTokens.size);
+  return named ? matches / Math.max(inputTokens.length, candidateTokens.size) : 0;
 }
 
 /**
  * Find the best matching producer for a wine name.
+ * statedRegions: the region terms the line states (resolveWine).
  * Returns { producer, score } or null.
  */
-function matchProducer(normInput, inputTokens) {
+function matchProducer(normInput, inputTokens, fullInput, statedRegions) {
   const producers = getProducerIndex();
+  const placeWords = new Set(statedRegions.flatMap(t => t.split(" ")));
   let bestMatch = null;
   let bestScore = 0;
 
   for (const prod of producers) {
+    // A name normalize() turned into a place counts only where the line
+    // writes it in full ("Dry Creek Vineyard", never "Dry Creek Valley")
+    if (prod.placeLike && !containsTerm(fullInput, prod.full, true)) continue;
     let score = 0;
 
     // Strategy 1: Boundary-aware substring match (strongest signal)
-    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm)) {
+    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm, prod.alias)
+        && !namedOnlyInRegions(normInput, prod, statedRegions)) {
       // Score based on what fraction of the input the producer name covers
       const coverage = prod.norm.length / normInput.length;
       score = 0.5 + (coverage * 0.5); // 0.5–1.0 range
     }
-    // Strategy 2: Token overlap
+    // Strategy 2: Token overlap — never on the line's region words alone
     else {
-      const overlap = tokenOverlap(inputTokens, prod.tokens);
+      const overlap = tokenOverlap(inputTokens, prod.tokens, placeWords);
       if (overlap >= 0.4) {
         score = overlap * 0.7; // Cap at 0.7 for token-only matches
       }
@@ -361,13 +456,14 @@ function matchVarietal(normInput) {
 }
 
 /**
- * Find region mentioned in the wine name.
+ * Find region mentioned in the wine name — skipping any inside the matched
+ * producer's own name, so the search reaches the region the line states.
  * Returns the region entry or null.
  */
-function matchRegion(normInput) {
+function matchRegion(normInput, ownName) {
   const regions = getRegionIndex();
   for (const r of regions) {
-    if (r.term.length >= 4 && normInput.includes(r.term)) {
+    if (r.term.length >= 4 && normInput.includes(r.term) && !insideName(ownName, r.term)) {
       return r;
     }
   }
@@ -539,14 +635,22 @@ export function resolveWine(wineName) {
   const normInput = normalize(wineName);
   const inputTokens = tokenize(wineName);
 
-  // Step 1: Match producer
-  const producerResult = matchProducer(normInput, inputTokens);
+  // Step 1: Match producer, knowing which words the line spends on a place
+  const statedRegions = getRegionIndex().filter(r => normInput.includes(r.term)).map(r => r.term);
+  const producerResult = matchProducer(normInput, inputTokens, normalize(wineName, true), statedRegions);
+
+  // Geography inside the producer's name says nothing about the bottle —
+  // when the line writes that name. A token-overlap match didn't, so its
+  // words stay geography
+  const ownName = producerResult && containsTerm(normInput, producerResult.producer.norm, producerResult.producer.alias)
+    ? producerResult.producer.norm
+    : "";
 
   // Step 2: Match varietal in the wine name
   const varietalMatch = matchVarietal(normInput);
 
   // Step 3: Match region in the wine name
-  const regionMatch = matchRegion(normInput);
+  const regionMatch = matchRegion(normInput, ownName);
 
   // Step 3.5: Explicit-geography conflict — the name places the wine in a
   // country the matched producer doesn't belong to. Every bug in the
@@ -558,8 +662,11 @@ export function resolveWine(wineName) {
   // at all — not even the partial band's region/country credit.
   let countryConflict = false;
   if (producerResult && producerResult.producer.dnaCountryId) {
-    const explicit = detectExplicitCountries(normInput);
-    if (regionMatch && regionMatch.dnaCountryId) explicit.add(regionMatch.dnaCountryId);
+    const explicit = detectExplicitCountries(normInput, ownName);
+    if (regionMatch && regionMatch.dnaCountryId) {
+      explicit.add(regionMatch.dnaCountryId);
+      for (const c of regionMatch.sharedWith || []) explicit.add(c);
+    }
     countryConflict = explicit.size > 0 && !explicit.has(producerResult.producer.dnaCountryId);
   }
 
