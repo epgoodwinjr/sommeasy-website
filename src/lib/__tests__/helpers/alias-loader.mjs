@@ -5,7 +5,13 @@
 // - attaches `with { type: "json" }` import attributes to .json imports —
 //   Next's bundler allows bare JSON imports (profileEngine → wineUnified)
 //   but plain node requires the attribute, so the hook supplies it
+// - resolves extensionless relative imports ("./wineResolver" in
+//   dnaEvolution.js) to their .js file — the same bundler convenience
+//   scripts/esm-compat-loader.mjs supplies for scripts
 // Registered via module.register() in the route + archetype test suites.
+
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const SRC = new URL("../../../", import.meta.url).href;
 
@@ -25,6 +31,10 @@ export async function resolve(specifier, context, nextResolve) {
   }
   if (specifier === "next/headers") {
     return nextResolve("next/headers.js", context);
+  }
+  if (specifier.startsWith(".") && !/\.[a-z0-9]+$/i.test(specifier) && context.parentURL) {
+    const candidate = new URL(specifier + ".js", context.parentURL);
+    if (existsSync(fileURLToPath(candidate))) return nextResolve(candidate.href, context);
   }
   return withJsonAttributes(await nextResolve(specifier, context));
 }
