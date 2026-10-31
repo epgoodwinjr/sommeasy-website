@@ -517,3 +517,17 @@ export function nothingFoundLine(query) {
   const q = typeof query === "string" ? query.trim() : "";
   return q ? `Nothing for “${q}” on our list yet.` : null;
 }
+
+// ─── The wine page's remove + Account (Phase 6) ───
+
+/** Remove from journal's confirm: the question, then what leaves with the
+ *  row — the verdict and its pull on the palate (the delete reverses the
+ *  rating's evidence), the note. A had with no verdict pulled on nothing. */
+export function removeConfirmCopy(what) {
+  const { rated = false, note = false } = what && typeof what === "object" ? what : {};
+  const ask = "Remove this bottle from your journal?";
+  if (rated) {
+    return `${ask} Your verdict${note ? " and note go" : " goes"} with it, and so does its pull on your palate.`;
+  }
+  return note ? `${ask} Your note goes with it.` : ask;
+}

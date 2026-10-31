@@ -11,10 +11,11 @@
 //     Want it / Pass path. A bottle already in the journal re-rates through
 //     it as journal_rerated (the differential from its stored rating); one
 //     that isn't writes rec_rated. Surface wine_page either way.
-//   - Remove runs the journal delete verbatim: read the row, delete FIRST,
-//     reverse only what this call removed, then journal_deleted. "Remove
-//     from journal" then steps back, and the page it lands on says so
-//     (carryToasts) — with any demotion or shift the removal caused.
+//   - Remove runs the journal delete verbatim: delete FIRST, reverse only
+//     what this call removed, then journal_deleted. "Remove from journal"
+//     asks first (in place, like Start fresh), then steps back, and the page
+//     it lands on says so (carryToasts) — with any demotion or shift the
+//     removal caused.
 // The note saves itself: 800ms after typing stops, and on blur.
 //
 // Unknown ≠ empty: a failed read never shows the not-in-your-journal
@@ -32,7 +33,7 @@ import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { wineHref } from "@/lib/navTrail";
 import {
-  journalMark, keepLabel, matchTag, metaLine, particulars, placeName, shortDate,
+  journalMark, keepLabel, matchTag, metaLine, particulars, placeName, removeConfirmCopy, shortDate,
   sommRoleTag, timelineLine, verdictWhere, wineMeta,
 } from "@/lib/houseCopy";
 import { hasStoredResolution, sameVein, wineFacts, wineStanding } from "@/lib/journalView";
@@ -47,6 +48,7 @@ import { FactRow } from "@/components/house/SettingRow";
 import RuledField from "@/components/house/RuledField";
 import RatingTiles from "@/components/house/RatingTiles";
 import TextAction, { TextActions } from "@/components/house/TextAction";
+import ConfirmBlock from "@/components/house/ConfirmBlock";
 import EmptyState from "@/components/house/EmptyState";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, ink, leader } from "@/components/house/tokens";
 
@@ -115,6 +117,11 @@ export default function WinePage({ name }) {
   const [pending, setPending] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [actionError, setActionError] = useState("");
+  // Remove from journal asks first (the same in-place confirm as Start
+  // fresh); its failure stays in the confirm, beside the choice to retry
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const [removeError, setRemoveError] = useState("");
+  const removeTrigger = useRef(null);
   const [note, setNote] = useState("");
   const [noteFailed, setNoteFailed] = useState(false);
   const { toasts, showToast } = useToast({ receivesCarried: true });
@@ -327,6 +334,7 @@ export default function WinePage({ name }) {
     setPending(true);
     setRemoving(leave);
     setActionError("");
+    setRemoveError("");
     // Delete FIRST, returning what was deleted. Points reverse only when
     // THIS call actually removed the row — a failed delete + retry (or a
     // second tab) can never double-reverse — and they reverse exactly the
@@ -377,7 +385,7 @@ export default function WinePage({ name }) {
     if (error) {
       setPending(false);
       setRemoving(false);
-      setActionError("Couldn’t remove it — please try again.");
+      (leave ? setRemoveError : setActionError)("Couldn’t remove it — please try again.");
       return;
     }
     if (leave) {
@@ -400,6 +408,12 @@ export default function WinePage({ name }) {
   const keepVerdict = () => {
     focusStanding.current = true;
     setTilesOpen(false);
+  };
+
+  const keepInJournal = () => {
+    setConfirmingRemove(false);
+    setRemoveError("");
+    removeTrigger.current?.focus();
   };
 
   if (loading) {
@@ -652,9 +666,33 @@ export default function WinePage({ name }) {
 
       {tried && (
         <div style={{ textAlign: "center", marginTop: 26 }}>
-          <TextAction tone="quiet" underlined disabled={pending} onClick={() => remove({ leave: true })} testId="wine-remove">
-            {removing ? "Removing…" : "Remove from journal"}
-          </TextAction>
+          <TextAction
+            ref={removeTrigger}
+            tone="quiet"
+            underlined
+            disabled={pending}
+            ariaExpanded={confirmingRemove}
+            onClick={() => {
+              setRemoveError("");
+              setConfirmingRemove((open) => !open);
+            }}
+            testId="wine-remove"
+          >Remove from journal</TextAction>
+          {confirmingRemove && (
+            <ConfirmBlock
+              testId="wine-remove-confirm"
+              copy={removeConfirmCopy({ rated: standing === "rated", note: note.trim() !== "" })}
+              confirmLabel="Remove it"
+              onConfirm={() => remove({ leave: true })}
+              pending={pending}
+              pendingLabel={removing ? "Removing…" : undefined}
+              cancelLabel="Keep it"
+              onCancel={keepInJournal}
+              error={removeError}
+              centered
+              style={{ marginTop: 8 }}
+            />
+          )}
         </div>
       )}
     </>

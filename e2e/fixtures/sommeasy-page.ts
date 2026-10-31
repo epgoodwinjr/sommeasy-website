@@ -12,10 +12,10 @@ export function journalRow(page: Page, wineName: string): Locator {
 /**
  * Remove a journal row the way a user does (House List Phase 4): open it
  * from the journal's Tried tab, then "Remove from journal" on its wine page
- * — the journal delete (delete first, reverse only what that call removed,
- * then journal_deleted). The page steps back to the journal, which says so
- * and no longer lists the bottle. Every guard that cleans up a rating comes
- * through here.
+ * and its in-place confirm (Phase 6) — the journal delete (delete first,
+ * reverse only what that call removed, then journal_deleted). The page
+ * steps back to the journal, which says so and no longer lists the bottle.
+ * Every guard that cleans up a rating comes through here.
  */
 export async function removeFromJournal(page: Page, wineName: string) {
   await page.goto("/journal");
@@ -26,6 +26,8 @@ export async function removeFromJournal(page: Page, wineName: string) {
   const wine = page.getByTestId("wine-page");
   await expect(wine.getByTestId("wine-remove")).toBeVisible({ timeout: 15_000 });
   await wine.getByTestId("wine-remove").click();
+  // Remove asks first, in place (House List Phase 6)
+  await wine.getByTestId("wine-remove-confirm").getByRole("button", { name: "Remove it" }).click();
   await page.waitForURL(/\/journal/, { timeout: 15_000 });
   await expect(page.getByText("Removed from your journal")).toBeVisible();
   // The heading renders once the rows are read — only then is "gone" real

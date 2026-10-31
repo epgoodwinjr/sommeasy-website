@@ -9,18 +9,25 @@
 // of the service bar: a trigger near the foot of the page would otherwise
 // open its choices underneath the bar.
 //
+// A confirm that does its work in place (Remove from journal, Delete
+// account) passes `pending` while it runs — the confirm reads
+// `pendingLabel` and every control is disabled — and `error` when it
+// failed: an alert line under the choices that takes focus, the block
+// staying open so the choices are right there to try again.
+//
 // StartFreshConfirm is decision D2's: Start fresh asks here, then opens the
-// quiz (/?quiz=fresh). Your palate uses it now; Account will in Phase 6.
+// quiz (/?quiz=fresh). Your palate and Account both use it.
 
 import { useEffect, useId, useRef } from "react";
 import TextAction, { TextActions } from "./TextAction";
-import { SERIF, SOFT_OUT, ink } from "./tokens";
+import { BURGUNDY, SERIF, SOFT_OUT, ink } from "./tokens";
 
 export default function ConfirmBlock({
   copy, confirmLabel, href, onConfirm, cancelLabel = "Cancel", onCancel,
-  centered = false, testId, style,
+  pending = false, pendingLabel, error, centered = false, testId, style,
 }) {
   const ref = useRef(null);
+  const errorRef = useRef(null);
   const copyId = useId();
 
   useEffect(() => {
@@ -40,12 +47,18 @@ export default function ConfirmBlock({
     );
   }, []);
 
+  // A failure takes focus — the confirm that had it went disabled under it
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
+
   return (
     <div
       ref={ref}
       tabIndex={-1}
       role="group"
       aria-labelledby={copyId}
+      aria-busy={pending || undefined}
       data-testid={testId}
       style={{
         outline: "none", textAlign: centered ? "center" : "left",
@@ -59,9 +72,17 @@ export default function ConfirmBlock({
         textWrap: "pretty",
       }}>{copy}</p>
       <TextActions centered={centered} gap={centered ? 24 : 20} style={{ marginTop: 4 }}>
-        <TextAction weight={700} href={href} onClick={onConfirm}>{confirmLabel}</TextAction>
-        <TextAction tone="quiet" onClick={onCancel}>{cancelLabel}</TextAction>
+        <TextAction weight={700} href={href} onClick={onConfirm} disabled={pending}>
+          {pending && pendingLabel ? pendingLabel : confirmLabel}
+        </TextAction>
+        <TextAction tone="quiet" onClick={onCancel} disabled={pending}>{cancelLabel}</TextAction>
       </TextActions>
+      {error && (
+        <p ref={errorRef} tabIndex={-1} role="alert" aria-live="polite" style={{
+          fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.55, color: BURGUNDY,
+          marginTop: 4, outline: "none", textWrap: "pretty",
+        }}>{error}</p>
+      )}
     </div>
   );
 }

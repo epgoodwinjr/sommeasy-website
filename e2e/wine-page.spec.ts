@@ -156,8 +156,24 @@ test.describe("A wine's page — verdicts, notes, removal (hard-fail)", () => {
     expect(rerated!.payload.rating).toBe("fine");
     expect(rerated!.payload.surface).toBe("wine_page");
 
-    // Remove from journal: steps back home, which says so — the row gone
-    await page.getByTestId("wine-remove").click();
+    // Remove from journal asks first, in place — and asking deletes nothing
+    const removeTrigger = page.getByTestId("wine-remove");
+    const confirm = page.getByTestId("wine-remove-confirm");
+    await removeTrigger.click();
+    await expect(confirm).toBeVisible();
+    await expect(confirm).toBeFocused();
+    await expect(confirm).toContainText("Your verdict and note go with it, and so does its pull on your palate.");
+    await expect(removeTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(await readRow(supabase, userId, wine), "opening the confirm must not delete").not.toBeNull();
+    // Keep it closes it and hands focus back to the trigger, nothing removed
+    await confirm.getByRole("button", { name: "Keep it" }).click();
+    await expect(confirm).toHaveCount(0);
+    await expect(removeTrigger).toBeFocused();
+    expect(await readRow(supabase, userId, wine), "Keep it must not delete").not.toBeNull();
+    expect(await countEvents(supabase, userId, "journal_deleted")).toBe(deletedBefore);
+    // Remove it: steps back home, which says so — the row gone
+    await removeTrigger.click();
+    await confirm.getByRole("button", { name: "Remove it" }).click();
     await page.waitForURL((url) => url.pathname === "/", { timeout: 15_000 });
     await expect(page.getByText("Removed from your journal")).toBeVisible();
     await expect.poll(async () => readRow(supabase, userId, wine), { timeout: 15_000 }).toBeNull();

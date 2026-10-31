@@ -537,6 +537,23 @@ async function main() {
     assertEq(copy.nothingFoundLine(null), null, "junk");
   });
 
+  // ─── Phase 6: the wine page's remove, Account ───
+
+  await test("Remove from journal asks first, naming what leaves with the row", () => {
+    assertEq(copy.removeConfirmCopy({ rated: true, note: true }),
+      "Remove this bottle from your journal? Your verdict and note go with it, and so does its pull on your palate.",
+      "a verdict and a note");
+    assertEq(copy.removeConfirmCopy({ rated: true, note: false }),
+      "Remove this bottle from your journal? Your verdict goes with it, and so does its pull on your palate.",
+      "a verdict alone");
+    assertEq(copy.removeConfirmCopy({ rated: false, note: true }),
+      "Remove this bottle from your journal? Your note goes with it.",
+      "a had with no verdict pulls on nothing — only the note leaves");
+    assertEq(copy.removeConfirmCopy({ rated: false, note: false }), "Remove this bottle from your journal?",
+      "nothing else to lose");
+    assertEq(copy.removeConfirmCopy(null), "Remove this bottle from your journal?", "junk → the plain question");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
