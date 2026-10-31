@@ -170,6 +170,9 @@ Trimbach Riesling, Alsace 2021...$44`;
       .poll(async () => page.locator('[data-testid="somm-thinking"]').count(),
         { timeout: 130_000 })
       .toBe(0);
+    // A throttled somm call falls back silently too — that "fallback" would
+    // be our own 429, not The Somm's
+    await recPage.assertNo429s();
 
     const picks = await page.locator('[data-testid="pick-card"]').count();
     const notes = await page.locator('[data-testid="somm-note"]').count();

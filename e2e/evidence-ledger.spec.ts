@@ -25,21 +25,23 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  *
  * Data discipline: the guard wine (Kanonkop Pinotage, Stellenbosch —
  * resolves at 90) touches only dimensions that are already quiz-promoted on
- * the seeded account (stellenbosch, south_africa) or start far below
- * threshold (pinotage, the fuzzy stellenbosch_vineyards estate), so a single
- * +2 can never fire a promotion. Guard rows are identified by
- * source_url='text_paste' + name (only /recommend paste ratings set that),
- * healed at start, and the exact baseline is restored afterwards.
+ * the seeded account (stellenbosch, south_africa, the kanonkop estate) or
+ * start far below threshold (pinotage), so a single +2 can never fire a
+ * promotion. Guard rows are identified by source_url='text_paste' + name
+ * (only /recommend paste ratings set that), healed at start, and the exact
+ * baseline is restored afterwards.
  */
 
 const GUARD_LINE = "Kanonkop Pinotage, Stellenbosch 2019...$68";
 
-// Dimensions the guard wine feeds (verified against the resolver: 90).
+// Dimensions the guard wine feeds (verified against the resolver: 90). The
+// estate is Kanonkop's own since the resolver stopped reading "Stellenbosch"
+// as the producer Stellenbosch Vineyards (a place-named norm)
 const DIMS: Array<[string, string]> = [
   ["varietal", "pinotage"],
   ["region", "stellenbosch"],
   ["country", "south_africa"],
-  ["estate", "stellenbosch_vineyards"],
+  ["estate", "kanonkop"],
 ];
 
 // Mirror of RATING_POINTS (dnaThresholds.js) — heal step only.

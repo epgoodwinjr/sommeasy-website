@@ -6,7 +6,9 @@
 
 // Suite 12 tests the REAL identityRecompose module (the milestone hook) via
 // dynamic import — the alias loader supplies the JSON import attributes the
-// engine's wineUnified import needs under plain node.
+// engine's wineUnified import needs under plain node. Suite 13 (the bottle
+// count) runs every case against both the mirror and the REAL dnaEvolution
+// module.
 const { register } = require("node:module");
 const { pathToFileURL } = require("node:url");
 register("./helpers/alias-loader.mjs", pathToFileURL(__filename));
@@ -14,6 +16,7 @@ register("./helpers/alias-loader.mjs", pathToFileURL(__filename));
 // Unified data architecture (wineUnified.json) — the same shapes the
 // production resolver consumes. ESTATES = producers keyed by DNA region id.
 const wineUnified = require("../wineUnified.json");
+const aliasMirror = require("./helpers/producerAliasesMirror.js");
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
 const VARIETALS = wineUnified.varietals;
@@ -198,12 +201,21 @@ for (const v of VARIETALS) {
   DNA_TO_VARIETY_NAME[v.id] = v.name.split("/")[0].trim();
 }
 
-function normalize(text) {
-  return text.toLowerCase()
+// Menus write designators loosely ("Ch. Margaux", "Dry Creek Vineyards"), so
+// a full name is compared with each designator in one spelling
+function spellDesignators(text) {
+  return text
+    .replace(/\bch\.\s/g, "chateau ")
+    .replace(/\bdom\.\s/g, "domaine ")
+    .replace(/\b(vineyard|wine|cellar|estate)s\b/g, "$1");
+}
+
+function normalize(text, keepDesignators = false) {
+  const lowered = text.toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[''`]/g, "'")
-    .replace(/\b(19|20)\d{2}\b/g, "")
-    .replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, "")
+    .replace(/\b(19|20)\d{2}\b/g, "");
+  return (keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
     .replace(/[^a-z0-9\s'.-]/g, " ")
     .replace(/\s+/g, " ").trim();
 }
@@ -211,9 +223,10 @@ function tokenize(text) { return normalize(text).split(/\s+/).filter(t => t.leng
 
 // Mirrors wineResolver.containsTerm — boundary-aware containment so short
 // producer norms ("cass", "rozes") can't match inside longer words, and a
-// possessive ("mate's") never counts as a mention of the base word
-function containsTerm(haystack, needle) {
-  if (needle.includes(" ") || needle.includes("-")) return haystack.includes(needle);
+// possessive ("mate's") never counts as a mention of the base word; core-name
+// aliases match as whole phrases
+function containsTerm(haystack, needle, wholePhrase) {
+  if (!wholePhrase && (needle.includes(" ") || needle.includes("-"))) return haystack.includes(needle);
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
@@ -226,18 +239,29 @@ function isBlend(v) {
   return false;
 }
 
-// Build indices (mirror wineResolver.getProducerIndex)
+// Build indices (mirror wineResolver.getProducerIndex). A name normalize()
+// shortened keeps its full form; one the core-name guardrails reject (a
+// place, or a preposition before one) is placeLike: it counts only written
+// in full
+const isPlaceLike = aliasMirror.buildShortNameGuard(wineUnified, t => normalize(t, true));
+function nameForms(name, norm) {
+  const full = normalize(name, true);
+  return full === norm ? {} : { full, placeLike: isPlaceLike(norm, full) };
+}
 const producerIndex = [];
+const byLookupKey = new Map();
 for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
   const norm = normalize(name);
   if (norm.length < 3) continue;
   const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  producerIndex.push({
-    name: displayName, norm, tokens: new Set(tokenize(name)),
+  const entry = {
+    name: displayName, norm, ...nameForms(name, norm), tokens: new Set(tokenize(name)),
     country: getCountryDisplayName(data.country), province: data.province || "",
     dnaCountryId: data.country,
     dnaRegionId: data.regionId || null,
-  });
+  };
+  producerIndex.push(entry);
+  byLookupKey.set(name, entry);
 }
 for (const [regionId, estates] of Object.entries(ESTATES)) {
   for (const estate of estates) {
@@ -254,10 +278,19 @@ for (const [regionId, estates] of Object.entries(ESTATES)) {
     }
     const countryObj = countryId ? COUNTRIES.find(c => c.id === countryId) : null;
     producerIndex.push({
-      name: estate.name, norm, tokens: new Set(tokenize(estate.name)),
+      name: estate.name, norm, ...nameForms(estate.name, norm), tokens: new Set(tokenize(estate.name)),
       country: countryObj ? countryObj.name : "", province: "",
       dnaCountryId: countryId, dnaRegionId: regionId, dnaEstateId: estate.id,
     });
+  }
+}
+// Core-name aliases (helpers/producerAliasesMirror.js), normalized
+{
+  const norms = new Set(producerIndex.map(p => p.norm));
+  for (const [core, key] of aliasMirror.buildCoreNameAliases(wineUnified)) {
+    const norm = normalize(core);
+    if (norms.has(norm) || !norm.includes(" ") || !byLookupKey.has(key)) continue;
+    producerIndex.push({ ...byLookupKey.get(key), norm, alias: true });
   }
 }
 producerIndex.sort((a, b) => b.norm.length - a.norm.length);
@@ -288,38 +321,65 @@ const varietalIndex = [];
 }
 varietalIndex.sort((a, b) => b.norm.length - a.norm.length);
 
-// Region index (mirrors wineResolver.getRegionIndex)
+// Region index (mirrors wineResolver.getRegionIndex): combined names
+// ("hemel-en-aarde / walker bay") also index each part
 const regionIndex = [];
 for (const [key, data] of Object.entries(REGION_LOOKUP)) {
   if (key.length < 4 || ["other","america","europe"].includes(key)) continue;
-  regionIndex.push({
-    term: key, country: getCountryDisplayName(data.country), province: "", subregion: "",
-    dnaCountryId: data.country,
-    dnaRegionId: data.regionId || null,
-  });
+  const terms = key.includes(" / ") ? [key, ...key.split(" / ").map(p => p.trim())] : [key];
+  for (const term of terms) {
+    if (term.length < 4 || (term !== key && REGION_LOOKUP[term])) continue;
+    regionIndex.push({
+      term, country: getCountryDisplayName(data.country), province: "", subregion: "",
+      dnaCountryId: data.country,
+      dnaRegionId: data.regionId || null,
+    });
+  }
+}
+// One name, two countries ("Central Valley"): a line naming it states either
+for (const [countryId, regs] of Object.entries(REGIONS)) {
+  for (const region of regs) {
+    const entry = regionIndex.find(r => r.term === region.name.toLowerCase());
+    if (entry && entry.dnaCountryId !== countryId) entry.sharedWith = (entry.sharedWith || []).concat(countryId);
+  }
 }
 regionIndex.sort((a, b) => b.term.length - a.term.length);
 
-function tokenOverlap(inputTokens, candidateTokens) {
+// An overlap made only of the words the line spends on its region names no producer
+function tokenOverlap(inputTokens, candidateTokens, placeWords) {
   if (inputTokens.length === 0 || candidateTokens.size === 0) return 0;
-  let matches = 0;
+  let matches = 0, named = false;
   for (const t of inputTokens) {
-    if (candidateTokens.has(t)) matches++;
-    else { for (const ct of candidateTokens) {
-      if ((t.length >= 4 && ct.startsWith(t)) || (ct.length >= 4 && t.startsWith(ct))) { matches += 0.7; break; }
+    let hit = candidateTokens.has(t) ? 1 : 0;
+    if (!hit) { for (const ct of candidateTokens) {
+      if ((t.length >= 4 && ct.startsWith(t)) || (ct.length >= 4 && t.startsWith(ct))) { hit = 0.7; break; }
     }}
+    matches += hit;
+    if (hit && !placeWords.has(t)) named = true;
   }
-  return matches / Math.max(inputTokens.length, candidateTokens.size);
+  return named ? matches / Math.max(inputTokens.length, candidateTokens.size) : 0;
 }
 
-function matchProducer(normInput, inputTokens) {
+// A name the line writes only inside longer region names it states is the
+// region's word ("Alexander" in "Alexander Valley")
+function namedOnlyInRegions(normInput, prod, statedRegions) {
+  const around = statedRegions.filter(t => t !== prod.norm && t.includes(prod.norm));
+  if (around.length === 0) return false;
+  const rest = around.reduce((text, t) => text.split(t).join(" "), normInput);
+  return !containsTerm(rest, prod.norm, prod.alias);
+}
+
+// A placeLike name counts only where the line writes it in full
+function matchProducer(normInput, inputTokens, fullInput, statedRegions) {
+  const placeWords = new Set(statedRegions.flatMap(t => t.split(" ")));
   let bestMatch = null, bestScore = 0;
   for (const prod of producerIndex) {
+    if (prod.placeLike && !containsTerm(fullInput, prod.full, true)) continue;
     let score = 0;
-    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm)) {
+    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm, prod.alias) && !namedOnlyInRegions(normInput, prod, statedRegions)) {
       score = 0.5 + (prod.norm.length / normInput.length * 0.5);
     } else {
-      const overlap = tokenOverlap(inputTokens, prod.tokens);
+      const overlap = tokenOverlap(inputTokens, prod.tokens, placeWords);
       if (overlap >= 0.4) score = overlap * 0.7;
     }
     if (score > bestScore) { bestScore = score; bestMatch = prod; }
@@ -333,8 +393,10 @@ function matchVarietal(normInput) {
   for (const v of varietalIndex) { if (v.norm.length >= 4 && normInput.includes(v.norm)) return v; }
   return null;
 }
-function matchRegion(normInput) {
-  for (const r of regionIndex) { if (r.term.length >= 4 && normInput.includes(r.term)) return r; }
+// A place term that is a proper part of the producer's written name is the name
+function insideName(ownName, term) { return ownName !== term && ownName.includes(term); }
+function matchRegion(normInput, ownName) {
+  for (const r of regionIndex) { if (r.term.length >= 4 && normInput.includes(r.term) && !insideName(ownName, r.term)) return r; }
   return null;
 }
 
@@ -371,9 +433,9 @@ function calculateConfidence(producerResult, varietalMatch, regionMatch, country
 const countryTermIndex = COUNTRIES
   .map(c => ({ id: c.id, norm: normalize(c.name) }))
   .filter(c => c.norm.length >= 4);
-function detectExplicitCountries(normInput) {
+function detectExplicitCountries(normInput, ownName) {
   const ids = new Set();
-  for (const c of countryTermIndex) { if (containsTerm(normInput, c.norm)) ids.add(c.id); }
+  for (const c of countryTermIndex) { if (containsTerm(normInput, c.norm) && !insideName(ownName, c.norm)) ids.add(c.id); }
   return ids;
 }
 
@@ -383,13 +445,21 @@ function resolveWine(wineName) {
   }
   const normInput = normalize(wineName);
   const inputTokens = tokenize(wineName);
-  const producerResult = matchProducer(normInput, inputTokens);
+  const statedRegions = regionIndex.filter(r => normInput.includes(r.term)).map(r => r.term);
+  const producerResult = matchProducer(normInput, inputTokens, normalize(wineName, true), statedRegions);
+  // Geography inside the producer's name as the line writes it says nothing
+  // about the bottle (a token-overlap match never wrote the name)
+  const ownName = producerResult && containsTerm(normInput, producerResult.producer.norm, producerResult.producer.alias)
+    ? producerResult.producer.norm : "";
   const varietalMatch = matchVarietal(normInput);
-  const regionMatch = matchRegion(normInput);
+  const regionMatch = matchRegion(normInput, ownName);
   let countryConflict = false;
   if (producerResult && producerResult.producer.dnaCountryId) {
-    const explicit = detectExplicitCountries(normInput);
-    if (regionMatch && regionMatch.dnaCountryId) explicit.add(regionMatch.dnaCountryId);
+    const explicit = detectExplicitCountries(normInput, ownName);
+    if (regionMatch && regionMatch.dnaCountryId) {
+      explicit.add(regionMatch.dnaCountryId);
+      for (const c of regionMatch.sharedWith || []) explicit.add(c);
+    }
     countryConflict = explicit.size > 0 && !explicit.has(producerResult.producer.dnaCountryId);
   }
   const confidence = calculateConfidence(producerResult, varietalMatch, regionMatch, countryConflict);
@@ -437,6 +507,12 @@ function pointsTableFor(confidence) {
   if (confidence >= CONFIDENCE_GATE) return RATING_POINTS;
   if (confidence >= PARTIAL_CONFIDENCE_GATE) return PARTIAL_RATING_POINTS;
   return null;
+}
+
+// A rated bottle pushes a dimension while its rating earns positive points
+// in its band — interaction_count counts the bottles pushing each dimension
+function pushCount(points) {
+  return points > 0 ? 1 : 0;
 }
 
 function findCountryForRegion(dnaRegionId) {
@@ -490,21 +566,22 @@ function buildDimensionUpdates(resolution, { partial = false } = {}) {
   return updates;
 }
 
-async function upsertAccumulation(supabase, userId, dim, pointDelta) {
+// countDelta moves interaction_count, floored at zero (see dnaEvolution.js)
+async function upsertAccumulation(supabase, userId, dim, pointDelta, countDelta) {
   const { data: existing } = await supabase.from("dna_accumulation")
     .select("id, points, interaction_count")
     .eq("user_id", userId).eq("dimension", dim.dimension).eq("dimension_value", dim.dimensionValue).single();
   if (existing) {
     await supabase.from("dna_accumulation").update({
       points: existing.points + pointDelta,
-      interaction_count: existing.interaction_count + (pointDelta > 0 ? 1 : 0),
+      interaction_count: Math.max(0, existing.interaction_count + countDelta),
       display_name: dim.displayName, mappable: dim.mappable,
     }).eq("id", existing.id);
   } else {
     await supabase.from("dna_accumulation").insert({
       user_id: userId, dimension: dim.dimension, dimension_value: dim.dimensionValue,
       display_name: dim.displayName, points: pointDelta,
-      interaction_count: pointDelta > 0 ? 1 : 0, mappable: dim.mappable,
+      interaction_count: Math.max(0, countDelta), mappable: dim.mappable,
       source: "auto", promoted: false,
     });
   }
@@ -663,8 +740,9 @@ async function resolveAndAccumulate(supabase, userId, wineName, rating, previous
   const newPts = pointsTable[rating] ?? 0;
   const oldPts = previousRating ? (pointsTable[previousRating] ?? 0) : 0;
   const pointDelta = newPts - oldPts;
+  const countDelta = pushCount(newPts) - pushCount(oldPts);
   if (pointDelta === 0) return { resolution, dimensions: dimUpdates, promotions: [], demotions: [], wineName };
-  for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, pointDelta);
+  for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, pointDelta, countDelta);
   const promotions = await checkPromotions(supabase, userId, dimUpdates);
   const demotions = await checkDemotions(supabase, userId, dimUpdates);
   if (promotions.length > 0) await applyPromotions(supabase, userId, promotions, wineName);
@@ -688,11 +766,26 @@ async function reverseAccumulation(supabase, userId, wineName, interactionData =
   const points = pointsTable[interaction.rating] ?? 0;
   if (points === 0) return { demotions: [] };
   const dimUpdates = buildDimensionUpdates(resolution, { partial });
-  for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, -points);
+  for (const dim of dimUpdates) await upsertAccumulation(supabase, userId, dim, -points, -pushCount(points));
   const demotions = await checkDemotions(supabase, userId, dimUpdates);
   // A deletion names no wine: the bottle has left the journal
   if (demotions.length > 0) await applyDemotions(supabase, userId, demotions, null);
   return { demotions };
+}
+
+// Mirror of bottleEvidence (dnaEvolution.js) — what one rated bottle is
+// worth to the ledger: its band's points, whether it pushes, its dimensions
+function bottleEvidence(wineName, rating) {
+  const resolution = resolveWine(wineName);
+  const pointsTable = pointsTableFor(resolution.confidence);
+  if (!pointsTable) return { resolution, points: 0, pushes: false, dimensions: [] };
+  const points = pointsTable[rating] ?? 0;
+  return {
+    resolution,
+    points,
+    pushes: pushCount(points) === 1,
+    dimensions: buildDimensionUpdates(resolution, { partial: pointsTable === PARTIAL_RATING_POINTS }),
+  };
 }
 
 async function syncQuizSelections(supabase, userId, quizAnswers) {
@@ -849,10 +942,14 @@ function getAcc(tables, dimension, dimensionValue) {
   );
 }
 
+// The engine the surface helpers drive — the mirror unless a suite passes
+// the real module (Suite 13 runs its cases against both)
+const MIRROR_ENGINE = { resolveAndAccumulate, reverseAccumulation, bottleEvidence };
+
 // Mirrors the fixed home handleBottleSave / recommend handleRatePick flow:
 // the previous rating is READ from the interactions row before the upsert,
 // never assumed — re-rating from any surface applies the differential.
-async function simulateSurfaceRate(supabase, wineName, rating) {
+async function simulateSurfaceRate(supabase, wineName, rating, engine = MIRROR_ENGINE) {
   const existing = supabase.tables.wine_interactions.find(
     r => r.user_id === TEST_USER && r.wine_name === wineName
   );
@@ -866,14 +963,14 @@ async function simulateSurfaceRate(supabase, wineName, rating) {
       interaction_type: "had", rating, match_confidence: null,
     });
   }
-  return resolveAndAccumulate(supabase, TEST_USER, wineName, rating, previousRating);
+  return engine.resolveAndAccumulate(supabase, TEST_USER, wineName, rating, previousRating);
 }
 
 // Mirrors the journal delete (on a wine's page since House List Phase 4):
 // delete FIRST, returning what was removed, and reverse exactly the rating
 // the removed row held — only when this call actually removed it.
 // failDelete simulates a delete that errors out.
-async function simulateJournalDelete(supabase, wineName, { failDelete = false } = {}) {
+async function simulateJournalDelete(supabase, wineName, { failDelete = false, engine = MIRROR_ENGINE } = {}) {
   if (failDelete) return { demotions: [], deletedCount: 0 };
   const deleted = supabase.tables.wine_interactions.filter(
     r => r.user_id === TEST_USER && r.wine_name === wineName
@@ -883,7 +980,7 @@ async function simulateJournalDelete(supabase, wineName, { failDelete = false } 
   );
   if (deleted.length === 0) return { demotions: [], deletedCount: 0 };
   const interaction = { rating: deleted[0].rating, match_confidence: deleted[0].match_confidence };
-  const result = await reverseAccumulation(supabase, TEST_USER, wineName, interaction);
+  const result = await engine.reverseAccumulation(supabase, TEST_USER, wineName, interaction);
   return { ...result, deletedCount: deleted.length };
 }
 
@@ -1016,6 +1113,34 @@ async function suite1() {
 
   await runTest("Suite 1", "1D: Single grape Syrah → isBlend=false", async () => {
     assert(isBlend("Syrah") === false, "single grape should not be blend");
+  });
+
+  // 1E: the line's own words outrank a producer guess (countryAttribution
+  // runs the same lines through the real module)
+  await runTest("Suite 1", "1E: Geography inside a producer's own name never caps it (Concha y Toro, Central Valley)", async () => {
+    const toro = resolveWine("Concha y Toro Casillero del Diablo Cabernet Sauvignon");
+    assert(toro.confidence === 90 && toro.dnaMapping.dnaCountryId === "chile",
+      `Concha y Toro: ${toro.confidence} / ${toro.dnaMapping.dnaCountryId}`);
+    const torres = resolveWine("Miguel Torres Santa Digna Cabernet Sauvignon, Central Valley 2020");
+    assert(torres.confidence === 90 && torres.dnaMapping.dnaCountryId === "chile",
+      `Miguel Torres: ${torres.confidence} / ${torres.dnaMapping.dnaCountryId}`);
+  });
+
+  await runTest("Suite 1", "1E: A place-named producer claims no place; the estate on the line wins", async () => {
+    const zin = resolveWine("Zinfandel, Dry Creek Valley 2019");
+    assert(zin.winery === null && zin.confidence === 60, `Dry Creek Valley: ${zin.winery} / ${zin.confidence}`);
+    const kanonkop = resolveWine("Kanonkop Pinotage, Stellenbosch 2019");
+    assert(kanonkop.dnaMapping.dnaEstateId === "kanonkop" && kanonkop.confidence === 90,
+      `Kanonkop: ${kanonkop.dnaMapping.dnaEstateId} / ${kanonkop.confidence}`);
+    const dcv = resolveWine("Dry Creek Vineyard Fumé Blanc, Sonoma County 2022");
+    assert(dcv.dnaMapping.dnaEstateId === "dry_creek_vineyard", `Dry Creek Vineyard: ${dcv.dnaMapping.dnaEstateId}`);
+  });
+
+  await runTest("Suite 1", "1E: Region words name no producer (Alexander Valley, Mendoza)", async () => {
+    const jordan = resolveWine("Jordan Cabernet Sauvignon, Alexander Valley 2018");
+    assert(jordan.winery === "Jordan" && jordan.confidence === 90, `Jordan: ${jordan.winery} / ${jordan.confidence}`);
+    const malbec = resolveWine("Malbec, Mendoza 2021");
+    assert(malbec.winery === null && malbec.confidence === 60, `Mendoza: ${malbec.winery} / ${malbec.confidence}`);
   });
 }
 
@@ -1670,9 +1795,13 @@ async function suite10() {
   console.log("\n═══ Suite 10: Partial Credit ═══");
 
   // Fixture names verified against the real resolver:
-  //   "Barossa Shiraz"  → 60 (varietal+region+country, no producer)
-  //   "Sancerre"        → 60 (fuzzy producer, region loire_valley)
-  //   "Chablis 2021"    → 40 (region only — below the partial gate)
+  //   "Barossa Shiraz"            → 60 (varietal+region+country, no producer)
+  //   "Beaucastel Grenache 2018"  → 60 (fuzzy producer on its own word, with
+  //                                  an estate the partial band must not accrue;
+  //                                  "Sancerre" was this fixture until the
+  //                                  appellation stopped reading as Château de
+  //                                  Sancerre — a token match on region words)
+  //   "Chablis 2021"              → 40 (region only — below the partial gate)
 
   await runTest("Suite 10", "10A: 60-band loved accumulates +1 on varietal/region/country, no estate", async () => {
     const tables = freshTables(); ensureProfile(tables);
@@ -1694,11 +1823,12 @@ async function suite10() {
   await runTest("Suite 10", "10B: Fuzzy producer in the partial band accrues no estate", async () => {
     const tables = freshTables(); ensureProfile(tables);
     const sb = createMockSupabase(tables);
-    const r = resolveWine("Sancerre");
+    const r = resolveWine("Beaucastel Grenache 2018");
     assert(r.confidence >= PARTIAL_CONFIDENCE_GATE && r.confidence < CONFIDENCE_GATE,
       `fixture must sit in the partial band, got ${r.confidence}`);
     assert(r.winery, "fixture premise: a (fuzzy) winery was matched");
-    await simulateSurfaceRate(sb, "Sancerre", "loved");
+    assert(r.dnaMapping.dnaEstateId, "fixture premise: the producer maps to an estate");
+    await simulateSurfaceRate(sb, "Beaucastel Grenache 2018", "loved");
     const estateRows = tables.dna_accumulation.filter(x => x.dimension === "estate");
     assert(estateRows.length === 0, "fuzzy producer must not accrue an estate row");
     assert(getAcc(tables, "country", "france")?.points === 1, "country still accumulates at +1");
@@ -2221,6 +2351,212 @@ async function suite12() {
 }
 
 // ═══════════════════════════════════════════════════════
+// SUITE 13: The Bottle Count — interaction_count (Oct 2026)
+// ═══════════════════════════════════════════════════════
+//
+// interaction_count is the number of distinct rated bottles pushing a
+// dimension: rated into positive points in their band (loved, liked — fine
+// and not-for-me are rated but push nothing). It moves by the same
+// differential the points do, so a re-rate shifts it by the change in
+// whether the bottle pushes, and a delete takes the bottle back off. Every
+// case runs against the mirror AND the REAL dnaEvolution module (alias
+// loader), so the mirror can't drift from the engine on this.
+
+// The definition, recomputed from scratch: each rated interaction counted
+// once on every dimension it pushes, its points summed alongside. A ledger
+// built incrementally through rates, re-rates and deletes must equal it.
+function recountLedger(tables) {
+  const ledger = new Map();
+  for (const row of tables.wine_interactions) {
+    if (row.user_id !== TEST_USER || !row.rating) continue;
+    const { points, pushes, dimensions } = bottleEvidence(row.wine_name, row.rating);
+    for (const dim of dimensions) {
+      const key = `${dim.dimension}:${dim.dimensionValue}`;
+      const entry = ledger.get(key) || { points: 0, count: 0 };
+      entry.points += points;
+      if (pushes) entry.count += 1;
+      ledger.set(key, entry);
+    }
+  }
+  return ledger;
+}
+
+function assertLedgerIsRecount(tables, context) {
+  const expected = recountLedger(tables);
+  for (const row of tables.dna_accumulation) {
+    const key = `${row.dimension}:${row.dimension_value}`;
+    const want = expected.get(key) || { points: 0, count: 0 };
+    assert(row.interaction_count === want.count,
+      `${context}: ${key} counts ${row.interaction_count} bottles, recount says ${want.count}`);
+    assert(row.points === want.points,
+      `${context}: ${key} holds ${row.points} points, recount says ${want.points}`);
+  }
+}
+
+// mulberry32 — the walk is seeded, so a failure replays exactly
+function seededRandom(seed) {
+  return function () {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+async function suite13() {
+  console.log("\n═══ Suite 13: The Bottle Count (interaction_count) ═══");
+
+  const real = await import("../dnaEvolution.js");
+  const ENGINES = [["mirror", MIRROR_ENGINE], ["real", real]];
+
+  // Fixtures verified against the real resolver: both Henschkes and the
+  // Torbreck sit at 90 and share syrah/barossa/australia; Barossa Shiraz is
+  // a 60 (partial band, no estate); Chablis 2021 a 40 (below the gate)
+  const HILL = "Henschke Hill of Grace Shiraz";
+  const EDELSTONE = "Henschke Mount Edelstone Shiraz";
+  const TORBRECK = "Torbreck RunRig Shiraz";
+  const PARTIAL = "Barossa Shiraz";
+  const HILL_DIMS = [["estate", "henschke"], ["varietal", "syrah"], ["region", "barossa"], ["country", "australia"]];
+  const PARTIAL_DIMS = [["varietal", "syrah"], ["region", "barossa"], ["country", "australia"]];
+  const countsOn = (tables, dims) => dims.map(([d, v]) => getAcc(tables, d, v)?.interaction_count);
+  const allAre = (tables, dims, n) => countsOn(tables, dims).every(c => c === n);
+  const fresh = () => {
+    const tables = freshTables(); ensureProfile(tables);
+    return [tables, createMockSupabase(tables)];
+  };
+
+  for (const [label, engine] of ENGINES) {
+    const rate = (sb, wine, rating) => simulateSurfaceRate(sb, wine, rating, engine);
+    const remove = (sb, wine) => simulateJournalDelete(sb, wine, { engine });
+
+    await runTest("Suite 13", `13A [${label}]: Re-rate up within positive adds no bottle (liked → loved)`, async () => {
+      const [tables, sb] = fresh();
+      const first = await rate(sb, HILL, "liked");
+      assert(first.resolution.confidence >= CONFIDENCE_GATE,
+        `fixture must sit in the full band, got ${first.resolution.confidence}`);
+      assert(allAre(tables, HILL_DIMS, 1), `first rating counts once everywhere: ${countsOn(tables, HILL_DIMS)}`);
+      await rate(sb, HILL, "loved");
+      assert(getAcc(tables, "varietal", "syrah").points === 2, "points take the +1 differential");
+      assert(allAre(tables, HILL_DIMS, 1), `still one bottle: ${countsOn(tables, HILL_DIMS)}`);
+    });
+
+    await runTest("Suite 13", `13B [${label}]: Re-rate down out of positive takes the bottle back`, async () => {
+      const [tables, sb] = fresh();
+      await rate(sb, HILL, "loved");
+      await rate(sb, HILL, "fine");
+      assert(allAre(tables, HILL_DIMS, 0), `loved → fine: ${countsOn(tables, HILL_DIMS)}`);
+      await rate(sb, HILL, "loved");
+      assert(allAre(tables, HILL_DIMS, 1), `fine → loved: ${countsOn(tables, HILL_DIMS)}`);
+      await rate(sb, HILL, "not_for_me");
+      assert(allAre(tables, HILL_DIMS, 0), `loved → not for me: ${countsOn(tables, HILL_DIMS)}`);
+      assert(getAcc(tables, "varietal", "syrah").points === -1, "points follow the differential to -1");
+    });
+
+    await runTest("Suite 13", `13C [${label}]: Moves between ratings that don't push count nothing`, async () => {
+      const [tables, sb] = fresh();
+      await rate(sb, HILL, "not_for_me");
+      assert(allAre(tables, HILL_DIMS, 0), `a not-for-me bottle pushes nothing: ${countsOn(tables, HILL_DIMS)}`);
+      await rate(sb, HILL, "fine"); // −1 → 0: the points move, the count doesn't
+      assert(getAcc(tables, "varietal", "syrah").points === 0, "points take the +1");
+      assert(allAre(tables, HILL_DIMS, 0), `not for me → fine: ${countsOn(tables, HILL_DIMS)}`);
+      await rate(sb, HILL, "liked");
+      assert(allAre(tables, HILL_DIMS, 1), `fine → liked pushes: ${countsOn(tables, HILL_DIMS)}`);
+    });
+
+    await runTest("Suite 13", `13D [${label}]: Delete takes the bottle back; deleting a non-pushing bottle leaves the count`, async () => {
+      const [tables, sb] = fresh();
+      await rate(sb, HILL, "loved");
+      await rate(sb, TORBRECK, "not_for_me");
+      assert(getAcc(tables, "varietal", "syrah").interaction_count === 1, "only the loved bottle pushes syrah");
+      await remove(sb, TORBRECK); // reverses −1: the points rise, the count must not
+      assert(getAcc(tables, "varietal", "syrah").points === 2, "Torbreck's −1 reversed");
+      assert(allAre(tables, HILL_DIMS, 1), `after deleting the not-for-me bottle: ${countsOn(tables, HILL_DIMS)}`);
+      await remove(sb, HILL);
+      assert(allAre(tables, HILL_DIMS, 0), `after deleting the loved bottle: ${countsOn(tables, HILL_DIMS)}`);
+      assert(getAcc(tables, "varietal", "syrah").points === 0, "points reverse to exactly zero");
+    });
+
+    await runTest("Suite 13", `13E [${label}]: Re-logging a bottle adds nothing; after a delete it counts once again`, async () => {
+      const [tables, sb] = fresh();
+      await rate(sb, HILL, "loved");
+      await rate(sb, HILL, "loved"); // the same bottle, logged again
+      assert(allAre(tables, HILL_DIMS, 1), `re-log: ${countsOn(tables, HILL_DIMS)}`);
+      await remove(sb, HILL);
+      await rate(sb, HILL, "loved"); // a fresh row after the delete
+      assert(allAre(tables, HILL_DIMS, 1), `delete then re-log: ${countsOn(tables, HILL_DIMS)}`);
+    });
+
+    await runTest("Suite 13", `13F [${label}]: Distinct bottles count separately`, async () => {
+      const [tables, sb] = fresh();
+      await rate(sb, HILL, "loved");
+      await rate(sb, EDELSTONE, "liked");
+      assert(getAcc(tables, "estate", "henschke").interaction_count === 2, "two Henschke bottles");
+      await rate(sb, EDELSTONE, "loved");
+      assert(getAcc(tables, "estate", "henschke").interaction_count === 2, "a re-rate is still two bottles");
+      await remove(sb, HILL);
+      assert(getAcc(tables, "estate", "henschke").interaction_count === 1, "one Henschke left");
+      assert(getAcc(tables, "estate", "henschke").points === 2, "Edelstone's loved points remain");
+    });
+
+    await runTest("Suite 13", `13G [${label}]: The partial band counts on varietal/region/country by the same differential`, async () => {
+      const [tables, sb] = fresh();
+      const first = await rate(sb, PARTIAL, "loved");
+      assert(first.resolution.confidence >= PARTIAL_CONFIDENCE_GATE && first.resolution.confidence < CONFIDENCE_GATE,
+        `fixture must sit in the partial band, got ${first.resolution.confidence}`);
+      assert(allAre(tables, PARTIAL_DIMS, 1), `partial loved: ${countsOn(tables, PARTIAL_DIMS)}`);
+      assert(!tables.dna_accumulation.some(r => r.dimension === "estate"), "no estate in the partial band");
+      await rate(sb, PARTIAL, "liked"); // capped 1 → 1: no delta at all
+      assert(allAre(tables, PARTIAL_DIMS, 1), `partial loved → liked: ${countsOn(tables, PARTIAL_DIMS)}`);
+      await rate(sb, PARTIAL, "not_for_me");
+      assert(allAre(tables, PARTIAL_DIMS, 0), `partial → not for me: ${countsOn(tables, PARTIAL_DIMS)}`);
+      await rate(sb, PARTIAL, "loved");
+      await remove(sb, PARTIAL);
+      assert(allAre(tables, PARTIAL_DIMS, 0), `partial delete: ${countsOn(tables, PARTIAL_DIMS)}`);
+    });
+
+    await runTest("Suite 13", `13H [${label}]: A reversal never takes the count below zero`, async () => {
+      const [tables, sb] = fresh();
+      await rate(sb, HILL, "loved");
+      // History these rows never counted (a pre-fix ledger, or a resolver
+      // change since the rating) — the delete must floor at zero
+      for (const [d, v] of HILL_DIMS) getAcc(tables, d, v).interaction_count = 0;
+      await remove(sb, HILL);
+      assert(allAre(tables, HILL_DIMS, 0), `floored at zero: ${countsOn(tables, HILL_DIMS)}`);
+      assert(getAcc(tables, "varietal", "syrah").points === 0, "points still reverse exactly");
+    });
+
+    await runTest("Suite 13", `13I [${label}]: A seeded walk of rates, re-rates and deletes always equals the recount`, async () => {
+      const [tables, sb] = fresh();
+      const wines = [HILL, EDELSTONE, TORBRECK, PARTIAL, "Sancerre",
+        "Ken Forrester Old Vine Chenin Blanc Stellenbosch", "Chablis 2021"];
+      const ratings = ["loved", "liked", "fine", "not_for_me"];
+      const random = seededRandom(20261030);
+      const pick = (list) => list[Math.floor(random() * list.length)];
+      for (let step = 1; step <= 240; step++) {
+        const wine = pick(wines);
+        const onFile = tables.wine_interactions.some(r => r.wine_name === wine);
+        if (onFile && random() < 0.3) await remove(sb, wine);
+        else await rate(sb, wine, pick(ratings));
+        assertLedgerIsRecount(tables, `step ${step}`);
+      }
+    });
+  }
+
+  await runTest("Suite 13", "13J: The real bottleEvidence agrees with the definition", async () => {
+    assert(typeof real.bottleEvidence === "function", "dnaEvolution.js must export bottleEvidence");
+    const dims = (e) => e.dimensions.map(d => `${d.dimension}:${d.dimensionValue}`).join(",");
+    for (const wine of [HILL, TORBRECK, PARTIAL, "Sancerre", "Chablis 2021", "asdfghjkl"]) {
+      for (const rating of ["loved", "liked", "fine", "not_for_me"]) {
+        const want = bottleEvidence(wine, rating);
+        const got = real.bottleEvidence(wine, rating);
+        assert(got.points === want.points && got.pushes === want.pushes && dims(got) === dims(want),
+          `${wine} / ${rating}: real ${got.points}/${got.pushes}/[${dims(got)}], definition ${want.points}/${want.pushes}/[${dims(want)}]`);
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════
 // SUITE 8: UI Verification (Manual)
 // ═══════════════════════════════════════════════════════
 
@@ -2258,6 +2594,7 @@ async function main() {
   await suite10();
   await suite11();
   await suite12();
+  await suite13();
   suite8();
 
   // ── Report ──
@@ -2270,7 +2607,7 @@ async function main() {
     "Suite 4": "Demotion", "Suite 5": "Rating Changes", "Suite 6": "Quiz Sync",
     "Suite 7": "Edge Cases", "Suite 9": "Quiz Merge",
     "Suite 10": "Partial Credit", "Suite 11": "Surface Flows",
-    "Suite 12": "The Living Strand",
+    "Suite 12": "The Living Strand", "Suite 13": "The Bottle Count",
   };
   for (const [key, label] of Object.entries(suiteNames)) {
     const s = suiteResults[key] || { passed: 0, failed: 0 };
