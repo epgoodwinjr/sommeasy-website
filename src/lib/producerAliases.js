@@ -33,6 +33,7 @@ const PREPOSITIONS = new Set([
   "de", "du", "des", "di", "da", "do", "dos", "das", "del", "della", "delle",
   "dello", "dei", "degli", "of", "y", "e", "et", "and", "&",
 ]);
+const isPreposition = (word) => PREPOSITIONS.has(word) || /^d['’]/.test(word);
 
 /**
  * Core name of a lowercase producer name ("newton johnson vineyards" ->
@@ -48,8 +49,7 @@ export function producerCoreName(name) {
   while (end - start > 1 && LEADING_DESIGNATORS.has(words[start])) start++;
   while (end - start > 1 && TRAILING_DESIGNATORS.has(words[end - 1])) end--;
   if (end - start < 2 || (start === 0 && end === words.length)) return null;
-  const first = words[start];
-  if (start > 0 && (PREPOSITIONS.has(first) || /^d['’]/.test(first))) return null;
+  if (start > 0 && isPreposition(words[start])) return null;
   return words.slice(start, end).join(" ");
 }
 
@@ -66,6 +66,17 @@ function eachWordRun(text, fn) {
   }
 }
 
+// Every place and grape name in the dataset, lowercase
+function placeAndGrapeNames({ regionLookup, regions, countries, varietals, varietalLookup }) {
+  return [
+    ...Object.keys(regionLookup),
+    ...Object.values(regions).flat().map((r) => r.name.toLowerCase()),
+    ...countries.map((c) => c.name.toLowerCase()),
+    ...varietals.flatMap((v) => v.name.toLowerCase().split("/")),
+    ...Object.keys(varietalLookup).map((s) => s.toLowerCase().replace(/_/g, " ")),
+  ];
+}
+
 /**
  * Core name -> producerLookup key, for every core that is safe to index:
  * no OTHER producer answers to it (shares the core, or has it inside its
@@ -75,15 +86,9 @@ function eachWordRun(text, fn) {
  * whole phrases ("lo alto" must never fire inside "Cielo Alto").
  * Takes the whole wineUnified dataset so both engines build one table.
  */
-export function buildCoreNameAliases({ producerLookup, regionLookup, regions, countries, varietals, varietalLookup }) {
-  const producerNames = Object.keys(producerLookup);
-  const placeAndGrapeTerms = [
-    ...Object.keys(regionLookup),
-    ...Object.values(regions).flat().map((r) => r.name.toLowerCase()),
-    ...countries.map((c) => c.name.toLowerCase()),
-    ...varietals.flatMap((v) => v.name.toLowerCase().split("/")),
-    ...Object.keys(varietalLookup).map((s) => s.toLowerCase().replace(/_/g, " ")),
-  ];
+export function buildCoreNameAliases(data) {
+  const producerNames = Object.keys(data.producerLookup);
+  const placeAndGrapeTerms = placeAndGrapeNames(data);
 
   const owners = new Map();   // core phrase (as words) -> { core, names }
   for (const name of producerNames) {
@@ -112,4 +117,34 @@ export function buildCoreNameAliases({ producerLookup, regionLookup, regions, co
     aliases.set(entry.core, entry.names.values().next().value);
   }
   return aliases;
+}
+
+const ARTICLES = new Set(["la", "le", "les", "el", "los", "las", "il", "lo"]);
+
+/**
+ * The place-and-grape guardrail for a name a matcher has already SHORTENED
+ * — the resolver's normalize() drops designators anywhere in a name, so
+ * "Dry Creek Vineyard" becomes "dry creek" (every Dry Creek Valley wine).
+ * Returns a test (short, full) => true when the short form is a place or
+ * grape name, or a preposition its stripped designator left in front of
+ * one: "Cantina di Montalcino" -> "di montalcino" (every Brunello), but
+ * "Château de Beaucastel" -> "de beaucastel" stays a name. Unlike a core
+ * alias, a short form is how menus already find the producer ("Coudoulet
+ * de Beaucastel", "Ch. d'Yquem"), so a preposition alone never condemns
+ * it. `norm` puts place and grape names in the caller's normalized form;
+ * both arguments to the test are already in it.
+ */
+export function buildShortNameGuard(data, norm) {
+  const placeRuns = new Set();
+  for (const term of placeAndGrapeNames(data)) eachWordRun(norm(term), (run) => placeRuns.add(run));
+  const isPlace = (text) => placeRuns.has(words(text).join(" "));
+  return (short, full) => {
+    if (isPlace(short)) return true;
+    const w = short.split(" ");
+    // Only a preposition the stripped designator exposed: "De Loach" is a name
+    if (w[0] === full.split(" ")[0] || !isPreposition(w[0])) return false;
+    let i = 0;
+    while (i < w.length - 1 && (PREPOSITIONS.has(w[i]) || ARTICLES.has(w[i]))) i++;
+    return isPlace(w.slice(i).join(" ").replace(/^[dl]['’]/, ""));
+  };
 }

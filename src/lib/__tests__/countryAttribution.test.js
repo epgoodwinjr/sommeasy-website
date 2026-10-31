@@ -49,6 +49,24 @@
 //   3. Combined region names split into matchable parts, as varietals
 //      already were: "Hemel-en-Aarde / Walker Bay" -> "hemel-en-aarde".
 //
+// The resolver's half (Oct 30 2026) — words a line spends on a place name
+// no producer, and geography inside a producer's name states nothing:
+//   a. Step 3.5 ignores a region/country that is a proper part of the
+//      producer's name as written ("toro" in Concha y Toro, "chile" in Rios
+//      de Chile), and "Central Valley" (California's AND Chile's) states
+//      either country. Concha y Toro / Vega Sicilia / Chilean Central Valley
+//      lines were capped at 55 and never accumulated.
+//   b. A producer normalize() shortens into a place or grape ("Dry Creek
+//      Vineyard" -> "dry creek", "Stellenbosch Vineyards" -> "stellenbosch"),
+//      or into a preposition before one ("Cantina di Montalcino"), counts
+//      only where the line writes its full name — designators in any common
+//      spelling ("Ch.", "Vineyards"). "Stellenbosch" had out-covered every
+//      shorter estate on a Stellenbosch line, Kanonkop and Meerlust included.
+//   c. A name the line writes only inside a longer region name it states is
+//      the region's (Israel's "Alexander" in "Alexander Valley"), and a token
+//      match resting only on the line's region words is no producer ("Malbec,
+//      Mendoza" is not Spain's Enrique Mendoza).
+//
 // The mirror sections below MIRROR matchEngine.js / wineResolver.js
 // (ESM with bare JSON imports — same pattern as dnaEvolution.test.js).
 // If you change the matching logic in production, update the mirror here.
@@ -241,12 +259,21 @@ function detectedProducer(wineName) {
 // MIRROR: wineResolver.js — matchProducer boundary guard
 // ═══════════════════════════════════════════════════════
 
-function normalize(text) {
-  return text.toLowerCase()
+// Menus write designators loosely ("Ch. Margaux", "Dry Creek Vineyards"), so
+// a full name is compared with each designator in one spelling
+function spellDesignators(text) {
+  return text
+    .replace(/\bch\.\s/g, "chateau ")
+    .replace(/\bdom\.\s/g, "domaine ")
+    .replace(/\b(vineyard|wine|cellar|estate)s\b/g, "$1");
+}
+
+function normalize(text, keepDesignators = false) {
+  const lowered = text.toLowerCase()
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[''`]/g, "'")
-    .replace(/\b(19|20)\d{2}\b/g, "")
-    .replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, "")
+    .replace(/\b(19|20)\d{2}\b/g, "");
+  return (keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
     .replace(/[^a-z0-9\s'.-]/g, " ")
     .replace(/\s+/g, " ").trim();
 }
@@ -258,13 +285,21 @@ function containsTerm(haystack, needle, wholePhrase) {
   return new RegExp(`(?:^|[\\s'.])${escaped}(?!'s(?:[\\s'.]|$))(?:[\\s'.]|$)`).test(haystack);
 }
 
+// A name normalize() shortened keeps its full form; one the core-name
+// guardrails reject (a place, or a preposition before one) is placeLike
+const isPlaceLike = aliasMirror.buildShortNameGuard(wineUnified, t => normalize(t, true));
+function nameForms(name, norm) {
+  const full = normalize(name, true);
+  return full === norm ? {} : { full, placeLike: isPlaceLike(norm, full) };
+}
+
 const producerIndex = [];
 const byLookupKey = new Map();
 for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
   const norm = normalize(name);
   if (norm.length < 3) continue;
   const entry = {
-    name, norm, tokens: new Set(tokenize(name)),
+    name, norm, ...nameForms(name, norm), tokens: new Set(tokenize(name)),
     dnaCountryId: data.country, dnaRegionId: data.regionId || null,
   };
   producerIndex.push(entry);
@@ -274,7 +309,7 @@ for (const [regionId, estates] of Object.entries(ESTATES)) {
   for (const estate of estates) {
     const norm = normalize(estate.name);
     if (producerIndex.some(p => p.norm === norm)) continue;
-    producerIndex.push({ name: estate.name, norm, tokens: new Set(tokenize(estate.name)), dnaCountryId: null, dnaRegionId: regionId });
+    producerIndex.push({ name: estate.name, norm, ...nameForms(estate.name, norm), tokens: new Set(tokenize(estate.name)), dnaCountryId: null, dnaRegionId: regionId });
   }
 }
 // Core-name aliases, normalized; only names normalize() doesn't already reach
@@ -288,29 +323,57 @@ for (const [regionId, estates] of Object.entries(ESTATES)) {
 }
 producerIndex.sort((a, b) => b.norm.length - a.norm.length);
 
-function tokenOverlap(inputTokens, candidateTokens) {
-  if (inputTokens.length === 0 || candidateTokens.size === 0) return 0;
-  let matches = 0;
-  for (const t of inputTokens) {
-    if (candidateTokens.has(t)) matches++;
-    else { for (const ct of candidateTokens) {
-      if ((t.length >= 4 && ct.startsWith(t)) || (ct.length >= 4 && t.startsWith(ct))) { matches += 0.7; break; }
-    }}
+// Region terms (mirror of wineResolver.getRegionIndex terms): what a line
+// can state, so matchProducer knows which words it spends on a place
+const regionTerms = [];
+for (const key of Object.keys(REGION_LOOKUP)) {
+  if (key.length < 4 || ["other", "america", "europe"].includes(key)) continue;
+  const terms = key.includes(" / ") ? [key, ...key.split(" / ").map(p => p.trim())] : [key];
+  for (const term of terms) {
+    if (term.length < 4 || (term !== key && REGION_LOOKUP[term])) continue;
+    regionTerms.push(term);
   }
-  return matches / Math.max(inputTokens.length, candidateTokens.size);
 }
 
-// Mirror of matchProducer (wineResolver.js) — Strategy 1 uses containsTerm
+function tokenOverlap(inputTokens, candidateTokens, placeWords) {
+  if (inputTokens.length === 0 || candidateTokens.size === 0) return 0;
+  let matches = 0, named = false;
+  for (const t of inputTokens) {
+    let hit = candidateTokens.has(t) ? 1 : 0;
+    if (!hit) { for (const ct of candidateTokens) {
+      if ((t.length >= 4 && ct.startsWith(t)) || (ct.length >= 4 && t.startsWith(ct))) { hit = 0.7; break; }
+    }}
+    matches += hit;
+    if (hit && !placeWords.has(t)) named = true;
+  }
+  return named ? matches / Math.max(inputTokens.length, candidateTokens.size) : 0;
+}
+
+// A name the line writes only inside longer region names it states is the
+// region's word ("Alexander" in "Alexander Valley")
+function namedOnlyInRegions(normInput, prod, statedRegions) {
+  const around = statedRegions.filter(t => t !== prod.norm && t.includes(prod.norm));
+  if (around.length === 0) return false;
+  const rest = around.reduce((text, t) => text.split(t).join(" "), normInput);
+  return !containsTerm(rest, prod.norm, prod.alias);
+}
+
+// Mirror of matchProducer (wineResolver.js) — Strategy 1 uses containsTerm;
+// words the line spends on a place name no producer
 function matchProducer(wineName) {
   const normInput = normalize(wineName);
+  const fullInput = normalize(wineName, true);
   const inputTokens = tokenize(wineName);
+  const statedRegions = regionTerms.filter(t => normInput.includes(t));
+  const placeWords = new Set(statedRegions.flatMap(t => t.split(" ")));
   let bestMatch = null, bestScore = 0;
   for (const prod of producerIndex) {
+    if (prod.placeLike && !containsTerm(fullInput, prod.full, true)) continue;
     let score = 0;
-    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm, prod.alias)) {
+    if (prod.norm.length >= 4 && containsTerm(normInput, prod.norm, prod.alias) && !namedOnlyInRegions(normInput, prod, statedRegions)) {
       score = 0.5 + (prod.norm.length / normInput.length * 0.5);
     } else {
-      const overlap = tokenOverlap(inputTokens, prod.tokens);
+      const overlap = tokenOverlap(inputTokens, prod.tokens, placeWords);
       if (overlap >= 0.4) score = overlap * 0.7;
     }
     if (score > bestScore) { bestScore = score; bestMatch = prod; }
@@ -582,6 +645,33 @@ test("containsTerm: core names match whole phrases only", () => {
   assert(containsTerm("lo alto crianza", "lo alto", true), "whole-phrase needle missed a real mention");
 });
 
+test("Resolver: a place-named producer no longer claims its place ('dry creek', 'di montalcino')", () => {
+  const zin = matchProducer("Zinfandel, Dry Creek Valley 2019");
+  assert(!zin, `matched: ${zin && zin.producer.name}`);
+  const brunello = matchProducer("Brunello di Montalcino 2015");
+  assert(!brunello, `matched: ${brunello && brunello.producer.name}`);
+});
+
+test("Resolver: the estate on a Stellenbosch line beats 'Stellenbosch Vineyards'", () => {
+  const m = matchProducer("Kanonkop Pinotage, Stellenbosch 2019");
+  assert(m && m.producer.name === "kanonkop", `matched: ${m && m.producer.name}`);
+});
+
+test("Resolver: a place-named producer still matches its own full name", () => {
+  const m = matchProducer("Dry Creek Vineyard Fumé Blanc, Sonoma County 2022");
+  assert(m && m.producer.name === "dry creek vineyard", `matched: ${m && m.producer.name}`);
+});
+
+test("Resolver: a name inside the region the line states yields to it ('Alexander' in 'Alexander Valley')", () => {
+  const m = matchProducer("Jordan Cabernet Sauvignon, Alexander Valley 2018");
+  assert(m && m.producer.name === "jordan", `matched: ${m && m.producer.name}`);
+});
+
+test("Resolver: a token match made only of the line's region words names no producer ('Mendoza')", () => {
+  const m = matchProducer("Malbec, Mendoza 2021");
+  assert(!m, `matched: ${m && m.producer.name}`);
+});
+
 // ═══════════════════════════════════════════════════════
 // REAL MODULE: resolveWine via alias-loader (no mirror drift)
 // ═══════════════════════════════════════════════════════
@@ -611,6 +701,22 @@ async function realModuleTests() {
     for (const [core, name] of real) {
       assert(mirror.get(core) === name, `"${core}": real -> ${name}, mirror -> ${mirror.get(core)}`);
     }
+  });
+
+  test("Mirror lock: the CJS mirror's short-name guard rules on every producer as the real one does", () => {
+    const light = (t) => normalize(t, true);
+    const real = realAliases.buildShortNameGuard(wineUnified, light);
+    const mirror = aliasMirror.buildShortNameGuard(wineUnified, light);
+    let placeLike = 0;
+    for (const name of [...Object.keys(PRODUCER_LOOKUP), ...Object.values(ESTATES).flat().map((e) => e.name)]) {
+      const short = normalize(name);
+      const full = light(name);
+      if (short === full) continue;
+      const verdict = real(short, full);
+      assert(verdict === mirror(short, full), `"${name}": real ${verdict}, mirror ${mirror(short, full)}`);
+      if (verdict) placeLike++;
+    }
+    assert(placeLike > 0, "the guard flags no producer at all");
   });
 
   console.log("\n═══ Country Attribution — REAL resolveWine ═══");
@@ -667,11 +773,189 @@ async function realModuleTests() {
   });
 
   test("Real resolveWine: core names match whole phrases only ('Lo Alto' never inside 'Cielo Alto')", () => {
-    // Guards only the whole-phrase rule. The resolver still reads the single
-    // word "alto" as Stellenbosch's Alto Wine Estate — a lone common word with
-    // no stated geography, the residual case CLAUDE.md tracks.
+    // The single word "alto" no longer reads as Stellenbosch's Alto Wine
+    // Estate either: "alto" is a word of "Alto Adige", so that place-named
+    // norm counts only written in full ("Alto Wine Estate")
     const r = resolveWine("Cielo Alto Malbec 2020");
     assert(r.winery !== "Finca Casa Lo Alto", `winery: ${r.winery}`);
+    assert(r.winery === null, `winery: ${r.winery}`);
+  });
+
+  console.log("\n═══ Country Attribution — REAL resolveWine: own names and shared regions ═══");
+
+  test("Real resolveWine: geography inside the producer's own name states nothing (Concha y Toro, Vega Sicilia)", () => {
+    // "toro" (Spain) inside Chile's Concha y Toro and "sicilia" (Italy)
+    // inside Spain's Vega Sicilia read as stated geography: the conflict
+    // cap held both at 55, so neither ever accumulated
+    const toro = resolveWine("Concha y Toro Casillero del Diablo Cabernet Sauvignon");
+    assert(toro.confidence === 90, `Concha y Toro confidence: ${toro.confidence}`);
+    assert(toro.dnaMapping.dnaCountryId === "chile", `Concha y Toro country: ${toro.dnaMapping.dnaCountryId}`);
+    assert(toro.region === "Casablanca Valley", `Concha y Toro region: ${toro.region}`);
+    const vega = resolveWine("Vega Sicilia Único 2011");
+    assert(vega.confidence === 85, `Vega Sicilia confidence: ${vega.confidence}`);
+    assert(vega.dnaMapping.dnaCountryId === "spain", `Vega Sicilia country: ${vega.dnaMapping.dnaCountryId}`);
+    assert(vega.region === "Northern Spain", `Vega Sicilia region: ${vega.region}`);
+  });
+
+  test("Real resolveWine: geography beyond the producer's own name still counts (Pintia's Toro, a Douro or Hungary line)", () => {
+    // The region search moves past the name to the region the line states
+    const pintia = resolveWine("Vega Sicilia Pintia, Toro 2016");
+    assert(pintia.region === "toro", `Pintia region: ${pintia.region}`);
+    assert(pintia.confidence === 90, `Pintia confidence: ${pintia.confidence}`);
+    // ...so a contradiction stated outside the name still caps
+    const douro = resolveWine("Vega Sicilia Único, Douro 2011");
+    assert(douro.confidence === 55, `Douro line confidence: ${douro.confidence}`);
+    const oremus = resolveWine("Vega Sicilia Oremus Tokaji, Hungary 2017");
+    assert(oremus.confidence === 55, `Hungary line confidence: ${oremus.confidence}`);
+  });
+
+  test("Real resolveWine: a country inside the producer's own name doesn't vouch for it (Rios de Chile, Mendoza)", () => {
+    // "chile" in the name agreed with the producer's home and hid the
+    // contradiction the line states: Mendoza is Argentina (was 90)
+    const r = resolveWine("Rios de Chile Malbec, Mendoza 2020");
+    assert(r.confidence === 55, `Rios de Chile confidence: ${r.confidence}`);
+  });
+
+  test("Real resolveWine: only a proper part of a name the line writes is exempt", () => {
+    // A name that IS the place still states it: US Wellington on South
+    // Africa's Wellington stays disputed...
+    const wellington = resolveWine("Sauvignon Blanc, Wellington 2021");
+    assert(wellington.confidence === 55, `Wellington confidence: ${wellington.confidence}`);
+    // ...and a token match never wrote the name, so "toro" stays Spain's
+    const toro = resolveWine("Concha Toro Cabernet Sauvignon");
+    assert(toro.confidence === 55, `token-matched Concha y Toro confidence: ${toro.confidence}`);
+  });
+
+  test("Real resolveWine: a region name two countries share contradicts neither (Chile's Central Valley)", () => {
+    // regionLookup maps "central valley" to California; Chile has its own
+    const torres = resolveWine("Miguel Torres Santa Digna Cabernet Sauvignon, Central Valley 2020");
+    assert(torres.confidence === 90, `Miguel Torres confidence: ${torres.confidence}`);
+    assert(torres.dnaMapping.dnaCountryId === "chile", `Miguel Torres country: ${torres.dnaMapping.dnaCountryId}`);
+    // ...but it still disputes a producer from neither country
+    const penfolds = resolveWine("Penfolds Cabernet Sauvignon, Central Valley 2020");
+    assert(penfolds.confidence === 55, `Penfolds confidence: ${penfolds.confidence}`);
+  });
+
+  console.log("\n═══ Country Attribution — REAL resolveWine: place-named producers ═══");
+
+  test("Real resolveWine: a place-named producer no longer claims its place (Dry Creek, Mendoza, Brunello)", () => {
+    // normalize() drops designators, so "Dry Creek Vineyard" -> "dry creek"
+    // and "Cantina di Montalcino" -> "di montalcino" matched every wine
+    // from those places at confidence 90, estate and all
+    const zin = resolveWine("Zinfandel, Dry Creek Valley 2019");
+    assert(zin.winery === null, `Dry Creek Valley winery: ${zin.winery}`);
+    assert(zin.dnaMapping.dnaEstateId === null, `Dry Creek Valley estate: ${zin.dnaMapping.dnaEstateId}`);
+    assert(zin.confidence === 60, `Dry Creek Valley confidence: ${zin.confidence}`);
+    assert(zin.dnaMapping.dnaRegionId === "sonoma" && zin.dnaMapping.dnaCountryId === "us",
+      `Dry Creek Valley geography: ${zin.dnaMapping.dnaRegionId} / ${zin.dnaMapping.dnaCountryId}`);
+    const malbec = resolveWine("Malbec, Mendoza 2021");
+    assert(malbec.winery === null, `Mendoza winery: ${malbec.winery}`);
+    assert(malbec.dnaMapping.dnaEstateId === null, `Mendoza estate: ${malbec.dnaMapping.dnaEstateId}`);
+    assert(malbec.confidence === 60 && malbec.dnaMapping.dnaCountryId === "argentina",
+      `Mendoza: ${malbec.confidence} / ${malbec.dnaMapping.dnaCountryId}`);
+    const brunello = resolveWine("Brunello di Montalcino, Biondi-Santi 2015");
+    assert(brunello.winery === null, `Brunello winery: ${brunello.winery}`);
+    assert(brunello.confidence === 60, `Brunello confidence: ${brunello.confidence}`);
+    assert(brunello.dnaMapping.dnaRegionId === "tuscany" && brunello.dnaMapping.dnaVarietalId === "sangiovese",
+      `Brunello: ${brunello.dnaMapping.dnaRegionId} / ${brunello.dnaMapping.dnaVarietalId}`);
+  });
+
+  test("Real resolveWine: a name inside the region the line states yields to it (Alexander Valley, Santa Barbara County)", () => {
+    // Israel's Alexander, Italy's Santa Barbara and Santa Cruz Mountain
+    // Vineyard are the region's own words on these lines
+    const jordan = resolveWine("Jordan Cabernet Sauvignon, Alexander Valley 2018");
+    assert(jordan.winery === "Jordan", `Jordan winery: ${jordan.winery}`);
+    assert(jordan.dnaMapping.dnaCountryId === "us" && jordan.confidence === 90,
+      `Jordan: ${jordan.dnaMapping.dnaCountryId} / ${jordan.confidence}`);
+    const cab = resolveWine("Cabernet Sauvignon, Alexander Valley 2018");
+    assert(cab.winery === null, `Alexander Valley winery: ${cab.winery}`);
+    assert(cab.confidence === 60 && cab.dnaMapping.dnaCountryId === "us",
+      `Alexander Valley: ${cab.confidence} / ${cab.dnaMapping.dnaCountryId}`);
+    const sanford = resolveWine("Sanford Pinot Noir, Santa Barbara County 2021");
+    assert(sanford.winery === "Sanford" && sanford.dnaMapping.dnaCountryId === "us",
+      `Sanford: ${sanford.winery} / ${sanford.dnaMapping.dnaCountryId}`);
+    const ridge = resolveWine("Ridge Monte Bello, Santa Cruz Mountains 2019");
+    assert(ridge.winery === "Ridge", `Ridge winery: ${ridge.winery}`);
+    const masi = resolveWine("Amarone della Valpolicella, Masi 2016");
+    assert(masi.winery === "Masi", `Masi winery: ${masi.winery}`);
+    const leydaValley = resolveWine("Sauvignon Blanc, Leyda Valley 2021");
+    assert(leydaValley.winery === null && leydaValley.confidence === 60,
+      `Leyda Valley: ${leydaValley.winery} / ${leydaValley.confidence}`);
+  });
+
+  test("Real resolveWine: a name the line also writes on its own still counts, as does one uncontested", () => {
+    const scmv = resolveWine("Santa Cruz Mountain Vineyard Pinot Noir, Santa Cruz Mountains 2018");
+    assert(scmv.dnaMapping.dnaEstateId === "santa_cruz_mountain_vineyard", `estate: ${scmv.dnaMapping.dnaEstateId}`);
+    const leyda = resolveWine("Leyda Sauvignon Blanc, Leyda Valley 2021");
+    assert(leyda.winery === "Leyda" && leyda.confidence === 90, `Leyda: ${leyda.winery} / ${leyda.confidence}`);
+    // Inside means inside a word run, as the matcher reads words
+    const alente = resolveWine("Alente Tinto, Alentejo 2019");
+    assert(alente.winery === "Alente", `Alente winery: ${alente.winery}`);
+    // No place on the line: the namesake stands, as in the engine
+    const alexander = resolveWine("Alexander Cabernet Sauvignon 2018");
+    assert(alexander.winery === "Alexander" && alexander.dnaMapping.dnaCountryId === "israel",
+      `Alexander: ${alexander.winery} / ${alexander.dnaMapping.dnaCountryId}`);
+  });
+
+  test("Real resolveWine: a full name counts in the designator spellings menus use", () => {
+    const margaux = resolveWine("Ch. Margaux 2015");
+    assert(margaux.dnaMapping.dnaEstateId === "chateau_margaux", `Ch. Margaux estate: ${margaux.dnaMapping.dnaEstateId}`);
+    const dcv = resolveWine("Dry Creek Vineyards Zinfandel 2020");
+    assert(dcv.dnaMapping.dnaEstateId === "dry_creek_vineyard", `Dry Creek Vineyards estate: ${dcv.dnaMapping.dnaEstateId}`);
+  });
+
+  test("Real resolveWine: a token match made only of the line's region words is no producer", () => {
+    // Without a place-named producer to absorb it, "valley" used to hand
+    // these lines to whichever producer shares the word
+    const yakima = resolveWine("Merlot, Yakima Valley 2018");
+    assert(yakima.winery === null, `Yakima Valley winery: ${yakima.winery}`);
+    assert(yakima.confidence === 60, `Yakima Valley confidence: ${yakima.confidence}`);
+    // A token match on the producer's own word still stands
+    const beaucastel = resolveWine("Beaucastel Châteauneuf-du-Pape 2018");
+    assert(beaucastel.winery === "Château De Beaucastel", `Beaucastel winery: ${beaucastel.winery}`);
+  });
+
+  test("Real resolveWine: a preposition a designator left condemns a name only before a place", () => {
+    // "de beaucastel" and "d'yquem" are how menus find these estates
+    const coudoulet = resolveWine("Coudoulet de Beaucastel, Côtes du Rhône 2020");
+    assert(coudoulet.dnaMapping.dnaEstateId === "chateau_de_beaucastel", `Coudoulet estate: ${coudoulet.dnaMapping.dnaEstateId}`);
+    assert(coudoulet.confidence >= 80, `Coudoulet confidence: ${coudoulet.confidence}`);
+    const yquem = resolveWine("Ch. d'Yquem, Sauternes 2009");
+    assert(yquem.dnaMapping.dnaEstateId === "chateau_d_yquem", `Yquem estate: ${yquem.dnaMapping.dnaEstateId}`);
+    // ...while "de la cruz" (US Casa de la Cruz) is a modifier of a place word
+    const cruz = resolveWine("Hacienda de la Cruz Tempranillo 2019");
+    assert(cruz.winery !== "Casa De La Cruz", `de la Cruz winery: ${cruz.winery}`);
+    assert(cruz.dnaMapping.dnaCountryId !== "us", `de la Cruz country: ${cruz.dnaMapping.dnaCountryId}`);
+  });
+
+  test("Real resolveWine: the estate on the line beats a place-named producer (Kanonkop, Meerlust, Palmer)", () => {
+    // "stellenbosch" (Stellenbosch Vineyards) out-covered every shorter
+    // estate name on a Stellenbosch line; "margaux" (Château Margaux) every
+    // other Margaux château
+    const kanonkop = resolveWine("Kanonkop Pinotage, Stellenbosch 2019");
+    assert(kanonkop.winery === "Kanonkop", `Kanonkop winery: ${kanonkop.winery}`);
+    assert(kanonkop.dnaMapping.dnaEstateId === "kanonkop", `Kanonkop estate: ${kanonkop.dnaMapping.dnaEstateId}`);
+    assert(kanonkop.confidence === 90, `Kanonkop confidence: ${kanonkop.confidence}`);
+    const meerlust = resolveWine("Meerlust Rubicon, Stellenbosch 2018");
+    assert(meerlust.winery === "Meerlust", `Meerlust winery: ${meerlust.winery}`);
+    assert(meerlust.dnaMapping.dnaEstateId === "meerlust", `Meerlust estate: ${meerlust.dnaMapping.dnaEstateId}`);
+    const palmer = resolveWine("Château Palmer, Margaux 2015");
+    assert(palmer.winery === "Château Palmer", `Palmer winery: ${palmer.winery}`);
+    assert(palmer.dnaMapping.dnaEstateId === "chateau_palmer", `Palmer estate: ${palmer.dnaMapping.dnaEstateId}`);
+  });
+
+  test("Real resolveWine: a place-named producer still matches its own full name", () => {
+    const dcv = resolveWine("Dry Creek Vineyard Fumé Blanc, Sonoma County 2022");
+    assert(dcv.winery === "Dry Creek Vineyard", `Dry Creek Vineyard winery: ${dcv.winery}`);
+    assert(dcv.dnaMapping.dnaEstateId === "dry_creek_vineyard", `Dry Creek Vineyard estate: ${dcv.dnaMapping.dnaEstateId}`);
+    assert(dcv.confidence === 90, `Dry Creek Vineyard confidence: ${dcv.confidence}`);
+    const mendoza = resolveWine("Mendoza Vineyards Malbec 2020");
+    assert(mendoza.dnaMapping.dnaEstateId === "mendoza_vineyards", `Mendoza Vineyards estate: ${mendoza.dnaMapping.dnaEstateId}`);
+    const cdm = resolveWine("Cantina di Montalcino Brunello di Montalcino 2015");
+    assert(cdm.winery === "Cantina Di Montalcino", `Cantina di Montalcino winery: ${cdm.winery}`);
+    const margaux = resolveWine("Château Margaux 2015");
+    assert(margaux.dnaMapping.dnaEstateId === "chateau_margaux", `Château Margaux estate: ${margaux.dnaMapping.dnaEstateId}`);
+    assert(margaux.confidence === 90, `Château Margaux confidence: ${margaux.confidence}`);
   });
 
   console.log("\n═══ Country Attribution — REAL matchEngine (text path) ═══");
