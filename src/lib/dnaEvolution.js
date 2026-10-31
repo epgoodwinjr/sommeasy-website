@@ -36,6 +36,15 @@ function pointsTableFor(confidence) {
   return null;
 }
 
+// A rated bottle pushes a dimension while its rating earns positive points
+// in its band — loved and liked do; fine and not-for-me are rated but make
+// no case. interaction_count counts the bottles pushing each dimension, so
+// it moves by the same differential the points do: a re-rate by
+// pushCount(new) − pushCount(old), a delete takes the bottle back off.
+function pushCount(points) {
+  return points > 0 ? 1 : 0;
+}
+
 
 // ═══════════════════════════════════════════════════════
 // RESOLVE AND ACCUMULATE
@@ -50,10 +59,12 @@ function pointsTableFor(confidence) {
  * @param {string} wineName - Wine name as entered
  * @param {string} rating - 'loved', 'liked', 'fine', 'not_for_me'
  * @param {string|null} previousRating - Previous rating if re-rating, null if new
- * @returns {object} { resolution, dimensions, promotions, demotions } —
+ * @returns {object} { resolution, dimensions, promotions, demotions, wineName } —
  *   dimensions is what this wine's confidence band accumulates toward
  *   (empty below the partial gate), returned even on a zero delta so the
- *   milestone hook can judge the wine, not the delta
+ *   milestone hook can judge the wine, not the delta. wineName rides along
+ *   so the hook can name the rated wine on the timeline rows it writes
+ *   (dna_timeline.wine_name — the wine page's "What it did to your palate")
  */
 export async function resolveAndAccumulate(supabase, userId, wineName, rating, previousRating = null) {
   // Step 1: Resolve wine metadata
@@ -75,25 +86,27 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
   // Step 3: Only accumulate if confidence reaches at least the partial band
   const pointsTable = pointsTableFor(resolution.confidence);
   if (!pointsTable) {
-    return { resolution, dimensions: [], promotions: [], demotions: [] };
+    return { resolution, dimensions: [], promotions: [], demotions: [], wineName };
   }
   const partial = pointsTable === PARTIAL_RATING_POINTS;
 
   // Step 4: Determine which dimensions this band accumulates toward
   const dimensionUpdates = buildDimensionUpdates(resolution, { partial });
 
-  // Step 5: Calculate point delta
+  // Step 5: Calculate point delta, and the bottle-count delta beside it
+  // (equal points push alike, so a zero point delta moves no count either)
   const newPoints = pointsTable[rating] ?? 0;
   const oldPoints = previousRating ? (pointsTable[previousRating] ?? 0) : 0;
   const pointDelta = newPoints - oldPoints;
+  const countDelta = pushCount(newPoints) - pushCount(oldPoints);
 
   if (pointDelta === 0) {
-    return { resolution, dimensions: dimensionUpdates, promotions: [], demotions: [] };
+    return { resolution, dimensions: dimensionUpdates, promotions: [], demotions: [], wineName };
   }
 
-  // Step 6: Apply point deltas to dna_accumulation
+  // Step 6: Apply point and count deltas to dna_accumulation
   for (const dim of dimensionUpdates) {
-    await upsertAccumulation(supabase, userId, dim, pointDelta);
+    await upsertAccumulation(supabase, userId, dim, pointDelta, countDelta);
   }
 
   // Step 7: Check promotions and demotions
@@ -102,15 +115,15 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
 
   // Step 8: Apply promotions to wine_profiles
   if (promotions.length > 0) {
-    await applyPromotions(supabase, userId, promotions);
+    await applyPromotions(supabase, userId, promotions, wineName);
   }
 
   // Step 9: Apply demotions to wine_profiles
   if (demotions.length > 0) {
-    await applyDemotions(supabase, userId, demotions);
+    await applyDemotions(supabase, userId, demotions, wineName);
   }
 
-  return { resolution, dimensions: dimensionUpdates, promotions, demotions };
+  return { resolution, dimensions: dimensionUpdates, promotions, demotions, wineName };
 }
 
 
@@ -193,7 +206,11 @@ function buildDimensionUpdates(resolution, { partial = false } = {}) {
 // ACCUMULATION
 // ═══════════════════════════════════════════════════════
 
-async function upsertAccumulation(supabase, userId, dim, pointDelta) {
+// countDelta moves interaction_count (see pushCount). It never goes below
+// zero: a reversal can land on a row that never counted its bottle (a
+// pre-fix ledger, or a resolver change since the rating), and a negative
+// bottle count means nothing.
+async function upsertAccumulation(supabase, userId, dim, pointDelta, countDelta) {
   // Try to fetch existing row
   const { data: existing } = await supabase
     .from("dna_accumulation")
@@ -207,7 +224,7 @@ async function upsertAccumulation(supabase, userId, dim, pointDelta) {
     // Update existing row
     await supabase.from("dna_accumulation").update({
       points: existing.points + pointDelta,
-      interaction_count: existing.interaction_count + (pointDelta > 0 ? 1 : 0),
+      interaction_count: Math.max(0, existing.interaction_count + countDelta),
       display_name: dim.displayName,
       mappable: dim.mappable,
     }).eq("id", existing.id);
@@ -219,7 +236,7 @@ async function upsertAccumulation(supabase, userId, dim, pointDelta) {
       dimension_value: dim.dimensionValue,
       display_name: dim.displayName,
       points: pointDelta,
-      interaction_count: pointDelta > 0 ? 1 : 0,
+      interaction_count: Math.max(0, countDelta),
       mappable: dim.mappable,
       source: "auto",
     });
@@ -440,7 +457,9 @@ async function checkDemotions(supabase, userId, dimensionUpdates) {
 // APPLY PROMOTIONS TO WINE_PROFILES
 // ═══════════════════════════════════════════════════════
 
-async function applyPromotions(supabase, userId, promotions) {
+// wineName is the bottle whose rating earned these (null when nothing
+// named one) — it links each timeline row to that wine's page
+async function applyPromotions(supabase, userId, promotions, wineName = null) {
   // Fetch current profile
   const { data: profile } = await supabase
     .from("wine_profiles")
@@ -510,6 +529,7 @@ async function applyPromotions(supabase, userId, promotions) {
       dimension,
       dimension_value: dimensionValue,
       display_name: displayName,
+      wine_name: wineName,
     });
   }
 
@@ -525,7 +545,7 @@ async function applyPromotions(supabase, userId, promotions) {
 // APPLY DEMOTIONS TO WINE_PROFILES
 // ═══════════════════════════════════════════════════════
 
-async function applyDemotions(supabase, userId, demotions) {
+async function applyDemotions(supabase, userId, demotions, wineName = null) {
   const { data: profile } = await supabase
     .from("wine_profiles")
     .select("countries, regions, estates, varietals")
@@ -580,6 +600,7 @@ async function applyDemotions(supabase, userId, demotions) {
       dimension,
       dimension_value: dimensionValue,
       display_name: displayName,
+      wine_name: wineName,
     });
   }
 
@@ -634,18 +655,47 @@ export async function reverseAccumulation(supabase, userId, wineName, interactio
 
   const dimensionUpdates = buildDimensionUpdates(resolution, { partial });
 
-  // Reverse the points
+  // Reverse the points, and take the bottle off every count it was on
   for (const dim of dimensionUpdates) {
-    await upsertAccumulation(supabase, userId, dim, -points);
+    await upsertAccumulation(supabase, userId, dim, -points, -pushCount(points));
   }
 
-  // Check for demotions triggered by the reversal
+  // Check for demotions triggered by the reversal. They name no wine: only
+  // a rating does — the deleted bottle has left the journal and has no page
   const demotions = await checkDemotions(supabase, userId, dimensionUpdates);
   if (demotions.length > 0) {
-    await applyDemotions(supabase, userId, demotions);
+    await applyDemotions(supabase, userId, demotions, null);
   }
 
   return { demotions };
+}
+
+
+// ═══════════════════════════════════════════════════════
+// BOTTLE EVIDENCE — one rated bottle's worth, without I/O
+// ═══════════════════════════════════════════════════════
+
+/**
+ * What one rated bottle is worth to the ledger under today's engine: the
+ * points its rating earns in its confidence band, whether it pushes (counts
+ * toward interaction_count), and the dimensions it writes. Summed over a
+ * user's rated interactions, it is what dna_accumulation should hold — the
+ * recount in scripts/recount-interaction-count.mjs is built on it, so the
+ * recount and the engine can't disagree about a bottle.
+ *
+ * @returns {object} { resolution, points, pushes, dimensions }
+ */
+export function bottleEvidence(wineName, rating) {
+  const resolution = resolveWine(wineName);
+  const pointsTable = pointsTableFor(resolution.confidence);
+  if (!pointsTable) return { resolution, points: 0, pushes: false, dimensions: [] };
+  const points = pointsTable[rating] ?? 0;
+  return {
+    resolution,
+    points,
+    pushes: pushCount(points) === 1,
+    dimensions: buildDimensionUpdates(resolution, { partial: pointsTable === PARTIAL_RATING_POINTS }),
+  };
 }
 
 

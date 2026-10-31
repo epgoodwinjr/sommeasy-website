@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { testDb, ensureEarnedFixture, EARNED_FIXTURE } from "./fixtures/test-db";
 
 /**
  * Hard-fail guard for the Palate view (Palate Act II, Session 2).
@@ -47,18 +48,85 @@ test.describe("Palate view (hard-fail guard)", () => {
     await expect(dna.getByText("Pinot Noir").first()).toBeVisible();
   });
 
-  test("the DNA strip on home is the door to the palate", async ({ page }) => {
+  test("the crest on home is the door to the palate", async ({ page }) => {
     await page.goto("/");
     const strip = page.getByTestId("palate-strip");
     await expect(strip).toBeVisible();
-    // The strip carries the visual mark (Act III S4) without growing: the
-    // mark is capped at 44px so the text block still owns the strip height
+    // The House List crest (Phase 2, §8.1.2) carries the visual mark at its
+    // designed 76px, above the strand's title — the old strip's 44px cap
+    // retired with the strip
     const stripMark = strip.getByTestId("palate-mark");
     await expect(stripMark).toBeVisible();
     const markBox = await stripMark.boundingBox();
-    expect(markBox && markBox.height).toBeLessThanOrEqual(44);
+    expect(markBox, "the crest mark must render").not.toBeNull();
+    expect(Math.abs(markBox!.height - 76)).toBeLessThanOrEqual(1);
+    // The date line's link and the footer links hold the 40px tap floor
+    // (CLAUDE.md) even at 10px / 13px type
+    const footerLinks = page.getByRole("navigation", { name: "Your Sommeasy" }).getByRole("link");
+    await expect(footerLinks).toHaveCount(3, { timeout: 15_000 });
+    const targets = [page.getByRole("link", { name: "Your palate ›" }), ...(await footerLinks.all())];
+    for (const link of targets) {
+      const box = await link.boundingBox();
+      expect(box!.height, `tap target: ${await link.textContent()}`).toBeGreaterThanOrEqual(40);
+    }
     await strip.click();
     await page.waitForURL("/palate");
     await expect(page.getByTestId("palate-archetype")).toBeVisible();
+  });
+
+  // The House List (Phase 5, §8.7): an inner page — the running head and
+  // the service bar (decision D1) — of numbered sections, where only what
+  // ratings earned wears ✦, and Start fresh asks before it opens the quiz
+  // (decision D2). The earned Chenin Blanc fixture (self-healed here) and
+  // its timeline row are the premise.
+  test("House List palate: numbered sections, the earned ✦, and Start fresh asks first", async ({ page }) => {
+    const { supabase, userId } = await testDb();
+    await ensureEarnedFixture(supabase, userId);
+
+    await page.goto("/palate");
+    await expect(page.getByTestId("palate-archetype")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("running-head")).toBeVisible();
+    await expect(page.getByTestId("service-bar")).toBeVisible();
+    const heroMark = page.getByTestId("palate-mark").first();
+    const markBox = await heroMark.boundingBox();
+    expect(markBox, "the hero mark must render").not.toBeNull();
+    expect(Math.abs(markBox!.height - 176)).toBeLessThanOrEqual(1);
+    for (const label of ["Recently evolved", "Building now", "Your DNA"]) {
+      await expect(page.getByRole("heading", { name: label, exact: true })).toBeVisible();
+    }
+
+    // Recently evolved: the journal's lines (the fixture's timeline row
+    // guarantees content, so never the empty state here), each a link, and
+    // the way to the full history
+    const evolution = page.getByTestId("palate-evolution");
+    const moments = evolution.getByRole("link", { name: /joined your|left your|You became|Your signature shifted/ });
+    await expect(moments.first()).toBeVisible();
+    expect(await moments.count()).toBeLessThanOrEqual(3);
+    await expect(evolution.getByRole("link", { name: "Full history →" })).toHaveAttribute("href", "/journal?tab=timeline");
+
+    // The DNA: the earned grape wears ✦ and its bottle count; the quiz's
+    // grape wears no ✦
+    const dna = page.getByTestId("palate-dna");
+    const row = (name: string) => dna.getByTestId("palate-dna-row").filter({ hasText: name });
+    await expect(row("Chenin Blanc")).toContainText(`${EARNED_FIXTURE.interactionCount} bottles`);
+    await expect(row("Chenin Blanc").getByRole("img", { name: "earned by your ratings" })).toBeVisible();
+    await expect(row("Pinot Noir").getByRole("img")).toHaveCount(0);
+    await expect(row("Pinot Noir")).toContainText(/from your quiz|\d+ bottles?/);
+    await expect(dna.getByText("earned by your ratings, not the quiz")).toBeVisible();
+
+    // The quiz links: Adjust goes straight in; Start fresh asks first
+    await expect(page.getByRole("link", { name: "Adjust quiz answers" })).toHaveAttribute("href", "/?quiz=refine");
+    const startFresh = page.getByTestId("start-fresh");
+    await expect(startFresh).toHaveAttribute("aria-expanded", "false");
+    await startFresh.click();
+    const confirm = page.getByTestId("start-fresh-confirm");
+    await expect(confirm).toContainText("Start over with a blank quiz?");
+    await expect(confirm.getByRole("link", { name: "Start fresh" })).toHaveAttribute("href", "/?quiz=fresh");
+    await expect(startFresh).toHaveAttribute("aria-expanded", "true");
+    // Cancel closes it and hands focus back — nothing opened, nothing saved
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    await expect(confirm).toHaveCount(0);
+    await expect(startFresh).toBeFocused();
+    await expect(page).toHaveURL(/\/palate$/);
   });
 });

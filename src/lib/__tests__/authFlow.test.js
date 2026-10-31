@@ -18,9 +18,11 @@ function test(name, fn) {
 function assert(cond, msg) { if (!cond) throw new Error("ASSERT FAILED: " + msg); }
 
 async function main() {
-  const { sanitizeNext, interpretSignUpResult, isValidOtpType, VALID_OTP_TYPES, isOtpNoAccountError } =
-    await import("../authFlow.js");
-  const { AUTH_ERRORS, AUTH_MESSAGES, mapAuthError, authErrorCopy } =
+  const {
+    sanitizeNext, interpretSignUpResult, isValidOtpType, VALID_OTP_TYPES, isOtpNoAccountError,
+    validateSignup, cleanName, NAME_MAX,
+  } = await import("../authFlow.js");
+  const { AUTH_ERRORS, AUTH_MESSAGES, mapAuthError, authErrorCopy, authNoticeCopy, welcomeNoticeCopy } =
     await import("../authCopy.js");
 
   console.log("\n═══ sanitizeNext — open-redirect kill table ═══");
@@ -147,8 +149,10 @@ async function main() {
   });
 
   test("every error copy tells the user what to do next (CLAUDE.md voice rule)", () => {
-    // Heuristic: actionable copy contains a verb of action or direction
-    const actionable = /try|sign in|reset|check|request|give it|pick|ignore|moment|type it/i;
+    // Heuristic: actionable copy contains a verb of action or direction —
+    // or names exactly what's needed ("We need all three…": the fix is
+    // the sentence)
+    const actionable = /try|sign in|reset|check|request|give it|pick|ignore|moment|type it|we need/i;
     for (const [k, copy] of Object.entries(AUTH_ERRORS)) {
       assert(actionable.test(copy), `${k} copy has no next step: "${copy}"`);
     }
@@ -166,6 +170,8 @@ async function main() {
     [{ message: "Token has expired or is invalid", status: 403 }, "link_expired"],
     [{ message: "Password should be at least 8 characters.", status: 422 }, "weak_password"],
     [{ message: "New password should be different from the old password.", status: 422 }, "same_password"],
+    [{ message: "Unable to validate email address: invalid format", status: 400 }, "invalid_email"],
+    [{ message: "Email address \"x@y\" is invalid", status: 400 }, "invalid_email"],
     [{ message: "some totally novel failure", status: 500 }, "unknown"],
   ];
   for (const [err, want] of mappings) {
@@ -197,11 +203,67 @@ async function main() {
     assert(/sign-in link/i.test(copy), "names what was sent");
   });
 
+  test("a failed sign-out has its own copy — never a raw provider string", () => {
+    assert(typeof AUTH_ERRORS.sign_out_failed === "string", "sign_out_failed exists");
+    assert(/sign you out/i.test(AUTH_ERRORS.sign_out_failed), "names what failed");
+    assert(/try again/i.test(AUTH_ERRORS.sign_out_failed), "says what to do next");
+  });
+
+  test("the ?notice= landing renders only known notices (House List: signed out)", () => {
+    assert(authNoticeCopy("signed_out") === "✓ Signed out", "signed_out copy");
+    assert(authNoticeCopy("not_a_notice") === null, "unknown keys render nothing, never the raw param");
+    assert(authNoticeCopy(undefined) === null && authNoticeCopy("") === null, "absent param");
+  });
+
   test("password_helper and magic_needs_email exist with the 8-char policy", () => {
     assert(AUTH_MESSAGES.password_helper === "At least 8 characters.", "helper copy");
     assert(/8 characters/.test(AUTH_ERRORS.weak_password), "weak_password names 8");
     assert(!/6 characters/.test(AUTH_ERRORS.weak_password), "no stale 6-char copy");
     assert(typeof AUTH_ERRORS.magic_needs_email === "string" && AUTH_ERRORS.magic_needs_email.length > 20, "magic_needs_email");
+  });
+
+  console.log("\n═══ The House List, Phase 6 — create account + Account ═══");
+
+  test("create account asks for all three — a name, an email, a password — in brand voice", () => {
+    assert(AUTH_ERRORS.signup_missing_fields
+      === "We need all three to save your palate — a name, an email and a password.", "README §8.9 copy");
+    const ok = { name: "Edward", email: "ed@example.com", password: "longenough" };
+    assert(validateSignup(ok) === null, "complete → no error");
+    for (const missing of ["name", "email", "password"]) {
+      assert(validateSignup({ ...ok, [missing]: "" }) === "signup_missing_fields", `no ${missing}`);
+    }
+    assert(validateSignup({ ...ok, name: "   " }) === "signup_missing_fields", "a blank name is no name");
+    assert(validateSignup({ ...ok, email: "  " }) === "signup_missing_fields", "a blank email is no email");
+    assert(validateSignup({}) === "signup_missing_fields" && validateSignup(null) === "signup_missing_fields", "junk");
+  });
+
+  test("create account checks the email's shape and the 8-char policy before asking Supabase", () => {
+    const ok = { name: "Edward", email: "ed@example.com", password: "longenough" };
+    for (const bad of ["ed", "ed@", "@example.com", "ed@example", "ed example@x.com"]) {
+      assert(validateSignup({ ...ok, email: bad }) === "invalid_email", `"${bad}" isn't an email`);
+    }
+    assert(validateSignup({ ...ok, email: "  ed@example.com " }) === null, "surrounding space is forgiven");
+    assert(validateSignup({ ...ok, password: "short77" }) === "weak_password", "7 characters");
+    assert(validateSignup({ ...ok, password: "eight888" }) === null, "8 is enough");
+    assert(/check it/i.test(AUTH_ERRORS.invalid_email), "invalid_email says what to do");
+  });
+
+  test("a name is trimmed and capped at 60 — what the Somm calls you", () => {
+    assert(cleanName("  Edward  ") === "Edward", "trimmed");
+    assert(cleanName("x".repeat(80)).length === NAME_MAX && NAME_MAX === 60, "capped at 60");
+    assert(cleanName(null) === "" && cleanName(42) === "", "junk → empty");
+  });
+
+  test("Account's copy: the delete failure, the reset-link toast, the closed-account line", () => {
+    assert(AUTH_ERRORS.account_delete_failed
+      === "We couldn’t close your account just now. Give it a minute and try again.", "README §8.8.4 copy");
+    assert(/sign in/i.test(AUTH_ERRORS.session_missing), "a signed-out request says to sign in");
+    assert(AUTH_MESSAGES.reset_link_toast === "✓ Check your inbox — a reset link is on its way", "README §8.8 toast");
+    assert(AUTH_MESSAGES.quiz_comes_with_you === "Your quiz answers come with you.", "README §8.9 line");
+    assert(welcomeNoticeCopy("account_deleted") === "Your account is closed. Everything in it is gone.", "README §8.8.4");
+    assert(welcomeNoticeCopy("signed_out") === null && welcomeNoticeCopy("nope") === null && welcomeNoticeCopy() === null,
+      "the Welcome screen renders only its own notice");
+    assert(authNoticeCopy("account_deleted") === null, "…and sign in never renders it");
   });
 
   test("isOtpNoAccountError detects the shouldCreateUser:false rejection", () => {

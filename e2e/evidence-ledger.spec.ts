@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { RecommendPage } from "./fixtures/sommeasy-page";
+import { RecommendPage, removeFromJournal } from "./fixtures/sommeasy-page";
 import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
 
 /**
@@ -19,7 +19,7 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  * Do NOT make this outcome-tolerant. If accumulation doesn't move, the
  * /recommend evidence path is broken again.
  *
- * wine_events discipline: append-forever — the exact-restore in `finally`
+ * wine_events discipline: append-forever — the exact restore (afterEach)
  * deliberately does NOT touch wine_events (no DELETE policy exists, on
  * purpose). Event assertions are deltas + latest-row shape only.
  *
@@ -105,12 +105,73 @@ async function healStaleGuardRows(supabase: SupabaseClient, userId: string) {
 }
 
 test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () => {
+  // The exact baseline, captured before anything moves. The restore lives
+  // in afterEach, which Playwright runs after a failed OR timed-out test —
+  // a finally in the test body doesn't survive a timeout (House List
+  // Phase 3 found that the hard way).
+  type Baseline = {
+    dims: Record<string, DimRow>;
+    identity: { archetype: unknown; identity: unknown; red_count: unknown; white_count: unknown } | null;
+  };
+  let baseline: Baseline | null = null;
+
+  test.afterEach(async ({ page }) => {
+    if (!baseline) return;
+    const { dims, identity } = baseline;
+    baseline = null;
+    const { supabase, userId } = await testDb();
+    // Kill any in-flight page JS FIRST — on an assertion failure the
+    // browser's resolveAndAccumulate may still be running, and cleaning
+    // the DB under it lets the engine re-insert rows after the restore
+    // (observed: two failed runs leaked +2 each and promoted pinotage)
+    await page.goto("about:blank").catch(() => {});
+
+    // Exact restore, downstream state included: guard interaction gone,
+    // baseline-absent accumulation rows deleted, baseline rows restored
+    for (const row of await findGuardRows(supabase, userId)) {
+      await supabase
+        .from("wine_interactions")
+        .delete()
+        .eq("user_id", userId)
+        .eq("wine_name", row.wine_name);
+    }
+    for (const [dimension, value] of DIMS) {
+      const base = dims[`${dimension}:${value}`];
+      if (base) {
+        await supabase
+          .from("dna_accumulation")
+          .update({ points: base.points, interaction_count: base.interaction_count })
+          .eq("user_id", userId)
+          .eq("dimension", dimension)
+          .eq("dimension_value", value);
+      } else {
+        await supabase
+          .from("dna_accumulation")
+          .delete()
+          .eq("user_id", userId)
+          .eq("dimension", dimension)
+          .eq("dimension_value", value);
+      }
+    }
+    if (identity) {
+      await supabase
+        .from("wine_profiles")
+        .update({
+          archetype: identity.archetype,
+          identity: identity.identity,
+          red_count: identity.red_count,
+          white_count: identity.white_count,
+        })
+        .eq("user_id", userId);
+    }
+  });
+
   test("rating a pick moves dna_accumulation; journal delete reverses it exactly", async ({ page }) => {
     test.setTimeout(120_000);
     const { supabase, userId } = await testDb();
 
     await healStaleGuardRows(supabase, userId);
-    const baseline = await readDims(supabase, userId);
+    const dims = await readDims(supabase, userId);
     // Event-ledger baselines — deltas only, never absolute counts
     const pickRatedBefore = await countEvents(supabase, userId, "pick_rated");
     const journalDeletedBefore = await countEvents(supabase, userId, "journal_deleted");
@@ -126,154 +187,102 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
       .select("archetype, identity, red_count, white_count")
       .eq("user_id", userId)
       .single();
+    baseline = { dims, identity: baselineIdentity };
 
-    try {
-      const recPage = new RecommendPage(page);
-      await recPage.goto();
-      await recPage.pasteAndAnalyze(GUARD_LINE);
-      await expect(recPage.resultsHeading).toBeVisible({ timeout: 10_000 });
+    const recPage = new RecommendPage(page);
+    await recPage.goto();
+    await recPage.pasteAndAnalyze(GUARD_LINE);
+    await expect(recPage.resultsHeading).toBeVisible({ timeout: 10_000 });
 
-      // The single-wine list must produce the Kanonkop pick — no tolerance
-      const card = recPage.pickCards.first();
-      await expect(card).toBeVisible();
-      await expect(card).toContainText(/Kanonkop/);
+    // The single-wine list must produce the Kanonkop pick — no tolerance
+    const card = recPage.pickCards.first();
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(/Kanonkop/);
 
-      await card.getByRole("button", { name: "Had this wine? Rate it" }).click();
-      await page.getByRole("button", { name: /Loved it/ }).click();
-      await expect(page.getByText("Rating saved!")).toBeVisible();
+    // House List picks rate in place: Had it? → a tile → the done line
+    // (which retired the "Rating saved!" toast)
+    await card.getByRole("button", { name: "Had it? Rate it" }).click();
+    await card.getByTestId("rating-tile-loved").click();
+    await expect(card).toContainText("❤️ Loved it — noted in your journal.");
 
-      // The interaction row lands AND resolution stamps it — the metadata
-      // write happens inside resolveAndAccumulate a beat after the upsert,
-      // so the poll must wait for both
-      let guardName = "";
-      await expect
-        .poll(async () => {
-          const rows = await findGuardRows(supabase, userId);
-          if (rows.length !== 1) return "no-row";
-          guardName = rows[0].wine_name;
-          if (rows[0].rating !== "loved") return "wrong-rating";
-          if (rows[0].match_confidence == null) return "unresolved";
-          return "ready";
-        }, { timeout: 20_000 })
-        .toBe("ready");
+    // The interaction row lands AND resolution stamps it — the metadata
+    // write happens inside resolveAndAccumulate a beat after the upsert,
+    // so the poll must wait for both
+    let guardName = "";
+    await expect
+      .poll(async () => {
+        const rows = await findGuardRows(supabase, userId);
+        if (rows.length !== 1) return "no-row";
+        guardName = rows[0].wine_name;
+        if (rows[0].rating !== "loved") return "wrong-rating";
+        if (rows[0].match_confidence == null) return "unresolved";
+        return "ready";
+      }, { timeout: 20_000 })
+      .toBe("ready");
 
-      const { data: guardRow } = await supabase
-        .from("wine_interactions")
-        .select("resolved_varietal, resolved_country, match_confidence")
-        .eq("user_id", userId)
-        .eq("wine_name", guardName)
-        .single();
-      expect(guardRow!.match_confidence).toBeGreaterThanOrEqual(80);
-      expect(guardRow!.resolved_varietal).toBe("Pinotage");
-      expect(guardRow!.resolved_country).toBe("South Africa");
+    const { data: guardRow } = await supabase
+      .from("wine_interactions")
+      .select("resolved_varietal, resolved_country, match_confidence")
+      .eq("user_id", userId)
+      .eq("wine_name", guardName)
+      .single();
+    expect(guardRow!.match_confidence).toBeGreaterThanOrEqual(80);
+    expect(guardRow!.resolved_varietal).toBe("Pinotage");
+    expect(guardRow!.resolved_country).toBe("South Africa");
 
-      // THE guard: a loved restaurant bottle is +2 on every resolved dimension
-      await expect
-        .poll(async () => {
-          const now = await readDims(supabase, userId);
-          return DIMS.every(([d, v]) => {
-            const key = `${d}:${v}`;
-            const base = baseline[key]?.points ?? 0;
-            return (now[key]?.points ?? 0) === base + 2;
-          });
-        }, { timeout: 15_000 })
-        .toBe(true);
+    // THE guard: a loved restaurant bottle is +2 on every resolved dimension
+    await expect
+      .poll(async () => {
+        const now = await readDims(supabase, userId);
+        return DIMS.every(([d, v]) => {
+          const key = `${d}:${v}`;
+          const base = dims[key]?.points ?? 0;
+          return (now[key]?.points ?? 0) === base + 2;
+        });
+      }, { timeout: 15_000 })
+      .toBe(true);
 
-      // Nothing crossed a threshold — no timeline events (fixture discipline)
-      const { count: timelineNow } = await supabase
-        .from("dna_timeline")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId);
-      expect(timelineNow).toBe(timelineBaseline);
+    // Nothing crossed a threshold — no timeline events (fixture discipline)
+    const { count: timelineNow } = await supabase
+      .from("dna_timeline")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    expect(timelineNow).toBe(timelineBaseline);
 
-      // The Long Memory: the rating wrote its pick_rated event — old→new
-      // with the resolved band (fire-and-forget, so poll for the landing)
-      await expect
-        .poll(async () => countEvents(supabase, userId, "pick_rated"), { timeout: 15_000 })
-        .toBe(pickRatedBefore + 1);
-      const pickEvent = await latestEvent(supabase, userId, "pick_rated");
-      expect(pickEvent!.payload.wine).toBe(guardName);
-      expect(pickEvent!.payload.rating).toBe("loved");
-      expect(pickEvent!.payload.previous_rating).toBeNull();
-      expect(pickEvent!.payload.surface).toBe("recommend");
-      expect(pickEvent!.payload.confidence_band).toBe("full");
+    // The Long Memory: the rating wrote its pick_rated event — old→new
+    // with the resolved band (fire-and-forget, so poll for the landing)
+    await expect
+      .poll(async () => countEvents(supabase, userId, "pick_rated"), { timeout: 15_000 })
+      .toBe(pickRatedBefore + 1);
+    const pickEvent = await latestEvent(supabase, userId, "pick_rated");
+    expect(pickEvent!.payload.wine).toBe(guardName);
+    expect(pickEvent!.payload.rating).toBe("loved");
+    expect(pickEvent!.payload.previous_rating).toBeNull();
+    expect(pickEvent!.payload.surface).toBe("recommend");
+    expect(pickEvent!.payload.confidence_band).toBe("full");
 
-      // Leg 2 — deleting the journal row reverses the evidence exactly
-      await page.goto("/journal");
-      await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-      await expect(page.getByText(guardName, { exact: true })).toBeVisible();
-      const journalCard = page
-        .locator("div")
-        .filter({ has: page.getByText(guardName, { exact: true }) })
-        .filter({ has: page.getByRole("button", { name: "×" }) })
-        .last();
-      await journalCard.getByRole("button", { name: "×" }).click();
-      await expect(page.getByText("✓ Removed")).toBeVisible();
+    // Leg 2 — deleting the journal row (from its wine page, since House
+    // List Phase 4) reverses the evidence exactly
+    await removeFromJournal(page, guardName);
 
-      await expect
-        .poll(async () => {
-          const now = await readDims(supabase, userId);
-          return DIMS.every(([d, v]) => {
-            const key = `${d}:${v}`;
-            return (now[key]?.points ?? 0) === (baseline[key]?.points ?? 0);
-          });
-        }, { timeout: 15_000 })
-        .toBe(true);
+    await expect
+      .poll(async () => {
+        const now = await readDims(supabase, userId);
+        return DIMS.every(([d, v]) => {
+          const key = `${d}:${v}`;
+          return (now[key]?.points ?? 0) === (dims[key]?.points ?? 0);
+        });
+      }, { timeout: 15_000 })
+      .toBe(true);
 
-      // The Long Memory: the delete wrote its journal_deleted event — what
-      // was removed, and that evidence really was reversed
-      await expect
-        .poll(async () => countEvents(supabase, userId, "journal_deleted"), { timeout: 15_000 })
-        .toBe(journalDeletedBefore + 1);
-      const deleteEvent = await latestEvent(supabase, userId, "journal_deleted");
-      expect(deleteEvent!.payload.wine).toBe(guardName);
-      expect(deleteEvent!.payload.rating).toBe("loved");
-      expect(deleteEvent!.payload.points_reversed).toBe(true);
-    } finally {
-      // Kill any in-flight page JS FIRST — on an assertion failure the
-      // browser's resolveAndAccumulate may still be running, and cleaning
-      // the DB under it lets the engine re-insert rows after the restore
-      // (observed: two failed runs leaked +2 each and promoted pinotage)
-      await page.goto("about:blank").catch(() => {});
-
-      // Exact restore, downstream state included: guard interaction gone,
-      // baseline-absent accumulation rows deleted, baseline rows restored
-      for (const row of await findGuardRows(supabase, userId)) {
-        await supabase
-          .from("wine_interactions")
-          .delete()
-          .eq("user_id", userId)
-          .eq("wine_name", row.wine_name);
-      }
-      for (const [dimension, value] of DIMS) {
-        const base = baseline[`${dimension}:${value}`];
-        if (base) {
-          await supabase
-            .from("dna_accumulation")
-            .update({ points: base.points, interaction_count: base.interaction_count })
-            .eq("user_id", userId)
-            .eq("dimension", dimension)
-            .eq("dimension_value", value);
-        } else {
-          await supabase
-            .from("dna_accumulation")
-            .delete()
-            .eq("user_id", userId)
-            .eq("dimension", dimension)
-            .eq("dimension_value", value);
-        }
-      }
-      if (baselineIdentity) {
-        await supabase
-          .from("wine_profiles")
-          .update({
-            archetype: baselineIdentity.archetype,
-            identity: baselineIdentity.identity,
-            red_count: baselineIdentity.red_count,
-            white_count: baselineIdentity.white_count,
-          })
-          .eq("user_id", userId);
-      }
-    }
+    // The Long Memory: the delete wrote its journal_deleted event — what
+    // was removed, and that evidence really was reversed
+    await expect
+      .poll(async () => countEvents(supabase, userId, "journal_deleted"), { timeout: 15_000 })
+      .toBe(journalDeletedBefore + 1);
+    const deleteEvent = await latestEvent(supabase, userId, "journal_deleted");
+    expect(deleteEvent!.payload.wine).toBe(guardName);
+    expect(deleteEvent!.payload.rating).toBe("loved");
+    expect(deleteEvent!.payload.points_reversed).toBe(true);
   });
 });

@@ -1,695 +1,294 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+// The journal — /journal (The House List §8.4, Phase 4).
+//
+// Four tabs over the user's own rows: Tried (had bottles grouped by the
+// month they were rated), Want, Passed, and the Timeline of what moved
+// their DNA. Rows carry no actions any more: each one opens its wine's page
+// (/wine), where the verdict, the note and Remove from journal live — so
+// this page holds no rating or delete logic of its own. The tab rides the
+// URL (?tab=, the deep link the Palate view uses), so a step back from a
+// wine page lands on the tab it left. The timeline is read directly: the
+// engine module would bring the 2.9MB wine data along for one select.
+//
+// Unknown ≠ empty: a failed read says so and offers a retry — it never
+// shows "the first page is always blank" or a zero count on a guess.
+
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { resolveAndAccumulate, reverseAccumulation, fetchDnaTimeline } from "@/lib/dnaEvolution";
-import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
-import { recordEvent, ratingEventPayload, confidenceBand } from "@/lib/wineEvents";
+import { wineHref } from "@/lib/navTrail";
+import {
+  FOUNDING_LINE, bottleCount, journalMark, journalRowMeta, journalStats, shortDate, timelineLine,
+} from "@/lib/houseCopy";
+import { groupByMonth } from "@/lib/journalView";
+import RunningHead from "@/components/house/RunningHead";
+import ServiceBar from "@/components/house/ServiceBar";
+import Toast, { useToast } from "@/components/house/Toast";
+import { ChoiceTabs } from "@/components/house/ChoiceLine";
+import WineRow from "@/components/house/WineRow";
+import TimelineRow from "@/components/house/TimelineRow";
+import Divider from "@/components/house/Divider";
+import EmptyState from "@/components/house/EmptyState";
+import TextAction from "@/components/house/TextAction";
+import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
-const RATING_DISPLAY = {
-  loved: { emoji: "❤️", label: "Loved it" },
-  liked: { emoji: "👍", label: "Liked it" },
-  fine: { emoji: "😐", label: "It was fine" },
-  not_for_me: { emoji: "👎", label: "Not for me" },
+const TABS = ["tried", "want", "skipped", "timeline"];
+const PANEL = "journal-panel";
+
+const column = { maxWidth: COLUMN, margin: "0 auto", padding: `22px ${GUTTER}px 56px` };
+const smallCaps = {
+  fontFamily: SANS, fontSize: "10px", fontWeight: 600, letterSpacing: "0.14em",
+  textTransform: "uppercase", color: INK, opacity: 0.45, whiteSpace: "nowrap",
 };
 
-// Local mirror of getPickTypeInfo's labels — deliberately NOT imported from
-// matchEngine, which would drag the 2.9MB wineUnified.json into this bundle
-// just for five badge strings.
-const SOMM_ROLE_DISPLAY = {
-  top: { emoji: "🏆", label: "Top Pick" },
-  splurge: { emoji: "✨", label: "Splurge" },
-  value: { emoji: "💰", label: "Great Value" },
-  adventure: { emoji: "🧭", label: "Adventure" },
-  wildcard: { emoji: "🍷", label: "Worth Trying" },
+const EMPTY = {
+  tried: {
+    emoji: "🍷",
+    title: "The first page is always blank",
+    sub: "Rate a bottle you know and it starts here — every rating sharpens your DNA.",
+    action: "📸 Log a bottle",
+    href: "/log",
+  },
+  want: {
+    emoji: "📌",
+    title: "Nothing waiting yet",
+    sub: "Tap 📌 Want it on any pick and it waits here. We’ll flag it when it turns up on a menu.",
+  },
+  skipped: {
+    emoji: "👋",
+    title: "Nothing struck off",
+    sub: "Pass on a pick and it lands here, so the Somm knows to steer around it.",
+  },
 };
 
-function RatingModal({ wine, currentRating, onRate, onClose }) {
-  const ratings = [
-    { id: "loved", emoji: "❤️", label: "Loved it" },
-    { id: "liked", emoji: "👍", label: "Liked it" },
-    { id: "fine", emoji: "😐", label: "It was fine" },
-    { id: "not_for_me", emoji: "👎", label: "Not for me" },
-  ];
+const retry = () => window.location.reload();
 
+function JournalRow({ row, now }) {
+  const { meta, right, accent } = journalRowMeta(row, now);
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 100,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      background: "rgba(27,61,47,0.4)", backdropFilter: "blur(8px)", padding: 24,
-    }} onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        background: "#F5F0E8", borderRadius: "24px", padding: "28px 24px",
-        maxWidth: 360, width: "100%", boxShadow: "0 24px 64px rgba(0,0,0,0.2)",
-      }}>
-        <div style={{
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-          textTransform: "uppercase", letterSpacing: "0.15em",
-          color: "#1B3D2F", opacity: 0.4, marginBottom: 8, fontWeight: 600,
-        }}>Rate this wine</div>
-        <div style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px",
-          color: "#1B3D2F", lineHeight: 1.3, marginBottom: 24,
-        }}>{wine}</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {ratings.map((r) => (
-            <button key={r.id} onClick={() => onRate(r.id)} style={{
-              display: "flex", alignItems: "center", gap: "12px",
-              padding: "14px 18px", borderRadius: "14px",
-              border: currentRating === r.id ? "2px solid #8B2332" : "1px solid rgba(27,61,47,0.08)",
-              background: currentRating === r.id ? "rgba(139,35,50,0.06)" : "rgba(255,255,255,0.5)",
-              cursor: "pointer", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
-              color: "#1B3D2F", fontWeight: currentRating === r.id ? 600 : 500,
-              width: "100%", textAlign: "left",
-            }}>
-              <span style={{ fontSize: "20px" }}>{r.emoji}</span> {r.label}
-            </button>
-          ))}
-        </div>
-        <button onClick={onClose} style={{
-          marginTop: 16, width: "100%", padding: "10px",
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-          color: "#1B3D2F", opacity: 0.4, background: "none",
-          border: "none", cursor: "pointer",
-        }}>Cancel</button>
-      </div>
-    </div>
+    <WineRow
+      testId="journal-row"
+      data-wine={row.wine_name}
+      name={row.wine_name}
+      mark={journalMark(row) || undefined}
+      meta={meta || undefined}
+      metaRight={right || undefined}
+      metaTone={accent ? "accent" : "quiet"}
+      struck={row.interaction_type === "skip"}
+      struckOpacity={0.55}
+      href={wineHref(row.wine_name)}
+    />
   );
 }
 
 export default function JournalPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [readFailed, setReadFailed] = useState(false);
+  const [timelineFailed, setTimelineFailed] = useState(false);
   const [interactions, setInteractions] = useState([]);
+  const [timeline, setTimeline] = useState([]);
+  const [foundedAt, setFoundedAt] = useState(null);
   const [tab, setTab] = useState("tried");
-  const [ratingWine, setRatingWine] = useState(null);
-  const [ratingCurrent, setRatingCurrent] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [timelineEntries, setTimelineEntries] = useState([]);
-  const [evolutionToasts, setEvolutionToasts] = useState([]);
+  // "Removed from your journal" arrives here from a wine page's back step
+  const { toasts } = useToast({ receivesCarried: true });
   const supabase = createClient();
 
   useEffect(() => {
     // Deep-link support (/journal?tab=timeline from the Palate view)
     const tabParam = new URLSearchParams(window.location.search).get("tab");
-    if (["tried", "want", "skipped", "timeline"].includes(tabParam)) setTab(tabParam);
+    if (TABS.includes(tabParam)) setTab(tabParam);
 
+    let live = true;
     async function init() {
       const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user || null;
-      setUser(currentUser);
-      if (currentUser) {
-        await loadInteractions(currentUser.id);
-        const timeline = await fetchDnaTimeline(supabase, currentUser.id);
-        setTimelineEntries(timeline);
+      const u = session?.user || null;
+      if (!live) return;
+      setUser(u);
+      if (u) {
+        const [ints, events, profile] = await Promise.all([
+          supabase.from("wine_interactions").select("*").eq("user_id", u.id)
+            .order("updated_at", { ascending: false }),
+          supabase.from("dna_timeline").select("*").eq("user_id", u.id)
+            .order("event_at", { ascending: false }),
+          supabase.from("wine_profiles").select("created_at").eq("user_id", u.id).maybeSingle(),
+        ]);
+        if (!live) return;
+        if (ints.error || !Array.isArray(ints.data)) setReadFailed(true);
+        else setInteractions(ints.data);
+        if (events.error || !Array.isArray(events.data)) setTimelineFailed(true);
+        else setTimeline(events.data);
+        setFoundedAt(profile.data?.created_at || null);
       }
       setLoading(false);
     }
     init();
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadInteractions(userId) {
-    const { data } = await supabase
-      .from("wine_interactions")
-      .select("*")
-      .eq("user_id", userId)
-      .order("updated_at", { ascending: false });
-    if (data) setInteractions(data);
-  }
-
-  const showToast = useCallback((msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  }, []);
-
-  const showEvolutionToasts = useCallback((items, isDemotion) => {
-    if (!items || items.length === 0) return;
-    const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
-    const toasts = items.map((p) => {
-      const target = dimensionLabels[p.dimension] || "your DNA";
-      return isDemotion
-        ? `🧬 ${p.displayName} removed from ${target}`
-        : `🧬 Your Wine DNA evolved: ${p.displayName} added to ${target}`;
-    });
-    toasts.forEach((msg, i) => {
-      setTimeout(() => {
-        setEvolutionToasts((prev) => [...prev, msg]);
-        setTimeout(() => {
-          setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
-        }, 4000);
-      }, 1500 + (i * 1500));
-    });
-  }, []);
-
-  // The celebrated shift closes the toast run — after promos/demos have had
-  // their beat. evoCount staggers it behind them.
-  const showShiftToast = useCallback((shift, evoCount) => {
-    const msg = shiftToastMessage(shift);
-    setTimeout(() => {
-      setEvolutionToasts((prev) => [...prev, msg]);
-      setTimeout(() => {
-        setEvolutionToasts((prev) => prev.filter((t) => t !== msg));
-      }, 5000);
-    }, 1500 + evoCount * 1500);
-  }, []);
-
-  const handleUpdateRating = async (wineName, rating) => {
-    // Find previous rating for point differential calculation
-    const prev = interactions.find((i) => i.wine_name === wineName);
-    const previousRating = prev?.rating || null;
-
-    const { error } = await supabase.from("wine_interactions").upsert({
-      user_id: user.id,
-      wine_name: wineName,
-      interaction_type: "had",
-      rating: rating,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id, wine_name" });
-
-    if (!error) {
-      // Re-run DNA evolution with the rating change
-      let result = null;
-      try {
-        result = await resolveAndAccumulate(supabase, user.id, wineName, rating, previousRating);
-      } catch (evoErr) {
-        console.error("DNA evolution error (non-blocking):", evoErr);
-      }
-      // The ledger record (The Long Memory): the old→new history the upsert
-      // just discarded. previousRating may be null — a "Want to Try" bottle
-      // rated for the first time from the journal. Fire-and-forget.
-      recordEvent(supabase, user.id, "journal_rerated", ratingEventPayload({
-        wine: wineName, rating, previousRating, surface: "journal",
-        confidence: result?.resolution?.confidence,
-      }));
-      if (result) {
-        try {
-          if (result.promotions?.length > 0) showEvolutionToasts(result.promotions, false);
-          if (result.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
-          // Milestone hook (Act III S3) — a rating change can shift the strand
-          const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, rating });
-          if (shift?.shifted) {
-            showShiftToast(shift, (result.promotions?.length || 0) + (result.demotions?.length || 0));
-          }
-          // Refresh timeline
-          const timeline = await fetchDnaTimeline(supabase, user.id);
-          setTimelineEntries(timeline);
-        } catch (evoErr) {
-          console.error("DNA evolution error (non-blocking):", evoErr);
-        }
-      }
-      await loadInteractions(user.id);
-      showToast("Rating updated!");
-    }
-    setRatingWine(null);
-  };
-
-  const handleDelete = async (wineName) => {
-    // Read the interaction before deleting — the reversal needs its rating
-    // and confidence, and the row is gone by the time reversal runs
-    const { data: interaction } = await supabase
-      .from("wine_interactions")
-      .select("rating, match_confidence, interaction_type")
-      .eq("user_id", user.id)
-      .eq("wine_name", wineName)
-      .single();
-
-    // Delete FIRST, returning the deleted rows. Points reverse only when
-    // THIS call actually removed the row — a failed delete + retry (or a
-    // second tab) can never double-reverse.
-    const { data: deleted, error } = await supabase
-      .from("wine_interactions")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("wine_name", wineName)
-      .select("wine_name");
-
-    if (!error && (deleted || []).length > 0) {
-      // The ledger record (The Long Memory): what was removed and whether
-      // evidence was reversed. points_reversed mirrors the engine's own
-      // rules — a sub-partial-band resolution accumulated nothing, and a
-      // "fine"/unrated row carried 0 points in every band, so neither
-      // reverses anything. Fired only when THIS call removed the row (the
-      // same delete-first idempotency the reversal itself rides).
-      const band = confidenceBand(interaction?.match_confidence);
-      recordEvent(supabase, user.id, "journal_deleted", {
-        wine: wineName,
-        rating: interaction?.rating ?? null,
-        interaction_type: interaction?.interaction_type ?? null,
-        confidence_band: band,
-        points_reversed:
-          band !== "none" && !!interaction?.rating && interaction.rating !== "fine",
-      });
-      try {
-        const result = await reverseAccumulation(supabase, user.id, wineName, interaction);
-        if (result?.demotions?.length > 0) showEvolutionToasts(result.demotions, true);
-        // Milestone hook on the reversal path — a delete-triggered demotion
-        // can shift the strand back, and that's worth saying too
-        const shift = await maybeRecomposeIdentity(supabase, user.id, { ...result, isReversal: true });
-        if (shift?.shifted) {
-          showShiftToast(shift, result?.demotions?.length || 0);
-        }
-      } catch (evoErr) {
-        console.error("DNA reversal error (non-blocking):", evoErr);
-      }
-    }
-
-    if (!error) {
-      setInteractions((prev) => prev.filter((i) => i.wine_name !== wineName));
-      // Refresh timeline
-      const timeline = await fetchDnaTimeline(supabase, user.id);
-      setTimelineEntries(timeline);
-      showToast("Removed");
-    }
-  };
-
-  const handleMarkTried = async (wineName) => {
-    setRatingWine(wineName);
-    setRatingCurrent(null);
+  // The tab rides the URL, so a step back from a wine page lands on it again
+  const chooseTab = (id) => {
+    setTab(id);
+    const url = new URL(window.location.href);
+    if (id === "tried") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", id);
+    window.history.replaceState(window.history.state, "", url);
   };
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
-        <img src="/protea-icon.png" alt="" style={{ height: 56, width: "auto", opacity: 0.5 }} />
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", opacity: 0.4 }}>Loading...</div>
-      </div>
+      <>
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <img src="/protea-icon.png" alt="" style={{ height: 56, width: "auto", opacity: 0.5 }} />
+        </div>
+        {/* A toast carried in from a wine page plays while the rows load */}
+        <Toast toasts={toasts} aboveServiceBar />
+      </>
     );
   }
 
   if (!user) {
     return (
-      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px", textAlign: "center" }}>
-        <img src="/protea-icon.png" alt="" style={{ height: 64, width: "auto", marginBottom: 20, opacity: 0.7 }} />
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", color: "#1B3D2F", margin: "0 0 12px" }}>Sign in to view your journal</h2>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", color: "#1B3D2F", opacity: 0.55, margin: "0 0 28px", maxWidth: 320, lineHeight: 1.55 }}>Every bottle you rate makes your next recommendation sharper. Your journal is where that history lives.</p>
-        <a href="/login?next=%2Fjournal" style={{ padding: "15px 44px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none" }}>Sign In</a>
-      </div>
+      <main style={column}>
+        <EmptyState
+          emoji="🍷"
+          title="Sign in to view your journal"
+          sub="Every bottle you rate makes your next recommendation sharper. Your journal is where that history lives."
+          action="Sign in"
+          href="/login?next=%2Fjournal"
+        />
+      </main>
     );
   }
 
+  const now = new Date();
   const tried = interactions.filter((i) => i.interaction_type === "had");
   const wanted = interactions.filter((i) => i.interaction_type === "want");
   const skipped = interactions.filter((i) => i.interaction_type === "skip");
+  const count = (rows) => (readFailed ? null : rows.length);
 
-  const formatDate = (dateStr) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const renderRows = () => {
+    if (readFailed) {
+      return (
+        <EmptyState
+          emoji="🍷"
+          title="We couldn’t open your journal just now"
+          sub="Your bottles are safe — give it a moment and try again."
+          action="Try again"
+          onAction={retry}
+        />
+      );
+    }
+    const rows = tab === "tried" ? tried : tab === "want" ? wanted : skipped;
+    if (rows.length === 0) return <EmptyState {...EMPTY[tab]} />;
+    if (tab !== "tried") {
+      return (
+        <>
+          <div style={{ height: 10 }} />
+          {rows.map((row) => <JournalRow key={row.id ?? row.wine_name} row={row} now={now} />)}
+        </>
+      );
+    }
+    return groupByMonth(tried, now).map((group) => (
+      <section key={group.key}>
+        <h2 style={{
+          display: "flex", alignItems: "baseline", gap: 10, margin: "26px 0 2px",
+          fontSize: "inherit", fontWeight: "inherit",
+        }}>
+          <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "18px", fontWeight: 400, color: BURGUNDY }}>
+            {group.label}
+          </span>
+          <span aria-hidden="true" style={{ flex: 1, height: 1, background: ink(0.1) }} />
+          <span style={smallCaps}>{bottleCount(group.rows.length)}</span>
+        </h2>
+        {group.rows.map((row) => <JournalRow key={row.id ?? row.wine_name} row={row} now={now} />)}
+      </section>
+    ));
+  };
+
+  const renderTimeline = () => {
+    if (timelineFailed) {
+      return (
+        <EmptyState
+          emoji="🧬"
+          title="We couldn’t read your timeline just now"
+          sub="Give it a moment and try again."
+          action="Try again"
+          onAction={retry}
+        />
+      );
+    }
+    const entries = timeline
+      .map((e) => ({ key: e.id, line: timelineLine(e), date: shortDate(e.event_at, now), wine: e.wine_name }))
+      .filter((e) => e.line);
+    if (foundedAt) {
+      entries.push({ key: "founding", line: FOUNDING_LINE, date: shortDate(foundedAt, now), wine: null });
+    }
+    if (entries.length === 0) {
+      return (
+        <EmptyState
+          emoji="🎉"
+          title="Your palate hasn’t begun yet"
+          sub="Two minutes of telling us what you love, and your timeline starts here."
+          action="Build my palate"
+          href="/"
+        />
+      );
+    }
+    return (
+      <>
+        <div style={{ height: 10 }} />
+        {entries.map((e) => (
+          <TimelineRow key={e.key} line={e.line} date={e.date} href={e.wine ? wineHref(e.wine) : "/palate"} />
+        ))}
+        <div style={{ textAlign: "center", marginTop: 16 }}>
+          <TextAction href="/palate">🧬 See what’s building in your palate →</TextAction>
+        </div>
+      </>
+    );
   };
 
   return (
-    <div style={{ maxWidth: 560, margin: "0 auto", padding: "0 24px", minHeight: "100vh" }}>
-      {/* Rating modal */}
-      {ratingWine && (
-        <RatingModal
-          wine={ratingWine}
-          currentRating={ratingCurrent}
-          onRate={(r) => handleUpdateRating(ratingWine, r)}
-          onClose={() => setRatingWine(null)}
+    <>
+      <RunningHead />
+      <main style={column}>
+        <h1 style={TYPE.h1}>Journal</h1>
+        <p style={{ ...TYPE.sub, marginTop: 8 }}>Your tasting history and wishlist</p>
+        <ChoiceTabs
+          panelId={PANEL}
+          value={tab}
+          onChange={chooseTab}
+          style={{ marginTop: 20 }}
+          tabs={[
+            { id: "tried", label: "Tried", count: count(tried) },
+            { id: "want", label: "Want", count: count(wanted) },
+            { id: "skipped", label: "Passed", count: count(skipped) },
+            { id: "timeline", label: "Timeline" },
+          ]}
         />
-      )}
+        <div role="tabpanel" id={PANEL} aria-labelledby={`${PANEL}-${tab}`}>
+          {tab === "timeline" ? renderTimeline() : renderRows()}
+        </div>
 
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)",
-          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
-          borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif",
-          fontSize: "14px", fontWeight: 600, zIndex: 90,
-          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
-        }}>✓ {toast}</div>
-      )}
-
-      {/* Header */}
-      <header style={{
-        padding: "20px 0 16px", display: "flex", alignItems: "center", justifyContent: "space-between",
-        position: "sticky", top: 0, background: "rgba(245,240,232,0.92)", backdropFilter: "blur(16px)", zIndex: 10,
-      }}>
-        <a href="/" style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px",
-          color: "#8B2332", fontWeight: 700, textDecoration: "none",
-          display: "flex", alignItems: "center", gap: "10px", letterSpacing: "-0.01em",
-        }}>
-          <img src="/protea-icon.png" alt="" style={{ height: 36, width: "auto" }} />
-          Sommeasy
-        </a>
-        <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.45 }}>{user.email?.split("@")[0]}</span>
-      </header>
-
-      {/* Title */}
-      <div style={{ padding: "24px 0 20px" }}>
-        <h1 style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "30px",
-          color: "#1B3D2F", margin: "0 0 8px", fontWeight: 700, letterSpacing: "-0.01em",
-        }}>Wine Journal</h1>
-        <p style={{
-          fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
-          color: "#1B3D2F", opacity: 0.5, margin: 0, lineHeight: 1.5,
-        }}>Your tasting history and wishlist</p>
-      </div>
-
-      {/* Tabs */}
-      <div style={{
-        display: "flex", gap: "4px", marginBottom: 20,
-        background: "rgba(27,61,47,0.04)", borderRadius: "14px", padding: "4px",
-      }}>
-        {[
-          { id: "tried", label: `Tried (${tried.length})` },
-          { id: "want", label: `Want to Try (${wanted.length})` },
-          { id: "skipped", label: `Skipped (${skipped.length})` },
-          { id: "timeline", label: "DNA Timeline" },
-        ].map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{
-            flex: 1, padding: "11px 8px", borderRadius: "11px", border: "none",
-            background: tab === t.id ? "rgba(255,255,255,0.85)" : "transparent",
-            color: "#1B3D2F", fontFamily: "'Source Sans 3', sans-serif",
-            fontSize: "13px", fontWeight: tab === t.id ? 600 : 400,
-            cursor: "pointer", transition: "all 0.2s ease",
-            boxShadow: tab === t.id ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
-          }}>{t.label}</button>
-        ))}
-      </div>
-
-      {/* ─── TRIED TAB ─── */}
-      {tab === "tried" && (
-        <div>
-          {tried.length === 0 ? (
-            <div style={{
-              textAlign: "center", padding: "48px 20px",
-              background: "rgba(255,255,255,0.4)", borderRadius: "16px",
-              border: "1px solid rgba(27,61,47,0.06)",
+        {tab !== "timeline" && !readFailed && tried.length > 0 && (
+          <>
+            <Divider style={{ marginTop: 34 }} />
+            <p style={{
+              fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", color: ink(0.65),
+              textAlign: "center", marginTop: 12,
             }}>
-              <div style={{ fontSize: "36px", marginBottom: 12 }}>🍷</div>
-              <p style={{
-                fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
-                color: "#1B3D2F", opacity: 0.5, margin: 0, lineHeight: 1.5,
-              }}>No wines tried yet. Use &quot;Had it&quot; on your Wines to Try, or rate wines from your restaurant picks.</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {tried.map((wine) => {
-                const rd = RATING_DISPLAY[wine.rating] || { emoji: "🍷", label: "Tried" };
-                return (
-                  <div key={wine.id} style={{
-                    background: "rgba(255,255,255,0.55)", borderRadius: "16px",
-                    padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{
-                          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
-                          color: "#1B3D2F", lineHeight: 1.35, marginBottom: 6,
-                        }}>{wine.wine_name}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                          <span style={{
-                            display: "inline-flex", alignItems: "center", gap: "4px",
-                            padding: "3px 10px", borderRadius: "100px",
-                            background: wine.rating === "loved" ? "rgba(139,35,50,0.08)" :
-                              wine.rating === "not_for_me" ? "rgba(27,61,47,0.06)" : "rgba(27,61,47,0.04)",
-                            fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-                            color: wine.rating === "loved" ? "#8B2332" : "#1B3D2F",
-                            fontWeight: 600,
-                          }}>{rd.emoji} {rd.label}</span>
-                          <span style={{
-                            fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-                            color: "#1B3D2F", opacity: 0.3,
-                          }}>{formatDate(wine.updated_at)}</span>
-                        </div>
-                        {/* What The Somm said the night this wine was picked */}
-                        {wine.somm_note && (() => {
-                          const role = SOMM_ROLE_DISPLAY[wine.somm_pick_role];
-                          return (
-                            <div data-testid="journal-somm-note" style={{
-                              marginTop: 10, padding: "12px 14px", borderRadius: "10px",
-                              background: "#F5F0E8", borderLeft: "3px solid #8B2332",
-                            }}>
-                              <div style={{
-                                display: "flex", alignItems: "center", gap: "8px",
-                                flexWrap: "wrap", marginBottom: 6,
-                              }}>
-                                <span style={{
-                                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-                                  fontWeight: 700, color: "#8B2332",
-                                  textTransform: "uppercase", letterSpacing: "0.08em",
-                                }}>🍷 The Somm said</span>
-                                {role && (
-                                  <span style={{
-                                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "10px",
-                                    fontWeight: 700, color: "#8B2332",
-                                    textTransform: "uppercase", letterSpacing: "0.08em",
-                                    background: "rgba(139,35,50,0.08)",
-                                    padding: "2px 8px", borderRadius: "100px",
-                                  }}>{role.emoji} {role.label}</span>
-                                )}
-                              </div>
-                              <p style={{
-                                fontFamily: "'Playfair Display', Georgia, serif", fontSize: "14px",
-                                fontStyle: "italic", color: "#1B3D2F", margin: 0, lineHeight: 1.55,
-                              }}>{wine.somm_note}</p>
-                              {wine.occasion && (
-                                <div style={{
-                                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-                                  color: "#1B3D2F", opacity: 0.5, marginTop: 6,
-                                }}>That night: {wine.occasion}</div>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                        <button onClick={() => { setRatingWine(wine.wine_name); setRatingCurrent(wine.rating); }} style={{
-                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-                          color: "#8B2332", background: "none", border: "1px solid rgba(139,35,50,0.15)",
-                          borderRadius: "8px", padding: "10px 14px", cursor: "pointer",
-                        }}>Edit</button>
-                        <button onClick={() => handleDelete(wine.wine_name)} style={{
-                          fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-                          color: "#1B3D2F", opacity: 0.35, background: "none", border: "1px solid rgba(27,61,47,0.08)",
-                          borderRadius: "8px", padding: "10px 14px", cursor: "pointer",
-                        }}>×</button>
-                      </div>
-                    </div>
-                  </div>
-                );
+              {journalStats({
+                tried: tried.length,
+                loved: tried.filter((w) => w.rating === "loved").length,
+                want: wanted.length,
               })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── WANT TO TRY TAB ─── */}
-      {tab === "want" && (
-        <div>
-          {wanted.length === 0 ? (
-            <div style={{
-              textAlign: "center", padding: "48px 20px",
-              background: "rgba(255,255,255,0.4)", borderRadius: "16px",
-              border: "1px solid rgba(27,61,47,0.06)",
-            }}>
-              <div style={{ fontSize: "36px", marginBottom: 12 }}>📌</div>
-              <p style={{
-                fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
-                color: "#1B3D2F", opacity: 0.5, margin: 0, lineHeight: 1.5,
-              }}>No wines on your wishlist yet. Tap &quot;Want to try&quot; on any recommendation to save it here.</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {wanted.map((wine) => (
-                <div key={wine.id} style={{
-                  background: "rgba(255,255,255,0.55)", borderRadius: "16px",
-                  padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)",
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
-                }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px",
-                      color: "#1B3D2F", lineHeight: 1.35, marginBottom: 4,
-                    }}>{wine.wine_name}</div>
-                    <span style={{
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-                      color: "#1B3D2F", opacity: 0.3,
-                    }}>Added {formatDate(wine.created_at)}</span>
-                  </div>
-                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                    <button onClick={() => handleMarkTried(wine.wine_name)} style={{
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "12px",
-                      color: "#8B2332", background: "rgba(139,35,50,0.06)",
-                      border: "1px solid rgba(139,35,50,0.12)",
-                      borderRadius: "10px", padding: "7px 14px", cursor: "pointer", fontWeight: 600,
-                    }}>🍷 Tried it!</button>
-                    <button onClick={() => handleDelete(wine.wine_name)} style={{
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-                      color: "#1B3D2F", opacity: 0.35, background: "none", border: "1px solid rgba(27,61,47,0.08)",
-                      borderRadius: "8px", padding: "10px 14px", cursor: "pointer",
-                    }}>×</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── SKIPPED TAB ─── */}
-      {tab === "skipped" && (
-        <div>
-          {skipped.length === 0 ? (
-            <div style={{
-              textAlign: "center", padding: "48px 20px",
-              background: "rgba(255,255,255,0.4)", borderRadius: "16px",
-              border: "1px solid rgba(27,61,47,0.06)",
-            }}>
-              <p style={{
-                fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
-                color: "#1B3D2F", opacity: 0.5, margin: 0,
-              }}>Nothing skipped — and that&apos;s fine. Wines you pass on land here so The Somm learns what to steer around.</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {skipped.map((wine) => (
-                <div key={wine.id} style={{
-                  background: "rgba(255,255,255,0.4)", borderRadius: "16px",
-                  padding: "16px 20px", border: "1px solid rgba(27,61,47,0.06)",
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
-                  opacity: 0.6,
-                }}>
-                  <div style={{
-                    fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px",
-                    color: "#1B3D2F", lineHeight: 1.3, flex: 1,
-                  }}>{wine.wine_name}</div>
-                  <button onClick={() => handleDelete(wine.wine_name)} style={{
-                    fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-                    color: "#1B3D2F", opacity: 0.4, background: "none", border: "1px solid rgba(27,61,47,0.08)",
-                    borderRadius: "8px", padding: "5px 10px", cursor: "pointer",
-                  }}>Undo</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── DNA TIMELINE TAB ─── */}
-      {tab === "timeline" && (
-        <div>
-          {timelineEntries.length === 0 ? (
-            <div style={{
-              textAlign: "center", padding: "48px 20px",
-              background: "rgba(255,255,255,0.4)", borderRadius: "16px",
-              border: "1px solid rgba(27,61,47,0.06)",
-            }}>
-              <div style={{ fontSize: "36px", marginBottom: 12 }}>🧬</div>
-              <p style={{
-                fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px",
-                color: "#1B3D2F", opacity: 0.5, margin: 0, lineHeight: 1.5,
-              }}>Your DNA hasn&apos;t evolved yet. Keep logging bottles and your profile will grow to reflect what you love.</p>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {timelineEntries.map((entry) => {
-                const dimensionLabels = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
-                const target = dimensionLabels[entry.dimension] || "your DNA";
-                // A shifted row is an identity moment, not a dimension move:
-                // "You became The Mosel Purist" — or, when only the epithet
-                // moved, the new signature line. dimension_value carries the
-                // before→after strand; display_name (the new title) is the
-                // fallback if it ever doesn't parse.
-                let text;
-                let glyph = "🧬";
-                if (entry.event_type === "shifted") {
-                  glyph = "✨";
-                  text = `You became ${entry.display_name}`;
-                  try {
-                    const change = JSON.parse(entry.dimension_value);
-                    if (change?.from?.title === change?.to?.title && change?.to?.epithet) {
-                      text = `Your signature shifted — ${change.to.epithet}`;
-                    }
-                  } catch { /* fall back to the title line */ }
-                } else {
-                  text = entry.event_type === "promoted"
-                    ? `${entry.display_name} added to ${target}`
-                    : `${entry.display_name} removed from ${target}`;
-                }
-                return (
-                  <div key={entry.id} style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
-                    background: "rgba(255,255,255,0.55)", borderRadius: "14px",
-                    padding: "14px 18px", border: "1px solid rgba(27,61,47,0.06)",
-                  }}>
-                    <div style={{
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px",
-                      color: "#1B3D2F", lineHeight: 1.4,
-                      fontWeight: entry.event_type === "shifted" ? 600 : 400,
-                    }}>
-                      <span style={{ marginRight: 8 }}>{glyph}</span>
-                      {text}
-                    </div>
-                    <span style={{
-                      fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-                      color: "#1B3D2F", opacity: 0.3, flexShrink: 0, whiteSpace: "nowrap",
-                    }}>{formatDate(entry.event_at)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {/* Cross-link: the timeline is history; the Palate is the living view */}
-          <div style={{ textAlign: "center", marginTop: 16 }}>
-            <a href="/palate" style={{
-              fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px",
-              color: "#8B2332", fontWeight: 600, textDecoration: "none",
-              display: "inline-block", padding: "10px 20px", borderRadius: "100px",
-              border: "1px solid rgba(139,35,50,0.12)", background: "rgba(139,35,50,0.03)",
-            }}>🧬 See what&apos;s building in your palate →</a>
-          </div>
-        </div>
-      )}
-
-      {/* Evolution toasts */}
-      {evolutionToasts.map((msg, i) => (
-        <div key={msg} style={{
-          position: "fixed", top: toast ? 56 + (i * 44) : 16 + (i * 44),
-          left: "50%", transform: "translateX(-50%)",
-          background: "#1B3D2F", color: "#F5F0E8", padding: "10px 24px",
-          borderRadius: "100px", fontFamily: "'Source Sans 3', sans-serif",
-          fontSize: "14px", fontWeight: 600, zIndex: 91,
-          boxShadow: "0 4px 20px rgba(27,61,47,0.3)",
-          whiteSpace: "nowrap",
-        }}>{msg}</div>
-      ))}
-
-      {/* Summary stats */}
-      {interactions.length > 0 && (
-        <div style={{
-          marginTop: 28, padding: "18px 20px", borderRadius: "16px",
-          background: "rgba(255,255,255,0.4)", border: "1px solid rgba(27,61,47,0.06)",
-        }}>
-          <div style={{
-            fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-            textTransform: "uppercase", letterSpacing: "0.12em",
-            color: "#1B3D2F", opacity: 0.35, marginBottom: 12, fontWeight: 600,
-          }}>Your Stats</div>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            {[
-              { n: tried.length, l: "Wines Tried" },
-              { n: tried.filter((w) => w.rating === "loved").length, l: "Loved" },
-              { n: wanted.length, l: "Wishlist" },
-            ].map((s, i) => (
-              <div key={i} style={{ textAlign: "center", flex: 1, minWidth: 70 }}>
-                <div style={{
-                  fontFamily: "'Playfair Display', serif", fontSize: "24px",
-                  fontWeight: 700, color: "#1B3D2F",
-                }}>{s.n}</div>
-                <div style={{
-                  fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px",
-                  color: "#1B3D2F", opacity: 0.4, marginTop: 2,
-                }}>{s.l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ paddingBottom: 48 }} />
-    </div>
+            </p>
+          </>
+        )}
+      </main>
+      <Toast toasts={toasts} aboveServiceBar />
+      <ServiceBar />
+    </>
   );
 }

@@ -1,14 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
-import AuthShell, {
-  AuthField, authFonts, primaryButtonStyle,
-  errorBoxStyle, errorTextStyle, noticeBoxStyle, noticeTextStyle,
-  inlineLinkStyle, mutedTextStyle,
-} from "./AuthShell";
+import AuthShell, { AuthAlert, AuthField, AuthLinkLine, AuthLinks, AuthNotice } from "./AuthShell";
+import LeaderEntry from "./house/LeaderEntry";
 
 export default function ForgotPasswordForm({ params }) {
   const emailParam = Array.isArray(params?.email) ? params.email[0] : params?.email || "";
@@ -68,27 +64,19 @@ export default function ForgotPasswordForm({ params }) {
   if (sent) {
     return (
       <AuthShell subtitle="Check your inbox">
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} data-testid="reset-sent">
-          <div style={noticeBoxStyle} role="status" aria-live="polite">
-            <p style={noticeTextStyle}>{AUTH_MESSAGES.reset_sent}</p>
-          </div>
-          <p style={{ ...mutedTextStyle, marginTop: 14 }}>
-            <Link href="/login" style={inlineLinkStyle}>Back to sign in</Link>
-          </p>
+        <div data-testid="reset-sent" style={{ marginTop: 24, textAlign: "center" }}>
+          <AuthNotice testId="reset-sent-message">{AUTH_MESSAGES.reset_sent}</AuthNotice>
+          <AuthLinks style={{ marginTop: 22 }}>
+            <AuthLinkLine href="/login">Back to sign in</AuthLinkLine>
+          </AuthLinks>
         </div>
       </AuthShell>
     );
   }
 
   return (
-    <AuthShell subtitle="Reset your password">
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        <p style={{
-          fontFamily: authFonts.sans, fontSize: "14px", color: "#1B3D2F",
-          opacity: 0.7, margin: "0 0 4px", lineHeight: 1.5, textAlign: "center",
-        }}>
-          Tell us your email and we&rsquo;ll send a link to set a new one.
-        </p>
+    <AuthShell subtitle="Tell us your email and we’ll send a link to set a new password.">
+      <form onSubmit={handleSubmit}>
         <AuthField
           id="email"
           label="Email"
@@ -98,31 +86,27 @@ export default function ForgotPasswordForm({ params }) {
           autoComplete="email"
           inputMode="email"
           autoFocus
-          placeholder="Email address"
+          placeholder="you@example.com"
+          style={{ marginTop: 24 }}
         />
 
         {errorKey && (
-          <div
-            style={errorBoxStyle}
-            data-testid="auth-error"
-            role="alert"
-            aria-live="polite"
-            tabIndex={-1}
-            ref={errorRef}
-          >
-            <p style={errorTextStyle}>{authErrorCopy(errorKey)}</p>
-          </div>
+          <AuthAlert ref={errorRef} style={{ marginTop: 16 }}>{authErrorCopy(errorKey)}</AuthAlert>
         )}
 
-        <button type="submit" disabled={loading || !hydrated} style={primaryButtonStyle(loading)}>
-          {loading ? "Sending your link…" : "Send reset link"}
-        </button>
+        <LeaderEntry
+          tone="filled"
+          mark="→"
+          type="submit"
+          label={loading ? "Sending your link…" : "Send reset link"}
+          disabled={loading || !hydrated}
+          style={{ marginTop: 32 }}
+        />
       </form>
 
-      <p style={{ ...mutedTextStyle, marginTop: 28 }}>
-        Remembered it?{" "}
-        <Link href="/login" style={inlineLinkStyle}>Sign in</Link>
-      </p>
+      <AuthLinks style={{ marginTop: 30 }}>
+        <AuthLinkLine lead="Remembered it?" href="/login">Sign in</AuthLinkLine>
+      </AuthLinks>
     </AuthShell>
   );
 }

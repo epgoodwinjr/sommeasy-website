@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Source+Sans+3:ital,wght@0,300..700;1,300..700&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #ECE5D8; }
+  *, *::before, *::after { box-sizing: border-box; }
+  a { color: #8B2332; text-decoration: none; }
+  a:hover { color: #7A1E2C; text-decoration: underline; }
+</style>
+</helmet>
+<div style="width:1960px;padding:96px 96px 140px;">
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 780px;gap:96px;align-items:end;padding-bottom:64px;">
+    <div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px;"><span style="display:inline-flex;align-items:center;height:28px;padding:0 12px;border-radius:100px;background:#8B2332;color:#F5F0E8;font-family:'Source Sans 3',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.04em;">2a</span><span style="font-family:'Source Sans 3',sans-serif;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;font-weight:700;color:#1B3D2F;opacity:0.55;">Round 3 · Full flows</span></div>
+      <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:76px;line-height:1;font-weight:700;letter-spacing:-0.025em;color:#1B3D2F;margin:0;">The House List</h1>
+      <div style="font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:26px;color:#8B2332;margin-top:14px;">A wine list, written for one — every page of it.</div>
+      <p style="font-family:'Source Sans 3',sans-serif;font-size:16px;line-height:1.65;color:#1B3D2F;opacity:0.72;margin:24px 0 0;max-width:640px;text-wrap:pretty;">Home as chosen, carried through matching a list, logging a bottle, the journal and a wine’s own page, search, your palate, and the account pages. Every phone below is the whole prototype opened to a different page — start anywhere and tap through. Reset puts it back.</p>
+    </div>
+    <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:34px 44px;padding-top:30px;border-top:1px solid rgba(27,61,47,0.14);">
+        <div><div style="font-family:'Playfair Display',Georgia,serif;font-size:19px;font-weight:600;color:#1B3D2F;margin-bottom:6px;">Entries, not cards</div><p style="font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1.6;color:#1B3D2F;opacity:0.65;margin:0;text-wrap:pretty;">Actions, wines and settings are lines of type that run on leader dots to a target, a price or a value.</p></div>
+        <div><div style="font-family:'Playfair Display',Georgia,serif;font-size:19px;font-weight:600;color:#1B3D2F;margin-bottom:6px;">Numbered sections</div><p style="font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1.6;color:#1B3D2F;opacity:0.65;margin:0;text-wrap:pretty;">Roman numerals and small-caps heads do the work panels used to. Hairlines are the only dividers.</p></div>
+        <div><div style="font-family:'Playfair Display',Georgia,serif;font-size:19px;font-weight:600;color:#1B3D2F;margin-bottom:6px;">A crest on every page</div><p style="font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1.6;color:#1B3D2F;opacity:0.65;margin:0;text-wrap:pretty;">Home keeps the full masthead. Inner pages get a slim running head: back, the protea for home, and search.</p></div>
+        <div><div style="font-family:'Playfair Display',Georgia,serif;font-size:19px;font-weight:600;color:#1B3D2F;margin-bottom:6px;">Two actions everywhere</div><p style="font-family:'Source Sans 3',sans-serif;font-size:14px;line-height:1.6;color:#1B3D2F;opacity:0.65;margin:0;text-wrap:pretty;">Inner pages keep Match a list and Log a bottle in a bar along the bottom. Turn it off in Tweaks to compare.</p></div>
+      </div>
+    </sc-if>
+  </div>
+
+  <div data-screen-label="I The list" style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:72px;padding:72px 0 80px;border-top:1px solid rgba(27,61,47,0.14);">
+    <div style="padding-top:42px;">
+      <div style="font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:32px;line-height:1;color:#8B2332;">I.</div>
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:36px;font-weight:700;letter-spacing:-0.015em;line-height:1.08;color:#1B3D2F;margin:14px 0 0;">The list</h2>
+      <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><p style="font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1.65;color:#1B3D2F;opacity:0.72;margin:16px 0 0;text-wrap:pretty;">Home as chosen. Search and your account now sit either side of the wordmark, and the masthead opens your palate. Last night’s verdict and every selection are answered in place.</p></sc-if>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:56px;">
+      <dc-import name="HouseListApp" start="home" label="1.1 · Home · established" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="home-new" label="1.2 · Home · new user" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+    </div>
+  </div>
+
+  <div data-screen-label="II Tonight, out" style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:72px;padding:72px 0 80px;border-top:1px solid rgba(27,61,47,0.14);">
+    <div style="padding-top:42px;">
+      <div style="font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:32px;line-height:1;color:#8B2332;">II.</div>
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:36px;font-weight:700;letter-spacing:-0.015em;line-height:1.08;color:#1B3D2F;margin:14px 0 0;">Tonight, out</h2>
+      <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><p style="font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1.65;color:#1B3D2F;opacity:0.72;margin:16px 0 0;text-wrap:pretty;">Bringing the list is one tap. The filters become Tonight’s terms, one ruled line each. Picks are set like a list’s by-the-bottle page — role, name, price, then the Somm’s note — and choosing one quiets the rest.</p></sc-if>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:56px;">
+      <dc-import name="HouseListApp" start="match" label="2.1 · Match the wine list" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="picks" label="2.2 · Your picks" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+    </div>
+  </div>
+
+  <div data-screen-label="III Tonight, in" style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:72px;padding:72px 0 80px;border-top:1px solid rgba(27,61,47,0.14);">
+    <div style="padding-top:42px;">
+      <div style="font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:32px;line-height:1;color:#8B2332;">III.</div>
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:36px;font-weight:700;letter-spacing:-0.015em;line-height:1.08;color:#1B3D2F;margin:14px 0 0;">Tonight, in</h2>
+      <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><p style="font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1.65;color:#1B3D2F;opacity:0.72;margin:16px 0 0;text-wrap:pretty;">Snap the label, search, or log something from your want list. The verdict is four lines to choose from. Saving shows what the rating did — here, a second loved Ken Forrester puts the estate in your DNA.</p></sc-if>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:56px;">
+      <dc-import name="HouseListApp" start="log" label="3.1 · Log · find the bottle" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="log-rate" label="3.2 · Log · rate it" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="log-saved" label="3.3 · Log · saved" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+    </div>
+  </div>
+
+  <div data-screen-label="IV Journal" style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:72px;padding:72px 0 80px;border-top:1px solid rgba(27,61,47,0.14);">
+    <div style="padding-top:42px;">
+      <div style="font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:32px;line-height:1;color:#8B2332;">IV.</div>
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:36px;font-weight:700;letter-spacing:-0.015em;line-height:1.08;color:#1B3D2F;margin:14px 0 0;">Journal</h2>
+      <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><p style="font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1.65;color:#1B3D2F;opacity:0.72;margin:16px 0 0;text-wrap:pretty;">Grouped by month like a cellar book, each bottle ending on its verdict. A wine’s page holds your verdict, the Somm’s note, what it changed in your palate, and its particulars on leader lines.</p></sc-if>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:56px;">
+      <dc-import name="HouseListApp" start="journal" label="4.1 · Journal" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="wine-raats" label="4.2 · A wine’s page" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="journal-new" label="4.3 · Journal · day one" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+    </div>
+  </div>
+
+  <div data-screen-label="V Search and palate" style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:72px;padding:72px 0 80px;border-top:1px solid rgba(27,61,47,0.14);">
+    <div style="padding-top:42px;">
+      <div style="font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:32px;line-height:1;color:#8B2332;">V.</div>
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:36px;font-weight:700;letter-spacing:-0.015em;line-height:1.08;color:#1B3D2F;margin:14px 0 0;">Search &amp; your palate</h2>
+      <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><p style="font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1.65;color:#1B3D2F;opacity:0.72;margin:16px 0 0;text-wrap:pretty;">One search across your journal, your DNA and the Somm’s suggestions. Your palate sets the signature as three hairline rails and the DNA as an index with bottle counts; ✦ marks what your ratings earned.</p></sc-if>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:56px;">
+      <dc-import name="HouseListApp" start="search" label="5.1 · Search" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="search-chenin" label="5.2 · Search · “chenin”" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="palate" label="5.3 · Your palate" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+    </div>
+  </div>
+
+  <div data-screen-label="VI Account" style="display:grid;grid-template-columns:320px minmax(0,1fr);gap:72px;padding:72px 0 80px;border-top:1px solid rgba(27,61,47,0.14);">
+    <div style="padding-top:42px;">
+      <div style="font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:32px;line-height:1;color:#8B2332;">VI.</div>
+      <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:36px;font-weight:700;letter-spacing:-0.015em;line-height:1.08;color:#1B3D2F;margin:14px 0 0;">Account</h2>
+      <sc-if value="{{ notes }}" hint-placeholder-val="{{ true }}"><p style="font-family:'Source Sans 3',sans-serif;font-size:15px;line-height:1.65;color:#1B3D2F;opacity:0.72;margin:16px 0 0;text-wrap:pretty;">Fields are ruled lines, and the primary action is the same leader-and-circle entry as home. Settings read as terms with their values on the right.</p></sc-if>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:56px;">
+      <dc-import name="HouseListApp" start="signin" label="6.1 · Sign in" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="signup" label="6.2 · Create account" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+      <dc-import name="HouseListApp" start="account" label="6.3 · Account &amp; settings" service-bar="{{ serviceBar }}" hint-size="410px,906px"></dc-import>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;notes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Board&quot;},&quot;serviceBar&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { notes: this.props.notes ?? true, serviceBar: this.props.serviceBar ?? true };
+  }
+}
+</script>
+</body>
+</html>

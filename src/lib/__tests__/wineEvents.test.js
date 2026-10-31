@@ -101,6 +101,19 @@ async function main() {
     assert(p.confidence_band === "none", "no confidence → none");
   });
 
+  await test("a wine page's verdict change rides the journal_rerated shape with surface wine_page", () => {
+    // House List Phase 4: the journal's re-rate moved to /wine. Surfaces are
+    // free text (no whitelist) — this pins that the new door's name and the
+    // stored rating's old→new pass through untouched
+    const p = ratingEventPayload({
+      wine: "Domaine Huet, Le Haut-Lieu Sec, Vouvray", rating: "loved", previousRating: "liked",
+      surface: "wine_page", confidence: 90,
+    });
+    assert(p.surface === "wine_page", "surface");
+    assert(p.previous_rating === "liked" && p.rating === "loved", "old→new");
+    assert(buildEventRow("u-1", "journal_rerated", p).payload.surface === "wine_page", "the row keeps it");
+  });
+
   await test("quizEventPayload counts every dimension from raw answers", () => {
     const p = quizEventPayload({
       mode: "refine",

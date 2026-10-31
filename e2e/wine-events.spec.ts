@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { removeFromJournal, removeFromJournalIfPresent } from "./fixtures/sommeasy-page";
 import { testDb } from "./fixtures/test-db";
 
 /**
@@ -7,7 +8,7 @@ import { testDb } from "./fixtures/test-db";
  * Memory): event writes appear in ZERO critical paths. With every
  * wine_events request blackholed at the network layer, the full quiz →
  * reveal → rate → journal-delete flow must behave IDENTICALLY — same
- * beats, same toasts, same data — and the ledger must gain nothing.
+ * beats, same done lines, same data — and the ledger must gain nothing.
  *
  * If this spec fails on a UI beat, an event write crept into a critical
  * path (an await before a user-visible step, an unswallowed rejection). If
@@ -29,6 +30,19 @@ async function countAllEvents(supabase: SupabaseClient, userId: string) {
 }
 
 test.describe("Event ledger — fire-and-forget (hard-fail guard)", () => {
+  // Set the moment before the rating tile is tapped, cleared once the
+  // journal-delete beat lands — if the test dies in between, afterEach
+  // removes the row so a failed run can't strand it on the account
+  let ratedWine: string | null = null;
+
+  test.afterEach(async ({ page }) => {
+    if (!ratedWine) return;
+    const wineName = ratedWine;
+    ratedWine = null;
+    const { supabase, userId } = await testDb();
+    await removeFromJournalIfPresent(page, supabase, userId, wineName);
+  });
+
   test("with wine_events blackholed, every user-visible beat still lands", async ({ page }) => {
     test.setTimeout(120_000);
     const { supabase, userId } = await testDb();
@@ -49,30 +63,21 @@ test.describe("Event ledger — fire-and-forget (hard-fail guard)", () => {
     await page.getByRole("button", { name: "Update My Wine DNA" }).click();
     await expect(page.getByTestId("reveal-saved")).toBeVisible({ timeout: 30_000 });
 
-    // Rate a rec (rec_rated blocked underneath) — the toast must still land
+    // Rate a rec (rec_rated blocked underneath) — the done line must still land
     const recs = page.getByTestId("reveal-recs");
     await expect(recs).toBeVisible();
     const firstCard = recs.getByTestId("rec-card").first();
-    const cardText = await firstCard.innerText();
-    const wineName = cardText.split("\n").map((l) => l.trim()).filter(Boolean)[1];
-    expect(wineName?.length).toBeGreaterThan(0);
+    const wineName = (await firstCard.getAttribute("data-wine")) ?? "";
+    expect(wineName.length).toBeGreaterThan(0);
     await firstCard.getByRole("button", { name: /Had it/ }).click();
-    await page.getByRole("button", { name: /It was fine/ }).click();
-    await expect(page.getByText("✓ Noted!")).toBeVisible();
-    await expect(recs.getByText(wineName, { exact: true })).toHaveCount(0);
+    ratedWine = wineName;
+    await firstCard.getByTestId("rating-tile-fine").click();
+    await expect(firstCard).toContainText("😐 It was fine — noted in your journal.");
+    await expect(firstCard.getByRole("button", { name: /Had it/ })).toHaveCount(0);
 
     // Journal delete (journal_deleted blocked underneath) — still works
-    await page.goto("/journal");
-    await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-    await expect(page.getByText(wineName, { exact: true })).toBeVisible();
-    const journalCard = page
-      .locator("div")
-      .filter({ has: page.getByText(wineName, { exact: true }) })
-      .filter({ has: page.getByRole("button", { name: "×" }) })
-      .last();
-    await journalCard.getByRole("button", { name: "×" }).click();
-    await expect(page.getByText("✓ Removed")).toBeVisible();
-    await expect(page.getByText(wineName, { exact: true })).toHaveCount(0);
+    await removeFromJournal(page, wineName);
+    ratedWine = null;
 
     // The ledger gained NOTHING — every insert was aborted and swallowed.
     // Settle a beat first so a straggling (blocked) request can't race the

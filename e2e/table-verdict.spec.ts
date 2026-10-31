@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { RecommendPage } from "./fixtures/sommeasy-page";
+import { RecommendPage, removeFromJournal } from "./fixtures/sommeasy-page";
 import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
 
 /**
@@ -13,12 +13,14 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  *    chenin_blanc earned fixture sits at exactly its promotion threshold,
  *    so any leak here would be a visible corruption).
  * 2. Returning to HOME with a chosen-but-unrated pick outstanding must show
- *    the one quiet "how was it?" prompt, and rating through it must run the
- *    real rate flow: wine_interactions upsert + pick_rated event (surface
- *    verdict_prompt, session carried from the choice). The ask must resolve
- *    from the LEDGER — it stays gone across a reload.
+ *    the one quiet "how was it?" prompt (From last night, House List
+ *    Phase 2), and rating through its tiles must run the real rate flow:
+ *    wine_interactions upsert + pick_rated event (surface verdict_prompt,
+ *    session carried from the choice). The ask must resolve from the
+ *    LEDGER — it stays gone across a reload.
  * 3. "We went a different way tonight" must write somm_bypassed and offer
- *    the bottle-log handoff (/?log=1 opens the camera step on home).
+ *    the bottle-log handoff (→ /log; the old /?log=1 deep link redirects
+ *    there).
  * 4. Replacing the chosen pick must clean up ONLY the wishlist row the
  *    choose itself created — a want row that pre-existed the sitting's
  *    choose must survive the banner moving (provenance is in-session:
@@ -42,8 +44,9 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  * latest-row shape, never absolute state, never deletes. The guard rating
  * is "It was fine" (0 evolution points — the engine early-returns before
  * any accumulation write), and the journal row is removed through the real
- * journal UI in the last test; the finally-style restore only puts back the
- * identity-bearing profile fields the milestone hook may silently refresh.
+ * UI in test 4 (its wine page's Remove from journal, since House List Phase
+ * 4); the afterAll restore only puts back the identity-bearing profile
+ * fields the milestone hook may silently refresh.
  *
  * Guard wine: Ken Forrester (chenin/stellenbosch/south_africa dims — all
  * pre-existing on the seeded account; deliberately NOT Kanonkop, which is
@@ -207,14 +210,36 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     expect(guardName, "test 1 must have captured the chosen wine").toBeTruthy();
     const pickRatedBefore = await countEvents(supabase, userId, "pick_rated");
 
+    // StrictMode (dev) fires home's verdict read twice and discards the
+    // first run. Hold that stale read until after the tap: if a late read
+    // could still write, it would resolve the ask against the dismissal
+    // the rating just stored and pull the section out from under the
+    // reply (a real flake, Oct 30 2026). A page that reads once is only
+    // slowed by the fallback.
+    let verdictReads = 0;
+    let tapped: () => void = () => {};
+    const afterTap = new Promise<void>((resolve) => { tapped = resolve; });
+    await page.route(/\/rest\/v1\/wine_events/, async (route) => {
+      const req = route.request();
+      if (req.method() === "GET" && req.url().includes("occurred_at=gte") && ++verdictReads === 1) {
+        await Promise.race([afterTap, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+      }
+      await route.continue();
+    });
     await page.goto("/");
     const ask = page.getByTestId("verdict-ask");
     await expect(ask).toBeVisible({ timeout: 15_000 });
     await expect(ask).toContainText(/Ken Forrester/);
 
-    await ask.getByTestId("verdict-rate").click();
-    await page.getByRole("button", { name: /It was fine/ }).click();
-    await expect(ask).toBeHidden();
+    // A tile rates at once; the reply takes the tiles' place, in the
+    // section, until the next load
+    await ask.getByTestId("rating-tile-fine").click();
+    tapped();
+    await expect(ask.getByTestId("rating-tile-fine")).toHaveCount(0);
+    await expect(ask).toContainText("😐 It was fine — noted.");
+    // The reply takes focus (announced, and the user keeps their place)
+    await expect(ask.getByRole("status")).toBeFocused();
+    await expect(ask).toContainText("We’ll weigh it lightly next time.");
 
     // The real rate flow: the wishlist row became a rated journal row…
     await expect
@@ -239,10 +264,11 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     const chenin = await readCheninPoints(supabase, userId);
     expect(chenin?.points ?? null).toBe(baselineChenin?.points ?? null);
 
-    // Resolved from the LEDGER, not component state: gone across a reload
+    // Resolved from the LEDGER, not component state: gone across a reload.
+    // Home's sections render only after the verdict read settles, so the
+    // Log a bottle entry is the settle gate
     await page.reload();
-    await expect(page.getByTestId("wine-rec-list").or(page.getByText("Log a Bottle")).first())
-      .toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("link", { name: "Log a bottle", exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("verdict-ask")).toBeHidden();
   });
 
@@ -258,7 +284,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await page.getByTestId("bypass-somm").click();
     const noted = page.getByTestId("bypass-noted");
     await expect(noted).toBeVisible();
-    await expect(noted.getByTestId("bypass-log-link")).toHaveAttribute("href", "/?log=1");
+    await expect(noted.getByTestId("bypass-log-link")).toHaveAttribute("href", "/log");
 
     await expect
       .poll(async () => countEvents(supabase, userId, "somm_bypassed"), { timeout: 15_000 })
@@ -272,14 +298,20 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await noted.getByTestId("bypass-skip").click();
     await expect(noted).toBeHidden();
 
-    // The handoff lands: /?log=1 opens the camera step, ready to tap
+    // The handoff lands on Log a bottle's find step, the label one tap away
+    // (desktop in e2e: the photo upload is the primary entry)
+    await page.goto("/log");
+    await expect(page.getByTestId("log-find")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: /Snap the label|Upload a label photo/ }).first()).toBeVisible();
+    await expect(page.getByTestId("bottle-camera-input")).toBeAttached();
+    // …and the old deep link still lands there
     await page.goto("/?log=1");
-    await expect(page.getByRole("button", { name: /Take a photo/ })).toBeVisible({ timeout: 15_000 });
+    await page.waitForURL("/log", { timeout: 15_000 });
+    await expect(page.getByTestId("log-find")).toBeVisible({ timeout: 15_000 });
 
     // No ask on home now — the latest table moment is the bypass
     await page.goto("/");
-    await expect(page.getByTestId("wine-rec-list").or(page.getByText("Log a Bottle")).first())
-      .toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("link", { name: "Log a bottle", exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("verdict-ask")).toBeHidden();
   });
 
@@ -288,16 +320,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     expect(guardName, "earlier tests must have run").toBeTruthy();
     const journalDeletedBefore = await countEvents(supabase, userId, "journal_deleted");
 
-    await page.goto("/journal");
-    await expect(page.getByRole("heading", { name: "Wine Journal" })).toBeVisible();
-    await expect(page.getByText(guardName, { exact: true })).toBeVisible();
-    const journalCard = page
-      .locator("div")
-      .filter({ has: page.getByText(guardName, { exact: true }) })
-      .filter({ has: page.getByRole("button", { name: "×" }) })
-      .last();
-    await journalCard.getByRole("button", { name: "×" }).click();
-    await expect(page.getByText("✓ Removed")).toBeVisible();
+    await removeFromJournal(page, guardName);
 
     await expect
       .poll(async () => (await findGuardRows(supabase, userId)).length, { timeout: 15_000 })
@@ -342,7 +365,11 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
       .poll(async () => (await findRowsByName(supabase, userId, nameP)).length, { timeout: 15_000 })
       .toBe(1);
 
-    // The change of mind: banner moves, `replaced` records it in the ledger
+    // The change of mind: choosing quieted the other picks, Change brings
+    // their choose buttons back (House List Phase 3) — then the banner
+    // moves, and `replaced` records it in the ledger
+    await expect(cardQ.getByTestId("choose-pick")).toHaveCount(0);
+    await cardP.getByTestId("chosen-banner").getByRole("button", { name: "Change" }).click();
     await cardQ.getByTestId("choose-pick").click();
     await expect(cardQ.getByTestId("chosen-banner")).toBeVisible();
     await expect(cardP.getByTestId("chosen-banner")).toBeHidden();
@@ -385,6 +412,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
       .poll(async () => countEvents(supabase, userId, "pick_chosen"), { timeout: 15_000 })
       .toBe(chosenBefore + 3);
 
+    await cardP2.getByTestId("chosen-banner").getByRole("button", { name: "Change" }).click();
     await cardQ2.getByTestId("choose-pick").click();
     await expect(cardQ2.getByTestId("chosen-banner")).toBeVisible();
     await expect

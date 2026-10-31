@@ -2,14 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { AUTH_MESSAGES, authErrorCopy, mapAuthError } from "@/lib/authCopy";
-import AuthShell, {
-  AuthField, primaryButtonStyle,
-  errorBoxStyle, errorTextStyle, noticeBoxStyle, noticeTextStyle,
-  inlineLinkStyle, mutedTextStyle,
-} from "./AuthShell";
+import AuthShell, { AuthAlert, AuthField, AuthLinkLine, AuthLinks, AuthNotice } from "./AuthShell";
+import LeaderEntry from "./house/LeaderEntry";
 
 export default function UpdatePasswordForm() {
   const [password, setPassword] = useState("");
@@ -75,7 +71,7 @@ export default function UpdatePasswordForm() {
   if (phase === "checking") {
     return (
       <AuthShell subtitle="Set a new password">
-        <p style={{ ...mutedTextStyle }}>One moment…</p>
+        <AuthNotice testId="update-password-checking" style={{ marginTop: 24, textAlign: "center" }}>One moment…</AuthNotice>
       </AuthShell>
     );
   }
@@ -83,16 +79,12 @@ export default function UpdatePasswordForm() {
   if (phase === "missing") {
     return (
       <AuthShell subtitle="Set a new password">
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }} data-testid="reset-session-missing">
-          <div style={noticeBoxStyle} role="status" aria-live="polite">
-            <p style={noticeTextStyle}>{AUTH_MESSAGES.reset_session_missing}</p>
-          </div>
-          <Link href="/forgot-password" style={{ ...primaryButtonStyle(false), display: "block", textAlign: "center", textDecoration: "none", boxSizing: "border-box" }}>
-            Request a reset link
-          </Link>
-          <p style={{ ...mutedTextStyle, marginTop: 14 }}>
-            <Link href="/login" style={inlineLinkStyle}>Back to sign in</Link>
-          </p>
+        <div data-testid="reset-session-missing" style={{ marginTop: 24 }}>
+          <AuthNotice>{AUTH_MESSAGES.reset_session_missing}</AuthNotice>
+          <LeaderEntry tone="filled" mark="→" label="Request a reset link" href="/forgot-password" style={{ marginTop: 28 }} />
+          <AuthLinks style={{ marginTop: 24 }}>
+            <AuthLinkLine href="/login">Back to sign in</AuthLinkLine>
+          </AuthLinks>
         </div>
       </AuthShell>
     );
@@ -101,16 +93,16 @@ export default function UpdatePasswordForm() {
   if (phase === "done") {
     return (
       <AuthShell subtitle="Set a new password">
-        <div style={noticeBoxStyle} data-testid="password-updated" role="status" aria-live="polite">
-          <p style={noticeTextStyle}>{AUTH_MESSAGES.password_updated}</p>
-        </div>
+        <AuthNotice testId="password-updated" style={{ marginTop: 24, textAlign: "center" }}>
+          {AUTH_MESSAGES.password_updated}
+        </AuthNotice>
       </AuthShell>
     );
   }
 
   return (
     <AuthShell subtitle="Set a new password">
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <form onSubmit={handleSubmit}>
         <AuthField
           id="new-password"
           label="New password"
@@ -124,24 +116,21 @@ export default function UpdatePasswordForm() {
           minLength={8}
           placeholder="New password"
           helper={AUTH_MESSAGES.password_helper}
+          style={{ marginTop: 24 }}
         />
 
         {errorKey && (
-          <div
-            style={errorBoxStyle}
-            data-testid="auth-error"
-            role="alert"
-            aria-live="polite"
-            tabIndex={-1}
-            ref={errorRef}
-          >
-            <p style={errorTextStyle}>{authErrorCopy(errorKey)}</p>
-          </div>
+          <AuthAlert ref={errorRef} style={{ marginTop: 16 }}>{authErrorCopy(errorKey)}</AuthAlert>
         )}
 
-        <button type="submit" disabled={loading} style={primaryButtonStyle(loading)}>
-          {loading ? "Updating…" : "Set new password"}
-        </button>
+        <LeaderEntry
+          tone="filled"
+          mark="→"
+          type="submit"
+          label={loading ? "Updating…" : "Set new password"}
+          disabled={loading}
+          style={{ marginTop: 32 }}
+        />
       </form>
     </AuthShell>
   );
