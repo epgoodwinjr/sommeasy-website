@@ -52,6 +52,9 @@ test.describe("Design screenshots (SCREENSHOTS=1 only)", () => {
       await page.setViewportSize(vp);
       await page.goto("/");
       await expect(page.getByTestId("palate-strip")).toBeVisible({ timeout: 20_000 });
+      // The House List home picks its layout once its reads settle — the
+      // crest's epithet, the date line and the sections arrive together
+      await expect(page.getByRole("link", { name: "Match the wine list" })).toBeVisible({ timeout: 20_000 });
       await page.screenshot({ path: path.join(OUT, `home-strip-${tag}.png`) });
 
       await page.goto("/palate");
