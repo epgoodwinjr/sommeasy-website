@@ -60,3 +60,31 @@ export const VALID_OTP_TYPES = ["signup", "recovery", "magiclink", "email_change
 export function isValidOtpType(type) {
   return VALID_OTP_TYPES.includes(type);
 }
+
+/** What the Somm calls you (user_metadata.name, D5): trimmed, ≤ 60. */
+export const NAME_MAX = 60;
+
+export function cleanName(name) {
+  return typeof name === "string" ? name.trim().slice(0, NAME_MAX) : "";
+}
+
+// Shape only — Supabase has the final word on whether it's deliverable
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Create account's checks before Supabase is asked (the form is noValidate,
+ * so these say it in brand voice instead of a browser bubble). Returns an
+ * AUTH_ERRORS key, or null when the form can go: all three fields first
+ * (signup_missing_fields), then the email's shape (invalid_email), then the
+ * 8-character password policy (weak_password).
+ */
+export function validateSignup(fields) {
+  const { name, email, password } = fields && typeof fields === "object" ? fields : {};
+  const trimmedEmail = typeof email === "string" ? email.trim() : "";
+  if (!cleanName(name) || !trimmedEmail || typeof password !== "string" || password === "") {
+    return "signup_missing_fields";
+  }
+  if (!EMAIL_SHAPE.test(trimmedEmail)) return "invalid_email";
+  if (password.length < 8) return "weak_password";
+  return null;
+}
