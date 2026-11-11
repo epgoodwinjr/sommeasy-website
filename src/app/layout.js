@@ -1,6 +1,5 @@
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
-import PageTransitions from "@/components/house/PageTransitions";
 
 export const metadata = {
   title: "Sommeasy — Your Wine DNA Profile",
@@ -36,10 +35,6 @@ export default function RootLayout({ children }) {
           }}
         />
         <div style={{ position: "relative", zIndex: 1 }}>{children}</div>
-        {/* The view-transition trial (docs/motion/README.md §6, for Ed's
-            review): a 200ms cross-fade between pages where the browser
-            supports it. Renders nothing; remove this line to drop it. */}
-        <PageTransitions />
         {/* Cookieless pageviews (The Long Memory, Part 2) — the anonymous
             half of the funnel: landing → quiz start → teaser views. The
             identified half lives in wine_events. No identity stitching by

@@ -70,8 +70,6 @@ export default function RunningHead({ title, backLabel, onBack, hideSearch = fal
       background: "rgba(245,240,232,0.92)",
       backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
       borderBottom: `1px solid ${ink(0.07)}`,
-      // Held still while the page beneath cross-fades (PageTransitions.js)
-      viewTransitionName: "running-head",
     }}>
       <div style={{
         display: "grid", gridTemplateColumns: "minmax(0,1fr) 44px minmax(0,1fr)",
