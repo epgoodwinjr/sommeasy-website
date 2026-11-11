@@ -46,9 +46,10 @@ import ProgressLine from "@/components/house/ProgressLine";
 import Divider from "@/components/house/Divider";
 import EmptyState from "@/components/house/EmptyState";
 import Toast, { useToast } from "@/components/house/Toast";
+import Enter from "@/components/house/Enter";
 import TonightsTerms, { STEER_MAX } from "./TonightsTerms";
 import PickEntry from "./PickEntry";
-import { BURGUNDY, COLUMN, CREAM, GRADIENT, GUTTER, INK, PILL_SHADOW, SANS, SERIF, SOFT_OUT, TYPE, ink } from "@/components/house/tokens";
+import { BURGUNDY, COLUMN, CREAM, GRADIENT, GUTTER, INK, PILL_SHADOW, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (default: max 1200px, 0.7 quality — wine list text stays readable)
@@ -146,17 +147,9 @@ function pickFacts(pick) {
 const column = { maxWidth: COLUMN, margin: "0 auto", padding: `22px ${GUTTER}px 56px` };
 const alertLine = { fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: BURGUNDY };
 
-/** A mount reveal: fade + 10px rise (§6 Motion). */
-function Rise({ children, style, ...rest }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    ref.current?.animate?.(
-      [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "translateY(0)" }],
-      { duration: 300, easing: SOFT_OUT },
-    );
-  }, []);
-  return <div ref={ref} style={style} {...rest}>{children}</div>;
-}
+/** What opens in place on this page rises quickly: 10px over 300ms, as it
+ *  always has. Session 5 of docs/motion gives the picks their full timing. */
+const QUICK_RISE = { duration: 300, distance: 10 };
 
 /** "Get my picks" — the pill beside the link and under the pasted list. */
 function PillButton({ children, disabled, onClick, testId }) {
@@ -1050,7 +1043,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           style={{ marginTop: 22 }}
         />
         {linkOpen && (
-          <Rise style={{ display: "flex", alignItems: "flex-end", gap: 12, marginTop: 8 }}>
+          <Enter {...QUICK_RISE} style={{ display: "flex", alignItems: "flex-end", gap: 12, marginTop: 8 }}>
             <RuledField
               variant="url"
               type="url"
@@ -1073,7 +1066,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             <PillButton testId="url-fetch-button" disabled={!menuUrl.trim()} onClick={handleUrlFetch}>
               Get my picks
             </PillButton>
-          </Rise>
+          </Enter>
         )}
         <div style={{ marginTop: 14 }}>
           <TextAction
@@ -1082,7 +1075,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           >or paste the text manually</TextAction>
         </div>
         {showPasteMode && (
-          <Rise style={{ marginTop: 4 }}>
+          <Enter {...QUICK_RISE} style={{ marginTop: 4 }}>
             {extractedFrom && wineListText && (
               <p style={{ fontFamily: SANS, fontSize: "12px", lineHeight: 1.5, color: ink(0.6), marginBottom: 4 }}>
                 {extractedFrom === "scan" ? "📸 Extracted from your photo" : "🔗 Extracted from the link"} — review and edit if needed.
@@ -1095,7 +1088,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               </PillButton>
               <TextAction tone="quiet" opacity={0.55} onClick={loadExample}>Try an example list</TextAction>
             </div>
-          </Rise>
+          </Enter>
         )}
 
         <SectionHead numeral={next()} label="Tonight’s terms" style={{ margin: "24px 0 10px" }} />
@@ -1159,14 +1152,14 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </TextAction>
         </div>
         {adjustOpen && (
-          <Rise style={{ marginTop: 18 }}>
+          <Enter {...QUICK_RISE} style={{ marginTop: 18 }}>
             <TonightsTerms {...termsProps} steerId="steer-input-results" />
             {askAgainVisible && (
               <TextAction weight={700} testId="ask-somm-again" onClick={askAgain} style={{ marginTop: 8 }}>
                 🍷 Ask the Somm again
               </TextAction>
             )}
-          </Rise>
+          </Enter>
         )}
 
         {/* The Somm says — "tasting" while it curates; omitted on fallback */}
@@ -1248,7 +1241,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </div>
         )}
         {hasPicks && bypassState === "noted" && (
-          <Rise data-testid="bypass-noted" style={{ textAlign: "center" }}>
+          <Enter {...QUICK_RISE} data-testid="bypass-noted" style={{ textAlign: "center" }}>
             <p style={{
               fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.55, color: INK,
               marginTop: 20, textWrap: "pretty",
@@ -1257,7 +1250,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               <TextAction weight={700} href="/log" testId="bypass-log-link">📸 Log what you drank</TextAction>
               <TextAction tone="quiet" testId="bypass-skip" onClick={() => setBypassState("dismissed")}>Skip</TextAction>
             </TextActions>
-          </Rise>
+          </Enter>
         )}
         {/* Only another page can fail over the picks (they're untouched —
             a page commits nothing until it reads): its error sits beside

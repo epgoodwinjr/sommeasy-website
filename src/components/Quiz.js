@@ -7,6 +7,7 @@ import { generateDNAProfile } from "@/lib/profileEngine";
 import { saveStash } from "@/lib/pendingPalate";
 import WineRecList from "@/components/WineRecList";
 import PalateMark from "@/components/PalateMark";
+import { SOFT_OUT } from "@/components/house/motion";
 
 const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DATA, varietals: VARIETALS_RAW } = wineUnified;
 
@@ -490,7 +491,7 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
   const stage = (delay) => ({
     opacity: mounted ? 1 : 0,
     transform: mounted ? "none" : "translateY(14px)",
-    transition: `opacity 0.7s ease ${delay}ms, transform 0.7s cubic-bezier(0.22, 1, 0.36, 1) ${delay}ms`,
+    transition: `opacity 0.7s ease ${delay}ms, transform 0.7s ${SOFT_OUT} ${delay}ms`,
   });
 
   return (

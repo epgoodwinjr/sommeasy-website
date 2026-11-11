@@ -13,36 +13,58 @@
 // (aria-describedby). A disabled entry is a disabled button at 0.35.
 // `expanded` marks a button entry that opens something in place (Match's
 // Paste a link) — it becomes aria-expanded.
+//
+// Given `enterDelay` (ms), the entry is written in: the label rises, the
+// leader draws to the mark, the mark lands and the sub line fades in
+// (docs/motion/README.md §6). The link or button itself never animates —
+// it is live, at full size, from the first paint.
 
 import Link from "next/link";
-import { useId } from "react";
+import { useId, useRef } from "react";
+import LeaderDraw from "./LeaderDraw";
+import useEntrance, { withEntrance } from "./useEntrance";
+import { ENTRY_ENTER } from "./motion";
 import { BURGUNDY, CIRCLE_SHADOW, CREAM, GRADIENT, INK, SANS, SERIF, ink, leader } from "./tokens";
 
 export default function LeaderEntry({
   label, mark, tone = "outline", size = 24, secondary = false,
   sub, subGap = 6, href, onClick, type = "button", disabled = false,
-  expanded, testId, style,
+  expanded, testId, style, enterDelay,
 }) {
   const subId = useId();
   const filled = tone === "filled";
 
+  const labelRef = useRef(null);
+  const markRef = useRef(null);
+  const subRef = useRef(null);
+  const play = enterDelay != null;
+  const at = (offset) => (play ? enterDelay + offset : undefined);
+  const labelEntering = useEntrance(labelRef, "rise", { delay: enterDelay, play });
+  // The circle lands; the quieter › just fades in
+  const markEntering = useEntrance(markRef, secondary ? "fade" : "pop", { delay: at(ENTRY_ENTER.mark), play });
+  const subEntering = useEntrance(subRef, "fade", { delay: at(ENTRY_ENTER.sub), play });
+
   const line = (
     <>
-      <span style={{
+      <span ref={labelRef} style={withEntrance({
         fontFamily: SERIF, fontSize: secondary ? "20px" : `${size}px`, fontWeight: 600,
         lineHeight: secondary ? 1.2 : 1.1, color: INK, whiteSpace: "nowrap",
-      }}>{label}</span>
-      <span aria-hidden="true" style={{
-        flex: 1, minWidth: 12,
-        borderBottom: secondary ? leader(1.5) : leader(2),
-        marginBottom: secondary ? 6 : 9,
-      }} />
+      }, labelEntering)}>{label}</span>
+      <LeaderDraw
+        enterDelay={at(ENTRY_ENTER.leader)}
+        duration={ENTRY_ENTER.leaderMs}
+        style={{
+          flex: 1, minWidth: 12,
+          borderBottom: secondary ? leader(1.5) : leader(2),
+          marginBottom: secondary ? 6 : 9,
+        }}
+      />
       {secondary ? (
-        <span aria-hidden="true" style={{
+        <span ref={markRef} aria-hidden="true" style={withEntrance({
           fontFamily: SANS, fontSize: "18px", lineHeight: 1.2, color: BURGUNDY,
-        }}>›</span>
+        }, markEntering)}>›</span>
       ) : (
-        <span aria-hidden="true" style={{
+        <span ref={markRef} aria-hidden="true" style={withEntrance({
           width: 48, height: 48, borderRadius: "50%", flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: "20px", lineHeight: 1,
@@ -50,7 +72,7 @@ export default function LeaderEntry({
             ? { background: GRADIENT, boxShadow: CIRCLE_SHADOW }
             : { border: "1.5px solid rgba(139,35,50,0.3)", background: "rgba(139,35,50,0.04)" }),
           ...(mark === "→" && { fontFamily: SANS, color: filled ? CREAM : BURGUNDY }),
-        }}>{mark}</span>
+        }, markEntering)}>{mark}</span>
       )}
     </>
   );
@@ -76,9 +98,9 @@ export default function LeaderEntry({
         <button type={type} onClick={onClick} disabled={disabled} aria-expanded={expanded} {...shared}>{line}</button>
       )}
       {sub && (
-        <div id={subId} style={{
+        <div ref={subRef} id={subId} style={withEntrance({
           fontFamily: SANS, fontSize: "13px", lineHeight: 1.5, color: ink(0.55), marginTop: subGap,
-        }}>{sub}</div>
+        }, subEntering)}>{sub}</div>
       )}
     </div>
   );

@@ -15,8 +15,17 @@
 // variant; `struck` the passed variant (struckOpacity 0.4 on home, 0.55 on
 // the journal's Passed tab). Link hrefs come from wineHref() in
 // @/lib/navTrail. Any other prop (data-wine, aria-*) lands on the row.
+//
+// Given `enterDelay` (ms), the row arrives in ink: it rises as one, its
+// leader draws, and what sits at the leader's end follows — a mark lands,
+// anything else fades in (docs/motion/README.md §6). A struck row ends on
+// its own opacity.
 
 import Link from "next/link";
+import { useRef } from "react";
+import LeaderDraw from "./LeaderDraw";
+import useEntrance, { withEntrance } from "./useEntrance";
+import { ROW_ENTER } from "./motion";
 import { BURGUNDY, INK, SANS, SERIF, ink, leader } from "./tokens";
 
 const numeralStyle = {
@@ -30,10 +39,23 @@ export default function WineRow({
   name, vintage, mark, action, chevron = false,
   meta, metaRight, metaTone = "quiet",
   numeral, struck = false, struckOpacity = 0.4,
-  href, onClick, testId, children, style, ...rest
+  href, onClick, testId, children, style, enterDelay, ...rest
 }) {
   const hasEnd = Boolean(vintage || mark || action || chevron);
   const interactive = Boolean(href || onClick);
+
+  const rowRef = useRef(null);
+  const vintageRef = useRef(null);
+  const markRef = useRef(null);
+  const actionRef = useRef(null);
+  const chevronRef = useRef(null);
+  const play = enterDelay != null;
+  const endAt = play ? enterDelay + ROW_ENTER.end : undefined;
+  const rowEntering = useEntrance(rowRef, "rise", { delay: enterDelay, play });
+  const vintageEntering = useEntrance(vintageRef, "fade", { delay: endAt, play });
+  const markEntering = useEntrance(markRef, "pop", { delay: endAt, play });
+  const actionEntering = useEntrance(actionRef, "fade", { delay: endAt, play });
+  const chevronEntering = useEntrance(chevronRef, "fade", { delay: endAt, play });
 
   const head = (
     <>
@@ -44,17 +66,20 @@ export default function WineRow({
           textDecoration: struck ? "line-through" : "none",
         }}>{name}</span>
         {hasEnd && (
-          <span aria-hidden="true" style={{ flex: 1, minWidth: 14, borderBottom: leader(1.5), marginBottom: 6 }} />
+          <LeaderDraw
+            enterDelay={play ? enterDelay + ROW_ENTER.leader : undefined}
+            style={{ flex: 1, minWidth: 14, borderBottom: leader(1.5), marginBottom: 6 }}
+          />
         )}
         {vintage && (
-          <span style={{ ...endText, fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", color: ink(0.7) }}>{vintage}</span>
+          <span ref={vintageRef} style={withEntrance({ ...endText, fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", color: ink(0.7) }, vintageEntering)}>{vintage}</span>
         )}
-        {mark && <span style={{ ...endText, fontSize: "15px" }}>{mark}</span>}
+        {mark && <span ref={markRef} style={withEntrance({ ...endText, fontSize: "15px" }, markEntering)}>{mark}</span>}
         {action && (
-          <span style={{ ...endText, fontFamily: SANS, fontSize: "12px", fontWeight: 700, color: BURGUNDY }}>{action}</span>
+          <span ref={actionRef} style={withEntrance({ ...endText, fontFamily: SANS, fontSize: "12px", fontWeight: 700, color: BURGUNDY }, actionEntering)}>{action}</span>
         )}
         {chevron && (
-          <span aria-hidden="true" style={{ ...endText, fontFamily: SANS, fontSize: "16px", color: BURGUNDY }}>›</span>
+          <span ref={chevronRef} aria-hidden="true" style={withEntrance({ ...endText, fontFamily: SANS, fontSize: "16px", color: BURGUNDY }, chevronEntering)}>›</span>
         )}
       </span>
       {(meta || metaRight) && (
@@ -82,6 +107,7 @@ export default function WineRow({
     background: "none", cursor: interactive && !children ? "pointer" : "auto",
     opacity: struck ? struckOpacity : 1, transition: "opacity 0.3s ease",
     ...style,
+    ...rowEntering,
   };
   const headLinkStyle = {
     display: "block", width: "100%", padding: 0, border: "none", background: "none",
@@ -108,22 +134,29 @@ export default function WineRow({
 
   if (interactive && !children) {
     return href
-      ? <Link href={href} onClick={onClick} data-testid={testId} style={rowStyle} {...rest}>{body}</Link>
-      : <button type="button" onClick={onClick} data-testid={testId} style={rowStyle} {...rest}>{body}</button>;
+      ? <Link ref={rowRef} href={href} onClick={onClick} data-testid={testId} style={rowStyle} {...rest}>{body}</Link>
+      : <button ref={rowRef} type="button" onClick={onClick} data-testid={testId} style={rowStyle} {...rest}>{body}</button>;
   }
-  return <div data-testid={testId} style={rowStyle} {...rest}>{body}</div>;
+  return <div ref={rowRef} data-testid={testId} style={rowStyle} {...rest}>{body}</div>;
 }
 
 /** A selection held back until the first rating (README §8.1.5): a
- *  numbered row with no name, the leader running to "Reserved". */
-export function ReservedRow({ numeral, style }) {
+ *  numbered row with no name, the leader running to "Reserved". With
+ *  `enterDelay` it rises and its leader draws, like any row. */
+export function ReservedRow({ numeral, style, enterDelay }) {
+  const rowRef = useRef(null);
+  const play = enterDelay != null;
+  const rowEntering = useEntrance(rowRef, "rise", { delay: enterDelay, play });
   return (
-    <div data-testid="reserved-row" style={{
+    <div ref={rowRef} data-testid="reserved-row" style={{
       display: "flex", alignItems: "flex-end", gap: 10,
-      padding: "18px 0", borderBottom: `1px solid ${ink(0.08)}`, ...style,
+      padding: "18px 0", borderBottom: `1px solid ${ink(0.08)}`, ...style, ...rowEntering,
     }}>
       <span aria-hidden="true" style={{ ...numeralStyle, opacity: 0.5 }}>{numeral}</span>
-      <span aria-hidden="true" style={{ flex: 1, borderBottom: leader(1.5, 0.2), marginBottom: 6 }} />
+      <LeaderDraw
+        enterDelay={play ? enterDelay + ROW_ENTER.leader : undefined}
+        style={{ flex: 1, borderBottom: leader(1.5, 0.2), marginBottom: 6 }}
+      />
       <span style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", color: INK, opacity: 0.4 }}>Reserved</span>
     </div>
   );

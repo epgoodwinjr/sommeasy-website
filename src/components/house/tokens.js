@@ -22,9 +22,10 @@ export const CIRCLE_SHADOW = "0 6px 20px rgba(139,35,50,0.3)";
 export const PILL_SHADOW = "0 6px 20px rgba(139,35,50,0.25)";
 export const TOAST_SHADOW = "0 4px 20px rgba(27,61,47,0.3)";
 
-/** Interactive elements; the soft-out curve drives fills, rails and reveals. */
+/** Interactive elements; the soft-out curve drives fills, rails and reveals.
+ *  The curve itself lives with the other motion values in motion.js. */
 export const TRANSITION = "all 0.15s ease";
-export const SOFT_OUT = "cubic-bezier(0.22,1,0.36,1)";
+export { SOFT_OUT } from "./motion";
 
 /** A dotted leader: 1.5px at 0.25 by default; 2px on primary entries,
  *  0.22 on setting/fact/DNA rows, 0.2 on the rating list and Reserved rows. */
