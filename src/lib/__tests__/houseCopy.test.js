@@ -16,6 +16,23 @@
 //      promotion it pushed aside becomes a line under the recap, demotions
 //      are reported too; a first-ever bottle gets its own headline.
 //   4. Junk in → silence (null / "" / a quiet fallback), never a throw.
+//   5. The reading lines are said here only: the real reading view and
+//      Welcome's demo both call readingLine(); no other file retypes them
+//      (a source scan, comments aside).
+
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+function sourceFiles(dir) {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : sourceFiles(path);
+    return /\.(js|jsx|ts|tsx)$/.test(name) ? [path] : [];
+  });
+}
+const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
 let passed = 0, failed = 0;
 async function test(name, fn) {
@@ -564,6 +581,20 @@ async function main() {
     assertEq(["all", "red", "white", "sparkling"].map(copy.colorTerm), ["All wines", "Reds", "Whites", "Sparkling"],
       "the terms bar's words");
     assertEq(copy.colorTerm("rosé"), "All wines", "anything else reads as all");
+  });
+
+  await test("SOURCE SCAN: the reading lines are said in houseCopy.js and nowhere else under src/", () => {
+    // The words readingLine() returns, as only a retyped copy would hold them
+    const said = [/Reading the list…/, /against your DNA…/, /kinds of yes/];
+    const elsewhere = sourceFiles(SRC)
+      .filter((path) => !path.endsWith("houseCopy.js"))
+      .filter((path) => said.some((words) => words.test(withoutComments(readFileSync(path, "utf-8")))))
+      .map((path) => path.slice(SRC.length + 1));
+    assertEq(elsewhere, [], "call readingLine() from @/lib/houseCopy");
+    for (const [phase, count, line] of [
+      [undefined, 0, "Reading the list…"], ["count", 8, "Reading eight wines…"],
+      ["weigh", 8, "Weighing them against your DNA…"], ["done", 3, "Three bottles, three kinds of yes."],
+    ]) assertEq(copy.readingLine(phase, count), line, `the demo's ${phase ?? "first"} line`);
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

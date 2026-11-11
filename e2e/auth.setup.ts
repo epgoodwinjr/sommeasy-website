@@ -37,9 +37,9 @@ setup("authenticate", async ({ page }) => {
   await page.waitForURL("/", { timeout: 15_000 });
 
   // Verify we're logged in: the House List masthead's Account link (a
-  // profile exists) or the Welcome screen's Sign Out (signed in, no profile)
+  // profile exists) or the Welcome screen's Sign out (signed in, no profile)
   await expect(
-    page.getByRole("link", { name: "Account" }).or(page.getByRole("button", { name: "Sign Out" })).first()
+    page.getByRole("link", { name: "Account" }).or(page.getByRole("button", { name: "Sign out" })).first()
   ).toBeVisible({ timeout: 10_000 });
 
   // Save the authenticated state

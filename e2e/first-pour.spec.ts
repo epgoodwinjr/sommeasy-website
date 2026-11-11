@@ -53,14 +53,14 @@ async function signInFresh(page: Page) {
   await page.locator('button[type="submit"]').click();
   await page.waitForURL("/", { timeout: 15_000 });
   await expect(
-    page.getByTestId("palate-strip").or(page.getByRole("button", { name: "Build My Profile" })).first()
+    page.getByTestId("palate-strip").or(page.getByRole("button", { name: "Build your palate" })).first()
   ).toBeVisible({ timeout: 15_000 });
 }
 
 /** Self-healing seed: a quiz-only profile through the real quiz UI (the
  *  seed-test-account selections, minus every rating — bottles stay zero). */
 async function ensureProfile(page: Page) {
-  const buildButton = page.getByRole("button", { name: "Build My Profile" });
+  const buildButton = page.getByRole("button", { name: "Build your palate" });
   const palateStrip = page.getByTestId("palate-strip");
   await expect(buildButton.or(palateStrip).first()).toBeVisible({ timeout: 15_000 });
   if (!(await buildButton.isVisible().catch(() => false))) return;

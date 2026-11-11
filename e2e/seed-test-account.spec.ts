@@ -31,7 +31,7 @@ test.describe("Seed the dedicated test account", () => {
     // Fresh account lands on the welcome screen; a re-run lands on the
     // profile view — wait for either to settle, then enter the quiz
     // accordingly (refine keeps selections)
-    const buildButton = page.getByRole("button", { name: "Build My Profile" });
+    const buildButton = page.getByRole("button", { name: "Build your palate" });
     const palateStrip = page.getByTestId("palate-strip");
     await expect(buildButton.or(palateStrip)).toBeVisible({ timeout: 15_000 });
     if (await buildButton.isVisible()) {

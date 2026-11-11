@@ -119,6 +119,7 @@ async function main() {
   const {
     renderPalateMark, renderPalateMarkDocument, renderMarkState, markParams, settledState,
     revealState, revealLength, growState, growLength, MARK_MOTION, MARK_GEOMETRY, MARK_PALETTE,
+    bareState, openState, openLength,
   } = mark;
 
   const ALL_GENOMES = [...Object.values(PRODUCTION), BASE, ...GROWTHS.flatMap((g) => [g.a, g.b])];
@@ -439,6 +440,60 @@ async function main() {
     assert(opening.angle === final.angle, "the new petal opens at its final angle");
     assert(opening.tip > MARK_GEOMETRY.petalBaseR && opening.tip < final.tip, "and is part-way open at 50%");
     assert(growState(pa, pb, D * 0.3).petals[pb.petals - 1].opacity === 0, "it starts at 30%");
+  });
+
+  console.log("\n═══ The bare medallion, and the bloom opening from it (§8.2) ═══");
+
+  test("the bare medallion is circles only — no ring, petals, stamens or fruit — and the same for every genome", () => {
+    const first = render(bareState(markParams(ALL_GENOMES[0])), 44);
+    for (const genome of ALL_GENOMES) {
+      const bare = render(bareState(markParams(genome)), 44);
+      assert(!bare.includes("<path"), "no ring and no petals");
+      assert(!bare.includes("<line"), "no stamens and no midribs");
+      assert((bare.match(/<circle/g) || []).length === 5, "disc, two frame circles, the beads, the heart");
+      assert(bare === first, "a bare medallion says nothing about the palate");
+      assert(!/opacity="/.test(bare), "fully there — nothing part-faded");
+    }
+  });
+
+  test("it is still: the heart at rest, the frame whole", () => {
+    const s = bareState(markParams(BASE));
+    assert(s.core === 1 && s.disc === 1 && s.scale === 1 && s.frame === 1 && s.orbit === 1, "every feature at rest");
+  });
+
+  test("the open starts ON the bare frame and ends ON the static mark — at its own pace and sped up", () => {
+    for (const genome of ALL_GENOMES) {
+      const p = markParams(genome);
+      const bare = render(bareState(p));
+      const still = renderPalateMark(genome);
+      for (const duration of [openLength(p), 600, 1234.5]) {
+        assert(render(openState(p, 0, duration)) === bare, `t=0 is the bare frame (${duration}ms)`);
+        assert(render(openState(p, -50, duration)) === bare, "before it starts, still bare");
+        assert(render(openState(p, duration, duration)) === still, `ends on the static mark (${duration}ms)`);
+        assert(render(openState(p, duration * 3, duration)) === still, "and stays there");
+      }
+    }
+    assert(openLength(markParams(BASE)) === revealLength(markParams(BASE)), "its natural pace is the reveal's draw");
+  });
+
+  test("the open only grows: petal and stamen tips and the fruit never fall back on the way", () => {
+    for (const genome of ALL_GENOMES) {
+      const p = markParams(genome);
+      let prev = null;
+      for (let t = 0; t <= 600; t += 10) {
+        const s = openState(p, t, 600);
+        const now = {
+          petals: s.petals.map((x) => x.tip), stamens: s.stamens.map((x) => x.tip),
+          fruit: s.berries.filter((b) => b.opacity > 0).length,
+        };
+        if (prev) {
+          now.petals.forEach((tip, i) => assert(tip >= prev.petals[i] - 1e-9, `petal ${i} fell back at ${t}`));
+          now.stamens.forEach((tip, i) => assert(tip >= prev.stamens[i] - 1e-9, `stamen ${i} fell back at ${t}`));
+          assert(now.fruit >= prev.fruit, `fruit fell at ${t}`);
+        }
+        prev = now;
+      }
+    }
   });
 
   test("the state functions are pure: the same inputs give the same bytes, and params are untouched", () => {

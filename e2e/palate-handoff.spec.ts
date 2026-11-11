@@ -46,7 +46,7 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     // must compose untruncated at the narrowest real phone width
     await page.setViewportSize({ width: 375, height: 812 });
     await page.goto("/");
-    await page.getByRole("button", { name: "Build My Profile" }).click();
+    await page.getByRole("button", { name: "Build your palate" }).click();
     await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
 
     // Step 1 — a country; steps 2/4 add depth so the signature and recs land

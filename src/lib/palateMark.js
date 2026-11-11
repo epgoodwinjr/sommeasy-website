@@ -599,6 +599,44 @@ export function revealState(params, t, thinkMs = MARK_MOTION.thinkMs) {
   return state;
 }
 
+// ─── The bare medallion, and the bloom opening from it ───
+//
+// The quiz's header mark starts with nothing to show: disc, frame, beads and
+// the heart, still (docs/motion/README.md §8.2). Its first answer opens the
+// bloom from there — the reveal's own draw, with the wait already over. Both
+// are read off revealState at a moment past every fade-in, on a whole beat
+// of the heart's pulse, so the bare frame is the draw's first frame exactly
+// (nothing jumps when it starts) and holds no trace of any genome.
+
+// One heart-pulse cycle: every medallion fade-in has finished by then, and
+// the pulse is back at rest
+const BARE_AT = MARK_MOTION.corePulseMs;
+
+/** The medallion alone — no ring, stamens, petals or fruit. The same for
+ *  every genome; `params` only has to be a real mark's. */
+export function bareState(params) {
+  return revealState(params, BARE_AT, BARE_AT);
+}
+
+/** How long the bloom takes to open from the bare medallion at its own
+ *  pace (the reveal's draw). */
+export function openLength(params) {
+  return revealLength(params);
+}
+
+/**
+ * The bloom `t` ms into opening from the bare medallion, over `duration` ms
+ * (the reveal's draw, sped up or slowed to fit). At t = 0 it is bareState;
+ * at t = duration it IS the settled mark. Run t backwards to close it.
+ */
+export function openState(params, t, duration = openLength(params)) {
+  if (!params) return null;
+  const natural = revealLength(params);
+  const span = duration > 0 ? duration : natural;
+  const d = Math.min(natural, Math.max(0, t) * (natural / span));
+  return revealState(params, BARE_AT + d, BARE_AT);
+}
+
 // ─── Growth: the same bloom, grown ───
 
 function sameFruit(a, b) {

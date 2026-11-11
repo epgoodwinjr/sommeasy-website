@@ -8,6 +8,7 @@
 //   <PalateMarkLive genome={after} growFrom={before} growDelay={700} />
 //   <PalateMarkLive genome={g} />     at rest; grows whenever `genome` changes
 //   <PalateMarkLive genome={g} breathing />                   the Somm's wait
+//   <PalateMarkLive genome={g} bare={!answered} openMs={600} />  the quiz
 //
 // The motion itself is src/lib/palateMark.js — pure functions from a time
 // to a state. This wrapper only keeps the clock: a requestAnimationFrame
@@ -24,6 +25,11 @@
 //   genome      changing it later grows the mark from the shape it shows to
 //               the new one over `growMs`. A change that lands mid-growth
 //               waits its turn, so the mark never jumps.
+//   bare        the medallion alone, still, while true (the quiz before its
+//               first answer). When it turns false the bloom opens from it
+//               over `openMs` (the reveal's draw, at its own pace by
+//               default); when it turns true again the bloom closes back.
+//               Genome changes meanwhile wait their turn, as above.
 //   breathing   the wrapper breathes (a CSS loop) while true. Nowhere else:
 //               a mark at rest stays at rest.
 //   onDrawStart the reveal's draw has begun      onSettled  an animation ended
@@ -35,8 +41,8 @@
 
 import { useEffect, useRef } from "react";
 import {
-  MARK_MOTION, growLength, growState, markParams, renderMarkState,
-  revealLength, revealState, settledState,
+  MARK_MOTION, bareState, growLength, growState, markParams, openLength, openState,
+  renderMarkState, revealLength, revealState, settledState,
 } from "@/lib/palateMark";
 import { BREATHE_ANIMATION, prefersReducedMotion } from "@/components/house/motion";
 import { useIsoLayoutEffect } from "@/components/house/useEntrance";
@@ -46,8 +52,9 @@ const shapeKey = (params) => JSON.stringify(params.genome);
 const sameShape = (a, b) => Boolean(a && b) && shapeKey(a) === shapeKey(b);
 
 /** The first frame — what the server sends and the first paint shows. */
-function firstFrame({ params, size, reveal, growFrom }) {
+function firstFrame({ params, size, reveal, bare, growFrom }) {
   if (reveal) return renderMarkState(revealState(params, 0, Infinity), { size });
+  if (bare) return renderMarkState(bareState(params), { size });
   return renderMarkState(settledState(markParams(growFrom) || params), { size });
 }
 
@@ -56,9 +63,10 @@ function createClock(host, props) {
   let frameId = 0;
   let timerId = 0;
   let stopped = false;
-  let shown = null; // the shape at rest on screen (null: nothing drawn yet)
+  let shown = null; // the shape at rest on screen (null: nothing drawn yet, or bare)
+  let isBare = false; // the bare medallion is what's on screen
   let target = null; // the shape the mark should end on
-  let playing = null; // { kind: "reveal" | "grow", start, from, to, think, ms }
+  let playing = null; // { kind: "reveal" | "grow" | "open" | "close", start, from, to, think, ms }
   let awaitingReady = false; // a reduced-motion reveal that hasn't reported yet
   let painted = null;
 
@@ -74,10 +82,26 @@ function createClock(host, props) {
     frameId = 0;
     playing = null;
     shown = params;
+    isBare = false;
     paint(settledState(params));
     props().onSettled?.();
+    if (stopped) return;
+    // Asked to go bare while that played: close
+    if (props().bare) return close();
     // The genome moved on while that played: follow it
-    if (!stopped && !sameShape(shown, target)) grow(shown, target);
+    if (!sameShape(shown, target)) grow(shown, target);
+  };
+
+  const restBare = () => {
+    cancelAnimationFrame(frameId);
+    frameId = 0;
+    playing = null;
+    shown = null;
+    isBare = true;
+    paint(bareState(target));
+    props().onSettled?.();
+    // Answered again while it closed: open again
+    if (!stopped && !props().bare) open();
   };
 
   const frame = (now) => {
@@ -92,6 +116,12 @@ function createClock(host, props) {
       }
       if (t >= playing.think + revealLength(playing.to)) return rest(playing.to);
       paint(revealState(playing.to, t, playing.think));
+    } else if (playing.kind === "open") {
+      if (t >= playing.ms) return rest(playing.to);
+      paint(openState(playing.to, t, playing.ms));
+    } else if (playing.kind === "close") {
+      if (t >= playing.ms) return restBare();
+      paint(openState(playing.from, playing.ms - t, playing.ms));
     } else {
       if (t >= growLength(playing.from, playing.to, playing.ms)) return rest(playing.to);
       paint(growState(playing.from, playing.to, t, playing.ms));
@@ -108,6 +138,17 @@ function createClock(host, props) {
   function grow(from, to) {
     if (prefersReducedMotion()) return rest(to);
     play({ kind: "grow", from, to, ms: props().growMs });
+  }
+
+  // From the bare medallion to the shape asked for, and back
+  function open() {
+    if (prefersReducedMotion()) return rest(target);
+    play({ kind: "open", to: target, ms: props().openMs ?? openLength(target) });
+  }
+
+  function close() {
+    if (prefersReducedMotion() || !shown) return restBare();
+    play({ kind: "close", from: shown, ms: props().openMs ?? openLength(shown) });
   }
 
   const reportReady = () => {
@@ -132,6 +173,9 @@ function createClock(host, props) {
         }
         paint(revealState(target, 0, Infinity));
         play({ kind: "reveal", to: target, think: Infinity });
+      } else if (p.bare) {
+        isBare = true;
+        paint(bareState(target));
       } else if (from && !sameShape(from, target)) {
         shown = from;
         paint(settledState(from));
@@ -160,10 +204,18 @@ function createClock(host, props) {
     },
     /** `ready` changed. */
     ready: reportReady,
+    /** `bare` changed. Mid-animation, rest() and restBare() pick it up. */
+    bare() {
+      if (playing || timerId) return;
+      const want = props().bare;
+      if (want && !isBare && shown) close();
+      else if (!want && isBare) open();
+    },
     /** `size` changed. */
     resize() {
       painted = null;
       if (!playing && shown) paint(settledState(shown));
+      else if (!playing && isBare) paint(bareState(target));
     },
     /** Reduced motion was switched on mid-flight: end on the settled frame. */
     finish() {
@@ -194,14 +246,16 @@ function createClock(host, props) {
 
 function LiveMark({
   params, size, style, reveal, ready, minThink, growFrom, growDelay, growMs,
-  breathing, onSettled, onDrawStart,
+  bare, openMs, breathing, onSettled, onDrawStart,
 }) {
   const hostRef = useRef(null);
   const clockRef = useRef(null);
   const reduced = useReducedMotion();
 
   const props = useRef(null);
-  props.current = { params, size, reveal, ready, minThink, growFrom, growDelay, growMs, onSettled, onDrawStart };
+  props.current = {
+    params, size, reveal, ready, minThink, growFrom, growDelay, growMs, bare, openMs, onSettled, onDrawStart,
+  };
 
   // The SAME OBJECT on every render — not just the same string. The React
   // that Next bundles re-applies dangerouslySetInnerHTML whenever the prop
@@ -223,6 +277,8 @@ function LiveMark({
 
   const shape = shapeKey(params);
   useIsoLayoutEffect(() => { clockRef.current?.retarget(props.current.params); }, [shape]);
+  // After retarget: a first answer opens straight to the shape it gave
+  useIsoLayoutEffect(() => { clockRef.current?.bare(); }, [bare]);
   useIsoLayoutEffect(() => { clockRef.current?.resize(); }, [size]);
   useEffect(() => { clockRef.current?.ready(); }, [ready]);
   useEffect(() => { if (reduced) clockRef.current?.finish(); }, [reduced]);
@@ -246,6 +302,7 @@ export default function PalateMarkLive({
   genome, size = 96, style,
   reveal = false, ready = true, minThink = MARK_MOTION.thinkMs,
   growFrom = null, growDelay = 0, growMs = MARK_MOTION.growMs,
+  bare = false, openMs,
   breathing = false, onSettled, onDrawStart,
 }) {
   const params = markParams(genome);
@@ -255,6 +312,7 @@ export default function PalateMarkLive({
       params={params} size={size} style={style}
       reveal={reveal} ready={ready} minThink={minThink}
       growFrom={growFrom} growDelay={growDelay} growMs={growMs}
+      bare={bare} openMs={openMs}
       breathing={breathing} onSettled={onSettled} onDrawStart={onDrawStart}
     />
   );

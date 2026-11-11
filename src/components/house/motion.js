@@ -83,11 +83,27 @@ export const ENTRANCES = {
   },
 };
 
+/** A line that changes in place — Welcome's demo status (§8.1), the reading
+ *  line (§8.5): the old words fade out, then the new ones rise in. */
+export const SWAP = { outMs: 140, inMs: 320, risePx: 4 };
+
+/** The quiz (§8.2): the leaving step fades and moves left; the arriving
+ *  step's options settle in a few ms apart, the whole stagger capped; the
+ *  header bloom grows (and first opens) over `bloomMs` per change. */
+export const QUIZ_STEP = { exitMs: 200, exitPx: 8, optionStep: 20, optionCap: 300, optionPx: 6, bloomMs: 600 };
+
 /** A view leaving (§5.1). Callers remove the view when it finishes. */
 export const EXIT = {
   from: { opacity: 1, transform: "none" },
   to: { opacity: 0, transform: `translateY(-${EXIT_PX}px)` },
   duration: D_EXIT, easing: EASE,
+};
+
+/** A line swapping its words (SWAP): out, then in with a short climb. */
+export const SWAP_OUT = { from: { opacity: 1 }, to: { opacity: 0 }, duration: SWAP.outMs, easing: EASE };
+export const SWAP_IN = {
+  from: { opacity: 0, transform: `translateY(${SWAP.risePx}px)` },
+  to: { transform: "none" }, duration: SWAP.inMs, easing: SOFT_OUT,
 };
 
 /** What an entrance wears in server HTML, before it can start. */

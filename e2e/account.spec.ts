@@ -318,7 +318,7 @@ test.describe("Account — Delete account (hard-fail; the route is ALWAYS interc
     await expect(page.getByTestId("welcome-notice")).toHaveText("Your account is closed. Everything in it is gone.",
       { timeout: 15_000 });
     // Signed out: the Welcome screen, and the notice left the address
-    await expect(page.getByRole("button", { name: "Build My Profile" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Build your palate" })).toBeVisible();
     await expect(page).toHaveURL((url) => url.search === "");
     const keys = await page.evaluate(() => Object.keys(window.localStorage));
     expect(keys.filter((k) => k.startsWith("sommeasy.")), "every sommeasy.* key forgotten").toEqual([]);

@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+import { composeIdentity } from "../src/lib/identityEngine.js";
+import { renderPalateMark } from "../src/lib/palateMark.js";
 
 /**
  * Motion (docs/motion/README.md §10) — the ONE spec that runs with motion on.
@@ -25,9 +27,18 @@ import { test, expect, type Page } from "@playwright/test";
  *   6. Under reduced motion: nothing is written word by word, the mark is
  *      settled at once, nothing loops.
  *
- * Sessions 2–3 add the README's remaining outcomes here as their surfaces
- * land: the Welcome demo (does not start off-screen, starts once scrolled
- * to, shows its picks under reduced motion) and the real reveal.
+ * Session 2 adds the front door, signed out, on the real pages:
+ *
+ *   7. Welcome's headline is written word by word and ends as one text
+ *      node; the demo does not start while it is off-screen, starts once
+ *      scrolled to, and writes its picks in.
+ *   8. The quiz's header bloom is the bare medallion until the first
+ *      answer, then opens — and every change ends on exactly the static
+ *      mark for the genome the answers so far compose.
+ *   9. Under reduced motion the demo shows its picks and its last line,
+ *      and nothing in it is running.
+ *
+ * Session 3 adds the real reveal.
  *
  * Do NOT make these timing-tolerant by sleeping: poll for the outcome.
  * Read-only: /motion-specimen touches no account data.
@@ -306,5 +317,125 @@ test.describe("Reduced motion — settled at once", () => {
     // A control is, of course, live
     await page.getByTestId("specimen-entry").click();
     await expect(page.getByText("Tapped 1×")).toBeVisible();
+  });
+});
+
+// ─── The front door (Session 2): Welcome and the quiz, signed out ───
+
+const WELCOME_HEADLINE = "Never guess at a wine list again.";
+const ANSWERS = { regions: {}, estates: {}, varietals: [], specificWines: [] };
+
+/** A mark string as the browser serializes it (self-closing tags and all). */
+const asBrowser = (page: Page, html: string) =>
+  page.evaluate((markup) => {
+    const holder = document.createElement("div");
+    holder.innerHTML = markup;
+    return holder.innerHTML;
+  }, html);
+
+const headerMark = (page: Page) => page.locator("header").getByTestId("palate-mark");
+
+test.describe("The front door — motion on", () => {
+  test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
+
+  test.beforeEach(async ({ page }) => {
+    await watchMotion(page);
+  });
+
+  test("the headline is written; the demo waits off-screen, plays once scrolled to, and writes its picks in", async ({ page }) => {
+    // Short enough that the demo starts below the fold
+    await page.setViewportSize({ width: 375, height: 560 });
+    await page.goto("/");
+    const demo = page.getByTestId("welcome-demo");
+    await expect(page.getByRole("button", { name: "Build your palate" })).toBeVisible({ timeout: 15_000 });
+
+    // The headline: written word by word, settling into one plain text node
+    await expect.poll(async () => (await motionSeen(page)).wordSpans, { timeout: 15_000 }).toBeGreaterThan(0);
+    const headline = page.getByRole("heading", { level: 1 });
+    await expect.poll(() => headline.evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE))
+      .toBe(true);
+    await expect(headline).toHaveText(WELCOME_HEADLINE);
+
+    // Ready, and off-screen: it has not started, and shows nothing
+    await expect(demo).toHaveAttribute("data-state", "idle", { timeout: 10_000 });
+    await expect(demo).not.toContainText("By the bottle");
+
+    // Scrolled to: it plays — the list is read, then the picks write in
+    await demo.scrollIntoViewIfNeeded();
+    await expect(demo).toHaveAttribute("data-state", "playing", { timeout: 10_000 });
+    await expect(demo).toContainText("By the bottle");
+    await expect(demo).toContainText("Newton Johnson Chardonnay", { timeout: 15_000 });
+    await expect(demo).toContainText("Three bottles, three kinds of yes.");
+    // The Somm's note settles as its own words
+    const note = page.getByTestId("welcome-demo-note");
+    await expect.poll(() => note.evaluate((el) => el.querySelectorAll("[data-word]").length), { timeout: 15_000 })
+      .toBe(0);
+    await expect(note).toHaveText("“Sea-cooled Chardonnay with your kind of nerve. White Burgundy that moved somewhere sunnier.”");
+  });
+
+  test("the quiz's bloom is bare until the first answer, then every change ends on the static mark", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Build your palate" }).click();
+    await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
+
+    // Bare: the medallion alone — no ring, no petals
+    const mark = headerMark(page);
+    await expect.poll(async () => (await mark.innerHTML()).includes("<circle")).toBe(true);
+    expect(await mark.innerHTML()).not.toContain("<path");
+
+    // Count the frames it paints from here
+    await mark.evaluate((el) => {
+      const frames = new Set<string>();
+      (window as any).__bloomFrames = frames;
+      new MutationObserver(() => frames.add(el.innerHTML)).observe(el, { childList: true, subtree: true });
+    });
+
+    // The first answer opens the bloom…
+    await page.getByRole("button", { name: /France/ }).first().click();
+    const one = await asBrowser(page, renderPalateMark(composeIdentity({ ...ANSWERS, countries: ["france"] }).genome, { size: 44 }));
+    await expect.poll(() => mark.innerHTML(), { timeout: 10_000 }).toBe(one);
+    expect(await page.evaluate(() => (window as any).__bloomFrames.size)).toBeGreaterThan(5);
+
+    // …and the next grows it, ending on exactly the mark those answers compose
+    await page.getByRole("button", { name: /South Africa/ }).first().click();
+    const two = await asBrowser(page, renderPalateMark(
+      composeIdentity({ ...ANSWERS, countries: ["france", "south_africa"] }).genome, { size: 44 },
+    ));
+    expect(two).not.toBe(one);
+    await expect.poll(() => mark.innerHTML(), { timeout: 10_000 }).toBe(two);
+  });
+});
+
+test.describe("The front door — reduced motion", () => {
+  test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "reduce" } });
+
+  test.beforeEach(async ({ page }) => {
+    await watchMotion(page);
+  });
+
+  test("the demo shows its picks and its last line, still, and the headline is never split", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 560 });
+    await page.goto("/");
+    const demo = page.getByTestId("welcome-demo");
+    await expect(demo).toHaveAttribute("data-state", "still", { timeout: 15_000 });
+    await expect(demo).toContainText("Newton Johnson Chardonnay");
+    await expect(demo).toContainText("Three bottles, three kinds of yes.");
+    await expect(demo).not.toContainText("By the bottle");
+    // Nothing in it runs — not now, and not once it is scrolled to
+    await expect.poll(() => demo.evaluate((el) => el.getAnimations({ subtree: true }).length), { timeout: 10_000 }).toBe(0);
+    await demo.scrollIntoViewIfNeeded();
+    await expect(demo).toHaveAttribute("data-state", "still");
+    expect(await demo.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(WELCOME_HEADLINE);
+    expect((await motionSeen(page)).wordSpans).toBe(0);
+
+    // The quiz's bloom: bare, then the settled mark at once
+    await page.getByRole("button", { name: "Build your palate" }).click();
+    await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
+    const mark = headerMark(page);
+    expect(await mark.innerHTML()).not.toContain("<path");
+    await page.getByRole("button", { name: /France/ }).first().click();
+    const one = await asBrowser(page, renderPalateMark(composeIdentity({ ...ANSWERS, countries: ["france"] }).genome, { size: 44 }));
+    await expect.poll(() => mark.innerHTML()).toBe(one);
   });
 });

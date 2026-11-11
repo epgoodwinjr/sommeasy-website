@@ -20,6 +20,7 @@ import { crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, verdict
 import { welcomeNoticeCopy } from "@/lib/authCopy";
 import Quiz from "@/components/Quiz";
 import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
+import WelcomeDemo from "@/components/WelcomeDemo";
 import PalateMark from "@/components/PalateMark";
 import Divider from "@/components/house/Divider";
 import SectionHead from "@/components/house/SectionHead";
@@ -29,10 +30,11 @@ import RuledField from "@/components/house/RuledField";
 import RatingTiles from "@/components/house/RatingTiles";
 import TextAction from "@/components/house/TextAction";
 import EmptyState from "@/components/house/EmptyState";
+import Enter from "@/components/house/Enter";
+import WriteIn from "@/components/house/WriteIn";
 import Toast, { useToast } from "@/components/house/Toast";
-import useMounted from "@/components/house/useMounted";
 import { useNavTrail } from "@/components/house/RunningHead";
-import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, SOFT_OUT, ink } from "@/components/house/tokens";
+import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, ink } from "@/components/house/tokens";
 
 // ─── Home: The House List (README §8.1) ───
 // The signed-in home reads like a wine list written for one person: a crest
@@ -527,89 +529,80 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
 
 // ─── Welcome-back moment ───
 function WelcomeBackMoment() {
-  const mounted = useMounted(80);
   return (
-    <p data-testid="welcome-back" style={{
+    <Enter as="p" delay={80} data-testid="welcome-back" style={{
       fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5,
       color: ink(0.75), textAlign: "center", marginTop: 18,
-      opacity: mounted ? 1 : 0,
-      transform: mounted ? "none" : "translateY(10px)",
-      transition: `opacity 0.7s ${SOFT_OUT}, transform 0.7s ${SOFT_OUT}`,
-    }}>Welcome back. Your palate was waiting.</p>
+    }}>Welcome back. Your palate was waiting.</Enter>
   );
 }
 
-// ─── Welcome Screen ───
+// ─── Welcome (docs/motion/README.md §8.1) ───
+// The front door in the House List look: the 400px column of the auth
+// pages, the headline written in, one primary entry, and below the fold the
+// demo that shows what Sommeasy does without a word of instruction. The
+// entrance follows §8.1's table; the entry's own offsets (leader, circle,
+// "Takes about two minutes.") are ENTRY_ENTER's.
+const WELCOME_HEADLINE = "Never guess at a wine list again.";
+
 function WelcomeScreen({ onStart, user, onSignOut, notice }) {
-  const steps = [
-    {
-      n: "1",
-      title: "Build your Wine DNA",
-      body: "A 2-minute quiz about the wines, regions, and grapes you love.",
-    },
-    {
-      n: "2",
-      title: "Share the wine list",
-      body: "Paste it, snap a photo, or drop in a URL from the restaurant's site.",
-    },
-    {
-      n: "3",
-      title: "Get your picks",
-      body: "We match what's on the menu to your taste and surface your best options.",
-    },
-  ];
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "100vh", padding: "48px 24px 56px", textAlign: "center" }}>
-      {user && (
-        <div style={{ position: "absolute", top: 16, right: 20 }}>
-          <button onClick={onSignOut} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "1px solid rgba(27,61,47,0.15)", borderRadius: "100px", padding: "6px 16px", cursor: "pointer", opacity: 0.5 }}>Sign Out</button>
+    <div style={{
+      maxWidth: 400, margin: "0 auto", minHeight: "100vh",
+      padding: "calc(env(safe-area-inset-top) + 22px) 36px 56px",
+    }}>
+      {/* Masthead. A signed-in visitor with no palate yet can sign out here */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)", alignItems: "center", minHeight: 40 }}>
+        <span />
+        <Enter kind="fade" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <img src="/protea-icon.png" alt="" style={{ height: 24, width: "auto" }} />
+          <span style={wordmark}>Sommeasy</span>
+        </Enter>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          {user && <TextAction tone="quiet" onClick={onSignOut}>Sign out</TextAction>}
         </div>
-      )}
-
-      {/* Logo */}
-      <img src="/logo.png" alt="Sommeasy" style={{ height: 200, width: "auto", marginBottom: 32, filter: "drop-shadow(0 8px 24px rgba(139,35,50,0.12))" }} />
+      </div>
 
       {/* Where Delete account lands (/?notice=account_deleted) */}
       {notice && (
-        <p role="status" data-testid="welcome-notice" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: "16px", lineHeight: 1.5, color: "#1B3D2F", opacity: 0.8, maxWidth: 380, margin: "-8px auto 28px" }}>{notice}</p>
+        <Enter kind="fade" as="p" role="status" data-testid="welcome-notice" style={{
+          fontFamily: SERIF, fontStyle: "italic", fontSize: "16px", lineHeight: 1.5, color: ink(0.8), marginTop: 26,
+        }}>{notice}</Enter>
       )}
 
-      {/* Hero copy */}
-      <div style={{ maxWidth: 380, margin: "0 auto 40px" }}>
-        <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", color: "#1B3D2F", lineHeight: 1.35, margin: "0 0 14px 0", letterSpacing: "-0.01em" }}>
-          Never guess at a wine list again.
-        </p>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", lineHeight: 1.65, margin: 0, opacity: 0.65 }}>
-          Tell us what you like. We&apos;ll find it on the menu.
-        </p>
-      </div>
+      <WriteIn
+        as="h1" text={WELCOME_HEADLINE} delay={150} step={70} duration={600} awaitFonts
+        style={{
+          fontFamily: SERIF, fontSize: "36px", fontWeight: 700, lineHeight: 1.08, letterSpacing: "-0.015em",
+          color: INK, textWrap: "balance", marginTop: notice ? 22 : 34,
+        }}
+      />
+      <Enter as="p" delay={650} style={{
+        fontFamily: SANS, fontSize: "16px", lineHeight: 1.5, color: INK, opacity: 0.55, marginTop: 12,
+      }}>
+        Tell us what you like. We’ll find it on the menu.
+      </Enter>
 
-      {/* CTA */}
-      <button onClick={onStart} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", fontWeight: 600, color: "#F5F0E8", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", border: "none", borderRadius: "100px", padding: "17px 52px", cursor: "pointer", letterSpacing: "0.03em", boxShadow: "0 6px 24px rgba(139,35,50,0.3), 0 2px 6px rgba(139,35,50,0.15)" }}>Build My Profile</button>
-
+      <LeaderEntry
+        tone="filled" mark="→" label="Build your palate" onClick={onStart}
+        sub="Takes about two minutes." enterDelay={850} style={{ marginTop: 30 }}
+      />
       {!user && (
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, marginTop: 20 }}>
-          Already have an account? <Link href="/login" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in</Link>
-        </p>
+        <Enter kind="fade" as="p" delay={1450} style={{
+          fontFamily: SANS, fontSize: "14px", lineHeight: 1.5, color: ink(0.5), marginTop: 18,
+        }}>
+          Already have an account?{" "}
+          {/* Inline in the sentence, its hit area padded past the line */}
+          <Link href="/login" style={{ color: BURGUNDY, fontWeight: 600, padding: "10px 0", textDecoration: "none" }}>
+            Sign in
+          </Link>
+        </Enter>
       )}
-      <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.3, marginTop: 10, marginBottom: 48 }}>Takes about 2 minutes</p>
 
-      {/* How it works */}
-      <div style={{ width: "100%", maxWidth: 420, textAlign: "left" }}>
-        <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.18em", color: "#1B3D2F", opacity: 0.35, fontWeight: 600, textAlign: "center", marginBottom: 20 }}>How it works</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {steps.map((s) => (
-            <div key={s.n} style={{ display: "flex", alignItems: "flex-start", gap: "16px", background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)" }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", display: "flex", alignItems: "center", justifyContent: "center", color: "#F5F0E8", fontFamily: "'Playfair Display', serif", fontSize: "13px", fontWeight: 700, flexShrink: 0, marginTop: 1, boxShadow: "0 2px 8px rgba(139,35,50,0.25)" }}>{s.n}</div>
-              <div>
-                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px", color: "#1B3D2F", fontWeight: 600, lineHeight: 1.3, marginBottom: 4 }}>{s.title}</div>
-                <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.55, lineHeight: 1.5 }}>{s.body}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <Divider enterDelay={1500} style={{ marginTop: 30 }} />
+      {/* The head's label and rule land 80ms after its delay: 1650 */}
+      <SectionHead label="Watch it work" enterDelay={1570} style={{ marginTop: 22 }} />
+      <WelcomeDemo style={{ marginTop: 18 }} />
     </div>
   );
 }
@@ -710,7 +703,7 @@ export default function Home() {
 
   // StrictMode (dev) runs the mount effect twice. init() must run exactly
   // once: its async continuation calls setView, and a late second run would
-  // clobber navigation the user made in between (click "Build My Profile" →
+  // clobber navigation the user made in between (click "Build your palate" →
   // quiz view → stale init lands → welcome view). The auth subscription
   // below stays per-mount — its cleanup handles the double-mount correctly.
   const initRan = useRef(false);
