@@ -22,15 +22,18 @@ import { test, expect, type Page } from "@playwright/test";
  *      render for the same genome; so does a growth, and a growth that was
  *      asked for mid-growth.
  *   5. Breathing is a loop on the wrapper, only while asked for.
- *   6. Under reduced motion: nothing is written word by word, the mark is
- *      settled at once, nothing loops.
+ *   6. The view-transition trial: a link cross-fades, and the back trail
+ *      still reads right.
+ *   7. Under reduced motion: nothing is written word by word, the mark is
+ *      settled at once, nothing loops, no view transition starts.
  *
  * Sessions 2–3 add the README's remaining outcomes here as their surfaces
  * land: the Welcome demo (does not start off-screen, starts once scrolled
  * to, shows its picks under reduced motion) and the real reveal.
  *
  * Do NOT make these timing-tolerant by sleeping: poll for the outcome.
- * Read-only: /motion-specimen touches no account data.
+ * Read-only: /motion-specimen touches no account data, and the navigation
+ * test only reads the rich account's journal.
  */
 
 const HEADLINE = "Never guess at a wine list again.";
@@ -253,6 +256,38 @@ test.describe("Motion on — outcomes, never timings", () => {
     // At rest again it is exactly the static mark's wrapper
     expect((await markOf(page, "specimen-grow")).attrs).toEqual((await markOf(page, "specimen-grow-static")).attrs);
   });
+
+  test("the view-transition trial: a link cross-fades, and the back trail still reads right", async ({ page }) => {
+    await page.goto("/journal");
+    await expect(page.getByTestId("running-head")).toBeVisible({ timeout: 15_000 });
+    const supported = await page.evaluate(() => typeof (document as any).startViewTransition === "function");
+    expect(supported).toBe(true); // Chromium has it; elsewhere this is a plain navigation
+
+    // Forward, through a link: one view transition, the new page's trail
+    await page.getByRole("link", { name: "Search" }).click();
+    await page.waitForURL("**/search");
+    await expect(page.getByTestId("search-input")).toBeVisible({ timeout: 15_000 });
+    expect((await motionSeen(page)).viewTransitions).toBe(1);
+    await expect(page.getByTestId("running-head-back")).toContainText("Journal");
+    // The transition is over: nothing is left covering the page
+    await expect.poll(() => page.evaluate(() => document.getAnimations().filter((a) => {
+      const target = (a.effect as KeyframeEffect | null)?.pseudoElement || "";
+      return target.startsWith("::view-transition");
+    }).length)).toBe(0);
+    await page.getByTestId("search-input").fill("kanon");
+    await expect(page.getByTestId("search-input")).toHaveValue("kanon");
+
+    // Back, through the trail: real history, no transition, the right page
+    await page.getByTestId("running-head-back").click();
+    await page.waitForURL("**/journal");
+    await expect(page.getByTestId("running-head-back")).toContainText("Your list");
+    expect((await motionSeen(page)).viewTransitions).toBe(1);
+
+    // And on from there: the trail keeps counting from the right place
+    await page.getByRole("link", { name: "Your list" }).click();
+    await page.waitForURL((url) => url.pathname === "/");
+    expect((await motionSeen(page)).viewTransitions).toBe(2);
+  });
 });
 
 test.describe("Reduced motion — settled at once", () => {
@@ -313,5 +348,14 @@ test.describe("Reduced motion — settled at once", () => {
     // A control is, of course, live
     await page.getByTestId("specimen-entry").click();
     await expect(page.getByText("Tapped 1×")).toBeVisible();
+  });
+
+  test("no view transition starts: a link is a plain navigation", async ({ page }) => {
+    await page.goto("/journal");
+    await expect(page.getByTestId("running-head")).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("link", { name: "Search" }).click();
+    await page.waitForURL("**/search");
+    await expect(page.getByTestId("running-head-back")).toContainText("Journal");
+    expect((await motionSeen(page)).viewTransitions).toBe(0);
   });
 });

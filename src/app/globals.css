@@ -59,6 +59,18 @@ button:focus-visible {
   }
 }
 
+/* Page to page: a 200ms cross-fade (the view-transition trial,
+   src/components/house/PageTransitions.js). The RunningHead is its own
+   group, so it holds still while the page beneath it changes. The overlay
+   never takes a tap — a control is live from the first paint. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+}
+::view-transition {
+  pointer-events: none;
+}
+
 a {
   color: #8B2332;
   text-decoration: none;
