@@ -107,7 +107,7 @@ Build these in `src/components/house/`, one file each, and replace the ad-hoc ve
 - **`WriteIn`** — prose that appears word by word. Each word is an inline-block span that fades and rises. **When the last word lands, the component replaces the spans with one plain text node**, so the settled DOM, its `textContent` and what a screen reader meets are identical to today's. Under reduced motion it never splits. Set `aria-live` on nothing new; existing live regions keep their role.
 - **`useStagger(base, step)`** — returns `next()` giving each sibling its delay, like `numeralCounter()` does for numerals: call it inside a row's condition so a hidden row takes no slot.
 
-Page-to-page transitions (for Ed's review): try the native View Transitions API as progressive enhancement, a 200ms cross-fade of the page column with the RunningHead held still. Drop it without ceremony if it fights `navTrail`, the App Router's scroll restoration, or any e2e spec.
+Page-to-page transitions: **tried in Session 1 and dropped (Ed, Nov 11).** The View Transitions trial worked, but it could only fade forward navigations and it wrapped Next's router to do it. Pages get their life from the §8.6 entrances instead, which play forward and back alike. Do not rebuild it.
 
 ## 7. The bloom in motion (Session 1 builds it, Sessions 3–5 use it)
 
@@ -145,7 +145,7 @@ A client wrapper beside `PalateMark.js`. It runs a `requestAnimationFrame` loop 
 | Petal *i* | think + 500 + 120·*i* | 750 | opens from the base: tip grows, width from 35% to full, opacity in over the first third |
 | Berry *k* | after the last petal starts + 250 + 110·*k* | 420 | lands: scale 1.9→1, opacity 0→1 |
 
-All eased with a quartic ease-out. Length after `think`: `500 + 120·petals + 250 + 110·berries + 420` (about 2.3s for 7 petals and 3 berries).
+All eased with a quartic ease-out. `revealLength(params)` in `palateMark.js` returns the length after `think` (a little over 2 seconds for 7 petals and 3 berries).
 
 **The orbit must end where the static mark has it.** The study lets the beads coast to an arbitrary angle. In production, coast to rotation 0 (or any angle that renders identically) so invariant 1 holds.
 
@@ -321,11 +321,13 @@ One session per Claude Code run. Each leaves the preview usable.
 
 **Session 6 — Launch kit.** The link preview image through Next's built-in `opengraph-image` route (no new dependency), composed from the brand mark and the headline. The shareable palate card from the existing `renderPalateMarkDocument`: bloom, title, epithet, "sommeasy.wine", offered from `/palate` (for Ed's review: where the Share action sits and its copy). The promotional film is produced outside the repo from the finished motion.
 
+Session 6 also deletes `/motion-specimen` (the unlinked sample page Session 1 added for the preview and `motion.spec.ts`) and moves anything the motion spec still needs onto real pages.
+
 After Session 6: full test run, Ed walks the preview on a phone, one merge.
 
 ## 10. Testing
 
-- **Run e2e with reduced motion.** Set `use: { reducedMotion: "reduce" }` in `playwright.config.ts` so the suite runs against settled states and stays fast and deterministic. Every existing assertion should hold unchanged, because §5.2 makes the settled DOM identical to today's.
+- **Run e2e with reduced motion.** `use: { contextOptions: { reducedMotion: "reduce" } }` in `playwright.config.ts` (in place since Session 1), so the suite runs against settled states and stays fast and deterministic. Playwright Test silently ignores a top-level `use.reducedMotion`; it must ride `contextOptions`. Every existing assertion should hold unchanged, because §5.2 makes the settled DOM identical to today's.
 - **Add one motion spec** (`e2e/motion.spec.ts`) that runs with motion on and asserts outcomes, never timings: the reveal ends with a `palate-mark` whose markup equals the static render for the same genome; a written line's `textContent` equals its source string once settled and contains no word spans; the Welcome demo does not start while off-screen and does start once scrolled to; under `reducedMotion: "reduce"` the demo shows its picks and no animation is running.
 - **Guards to watch.** `quiz-completion.spec.ts` and `palate-handoff.spec.ts` wait on reveal test ids; the 1900ms minimum wait is inside their timeouts but check it. `auth-flows.spec.ts` and `first-pour.spec.ts` click the Welcome button; update the name, never the assertion. `design-screenshots.spec.ts` should capture settled frames.
 - **Unit tests.** The two `palateMark` invariants (§7.1); `motion.js` tokens exported and used (a source scan that no file under `src/` other than `motion.js` declares the `SOFT_OUT` curve literal, in the manner of `houseList.test.js`).
@@ -337,3 +339,17 @@ After Session 6: full test run, Ed walks the preview on a phone, one merge.
 - **The orbit's resting angle.** See §7.3.
 - **The study compresses the Somm's wait.** Real curation takes 12–20 seconds; the "tasting" line simply persists.
 - **Fonts.** The study loads Playfair and Source Sans from Google Fonts, as the app does. Word-by-word text can reflow if a font swaps in mid-animation; `WriteIn` should wait for `document.fonts.ready` (capped at 300ms) before splitting a headline.
+
+## 12. Settled in Session 1 (Nov 11, 2026)
+
+Session 1 shipped the foundations on `motion`. These choices it made are now part of the spec; later sessions build on them and do not reopen them.
+
+- **The orbit lands on exactly 0.** While turning, the beads are drawn evenly spaced so the ring has no seam; the spacing eases back as it coasts to rest. §7.3's note is satisfied.
+- **Reveal berries follow §7.3's table as written** (from the last petal's start), which is 120ms earlier than the study plays.
+- **Every new berry ripples**, not only the first.
+- **A shape that got smaller** (a re-rate down, a delete) closes and fades instead of vanishing. **Open for Session 4:** `growState` still plays the swell and the heart pulse on a shrink. A demotion is not celebrated, so Session 4 makes both growth-only (a shrink just closes, quietly) and adds the unit test.
+- **Reduced motion drops entrance delays** as well as movement: everything is simply there.
+- **`PalateMarkLive` holds its `{ __html }` in a ref.** A new object literal on re-render makes React re-apply `innerHTML` and wipes a bloom mid-draw.
+- **Motion cannot be verified in a hidden browser pane** (its timeline does not advance). Verify in Playwright with motion on.
+- **`/motion-specimen`** exists for the preview and the motion spec. It goes in Session 6.
+- **The view-transition trial is reverted** (commit `37ce375`); see §6.
