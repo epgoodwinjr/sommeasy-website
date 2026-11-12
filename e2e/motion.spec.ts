@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { composeIdentity } from "../src/lib/identityEngine.js";
-import { renderPalateMark } from "../src/lib/palateMark.js";
+import { MARK_MOTION, renderPalateMark } from "../src/lib/palateMark.js";
+import { countEvents, testDb } from "./fixtures/test-db";
 
 /**
  * Motion (docs/motion/README.md §10) — the ONE spec that runs with motion on.
@@ -38,7 +39,24 @@ import { renderPalateMark } from "../src/lib/palateMark.js";
  *   9. Under reduced motion the demo shows its picks and its last line,
  *      and nothing in it is running.
  *
- * Session 3 adds the real reveal.
+ * Session 3 adds the three fixes from Ed's review (README §13) and the
+ * real reveal (§8.3):
+ *
+ *  10. A quiz option never moves when it is tapped, nor does any other; the
+ *      quiz's bloom grows quietly; the demo's frame is its tallest state.
+ *  11. Signed out: a medallion waits at least the mark's think time, the
+ *      title is never in the DOM before the draw, the bloom ends on the
+ *      static mark, the title is written and settles to one text node.
+ *  12. Signed in: the medallion waits for as long as the save takes — then
+ *      the reading arrives (the narrative written in) and leaves nothing
+ *      behind. A failed save still reveals, with Try again where the saved
+ *      line would be, and the retry saves.
+ *  13. Under reduced motion the bloom is settled from its first frame and
+ *      nothing is written word by word.
+ *
+ * The signed-in reveal tests save the quiz in REFINE mode on the rich
+ * account with its own seeded answers — content-identical, the same
+ * discipline as quiz-completion.spec.ts — and assert the ledger by delta.
  *
  * Do NOT make these timing-tolerant by sleeping: poll for the outcome.
  * Read-only: /motion-specimen touches no account data.
@@ -585,5 +603,370 @@ test.describe("The front door — reduced motion", () => {
     await page.getByRole("button", { name: /France/ }).first().click();
     const one = await asBrowser(page, renderPalateMark(composeIdentity({ ...ANSWERS, countries: ["france"] }).genome, { size: 44 }));
     await expect.poll(() => mark.innerHTML()).toBe(one);
+  });
+});
+
+// ─── The reveal (Session 3, README §8.3) ───
+
+const REVEAL_SIZE = 176;
+const revealMark = (page: Page) => page.locator("main").getByTestId("palate-mark");
+
+/** From before the reveal mounts: when the reading line, the bloom's first
+ *  petal-or-ring path and the title each first exist (ms on the page's
+ *  clock), and every frame the mark paints. */
+const watchReveal = (page: Page) =>
+  page.evaluate(() => {
+    const seen = { reading: 0, path: 0, title: 0, frames: [] as string[] };
+    (window as any).__reveal = seen;
+    new MutationObserver(() => {
+      const now = performance.now();
+      if (!seen.reading && document.querySelector('[data-testid="reveal-reading"]')) seen.reading = now;
+      if (!seen.title && document.querySelector('[data-testid="reveal-archetype"]')) seen.title = now;
+      const mark = document.querySelector('main [data-testid="palate-mark"]');
+      if (!mark) return;
+      if (seen.frames[seen.frames.length - 1] !== mark.innerHTML) seen.frames.push(mark.innerHTML);
+      if (!seen.path && mark.innerHTML.includes("<path")) seen.path = now;
+    }).observe(document.body, { childList: true, subtree: true, attributes: true });
+  });
+
+const revealSeen = (page: Page) =>
+  page.evaluate(() => (window as any).__reveal as { reading: number; path: number; title: number; frames: string[] });
+
+/** The reveal at rest: nothing on the page carries what an entrance wears. */
+const leftBehind = (page: Page) =>
+  page.evaluate(() => {
+    // The page's own elements — not the insides of the mark
+    const all = Array.from(document.querySelectorAll("main *"))
+      .filter((el): el is HTMLElement => el instanceof HTMLElement);
+    return {
+      transformed: all.filter((el) => getComputedStyle(el).transform !== "none").length,
+      clipped: all.filter((el) => getComputedStyle(el).clipPath !== "none").length,
+      invisible: all.filter((el) => getComputedStyle(el).opacity === "0").length,
+      inline: all.filter((el) => el.style.transform || el.style.clipPath || el.style.opacity === "0").length,
+      wordSpans: document.querySelectorAll("[data-word]").length,
+    };
+  });
+
+const onlyText = (page: Page, testId: string) =>
+  page.getByTestId(testId).evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE);
+
+const QUIZ_ANSWERS = {
+  countries: ["south_africa"],
+  regions: { south_africa: ["stellenbosch"] },
+  estates: {},
+  varietals: ["pinot_noir"],
+  specificWines: [],
+};
+
+/** The anonymous quiz, answered as QUIZ_ANSWERS, up to its last button. */
+async function answerQuiz(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Build your palate" }).click();
+  await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
+  await page.getByRole("button", { name: /South Africa/ }).first().click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Step 2 of 5")).toBeVisible();
+  await page.getByRole("button", { name: /Stellenbosch/ }).first().click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Step 3 of 5")).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Step 4 of 5")).toBeVisible();
+  await page.getByRole("button", { name: /Pinot Noir/ }).first().click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText("Step 5 of 5")).toBeVisible();
+}
+
+/** The rich account's refine quiz, untouched, up to its last button. */
+async function refineQuiz(page: Page) {
+  await page.goto("/?quiz=refine");
+  await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
+  for (let step = 2; step <= 5; step++) {
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText(`Step ${step} of 5`)).toBeVisible();
+  }
+}
+
+test.describe("The reveal, signed out — motion on", () => {
+  test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
+
+  test("a medallion waits, the bloom draws itself, and the title is written — never before", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await watchMotion(page);
+    await answerQuiz(page);
+    const wordsBefore = (await motionSeen(page)).wordSpans;
+    await watchReveal(page);
+    await page.getByRole("button", { name: "See My Wine DNA" }).click();
+
+    // Waiting: the Somm is reading, over a medallion with no bloom in it —
+    // and nothing of the reading is in the DOM yet
+    const reading = page.getByTestId("reveal-reading");
+    await expect(reading).toBeVisible({ timeout: 10_000 });
+    await expect(reading).toContainText("The Somm is reading your palate");
+    await expect.poll(async () => (await revealMark(page).innerHTML()).includes("<circle")).toBe(true);
+    expect(await revealMark(page).innerHTML()).not.toContain("<path");
+    await expect(page.getByTestId("reveal-archetype")).toHaveCount(0);
+    await expect(page.getByTestId("teaser-gate")).toHaveCount(0);
+    await expect(page.getByTestId("reveal-recs")).toHaveCount(0);
+
+    // The draw: it ends on exactly the static mark for the genome these
+    // answers compose — the mark the quiz's header bloom grew into
+    const identity = composeIdentity(QUIZ_ANSWERS);
+    const still = await asBrowser(page, renderPalateMark(identity.genome, { size: REVEAL_SIZE }));
+    await expect.poll(() => revealMark(page).innerHTML(), { timeout: 20_000 }).toBe(still);
+    expect(still).toContain("<path");
+
+    // The title: written word by word, settling into one plain text node
+    const title = page.getByTestId("reveal-archetype");
+    await expect.poll(() => onlyText(page, "reveal-archetype"), { timeout: 20_000 }).toBe(true);
+    await expect(title).toHaveText(identity.title);
+    expect(await title.evaluate((el) => el.tagName)).toBe("H1");
+    expect((await motionSeen(page)).wordSpans - wordsBefore).toBeGreaterThanOrEqual(identity.title.split(/\s+/).length);
+
+    const seen = await revealSeen(page);
+    // The medallion held for at least the mark's think time (a floor: a
+    // slow machine only lengthens it), and it drew — it did not jump
+    expect(seen.path - seen.reading).toBeGreaterThanOrEqual(MARK_MOTION.thinkMs - 50);
+    expect(seen.title - seen.reading).toBeGreaterThanOrEqual(MARK_MOTION.thinkMs - 50);
+    expect(seen.frames.length).toBeGreaterThan(30);
+    expect(seen.frames[seen.frames.length - 1]).toBe(still);
+    // No frame of the draw celebrated: the reveal has no overlays
+    expect(seen.frames.filter((frame) => /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*opacity=/i.test(frame)).length).toBe(0);
+
+    // The teaser under it: the gate, one read-only bottle — and the reading
+    // line has left the DOM
+    await expect(page.getByTestId("teaser-gate")).toBeVisible();
+    await expect(page.getByTestId("teaser-gate").getByRole("link", { name: /Save My Wine DNA/ })).toHaveAttribute("href", "/signup");
+    await expect(page.getByTestId("reveal-recs").getByTestId("rec-card")).toHaveCount(1);
+    await expect(reading).toHaveCount(0);
+    await expect(page.getByTestId("reveal-epithet")).toHaveCount(0);
+    await expect(page.getByTestId("reveal-narrative")).toHaveCount(0);
+
+    // And when every entrance is over, none has left a thing behind
+    await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
+    expect(await leftBehind(page)).toEqual({ transformed: 0, clipped: 0, invisible: 0, inline: 0, wordSpans: 0 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+  });
+});
+
+test.describe("The reveal, signed out — reduced motion", () => {
+  test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "reduce" } });
+
+  test("the bloom is settled from its first frame, and nothing is written word by word", async ({ page }) => {
+    await watchMotion(page);
+    await answerQuiz(page);
+    await watchReveal(page);
+    await page.getByRole("button", { name: "See My Wine DNA" }).click();
+
+    const identity = composeIdentity(QUIZ_ANSWERS);
+    await expect(page.getByTestId("reveal-archetype")).toHaveText(identity.title, { timeout: 10_000 });
+    await expect(page.getByTestId("teaser-gate")).toBeVisible();
+    await expect(page.getByTestId("reveal-recs").getByTestId("rec-card")).toHaveCount(1);
+    await expect(page.getByTestId("reveal-reading")).toHaveCount(0);
+
+    // One frame, ever: the settled mark. No medallion, no draw
+    const still = await asBrowser(page, renderPalateMark(identity.genome, { size: REVEAL_SIZE }));
+    expect(await revealMark(page).innerHTML()).toBe(still);
+    expect((await revealSeen(page)).frames).toEqual([still]);
+    // The title arrived whole
+    expect(await onlyText(page, "reveal-archetype")).toBe(true);
+    expect((await motionSeen(page)).wordSpans).toBe(0);
+    // Every entrance was a short fade: all done, nothing running or left
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length), { timeout: 10_000 }).toBe(0);
+    expect(await leftBehind(page)).toEqual({ transformed: 0, clipped: 0, invisible: 0, inline: 0, wordSpans: 0 });
+  });
+});
+
+test.describe("The reveal, signed in — motion on", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  test("the medallion waits for as long as the save takes; then the reading arrives and leaves nothing behind", async ({ page }) => {
+    const { supabase, userId } = await testDb();
+    const eventsBefore = await countEvents(supabase, userId, "quiz_completed");
+    await page.setViewportSize({ width: 375, height: 812 });
+    await watchMotion(page);
+    await refineQuiz(page);
+
+    // Hold the save: the profile write does not land until the test says so
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let holding = 0;
+    await page.route("**/rest/v1/wine_profiles**", async (route) => {
+      if (route.request().method() === "POST") {
+        holding += 1;
+        await held;
+      }
+      await route.continue();
+    });
+
+    const wordsBefore = (await motionSeen(page)).wordSpans;
+    await watchReveal(page);
+    // A double tap, as a thumb does: the button is still there, and live,
+    // for the 200ms the last step takes to leave. It must save once
+    await page.getByRole("button", { name: "Update My Wine DNA" }).dblclick();
+    const reading = page.getByTestId("reveal-reading");
+    await expect(reading).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => holding, { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+
+    // Well past the mark's own think time, with the save still out: still
+    // a medallion, still reading, and nothing of the reading in the DOM
+    await page.waitForFunction(
+      (floor) => performance.now() - (window as any).__reveal.reading > floor,
+      MARK_MOTION.thinkMs + 800,
+    );
+    expect(await revealMark(page).innerHTML()).not.toContain("<path");
+    await expect(reading).toBeVisible();
+    expect(await reading.evaluate((el) => getComputedStyle(el).opacity)).toBe("1");
+    await expect(page.getByTestId("reveal-archetype")).toHaveCount(0);
+    await expect(page.getByTestId("reveal-saved")).toHaveCount(0);
+    expect((await revealSeen(page)).path).toBe(0);
+
+    // The save lands: the bloom draws, and the reading arrives under it
+    release();
+    await expect(page.getByTestId("reveal-saved")).toBeVisible({ timeout: 30_000 });
+    const { data: row } = await supabase
+      .from("wine_profiles").select("archetype, narrative, identity").eq("user_id", userId).single();
+    const still = await asBrowser(page, renderPalateMark(row!.identity.genome, { size: REVEAL_SIZE }));
+    await expect.poll(() => revealMark(page).innerHTML(), { timeout: 20_000 }).toBe(still);
+
+    // What it reveals is the saved row: title, epithet, and the narrative
+    // written in and settled into one plain text node
+    await expect.poll(() => onlyText(page, "reveal-archetype"), { timeout: 20_000 }).toBe(true);
+    await expect(page.getByTestId("reveal-archetype")).toHaveText(row!.archetype);
+    await expect(page.getByTestId("reveal-epithet")).toHaveText(row!.identity.epithet);
+    await expect.poll(() => onlyText(page, "reveal-narrative"), { timeout: 20_000 }).toBe(true);
+    await expect(page.getByTestId("reveal-narrative")).toHaveText(row!.narrative);
+    expect((await motionSeen(page)).wordSpans - wordsBefore)
+      .toBeGreaterThanOrEqual((row!.archetype + " " + row!.narrative).split(/\s+/).length);
+
+    // The door to the palate, and ratable recs — live
+    await expect(page.getByTestId("reveal-palate-cta")).toHaveAttribute("href", "/palate");
+    const firstRec = page.getByTestId("reveal-recs").getByTestId("rec-card").first();
+    await expect(firstRec.getByRole("button", { name: /Had it/ })).toBeVisible();
+    await expect(reading).toHaveCount(0);
+
+    const seen = await revealSeen(page);
+    expect(seen.frames.length).toBeGreaterThan(30);
+    expect(seen.title - seen.reading).toBeGreaterThanOrEqual(MARK_MOTION.thinkMs + 800);
+
+    await expect.poll(() => finiteAnimations(page), { timeout: 25_000 }).toBe(0);
+    expect(await leftBehind(page)).toEqual({ transformed: 0, clipped: 0, invisible: 0, inline: 0, wordSpans: 0 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+
+    // One save, one ledger row (fire-and-forget — poll) — however many
+    // times the button was tapped
+    await expect.poll(() => countEvents(supabase, userId, "quiz_completed"), { timeout: 15_000 }).toBe(eventsBefore + 1);
+    expect(holding, "the double tap saved the profile more than once").toBe(1);
+    expect(await countEvents(supabase, userId, "quiz_completed")).toBe(eventsBefore + 1);
+  });
+});
+
+test.describe("The reveal, signed in — when the save goes wrong", () => {
+  // Reduced motion (the suite's default): this is about what the reveal
+  // holds, not how it arrives
+
+  test("a failed save still reveals, with Try again where the saved line would be — and the retry saves", async ({ page }) => {
+    const { supabase, userId } = await testDb();
+    const eventsBefore = await countEvents(supabase, userId, "quiz_completed");
+    await refineQuiz(page);
+
+    // The first two profile writes fail; the third is held, then let through
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let writes = 0;
+    await page.route("**/rest/v1/wine_profiles**", async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      writes += 1;
+      if (writes <= 2) {
+        return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ message: "e2e: the save is down" }) });
+      }
+      await held;
+      return route.continue();
+    });
+
+    await page.getByRole("button", { name: "Update My Wine DNA" }).click();
+
+    // The reveal lands anyway, from the local composition…
+    await expect(page.getByTestId("reveal-archetype")).toBeVisible({ timeout: 30_000 });
+    expect((await page.getByTestId("reveal-archetype").textContent())?.trim().length).toBeGreaterThan(0);
+    await expect(page.getByTestId("reveal-narrative")).toBeVisible();
+    await expect(revealMark(page).locator("svg path").first()).toBeAttached();
+    // …and says so where the saved line would be: no saved line, no door
+    const failed = page.locator("main").getByRole("alert");
+    await expect(failed).toHaveText("We couldn't save your palate just now — one more try should do it.");
+    await expect(page.getByTestId("reveal-saved")).toHaveCount(0);
+    await expect(page.getByTestId("reveal-palate-cta")).toHaveCount(0);
+    const retry = page.getByRole("button", { name: "Try again" });
+    await expect(retry).toBeEnabled();
+    // A failed write wrote nothing
+    expect(await countEvents(supabase, userId, "quiz_completed")).toBe(eventsBefore);
+    // Nothing took focus as the reveal arrived: only a retry moves it
+    await expect(failed).not.toBeFocused();
+
+    // Try again, and it fails again: the failure is said again — it takes
+    // focus, so a screen reader hears it and a keyboard keeps its place —
+    // and the entry is back to be tried once more
+    const titleBefore = await page.getByTestId("reveal-archetype").textContent();
+    await retry.click();
+    await expect.poll(() => writes, { timeout: 15_000 }).toBe(2);
+    await expect(retry).toBeEnabled({ timeout: 15_000 });
+    await expect(failed).toHaveText("We couldn't save your palate just now — one more try should do it.");
+    await expect(failed).toBeFocused();
+    await expect(page.getByTestId("reveal-saved")).toHaveCount(0);
+    expect(await countEvents(supabase, userId, "quiz_completed")).toBe(eventsBefore);
+
+    // Once more: while it saves the entry says so and can't be tapped
+    // twice, and the reveal stays exactly where it is
+    await retry.click();
+    const saving = page.getByRole("button", { name: "Saving…" });
+    await expect(saving).toBeDisabled();
+    await expect(failed).toBeVisible();
+    await expect(page.getByTestId("reveal-archetype")).toHaveText(titleBefore!);
+    await expect(page.getByTestId("reveal-reading")).toHaveCount(0);
+    // The retry has got as far as its write, and is held there
+    await expect.poll(() => writes, { timeout: 15_000 }).toBe(3);
+    await expect(saving).toBeDisabled();
+    await expect(page.getByTestId("reveal-saved")).toHaveCount(0);
+
+    // It lands: saved — the line takes focus as it replaces the entry that
+    // was tapped — with the door to the palate, and the failure is gone
+    release();
+    await expect(page.getByTestId("reveal-saved")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("reveal-saved")).toBeFocused();
+    await expect(page.getByTestId("reveal-palate-cta")).toHaveAttribute("href", "/palate");
+    await expect(failed).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Try again|Saving/ })).toHaveCount(0);
+    const { data: row } = await supabase
+      .from("wine_profiles").select("archetype, narrative").eq("user_id", userId).single();
+    await expect(page.getByTestId("reveal-archetype")).toHaveText(row!.archetype);
+    await expect(page.getByTestId("reveal-narrative")).toHaveText(row!.narrative);
+    await expect(page.getByTestId("reveal-recs").getByTestId("rec-card").first()).toBeVisible();
+    await expect.poll(() => countEvents(supabase, userId, "quiz_completed"), { timeout: 15_000 }).toBe(eventsBefore + 1);
+  });
+
+  test("a saved row with no usable genome still reveals — in words, with no mark", async ({ page }) => {
+    await refineQuiz(page);
+
+    // The row the save hands back carries an identity whose genome is not
+    // one (a malformed or legacy jsonb): every surface degrades to text
+    // only for it, and the reveal has to as well — not wait for a draw
+    // that no mark will ever report
+    await page.route("**/rest/v1/wine_profiles**", async (route) => {
+      const request = route.request();
+      if (request.method() !== "GET" || !decodeURIComponent(request.url()).includes("select=*")) return route.continue();
+      const response = await route.fetch();
+      const row = await response.json();
+      if (row?.identity) row.identity = { ...row.identity, genome: "not a genome" };
+      return route.fulfill({ response, json: row });
+    });
+
+    await page.getByRole("button", { name: "Update My Wine DNA" }).click();
+    await expect(page.getByTestId("reveal-saved")).toBeVisible({ timeout: 30_000 });
+    expect((await page.getByTestId("reveal-archetype").textContent())?.trim().length).toBeGreaterThan(0);
+    await expect(page.getByTestId("reveal-narrative")).toBeVisible();
+    await expect(page.getByTestId("reveal-palate-cta")).toBeVisible();
+    await expect(page.getByTestId("reveal-recs").getByTestId("rec-card").first()).toBeVisible();
+    // Text only: no mark, and the reading line has gone
+    await expect(revealMark(page)).toHaveCount(0);
+    await expect(page.getByTestId("reveal-reading")).toHaveCount(0);
   });
 });

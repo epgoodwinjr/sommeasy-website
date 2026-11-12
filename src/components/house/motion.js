@@ -92,6 +92,47 @@ export const SWAP = { outMs: 140, inMs: 320, risePx: 4 };
  *  header bloom grows (and first opens) over `bloomMs` per change. */
 export const QUIZ_STEP = { exitMs: 200, exitPx: 8, optionStep: 20, optionCap: 300, optionPx: 6, bloomMs: 600 };
 
+/**
+ * The reveal (§8.3). A medallion waits over a line that says the Somm is
+ * reading; the line starts to leave `lineLead` before the bloom draws; then
+ * each part of the reading arrives, counted from the draw's first frame.
+ * (The wait itself, and the draw, are the mark's: MARK_MOTION in
+ * src/lib/palateMark.js.)
+ */
+export const REVEAL = {
+  // The wait
+  lineIn: 300, // the reading line fades in under the medallion
+  lineLead: 250, // …and starts to leave this long before the draw
+  lineOutMs: 300,
+  // From the draw's first frame — §8.3's table
+  eyebrow: 1500,
+  title: 1750, titleStep: 110, titleMs: 700, // written
+  epithet: 2350,
+  divider: 2700,
+  narrative: 2950, narrativeStep: 22, narrativeMs: 500, // written
+  saved: 4300,
+  cta: 4450, // the entry: its leader and circle follow by ENTRY_ENTER
+  // Signed out: the gate rises where the divider draws
+  gate: 2700,
+  // The recs come last — after the CTA's circle has landed (signed in), or
+  // once the gate has risen (signed out): head, its line, then the rows
+  recs: 5200,
+  teaserRecs: 3300,
+  recsSub: 100,
+  recsRows: 250,
+  home: 700, // "take me home", after the recs' head
+  // A save that failed and was retried: the draw is long over, so what the
+  // retry brings arrives at once
+  late: { saved: 0, cta: 150 },
+};
+
+/** Three dots after a line that is still being thought about (§8.3, §8.5):
+ *  each breathes on `house-dot` (globals.css), one after another. Filled
+ *  backwards, so a dot waiting its turn already rests where the loop starts
+ *  instead of showing at full ink and snapping down. */
+export const DOTS = { ms: 1400, step: 180, rest: 0.25 };
+export const dotAnimation = (index) => `house-dot ${DOTS.ms}ms ease-in-out ${index * DOTS.step}ms infinite backwards`;
+
 /** A view leaving (§5.1). Callers remove the view when it finishes. */
 export const EXIT = {
   from: { opacity: 1, transform: "none" },

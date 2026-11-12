@@ -12,15 +12,23 @@
 // what CSS can transform: a block, a flex or grid item, an inline-block —
 // a plain inline span would fade without moving. When the entrance ends the
 // wrapper carries no transform and no opacity of its own. Under reduced
-// motion every kind is a short fade with no movement and no delay.
+// motion every kind is a short fade with no movement and no delay. The ref
+// reaches the element, for a line that takes focus when it arrives.
 
-import { useRef } from "react";
+import { forwardRef, useCallback, useRef } from "react";
 import useEntrance, { withEntrance } from "./useEntrance";
 
-export default function Enter({
+const Enter = forwardRef(function Enter({
   kind = "rise", delay = 0, duration, distance, as: Tag = "div", style, children, ...rest
-}) {
+}, forwarded) {
   const ref = useRef(null);
   const entering = useEntrance(ref, kind, { delay, duration, distance });
-  return <Tag ref={ref} style={withEntrance(style, entering)} {...rest}>{children}</Tag>;
-}
+  const setRef = useCallback((el) => {
+    ref.current = el;
+    if (typeof forwarded === "function") forwarded(el);
+    else if (forwarded) forwarded.current = el;
+  }, [forwarded]);
+  return <Tag ref={setRef} style={withEntrance(style, entering)} {...rest}>{children}</Tag>;
+});
+
+export default Enter;

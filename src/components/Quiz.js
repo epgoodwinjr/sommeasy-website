@@ -6,17 +6,20 @@ import wineUnified from "@/lib/wineUnified.json";
 import { generateDNAProfile } from "@/lib/profileEngine";
 import { composeIdentity } from "@/lib/identityEngine";
 import { saveStash } from "@/lib/pendingPalate";
+import { MARK_MOTION, markParams } from "@/lib/palateMark";
 import WineRecList from "@/components/WineRecList";
-import PalateMark from "@/components/PalateMark";
 import PalateMarkLive from "@/components/PalateMarkLive";
+import Divider from "@/components/house/Divider";
+import Dots from "@/components/house/Dots";
 import Enter from "@/components/house/Enter";
 import LeaderEntry from "@/components/house/LeaderEntry";
 import ProgressLine from "@/components/house/ProgressLine";
 import RuledField from "@/components/house/RuledField";
 import SectionHead from "@/components/house/SectionHead";
 import TextAction from "@/components/house/TextAction";
-import useEntrance, { withEntrance } from "@/components/house/useEntrance";
-import { D_REDUCED, D_TAP, D_WORD, EASE, QUIZ_STEP, SOFT_OUT, prefersReducedMotion } from "@/components/house/motion";
+import WriteIn from "@/components/house/WriteIn";
+import useEntrance, { useIsoLayoutEffect, withEntrance } from "@/components/house/useEntrance";
+import { D_REDUCED, D_TAP, D_WORD, EASE, QUIZ_STEP, REVEAL, prefersReducedMotion } from "@/components/house/motion";
 import { BURGUNDY, COLUMN, GUTTER, INK, SAGE, SANS, SERIF, TYPE, ink, leader } from "@/components/house/tokens";
 
 const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DATA, varietals: VARIETALS_RAW } = wineUnified;
@@ -554,90 +557,228 @@ function SpecificWineStep({ wines, onAdd, onRemove, selectedEstates }) {
   );
 }
 
-// ─── The Reveal (The Reveal session) ───
+// ─── The Reveal (docs/motion/README.md §8.3 — the first big moment) ───
 //
-// Quiz completion is a moment, not a page: the archetype lands, the palate is
-// already saved (auto-save — there is no unsaved state for a signed-in user),
-// and the room it opens onto is /palate. Identity detail lives ONLY in
-// PalateView — no Full Profile tab, no stat counts here.
+// Quiz completion is a moment, not a page. On cream, with no card: a
+// medallion waits while the palate saves ("The Somm is reading your
+// palate..."), and once the save has landed — never sooner than the mark's
+// own think time — the bloom draws itself and the reading arrives under it:
+// the title written in, the epithet, the narrative written in, "✓ Saved to
+// your palate" and the door to /palate. The palate is already saved when it
+// lands (auto-save: a signed-in user never has an unsaved completed quiz).
+// Identity detail lives ONLY in PalateView — no Full Profile tab, no stat
+// counts here.
+//
+// One component, mounted once for the whole of it: the mark that waits is
+// the mark that draws. The parts mount as the draw starts, each on its delay
+// from REVEAL (motion.js) — so nothing is shown before the reveal, and from
+// its first frame everything is in the DOM and live. Under reduced motion
+// the bloom is settled from the start and the parts simply appear.
+//
+// Signed out it is the Velvet Rope's teaser: the same wait, the same draw,
+// the same title — then the gate.
 
-function RevealReading() {
+const REVEAL_MARK = 176;
+
+const revealTitle = {
+  fontFamily: SERIF, fontSize: "32px", fontWeight: 700, lineHeight: 1.1, letterSpacing: "-0.01em",
+  color: INK, textWrap: "balance", marginTop: 10,
+};
+const revealEpithet = {
+  fontFamily: SERIF, fontStyle: "italic", fontSize: "16px", lineHeight: 1.4, color: BURGUNDY, marginTop: 10,
+};
+const revealProse = {
+  fontFamily: SERIF, fontStyle: "italic", fontSize: "15.5px", lineHeight: 1.6, color: ink(0.78), marginTop: 22,
+};
+// The saved line and the failure can take focus (after a retry): no ring —
+// they aren't controls
+const revealSaved = {
+  fontFamily: SANS, fontSize: "13px", fontWeight: 600, lineHeight: 1.4, color: SAGE, textAlign: "center",
+  outline: "none",
+};
+const revealFailed = { fontFamily: SANS, fontSize: "14px", lineHeight: 1.55, color: ink(0.75), outline: "none" };
+const gateHead = { fontFamily: SERIF, fontSize: "21px", fontWeight: 600, lineHeight: 1.25, color: INK };
+const gateFoot = { fontFamily: SANS, fontSize: "13px", lineHeight: 1.5, color: ink(0.55), marginTop: 14 };
+
+/**
+ * The line under the waiting medallion. It sits over the place the title
+ * will take (out of flow), fades in, and once `leaving` fades out and says
+ * it has gone — the reveal then takes it out of the DOM.
+ */
+function ReadingLine({ leaving, onGone }) {
+  const ref = useRef(null);
+  const entering = useEntrance(ref, "fade", { delay: REVEAL.lineIn });
+  const gone = useRef(onGone);
+  gone.current = onGone;
+
+  useIsoLayoutEffect(() => {
+    if (!leaving) return undefined;
+    const el = ref.current;
+    if (!el || typeof el.animate !== "function" || prefersReducedMotion()) {
+      gone.current();
+      return undefined;
+    }
+    let live = true;
+    const animation = el.animate([{ opacity: 1 }, { opacity: 0 }], {
+      duration: REVEAL.lineOutMs, easing: EASE, fill: "backwards",
+    });
+    animation.finished.then(() => { if (live) gone.current(); }, () => {});
+    return () => {
+      live = false;
+      animation.cancel();
+    };
+  }, [leaving]);
+
   return (
-    <div data-testid="reveal-reading" style={{ minHeight: "70vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "20px", textAlign: "center", padding: "0 24px" }}>
-      <style>{`@keyframes revealPulse { 0%, 100% { opacity: 0.35; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.06); } }`}</style>
-      <img src="/protea-icon.png" alt="" style={{ height: 64, width: "auto", animation: "revealPulse 1.6s ease-in-out infinite" }} />
-      <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "19px", fontStyle: "italic", color: "#1B3D2F", opacity: 0.7, margin: 0, lineHeight: 1.5 }}>
-        The Somm is reading your palate…
-      </p>
-    </div>
+    <p ref={ref} role="status" data-testid="reveal-reading" style={withEntrance({
+      position: "absolute", left: 0, right: 0, top: REVEAL_MARK + 28,
+      fontFamily: SERIF, fontStyle: "italic", fontSize: "19px", lineHeight: 1.5, color: ink(0.7),
+      // Gone from sight the moment it starts to leave; the fade plays over that
+      ...(leaving && { opacity: 0 }),
+    }, entering)}>
+      The Somm is reading your palate<Dots />
+    </p>
   );
 }
 
-function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setMounted(true), 80);
-    return () => clearTimeout(t);
-  }, []);
+/**
+ * @param profile     what to reveal: the saved row's truth once there is one
+ *                    (a merge can add earned DNA the quiz never showed), the
+ *                    local composition until then
+ * @param saved       `profile` is the saved row
+ * @param pending     the save is in flight: the medallion waits
+ * @param saveFailed  the save failed; the reveal still lands, from the local
+ *                    composition, with Try again where the saved line would be
+ */
+function Reveal({ profile, saved, user, pending, saveFailed, onRetry, onGoHome }) {
+  // waiting → leaving (the line goes; the draw is REVEAL.lineLead off) →
+  // ready (the mark may draw) → drawing (it has begun: the reading mounts).
+  // It only ever moves forward.
+  const [stage, setStage] = useState("waiting");
+  const [lineGone, setLineGone] = useState(false);
+  const mountedAt = useRef(null);
+  if (mountedAt.current === null && typeof performance !== "undefined") mountedAt.current = performance.now();
 
-  // Staged entrance: each block fades up in sequence so the archetype lands
-  // as a moment, not a form submit. Settled transform must be "none", not
-  // translateY(0) — a non-none transform makes the wrapper the containing
-  // block for position:fixed descendants (the rating modal, toasts)
-  const stage = (delay) => ({
-    opacity: mounted ? 1 : 0,
-    transform: mounted ? "none" : "translateY(14px)",
-    transition: `opacity 0.7s ease ${delay}ms, transform 0.7s ${SOFT_OUT} ${delay}ms`,
-  });
+  // The wait ends when the save has landed (signed out there is none) and
+  // the mark has had its think time, whichever comes later. The line starts
+  // to leave just ahead of the draw.
+  useEffect(() => {
+    if (pending) return undefined;
+    const advance = (to, ...from) => setStage((now) => (from.includes(now) ? to : now));
+    if (prefersReducedMotion()) {
+      advance("ready", "waiting", "leaving");
+      return undefined;
+    }
+    const waited = performance.now() - mountedAt.current;
+    const lineOut = Math.max(0, MARK_MOTION.thinkMs - REVEAL.lineLead - waited);
+    const timers = [
+      setTimeout(() => advance("leaving", "waiting"), lineOut),
+      setTimeout(() => advance("ready", "waiting", "leaving"), lineOut + REVEAL.lineLead),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [pending]);
+
+  // With no genome the mark draws nothing and will never say its draw began:
+  // the reading simply arrives (text-only, as every surface degrades). Asked
+  // of the mark's own intake — a genome that is there but isn't one (a
+  // malformed identity jsonb) is no mark either
+  const hasMark = Boolean(markParams(profile.genome));
+  useEffect(() => {
+    if (stage === "ready" && !hasMark) setStage("drawing");
+  }, [stage, hasMark]);
+
+  const drawing = stage === "drawing";
+  // A save that failed, then was tried again: by the time the retry lands
+  // the draw is long over, so what it brings arrives at once
+  const everFailed = useRef(false);
+  if (saveFailed) everFailed.current = true;
+  const late = everFailed.current;
+  const retrying = pending && late;
+  const recsAt = late ? 0 : user ? REVEAL.recs : REVEAL.teaserRecs;
+
+  // A retry is something the user did, so what it brings takes focus as it
+  // replaces the entry they tapped: the saved line, or the failure said
+  // again (a screen reader hears it; a keyboard keeps its place). Never on
+  // the reveal's own arrival.
+  const savedRef = useRef(null);
+  const failedRef = useRef(null);
+  const wasRetrying = useRef(false);
+  useEffect(() => {
+    if (wasRetrying.current && !retrying) {
+      (saveFailed ? failedRef : savedRef).current?.focus({ preventScroll: true });
+    }
+    wasRetrying.current = retrying;
+  }, [retrying, saveFailed]);
 
   return (
     <div>
-      {/* Hero — the payoff */}
-      <div style={{ background: "linear-gradient(145deg, #1B3D2F 0%, #2A5540 50%, #1B3D2F 100%)", borderRadius: "24px", padding: "36px 24px 32px", color: "#F5F0E8", marginBottom: 20, boxShadow: "0 16px 48px rgba(27,61,47,0.4)", position: "relative", overflow: "hidden", textAlign: "center" }}>
-        <div style={{ position: "absolute", top: -40, right: -40, width: 140, height: 140, borderRadius: "50%", background: "rgba(139,35,50,0.1)" }} />
-        <div style={{ position: "absolute", bottom: -30, left: -30, width: 100, height: 100, borderRadius: "50%", background: "rgba(107,143,94,0.08)" }} />
-        <div style={{ position: "relative", paddingTop: 8 }}>
-          <div style={{ ...stage(300) }}>
-            {/* The visual signature — composed client-side from the local
-                genome, so the anonymous teaser gets the identical mark */}
-            <PalateMark genome={profile.genome} size={124} style={{ marginBottom: 14 }} />
-          </div>
-          <div style={{ ...stage(500), fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", letterSpacing: "0.2em", textTransform: "uppercase", opacity: mounted ? 0.5 : 0, marginBottom: 8 }}>Your Wine DNA</div>
-          <h2 data-testid="reveal-archetype" style={{ ...stage(700), fontFamily: "'Playfair Display', Georgia, serif", fontSize: "32px", margin: "0 0 10px 0", fontWeight: 700, lineHeight: 1.1 }}>{profile.archetype}</h2>
-          {/* The Velvet Rope (Aug 3): the epithet and narrative are the
-              reading — signed-in payoff only. Conditional JSX, never CSS:
-              the gated prose must be absent from the render tree. The stash
-              still carries the complete profile (capture is finish()'s job,
-              untouched by what renders here). */}
-          {user && profile.epithet && (
-            <p data-testid="reveal-epithet" style={{ ...stage(900), fontFamily: "'Playfair Display', Georgia, serif", fontSize: "15px", fontStyle: "italic", opacity: mounted ? 0.7 : 0, margin: "0 0 16px" }}>{profile.epithet}</p>
-          )}
-          {user && (
-            <p data-testid="reveal-narrative" style={{ ...stage(1100), fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", lineHeight: 1.65, opacity: mounted ? 0.8 : 0, maxWidth: 360, margin: "0 auto" }}>{profile.narrative}</p>
-          )}
+      <div style={{ position: "relative", textAlign: "center" }}>
+        {/* The visual signature — composed client-side from the local
+            genome, so the anonymous teaser draws the identical mark */}
+        <div style={{ display: "flex", justifyContent: "center", minHeight: REVEAL_MARK }}>
+          <PalateMarkLive
+            genome={profile.genome} size={REVEAL_MARK} reveal
+            ready={stage === "ready" || drawing}
+            onDrawStart={() => setStage("drawing")}
+          />
         </div>
+        {!lineGone && <ReadingLine leaving={stage !== "waiting"} onGone={() => setLineGone(true)} />}
+
+        {drawing && (
+          <>
+            <Enter kind="fade" delay={REVEAL.eyebrow} style={{ ...TYPE.eyebrow, color: ink(0.5), marginTop: 26 }}>
+              Your Wine DNA
+            </Enter>
+            <WriteIn
+              as="h1" data-testid="reveal-archetype" text={profile.archetype}
+              delay={REVEAL.title} step={REVEAL.titleStep} duration={REVEAL.titleMs} style={revealTitle}
+            />
+            {/* The Velvet Rope (Aug 3): the epithet and narrative are the
+                reading — signed-in payoff only. Conditional JSX, never CSS:
+                the gated prose must be absent from the render tree. The stash
+                still carries the complete profile (capture is finish()'s job,
+                untouched by what renders here). */}
+            {user && profile.epithet && (
+              <Enter as="p" data-testid="reveal-epithet" delay={REVEAL.epithet} style={revealEpithet}>
+                {profile.epithet}
+              </Enter>
+            )}
+          </>
+        )}
       </div>
 
-      {saveFailed && user && (
-        <div style={{ ...stage(1300), background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "18px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 16, textAlign: "center" }}>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 14px", lineHeight: 1.55, opacity: 0.75 }}>
-            We couldn&apos;t save your palate just now — one more try should do it.
-          </p>
-          <button onClick={onRetry} style={{ padding: "12px 32px", borderRadius: "100px", border: "none", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, cursor: "pointer", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>
-            Try again
-          </button>
-        </div>
-      )}
-
-      {!saveFailed && user && (
-        <div style={{ ...stage(1500), textAlign: "center", marginBottom: 28 }}>
-          <div data-testid="reveal-saved" style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#6B8F5E", fontWeight: 600, marginBottom: 14 }}>
-            ✓ Saved to your palate
-          </div>
-          <Link href="/palate" data-testid="reveal-palate-cta" style={{ display: "inline-block", padding: "15px 44px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "15px", fontWeight: 600, textDecoration: "none", boxShadow: "0 6px 24px rgba(139,35,50,0.3)" }}>
-            Meet your palate →
-          </Link>
-        </div>
+      {drawing && user && (
+        <>
+          <Divider enterDelay={REVEAL.divider} style={{ marginTop: 24 }} />
+          <WriteIn
+            as="p" data-testid="reveal-narrative" text={profile.narrative}
+            delay={REVEAL.narrative} step={REVEAL.narrativeStep} duration={REVEAL.narrativeMs} style={revealProse}
+          />
+          {saveFailed || retrying ? (
+            <div style={{ marginTop: 26 }}>
+              <Enter ref={failedRef} as="p" kind="fade" role="alert" tabIndex={-1} delay={REVEAL.saved} style={revealFailed}>
+                We couldn&apos;t save your palate just now — one more try should do it.
+              </Enter>
+              <LeaderEntry
+                tone="filled" mark="→" label={retrying ? "Saving…" : "Try again"}
+                onClick={onRetry} disabled={retrying} enterDelay={REVEAL.cta} style={{ marginTop: 16 }}
+              />
+            </div>
+          ) : (
+            <div style={{ marginTop: 26 }}>
+              <Enter
+                ref={savedRef} kind="fade" data-testid="reveal-saved" tabIndex={late ? -1 : undefined}
+                delay={late ? REVEAL.late.saved : REVEAL.saved} style={revealSaved}
+              >
+                ✓ Saved to your palate
+              </Enter>
+              <LeaderEntry
+                tone="filled" mark="→" label="Meet your palate" href="/palate" testId="reveal-palate-cta"
+                enterDelay={late ? REVEAL.late.cta : REVEAL.cta} style={{ marginTop: 18 }}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* The Velvet Rope (Aug 3, replacing S2's over-giving teaser): the
@@ -645,55 +786,58 @@ function Reveal({ profile, user, saveFailed, onRetry, onGoHome }) {
           SELLS the reading behind it (epithet, narrative, signature line).
           It never apologizes for withholding. Saving is promised because
           the stash makes it true. */}
-      {!user && (
-        <div data-testid="teaser-gate" style={{ ...stage(1100), background: "rgba(139,35,50,0.06)", borderRadius: "14px", padding: "22px 20px", border: "1px solid rgba(139,35,50,0.15)", marginBottom: 28, textAlign: "center" }}>
-          <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px", color: "#1B3D2F", margin: "0 0 8px 0", lineHeight: 1.4 }}>
-            Your full reading is ready.
-          </p>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", margin: "0 0 16px 0", lineHeight: 1.55, opacity: 0.65 }}>
-            The story behind your title, the signature your taste leaves in a glass, and the bottles we&apos;d pour you tonight — the Somm has already read them all. Save your Wine DNA and it&apos;s yours for good — and it evolves with every bottle you rate.
-          </p>
-          <Link href="/signup" style={{ display: "inline-block", padding: "13px 36px", borderRadius: "100px", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", color: "#F5F0E8", fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", fontWeight: 600, textDecoration: "none", boxShadow: "0 4px 16px rgba(139,35,50,0.25)" }}>Save My Wine DNA →</Link>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", margin: "16px 0 0", opacity: 0.55 }}>
-            Held on this device for 7 days. Already have an account?{" "}
-            <Link href="/login" data-testid="teaser-signin" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in — we&apos;ll fold this into your palate.</Link>
-          </p>
-        </div>
+      {drawing && !user && (
+        <>
+          <Divider enterDelay={REVEAL.divider} style={{ marginTop: 26 }} />
+          <Enter data-testid="teaser-gate" delay={REVEAL.gate} style={{ marginTop: 24 }}>
+            <p style={gateHead}>Your full reading is ready.</p>
+            <p style={{ ...TYPE.sub, marginTop: 8 }}>
+              The story behind your title, the signature your taste leaves in a glass, and the bottles we&apos;d pour you tonight — the Somm has already read them all. Save your Wine DNA and it&apos;s yours for good — and it evolves with every bottle you rate.
+            </p>
+            <LeaderEntry tone="filled" mark="→" label="Save My Wine DNA" href="/signup" style={{ marginTop: 22 }} />
+            <p style={gateFoot}>
+              Held on this device for 7 days. Already have an account?{" "}
+              {/* Inline in the sentence, its hit area padded past the line */}
+              <Link href="/login" data-testid="teaser-signin" style={{ color: BURGUNDY, fontWeight: 600, padding: "10px 0", textDecoration: "none" }}>
+                Sign in — we&apos;ll fold this into your palate.
+              </Link>
+            </p>
+          </Enter>
+        </>
       )}
 
       {/* Ratable recs — the highest-signal moment: recognition becomes rated
           evidence, and "Building now" is alive from minute one. Anonymous
-          users get ONE read-only card (The Velvet Rope): a single match
+          users get ONE read-only row (The Velvet Rope): a single match
           proves the Somm read them; the "more wines" tail sells the rest. */}
-      {profile.recommendations?.length > 0 && (
-        <div data-testid="reveal-recs" style={stage(user ? 1900 : 1500)}>
-          <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", color: "#1B3D2F", fontWeight: 600, margin: "0 0 6px" }}>{user ? "Start it off" : "A taste of your matches"}</h3>
-          <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.55, margin: "0 0 14px", lineHeight: 1.5 }}>
+      {drawing && profile.recommendations?.length > 0 && (
+        <section data-testid="reveal-recs" style={{ marginTop: 36 }}>
+          <SectionHead label={user ? "Start it off" : "A taste of your matches"} enterDelay={recsAt} />
+          <Enter as="p" kind="fade" delay={recsAt + REVEAL.recsSub} style={{ ...TYPE.sub, fontSize: "14px", marginTop: 12 }}>
             {user
               ? "Rate the ones you know — every answer sharpens your palate."
               : "The first bottle we'd pour you. Your full list is waiting behind your account."}
-          </p>
-          <WineRecList recs={profile.recommendations} user={user} limit={user ? 5 : 1} surface="reveal" />
-        </div>
+          </Enter>
+          {/* A retried save swaps the local recs for the saved row's: a new list */}
+          <WineRecList
+            key={saved ? "saved" : "local"}
+            recs={profile.recommendations} user={user} limit={user ? 5 : 1} surface="reveal"
+            enterDelay={recsAt + REVEAL.recsRows}
+          />
+        </section>
       )}
 
-      <div style={{ textAlign: "center", marginTop: 28, paddingBottom: 40 }}>
-        {user && onGoHome && (
-          <button onClick={onGoHome} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.4, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: "12px 16px" }}>
-            I&apos;ll explore later — take me home
-          </button>
-        )}
-      </div>
+      {drawing && user && onGoHome && (
+        <Enter kind="fade" delay={recsAt + REVEAL.home} style={{ textAlign: "center", marginTop: 20 }}>
+          <TextAction tone="quiet" underlined onClick={onGoHome}>I&apos;ll explore later — take me home</TextAction>
+        </Enter>
+      )}
     </div>
   );
 }
 
 
 // ─── Main Quiz Component ───
-
-// The "reading" moment is anticipation, not fake loading — the save genuinely
-// runs behind it. This floor just keeps it from flashing when the save is fast.
-const MIN_READING_MS = 1400;
 
 const headCell = { width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" };
 const backButton = {
@@ -747,13 +891,21 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, earnedD
 
   // Auto-save: completing the quiz IS saving it. A signed-in user never sees
   // an unsaved profile — the reveal renders what the save returned (the
-  // merged palate), so what they meet is exactly what persisted.
+  // merged palate), so what they meet is exactly what persisted. The
+  // "reading" moment is anticipation, not fake loading: the save genuinely
+  // runs behind the waiting medallion, which holds for as long as it takes
+  // (and never less than the mark's own think time). A save that throws is
+  // a save that failed: it lands on Try again instead of stranding the
+  // medallion. (A request that never settles at all would still hold it —
+  // as it held the old reading screen.)
   const runSave = async (dna) => {
     setPhase("reading");
-    const started = Date.now();
-    const row = await onProfileGenerated(dna);
-    const remaining = MIN_READING_MS - (Date.now() - started);
-    if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+    let row = null;
+    try {
+      row = await onProfileGenerated(dna);
+    } catch (err) {
+      console.error("Quiz save failed:", err);
+    }
     if (row) {
       setSavedRow(row);
       setPhase("revealed");
@@ -763,6 +915,10 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, earnedD
   };
 
   const finish = () => {
+    // Once. The button stays up, and live, for the moment the last step
+    // takes to leave — a second tap in it used to save the palate twice
+    // and write two quiz_completed events
+    if (leavingRef.current) return;
     const dna = generateDNAProfile(answers);
     setProfile(dna);
     go(99);
@@ -794,23 +950,27 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, earnedD
     recommendations: savedRow.recommendations || [],
   } : profile;
 
-  // The reveal (Session 3 restyles it) keeps the frame it had
+  // The reveal: on cream, in the house column, with no head and no foot bar.
+  // Mounted once and kept through the save, a failure and a retry — the
+  // medallion that waits is the bloom that draws
   if (step === 99) {
     return (
-      <div style={{ maxWidth: 520, margin: "0 auto", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-        <div style={{ flex: 1, padding: "20px 20px 120px" }}>
-          {phase === "reading" && <RevealReading />}
-          {(phase === "revealed" || phase === "error") && revealProfile && (
-            <Reveal
-              profile={revealProfile}
-              user={user}
-              saveFailed={phase === "error"}
-              onRetry={() => runSave(profile)}
-              onGoHome={onDone}
-            />
-          )}
-        </div>
-      </div>
+      <main style={{
+        maxWidth: COLUMN, margin: "0 auto", minHeight: "100vh",
+        padding: `calc(env(safe-area-inset-top) + 56px) ${GUTTER}px 72px`,
+      }}>
+        {revealProfile && (
+          <Reveal
+            profile={revealProfile}
+            saved={Boolean(savedRow)}
+            user={user}
+            pending={phase === "reading"}
+            saveFailed={phase === "error"}
+            onRetry={() => runSave(profile)}
+            onGoHome={onDone}
+          />
+        )}
+      </main>
     );
   }
 

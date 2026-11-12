@@ -115,18 +115,17 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     await expect(page.getByTestId("reveal-palate-cta")).toHaveCount(0);
 
     // 375px composition guard (the steer-placeholder lesson, programmatic):
-    // nothing overflows horizontally — not the page, not the gate card. The
-    // reveal mounts inside the quiz's step container as it slides back from
-    // translateX(20px) (a 0.2s transition), so this measures the SETTLED
-    // composition: poll until the entrance is over — a real overflow never
-    // settles, and still fails here
+    // nothing overflows horizontally — not the page, not the gate (a ruled
+    // block with a leader entry since Motion Session 3, no longer a card).
+    // This measures the SETTLED composition: poll until the entrances are
+    // over — a real overflow never settles, and still fails here
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), {
         message: "teaser must not overflow horizontally at 375px",
         timeout: 5_000,
       })
       .toBeLessThanOrEqual(1);
-    // …and it stays settled after the 0.2s entrance: one more sample, so an
+    // …and it stays settled after the entrances: one more sample, so an
     // overflow that appears late can't slip past the poll
     await page.waitForTimeout(300);
     expect(
@@ -134,7 +133,7 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
       "teaser must not overflow horizontally at 375px (settled)"
     ).toBeLessThanOrEqual(1);
     const gateOverflow = await gate.evaluate((el) => el.scrollWidth - el.clientWidth);
-    expect(gateOverflow, "gate copy must wrap inside its card at 375px").toBeLessThanOrEqual(1);
+    expect(gateOverflow, "gate copy must wrap inside its block at 375px").toBeLessThanOrEqual(1);
 
     // THE stash: written at reveal time, versioned, carrying the answers
     const stash = await page.evaluate(

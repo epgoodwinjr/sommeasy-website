@@ -287,8 +287,9 @@ export default function WelcomeDemo({ style }) {
   // list, or — where the Somm's note runs to a third line — the picks.
   // Which one depends on the width, so it is measured: both are laid out
   // once, unseen, read before the paint and taken away again, leaving
-  // nothing in the DOM. A new column width, or a web font arriving late,
-  // measures again.
+  // nothing in the DOM. A new column width measures again, and so does a
+  // web font arriving — a face loads the first time something is set in it,
+  // which for the Somm's italic is this very measurement.
   const [height, setHeight] = useState(FALLBACK_HEIGHT);
   const [measuring, setMeasuring] = useState(false);
   const sizerRef = useRef(null);
@@ -318,12 +319,13 @@ export default function WelcomeDemo({ style }) {
       });
       observer.observe(block);
     }
-    // Text wraps differently once Playfair is in
+    // Text wraps differently once a face is in: measure after every load
     const fonts = typeof document === "undefined" ? null : document.fonts;
-    if (fonts && fonts.status !== "loaded") fonts.ready.then(remeasure, () => {});
+    fonts?.addEventListener?.("loadingdone", remeasure);
     return () => {
       live = false;
       observer?.disconnect();
+      fonts?.removeEventListener?.("loadingdone", remeasure);
     };
   }, []);
 

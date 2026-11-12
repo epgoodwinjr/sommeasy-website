@@ -13,7 +13,8 @@
 //   4. useStagger: a hidden row takes no slot.
 //   5. SOURCE SCANS: the soft-out curve is declared in motion.js and nowhere
 //      else under src/; globals.css's keyframes agree with the tokens; the
-//      primitives are one file each and no page keeps a private Rise.
+//      primitives are one file each and no page keeps a private Rise; the
+//      reveal's timings (§8.3) live in motion.js and Quiz.js types none.
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -73,7 +74,7 @@ async function main() {
   const {
     SOFT_OUT, EASE, D_TAP, D_FADE, D_RISE, D_LEADER, D_POP, D_EXIT, WORD_STEP, D_WORD, ROW_STEP, PICK_STEP,
     RISE_PX, WORD_PX, EXIT_PX, POP_FROM, D_REDUCED, FONT_WAIT_MS, BREATHE_MS, BREATHE_SCALE, BREATHE_ANIMATION,
-    ENTRANCES, EXIT, HIDDEN, HEAD_ENTER, ENTRY_ENTER, ROW_ENTER,
+    ENTRANCES, EXIT, HIDDEN, HEAD_ENTER, ENTRY_ENTER, ROW_ENTER, REVEAL, DOTS, dotAnimation,
     prefersReducedMotion, entranceKeyframes, entranceTiming, playEntrance,
   } = motion;
 
@@ -113,6 +114,36 @@ async function main() {
     assertEq(HEAD_ENTER, { rule: 80 }, "head");
     // A pick: name +160, leader +380, price +720
     assertEq(ROW_ENTER, { leader: 380 - 160, end: 720 - 160 }, "row");
+  });
+
+  await test("the reveal is §8.3's table, value for value — counted from the draw's first frame", () => {
+    const { eyebrow, title, epithet, divider, narrative, saved, cta, gate } = REVEAL;
+    assertEq(
+      { eyebrow, title, epithet, divider, narrative, saved, cta, gate },
+      { eyebrow: 1500, title: 1750, epithet: 2350, divider: 2700, narrative: 2950, saved: 4300, cta: 4450, gate: 2700 },
+      "when each part arrives",
+    );
+    // The title is written at 110ms per word, 700ms each; the narrative at 22ms per word
+    assertEq({ titleStep: REVEAL.titleStep, titleMs: REVEAL.titleMs, narrativeStep: REVEAL.narrativeStep }, { titleStep: 110, titleMs: 700, narrativeStep: 22 }, "the written lines");
+    // The reading line fades out 250ms before the draw
+    assertEq(REVEAL.lineLead, 250, "the reading line's lead");
+    assert(REVEAL.lineOutMs > 0 && REVEAL.lineIn >= 0, "the line fades in and out");
+  });
+
+  await test("the reveal's recs come last: after the CTA's circle, or after the gate has risen", () => {
+    assert(REVEAL.recs >= REVEAL.cta + ENTRY_ENTER.mark, "signed in: the recs start before the CTA has landed");
+    assert(REVEAL.teaserRecs >= REVEAL.gate + D_RISE - 200 && REVEAL.teaserRecs < REVEAL.recs, "signed out: after the gate, sooner than signed in");
+    assert(REVEAL.recsSub > 0 && REVEAL.recsRows > REVEAL.recsSub, "head, then its line, then the rows");
+    // What a retried save brings lands at once — the draw is long over
+    assert(REVEAL.late.saved === 0 && REVEAL.late.cta > 0 && REVEAL.late.cta < 500, "the late saved line and CTA");
+  });
+
+  await test("the waiting dots breathe one after another on house-dot", () => {
+    assertEq(DOTS, { ms: 1400, step: 180, rest: 0.25 }, "the dots");
+    // Backwards: a dot waiting its turn already rests at the keyframes' start
+    // — without it the second and third show at full ink, then snap down
+    assertEq(dotAnimation(0), "house-dot 1400ms ease-in-out 0ms infinite backwards", "the first dot");
+    assertEq(dotAnimation(2), "house-dot 1400ms ease-in-out 360ms infinite backwards", "the third");
   });
 
   console.log("\n═══ 2. The rules every entrance follows ═══");
@@ -272,6 +303,30 @@ async function main() {
     assert(block[1].includes(`scale(${BREATHE_SCALE})`), `the keyframes must peak at scale(${BREATHE_SCALE})`);
     assert(/0%\s*,\s*100%\s*\{\s*transform:\s*none;?\s*\}/.test(block[1]), "the loop must rest on transform: none");
     assert(BREATHE_ANIMATION.startsWith("house-breathe "), "BREATHE_ANIMATION must name the keyframes");
+  });
+
+  await test("SOURCE SCAN: globals.css's house-dot keyframes dip to the tokens' rest and peak at full", () => {
+    const css = readFileSync(join(SRC, "app", "globals.css"), "utf-8");
+    const block = css.match(/@keyframes\s+house-dot\s*\{([\s\S]*?\})\s*\}/);
+    assert(block, "globals.css has no @keyframes house-dot");
+    assert(new RegExp(`0%\\s*,\\s*100%\\s*\\{\\s*opacity:\\s*${DOTS.rest};?\\s*\\}`).test(block[1]), `the dots must rest at ${DOTS.rest}`);
+    assert(/\d+%\s*\{\s*opacity:\s*1;?\s*\}/.test(block[1]), "and reach full ink");
+    // Opacity only (§5.1): a dot never moves
+    assert(!/transform|scale|translate/.test(block[1]), "the dots only fade");
+  });
+
+  await test("SOURCE SCAN: the reveal's timings live in motion.js — Quiz.js types none of them", () => {
+    const quiz = readFileSync(join(SRC, "components", "Quiz.js"), "utf-8");
+    // Code only: prose in comments may quote the table
+    const code = quiz.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\s\/\/ .*$/gm, "");
+    assert(/\bREVEAL\b/.test(code), "Quiz.js must take the reveal's timings from REVEAL");
+    for (const ms of [REVEAL.eyebrow, REVEAL.title, REVEAL.epithet, REVEAL.divider, REVEAL.narrative, REVEAL.saved, REVEAL.cta, 1900]) {
+      assert(!new RegExp(`(^|[^\\w.])${ms}\\b`).test(code), `Quiz.js types ${ms} — it belongs in motion.js (or MARK_MOTION)`);
+    }
+    // The wait's floor is the mark's own (MARK_MOTION.thinkMs), not a second
+    // number held beside the save
+    assert(!/MIN_READING_MS/.test(code), "the reveal's minimum wait is the mark's think time");
+    assert(!/@keyframes/.test(code), "keyframes live in globals.css");
   });
 
   await test("SOURCE SCAN: globals.css stops every CSS keyframe loop under reduced motion", () => {
