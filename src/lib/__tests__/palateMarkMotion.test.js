@@ -22,6 +22,14 @@
 //      then never for a shape that got smaller. Both invariants hold in
 //      either mode, so every growth test here runs in both.
 //
+//   5. Growth across a re-deal (§14). Production never holds the seed still
+//      (identityEngine derives it from the DNA's contents), so every real
+//      growth also changes the ring's phase, the bloom's phase and which
+//      petals bear fruit. The growth animates through it: the ring turns the
+//      short way, no petal travels more than half a sector, and the fruit
+//      lifts and lands again with the ADDITIONAL berry last — so an estate
+//      promotion always ends on a berry landing with its ripples.
+//
 // plus the contracts PalateMarkLive leans on: the wait doesn't depend on
 // when it will end, the orbit hands over without a jump, every frame is
 // finite and brand-palette only.
@@ -113,6 +121,15 @@ const GROWTHS = [
   { name: "two new petals and more", a: withDials({ focus: 0, spread: 0.1 }), b: withDials({ focus: 0.5, spread: 0.7, depth: 1 }), grew: ["petalTips", "stamenTips", "petals"] },
   { name: "the smallest palate to the fullest", a: PRODUCTION.italianFaithful, b: { ...PRODUCTION.stellenboschEd, seed: PRODUCTION.italianFaithful.seed }, grew: ["petalTips", "stamenTips", "petals"] },
   { name: "nothing moved", a: BASE, b: { ...BASE }, grew: ["petalTips", "stamenTips", "berries"] },
+  // As production moves (§14): every DNA change brings a new seed, which
+  // re-deals the fruit — so the berry count is not in `grew` for these
+  { name: "an estate, re-dealt: one more berry under a new seed", a: BASE, b: withDials({ depth: 0.5 + 1 / 6, seed: 987654321 }), grew: ["petalTips", "stamenTips"] },
+  { name: "two estates, re-dealt", a: BASE, b: withDials({ depth: 0.5 + 2 / 6, seed: 1122334455 }), grew: ["petalTips", "stamenTips"] },
+  { name: "a first berry, re-dealt", a: withDials({ depth: 0 }), b: withDials({ depth: 1 / 6, seed: 4242 }), grew: ["petalTips", "stamenTips"] },
+  { name: "a region, re-dealt", a: BASE, b: withDials({ spread: 0.8, seed: 13579 }), grew: ["petalTips", "stamenTips"] },
+  { name: "a country, re-dealt: a new petal under a new seed", a: BASE, b: withDials({ focus: 0.75, seed: 24680 }), grew: ["petalTips", "stamenTips", "petals"] },
+  { name: "only the seed", a: BASE, b: withDials({ seed: 777 }), grew: ["petalTips", "stamenTips"] },
+  { name: "the smallest production palate to the fullest, seeds as they are", a: PRODUCTION.italianFaithful, b: PRODUCTION.stellenboschEd, grew: ["petalTips", "stamenTips", "petals"] },
 ];
 // Shapes that got smaller (a re-rate down, a deleted bottle) or changed hands
 const OTHER_MOVES = [
@@ -132,7 +149,30 @@ const SHRINKS = [
   { name: "a berry gained, reach lost", a: withDials({ spread: 0.9 }), b: withDials({ spread: 0.4, depth: 0.5 + 1 / 6 }) },
   { name: "a petal gained, a berry lost", a: withDials({ depth: 4 / 6 }), b: withDials({ focus: 0.75, depth: 2 / 6 }) },
   { name: "the fullest palate to the smallest", a: { ...PRODUCTION.stellenboschEd, seed: PRODUCTION.italianFaithful.seed }, b: PRODUCTION.italianFaithful },
+  // …and as production shrinks: a new seed with it
+  { name: "a berry gone, re-dealt", a: withDials({ depth: 4 / 6 }), b: withDials({ depth: 3 / 6, seed: 86420 }) },
+  { name: "a petal gone, re-dealt", a: withDials({ focus: 0.75, depth: 1 }), b: withDials({ focus: 0.5, depth: 0.5, seed: 97531 }) },
+  { name: "the fullest production palate to the smallest, seeds as they are", a: PRODUCTION.stellenboschEd, b: PRODUCTION.italianFaithful },
 ];
+
+// Sampled pairs for §14, from one seeded generator so every run tests the
+// same ones
+let sample = 20261112;
+const rand = () => (sample = (Math.imul(sample, 1103515245) + 12345) >>> 0) / 4294967296;
+const randomSeed = () => Math.floor(rand() * 4294967296);
+const randomGenome = () => ({
+  seed: randomSeed(), world: rand(), color: rand(), focus: rand(), depth: rand(), spread: rand(), range: rand(),
+});
+// An estate promotion as production makes one: one more berry and a new
+// seed, every other dial as it was
+const ESTATE_PROMOTIONS = Array.from({ length: 400 }, () => {
+  const berries = Math.floor(rand() * 6);
+  const a = { ...randomGenome(), depth: berries / 6 };
+  return { a, b: { ...a, depth: (berries + 1) / 6, seed: randomSeed() } };
+});
+// Any palate to any other: different seeds, different dials, petal counts
+// that go up, down or stay
+const RESEEDS = Array.from({ length: 400 }, () => ({ a: randomGenome(), b: randomGenome() }));
 
 // A growth plays quietly unless asked to celebrate (README §13)
 const QUIET = undefined;
@@ -259,20 +299,46 @@ async function main() {
     }
   });
 
-  test("growth starts from genome A's shape: nothing jumps at t = 0", () => {
-    for (const [mode, options] of MODES) for (const { name: move, a, b } of [...GROWTHS, ...OTHER_MOVES.slice(0, 3)]) {
+  // What a state shows, as points on the medallion — so two states can be
+  // compared whatever order their petals are listed in (a re-deal matches
+  // A's petals to B's by nearest angle, not by index)
+  const point = (r, deg) => [80 + r * Math.cos((deg * Math.PI) / 180), 80 + r * Math.sin((deg * Math.PI) / 180)];
+  const pictured = (state) => ({
+    petals: state.petals.filter((p) => p.opacity > 0).map((p) => [...point(p.tip, p.angle), p.halfWidth, p.opacity]),
+    stamens: state.stamens.filter((x) => x.opacity > 0).map((x) => [...point(x.tip, x.angle), x.opacity]),
+    berries: state.berries.filter((berry) => berry.opacity > 0).map((berry) => {
+      const petal = state.petals[berry.petalIndex];
+      return [...point(MARK_GEOMETRY.petalBaseR + (petal.tip - MARK_GEOMETRY.petalBaseR) * berry.rf, petal.angle), berry.scale, berry.opacity];
+    }),
+  });
+  const sameSet = (actual, expected) => {
+    if (actual.length !== expected.length) return false;
+    const left = actual.slice();
+    return expected.every((want) => {
+      const i = left.findIndex((got) => got.every((v, n) => Math.abs(v - want[n]) < 1e-6));
+      if (i < 0) return false;
+      left.splice(i, 1);
+      return true;
+    });
+  };
+
+  test("growth starts from genome A's shape: nothing jumps at t = 0 — whatever the seeds", () => {
+    const moves = [...GROWTHS, ...OTHER_MOVES, ...SHRINKS, ...ESTATE_PROMOTIONS.slice(0, 40), ...RESEEDS.slice(0, 40)];
+    for (const [mode, options] of MODES) for (const { name: move = "sampled", a, b } of moves) {
       const name = `${move} (${mode})`;
       const pa = markParams(a), pb = markParams(b);
-      const from = settledState(pa), start = growState(pa, pb, 0, MARK_MOTION.growMs, options);
+      const from = pictured(settledState(pa));
+      const start = growState(pa, pb, 0, MARK_MOTION.growMs, options);
+      const shown = pictured(start);
       assert(start.scale === 1 && start.ripples.length === 0, `${name}: an overlay at t=0`);
-      for (let i = 0; i < pa.petals; i++) {
-        assert(start.petals[i].tip === from.petals[i].tip && start.petals[i].angle === from.petals[i].angle, `${name}: petal ${i} moved at t=0`);
-        assert(start.stamens[i].tip === from.stamens[i].tip, `${name}: stamen ${i} moved at t=0`);
-        assert(start.petals[i].opacity === 1, `${name}: petal ${i} not whole at t=0`);
-      }
-      assert(start.ring.burgundy === from.ring.burgundy && start.tipBulge === from.tipBulge, `${name}: ring or tips moved at t=0`);
-      const visible = start.berries.filter((berry) => berry.opacity > 0).length;
-      assert(visible === pa.berries, `${name}: ${visible} berries showing at t=0, expected A's ${pa.berries}`);
+      assert(sameSet(shown.petals, from.petals), `${name}: the petals at t=0 are not A's`);
+      assert(sameSet(shown.stamens, from.stamens), `${name}: the stamens at t=0 are not A's`);
+      assert(sameSet(shown.berries, from.berries), `${name}: the fruit at t=0 is not A's`);
+      // The same place on the circle (a ring a whole turn on renders the same)
+      const off = Math.abs(start.ring.phase - pa.ringPhase) % 360;
+      assert(Math.min(off, 360 - off) < 1e-9, `${name}: the ring turned at t=0`);
+      if (a.seed === b.seed) assert(start.ring.phase === pa.ringPhase, `${name}: a held seed moved the ring`);
+      assert(start.ring.burgundy === pa.burgundySweepDeg && start.tipBulge === pa.tipBulge, `${name}: ring or tips moved at t=0`);
     }
   });
 
@@ -482,11 +548,15 @@ async function main() {
       assert(visibleCount(grow(0).berries) === pa.berries, `A's fruit at the start (${mode})`);
       assert(visibleCount(grow(D * 0.5).berries) === 0, `no fruit mid-way (${mode})`);
       assert(visibleCount(grow(D * 0.8 + 1).berries) === 1, `the first berry lands from 80% (${mode})`);
-      const opening = grow(D * 0.5).petals[pb.petals - 1];
-      const final = settledState(pb).petals[pb.petals - 1];
+      // Which petal is the new one is the matching's to say (nearest angle,
+      // §14): it is the one not there yet at 30%
+      const unopened = grow(D * 0.3).petals.map((petal, i) => (petal.opacity === 0 ? i : -1)).filter((i) => i >= 0);
+      assert(unopened.length === 1, `exactly one petal is new, and it starts at 30% (${mode})`);
+      const opening = grow(D * 0.5).petals[unopened[0]];
+      const final = settledState(pb).petals[unopened[0]];
       assert(opening.angle === final.angle, `the new petal opens at its final angle (${mode})`);
+      assert(grow(D * 0.31).petals[unopened[0]].angle === final.angle, `…from its first frame (${mode})`);
       assert(opening.tip > MARK_GEOMETRY.petalBaseR && opening.tip < final.tip, `and is part-way open at 50% (${mode})`);
-      assert(grow(D * 0.3).petals[pb.petals - 1].opacity === 0, `it starts at 30% (${mode})`);
     }
   });
 
@@ -581,6 +651,245 @@ async function main() {
       for (let t = 0; t <= growLength(p, p, duration) + 32; t += 10) {
         assert(render(growState(p, p, t, duration)) === still, `something moved at ${t}ms (${duration}ms)`);
       }
+    }
+  });
+
+  console.log("\n═══ 5. Growth across a re-deal (§14) ═══");
+
+  const D = MARK_MOTION.growMs;
+  // Every frame of a growth, and its last one exactly
+  const walk = (pa, pb, options, step, visit) => {
+    const end = growLength(pa, pb, D, options);
+    for (let t = 0; t < end; t += step) visit(growState(pa, pb, t, D, options), t);
+    visit(growState(pa, pb, end, D, options), end);
+    return end;
+  };
+  const offCentre = (state) => state.ripples.filter((r) => r.x !== 80 || r.y !== 80);
+  const berryAt = (state, berry) => {
+    const petal = state.petals[berry.petalIndex];
+    return point(MARK_GEOMETRY.petalBaseR + (petal.tip - MARK_GEOMETRY.petalBaseR) * berry.rf, petal.angle);
+  };
+
+  test("fixtures: the sampled promotions are production's — a new seed, one more berry, nothing else", () => {
+    for (const { a, b } of ESTATE_PROMOTIONS) {
+      const pa = markParams(a), pb = markParams(b);
+      assert(a.seed !== b.seed, "a promotion kept its seed");
+      assert(pb.berries === pa.berries + 1 && pb.petals === pa.petals, "not one more berry on the same petals");
+      assert(pb.tipR === pa.tipR && pb.stamenTipR === pa.stamenTipR, "another dial moved");
+    }
+    assert(new Set(ESTATE_PROMOTIONS.map(({ a }) => markParams(a).berries)).size === 6, "every starting berry count, 0 to 5");
+    assert(RESEEDS.some(({ a, b }) => markParams(b).petals > markParams(a).petals), "some gain petals");
+    assert(RESEEDS.some(({ a, b }) => markParams(b).petals < markParams(a).petals), "some lose petals");
+    assert(RESEEDS.some(({ a, b }) => markParams(b).petals === markParams(a).petals), "some keep their count");
+  });
+
+  test("celebrating, an estate promotion always ends on a berry landing with its ripples", () => {
+    for (const { a, b } of ESTATE_PROMOTIONS) {
+      const pa = markParams(a), pb = markParams(b);
+      const home = berryAt(settledState(pb), settledState(pb).berries[pb.berries - 1]);
+      let most = 0, lastOverlayAt = -1, lastOverlay = null, strayed = 0;
+      const end = walk(pa, pb, CELEBRATE, 16, (state, t) => {
+        const ripples = offCentre(state);
+        most = Math.max(most, ripples.length);
+        for (const r of ripples) strayed = Math.max(strayed, Math.hypot(r.x - home[0], r.y - home[1]));
+        if (state.ripples.length) {
+          lastOverlayAt = t;
+          lastOverlay = ripples.length ? "berry" : "heart";
+        }
+      });
+      assert(most === 2, `the new berry showed ${most} ripples at once, not two (${pa.berries} → ${pb.berries} berries)`);
+      assert(strayed < 1.5, `a ripple spread ${strayed.toFixed(2)} away from where the new berry lands`);
+      assert(lastOverlay === "berry", "the last thing to play was not the berry's ripple");
+      // The length covers the last ripple — and is no longer than it needs
+      assert(growState(pa, pb, end, D, CELEBRATE).ripples.length === 0, "a ripple outlived the growth");
+      assert(offCentre(growState(pa, pb, end - 40, D, CELEBRATE)).length > 0, "the growth runs on after its last ripple");
+      assert(lastOverlayAt > D, "the berry's ripples were over before the shapes had settled");
+    }
+  });
+
+  test("…and quietly the same berry lands with no ripple at all: celebration only adds overlays", () => {
+    for (const { a, b } of ESTATE_PROMOTIONS.slice(0, 80)) {
+      const pa = markParams(a), pb = markParams(b);
+      walk(pa, pb, QUIET, 16, (state, t) => {
+        assert(state.ripples.length === 0 && state.scale === 1, `a quiet promotion celebrated at ${t}ms`);
+        assert(shapesOf(state) === shapesOf(growState(pa, pb, t, D, CELEBRATE)), `the shapes differ between modes at ${t}ms`);
+      });
+      assert(growLength(pa, pb, D) < growLength(pa, pb, D, CELEBRATE), "a quiet promotion waits out ripples that aren't there");
+    }
+  });
+
+  test("a re-deal's fruit: A's lifts in the first 28%; from 80% B's lands — what they share quietly, 110ms apart, the additional berry last and as a new berry does", () => {
+    const M = MARK_MOTION;
+    for (const [mode, options] of MODES) for (const { a, b } of ESTATE_PROMOTIONS.slice(0, 120)) {
+      const pa = markParams(a), pb = markParams(b);
+      const grow = (t) => growState(pa, pb, t, D, options);
+      const common = pa.berries;
+      assert(visibleCount(grow(0).berries) === pa.berries, `A's fruit at the start (${mode})`);
+      let lifting = pa.berries;
+      for (let t = 0; t <= D * 0.28; t += 12) {
+        assert(visibleCount(grow(t).berries) <= lifting, `fruit came back during the lift at ${t}ms (${mode})`);
+        lifting = visibleCount(grow(t).berries);
+      }
+      for (let t = D * 0.28; t < D * 0.8; t += 30) assert(visibleCount(grow(t).berries) === 0, `fruit showing at ${t}ms, between the lift and the landing (${mode})`);
+      // The fruit both shapes have: quietly, one after another
+      for (let k = 0; k < common; k++) {
+        const lands = D * 0.8 + k * M.berryStepMs;
+        const berry = (t) => grow(t).berries[k];
+        assert(berry(lands - 1).opacity === 0, `shared berry ${k} showed before its turn (${mode})`);
+        assert(Math.abs(berry(lands).scale - M.berryLandScale) < 1e-9, `shared berry ${k} does not land from ${M.berryLandScale}× (${mode})`);
+        assert(berry(lands + M.berryMs).scale === 1 && berry(lands + M.berryMs).opacity === 1, `shared berry ${k} is not home ${M.berryMs}ms later (${mode})`);
+        for (let t = lands; t <= lands + M.berryMs + 60; t += 20) {
+          const near = offCentre(grow(t)).filter((r) => Math.hypot(r.x - berryAt(grow(t), berry(t))[0], r.y - berryAt(grow(t), berry(t))[1]) < 0.01);
+          assert(near.length === 0, `shared berry ${k} rippled (${mode})`);
+        }
+      }
+      // The additional one: last, and as §7.4's new berry
+      const lands = D * 0.8 + common * M.berryStepMs;
+      const added = (t) => grow(t).berries[pb.berries - 1];
+      assert(added(lands - 1).opacity === 0, `the additional berry showed before the shared ones were down (${mode})`);
+      assert(Math.abs(added(lands).scale - M.newBerryScale) < 1e-9, `the additional berry does not land from ${M.newBerryScale}× (${mode})`);
+      assert(added(lands + M.newBerryMs).scale === 1 && added(lands + M.newBerryMs).opacity === 1, `…or is not home ${M.newBerryMs}ms later (${mode})`);
+      const ripples = (t) => offCentre(grow(t)).length;
+      if (options) {
+        assert(ripples(lands + 110) === 0 && ripples(lands + 300) === 1 && ripples(lands + 600) === 2, "its two ripples: from 120ms and from 400ms");
+        assert(ripples(lands + 400 + M.rippleMs) === 0, "both gone 900ms after the second");
+      } else {
+        assert(ripples(lands + 300) === 0 && ripples(lands + 600) === 0, "a quiet berry rippled");
+      }
+    }
+  });
+
+  test("several additional berries land one after another, 140ms apart, each with its ripples — after everything shared", () => {
+    const M = MARK_MOTION;
+    const pa = markParams(withDials({ depth: 2 / 6 })), pb = markParams(withDials({ depth: 5 / 6, seed: 31337 }));
+    assert(pa.berries === 2 && pb.berries === 5, "fixture: two berries to five");
+    const grow = (t) => growState(pa, pb, t, D, CELEBRATE);
+    const firstAdded = D * 0.8 + 2 * M.berryStepMs;
+    for (let m = 0; m < 3; m++) {
+      const lands = firstAdded + m * M.newBerryStepMs;
+      assert(grow(lands - 1).berries[2 + m].opacity === 0, `additional berry ${m} early`);
+      assert(Math.abs(grow(lands).berries[2 + m].scale - M.newBerryScale) < 1e-9, `additional berry ${m} does not land as a new berry`);
+    }
+    let most = 0;
+    for (let t = firstAdded; t <= growLength(pa, pb, D, CELEBRATE); t += 10) most = Math.max(most, offCentre(grow(t)).length);
+    assert(most >= 5, `three berries' ripples never overlapped (${most} at once)`);
+    const end = growLength(pa, pb, D, CELEBRATE);
+    assert(end === firstAdded + 2 * M.newBerryStepMs + Math.max(...M.rippleLagsMs) + M.rippleMs, "the length is the last berry's last ripple");
+  });
+
+  test("the fruit a smaller re-dealt shape keeps lands quietly; nothing ripples, celebrating or not", () => {
+    const pa = markParams(withDials({ depth: 4 / 6 })), pb = markParams(withDials({ depth: 3 / 6, seed: 86420 }));
+    for (const [mode, options] of MODES) {
+      walk(pa, pb, options, 12, (state, t) => assert(state.ripples.length === 0 && state.scale === 1, `a shrink celebrated at ${t}ms (${mode})`));
+      assert(visibleCount(growState(pa, pb, D * 0.5, D, options).berries) === 0, `the fruit did not lift (${mode})`);
+      assert(growLength(pa, pb, D, options) === D * 0.8 + 2 * MARK_MOTION.berryStepMs + MARK_MOTION.berryMs, `its length is its last berry coming home (${mode})`);
+    }
+  });
+
+  test("the ring turns the short way: A's phase to B's by the smaller arc, never more than 180°", () => {
+    const arc = (from, to) => { const d = Math.abs(to - from) % 360; return Math.min(d, 360 - d); };
+    // Two seeds whose rings rest either side of 12 o'clock: the long way
+    // round is nearly a full circle, the short way a few degrees
+    const bySeed = (wanted) => { for (let seed = 1; ; seed++) if (wanted(markParams({ ...BASE, seed }).ringPhase)) return { ...BASE, seed }; };
+    const justPast = bySeed((phase) => phase < 6), justBefore = bySeed((phase) => phase > 354);
+    const pairs = [...RESEEDS, ...ESTATE_PROMOTIONS.slice(0, 100), { a: justPast, b: justBefore }, { a: justBefore, b: justPast }];
+    for (const [mode, options] of MODES) for (const { a, b } of pairs) {
+      const pa = markParams(a), pb = markParams(b);
+      let travelled = 0, prev = null, turned = 0;
+      walk(pa, pb, options, 16, (state) => {
+        if (prev !== null) {
+          travelled += Math.abs(state.ring.phase - prev);
+          turned += state.ring.phase - prev;
+        }
+        prev = state.ring.phase;
+      });
+      assert(prev === pb.ringPhase, `the ring does not end on B's phase exactly (${mode})`);
+      assert(travelled <= 180 + 1e-6, `the ring travelled ${travelled.toFixed(1)}° (${mode})`);
+      assert(Math.abs(travelled - arc(pa.ringPhase, pb.ringPhase)) < 1e-6, `the ring went ${travelled.toFixed(1)}°, the smaller arc is ${arc(pa.ringPhase, pb.ringPhase).toFixed(1)}° (${mode})`);
+      assert(Math.abs(Math.abs(turned) - travelled) < 1e-6, `the ring turned back on itself (${mode})`);
+    }
+    const pa = markParams(justPast), pb = markParams(justBefore);
+    let widest = 0;
+    walk(pa, pb, QUIET, 16, (state) => { widest = Math.max(widest, arc(state.ring.phase, pa.ringPhase)); });
+    assert(widest < 12, `across 12 o'clock the ring went the long way round (${widest.toFixed(1)}° from where it began)`);
+  });
+
+  test("no petal travels more than half a sector: A's petals are matched to B's by nearest angle, and so are the stamens", () => {
+    for (const { a, b } of [...RESEEDS, ...ESTATE_PROMOTIONS.slice(0, 100), ...GROWTHS, ...OTHER_MOVES, ...SHRINKS]) {
+      const pa = markParams(a), pb = markParams(b);
+      const half = Math.min(pa.sector, pb.sector) / 2;
+      const petalTravel = new Array(pb.petals).fill(0), stamenTravel = new Array(pb.petals).fill(0);
+      let prev = null;
+      walk(pa, pb, QUIET, 16, (state) => {
+        if (prev) {
+          for (let i = 0; i < pb.petals; i++) {
+            petalTravel[i] += Math.abs(state.petals[i].angle - prev.petals[i].angle);
+            stamenTravel[i] += Math.abs(state.stamens[i].angle - prev.stamens[i].angle);
+          }
+        }
+        prev = state;
+      });
+      const worst = Math.max(...petalTravel, ...stamenTravel);
+      assert(worst <= half + 1e-6, `a petal or stamen travelled ${worst.toFixed(2)}°; half a sector is ${half.toFixed(2)}° (${pa.petals} → ${pb.petals} petals)`);
+      // Exactly the petals B gained are new; every other one came from A
+      const start = growState(pa, pb, 0, D);
+      const fresh = start.petals.slice(0, pb.petals).filter((petal) => petal.opacity === 0).length;
+      assert(fresh === Math.max(0, pb.petals - pa.petals), `${fresh} new petals for ${pa.petals} → ${pb.petals}`);
+      assert(start.petals.length - pb.petals === Math.max(0, pa.petals - pb.petals), "the petals A loses are not all still there to close");
+    }
+  });
+
+  test("with the same petal count the whole bloom turns as one — every petal and stamen by the same angle, a stamen always between its petals", () => {
+    for (const { a, b } of [...ESTATE_PROMOTIONS.slice(0, 150), ...RESEEDS.filter(({ a: x, b: y }) => markParams(x).petals === markParams(y).petals)]) {
+      const pa = markParams(a), pb = markParams(b);
+      const from = growState(pa, pb, 0, D), to = settledState(pb);
+      const turn = to.petals[0].angle - from.petals[0].angle;
+      for (let i = 0; i < pb.petals; i++) {
+        assert(Math.abs(to.petals[i].angle - from.petals[i].angle - turn) < 1e-9, `petal ${i} turned by a different angle`);
+        assert(Math.abs(to.stamens[i].angle - from.stamens[i].angle - turn) < 1e-9, `stamen ${i} turned by a different angle`);
+      }
+      const mid = growState(pa, pb, D * 0.5, D);
+      for (let i = 0; i < pb.petals; i++) {
+        assert(Math.abs(mid.stamens[i].angle - mid.petals[i].angle - pb.sector / 2) < 1e-9, `stamen ${i} left the gap between its petals`);
+      }
+    }
+  });
+
+  test("a held seed grows exactly as it did: the fruit rides its petals and the new berry lands at half-way", () => {
+    const pa = markParams(BASE), pb = markParams(withDials({ depth: 0.5 + 1 / 6 }));
+    for (const [, options] of MODES) {
+      walk(pa, pb, options, 20, (state, t) => {
+        assert(visibleCount(state.berries) >= pa.berries, `fruit lifted at ${t}ms although nothing was re-dealt`);
+        for (let i = 0; i < pb.petals; i++) assert(state.petals[i].angle === settledState(pb).petals[i].angle, `petal ${i} moved at ${t}ms`);
+        assert(state.ring.phase === pb.ringPhase, `the ring turned at ${t}ms`);
+      });
+      assert(growState(pa, pb, D * 0.5 - 1, D, options).berries[pb.berries - 1].opacity === 0, "the new berry before half-way");
+      assert(growState(pa, pb, D * 0.5 + 1, D, options).berries[pb.berries - 1].opacity > 0, "the new berry from half-way");
+    }
+  });
+
+  test("both invariants across a re-deal: every sampled move ends on the static mark at its length, in both modes", () => {
+    for (const [mode, options] of MODES) for (const { a, b } of [...ESTATE_PROMOTIONS.slice(0, 150), ...RESEEDS.slice(0, 150)]) {
+      const pa = markParams(a), pb = markParams(b);
+      for (const duration of [D, 600]) {
+        const end = growLength(pa, pb, duration, options);
+        assert(end >= duration, `a growth shorter than its duration (${mode})`);
+        assert(JSON.stringify(growState(pa, pb, end, duration, options)) === JSON.stringify(settledState(pb)), `not the settled state at its length (${mode}, ${duration}ms)`);
+        assert(render(growState(pa, pb, Infinity, duration, options)) === renderPalateMark(b), `not the static mark at ∞ (${mode}, ${duration}ms)`);
+      }
+    }
+    // Monotonic where it grew: a promotion's petals and stamens never retreat
+    for (const { a, b } of ESTATE_PROMOTIONS.slice(0, 60)) {
+      const pa = markParams(a), pb = markParams(b);
+      let prev = null;
+      walk(pa, pb, CELEBRATE, 8, (state, t) => {
+        if (prev) {
+          for (let i = 0; i < pb.petals; i++) {
+            assert(state.petals[i].tip >= prev.petals[i].tip && state.stamens[i].tip >= prev.stamens[i].tip, `a tip retreated at ${t}ms`);
+          }
+        }
+        prev = state;
+      });
     }
   });
 

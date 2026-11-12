@@ -28,11 +28,14 @@ import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/compone
 import { numeralCounter } from "@/lib/numerals";
 
 const GENOME = { seed: 20260730, world: 0.62, color: 0.6, focus: 0.5, depth: 0.5, spread: 0.55, range: 0.6 };
+// Each shape has its own seed, as production's do: the identity engine
+// derives the seed from the DNA's contents, so every promotion re-deals the
+// ring's phase, the bloom's phase and the fruit (README §14).
 const SHAPES = [
   { id: "base", label: "As it was", genome: GENOME },
-  { id: "region", label: "A region", genome: { ...GENOME, spread: 0.85 } },
-  { id: "estate", label: "An estate", genome: { ...GENOME, depth: 0.5 + 1 / 6 } },
-  { id: "country", label: "A country", genome: { ...GENOME, focus: 0.75 } },
+  { id: "region", label: "A region", genome: { ...GENOME, spread: 0.85, seed: 418201733 } },
+  { id: "estate", label: "An estate", genome: { ...GENOME, depth: 0.5 + 1 / 6, seed: 1903486215 } },
+  { id: "country", label: "A country", genome: { ...GENOME, focus: 0.75, seed: 2750139408 } },
 ];
 
 const HEADLINE = "Never guess at a wine list again.";
@@ -111,8 +114,9 @@ function Bloom() {
       </TextActions>
 
       <p style={caption}>
-        Growth — the same bloom, from one shape to the next (164px). {celebrate
-          ? "Celebrated, as a promotion is: a swell, a pulse, ripples — never for a smaller shape."
+        Growth — the same bloom, from one shape to the next (164px), each under a new seed: the ring turns
+        the short way, the petals shift by less than half a sector, the fruit lifts and lands again. {celebrate
+          ? "Celebrated, as a promotion is: a swell, a pulse, and the new berry landing last with its ripples — never for a smaller shape."
           : "Quiet, as the quiz’s bloom grows: the shapes change and nothing else plays."}
       </p>
       <div style={stage}>

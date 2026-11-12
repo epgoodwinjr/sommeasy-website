@@ -224,27 +224,50 @@ test.describe("Motion on — outcomes, never timings", () => {
     await page.goto("/motion-specimen");
     await expect.poll(async () => (await markOf(page, "specimen-grow")).html).toBe((await markOf(page, "specimen-grow-static")).html);
 
-    // One berry more. Count the distinct frames on the way: it grew, it
-    // did not jump
+    // One berry more — under a new seed, as production promotes (README
+    // §14). Count the distinct frames on the way: it grew, it did not jump
     const before = (await markOf(page, "specimen-grow")).html;
     await page.getByTestId("specimen-shape-estate").click();
     const frames = await page.evaluate(async () => {
       const live = document.querySelector('[data-testid="specimen-grow"] [data-testid="palate-mark"]')!;
       const target = document.querySelector('[data-testid="specimen-grow-static"] [data-testid="palate-mark"]')!;
-      const seen = new Set<string>();
+      const seen: string[] = [];
       const deadline = performance.now() + 15_000;
       while (performance.now() < deadline) {
-        seen.add(live.innerHTML);
-        if (seen.size > 1 && live.innerHTML === target.innerHTML) break;
+        if (seen[seen.length - 1] !== live.innerHTML) seen.push(live.innerHTML);
+        if (seen.length > 1 && live.innerHTML === target.innerHTML) break;
         await new Promise((resolve) => requestAnimationFrame(resolve));
       }
-      return { distinct: seen.size, ended: live.innerHTML === target.innerHTML };
+      // A berry's ripple is the thin cream ring (the heart's pulse is wider)
+      const berryRipple = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*stroke-width="0\.9"[^>]*opacity=/i;
+      const anyOverlay = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*opacity=/i;
+      const overlays = seen.filter((frame) => anyOverlay.test(frame));
+      // Fruit: the burgundy circles other than the heart (r 6.5, at rest in a growth)
+      const berries = (frame: string) => (frame.match(/<circle cx="[^"]*" cy="[^"]*" r="(?!6\.5")[^"]*" fill="#8B2332"/gi) || []).length;
+      return {
+        distinct: new Set(seen).size,
+        ended: live.innerHTML === target.innerHTML,
+        rippled: seen.some((frame) => berryRipple.test(frame)),
+        lastOverlayIsBerry: overlays.length > 0 && berryRipple.test(overlays[overlays.length - 1]),
+        fewestBerries: Math.min(...seen.map(berries)),
+        berriesAtEnd: berries(seen[seen.length - 1]),
+      };
     });
     expect(frames.ended).toBe(true);
     expect(frames.distinct).toBeGreaterThan(5);
     const grown = await markOf(page, "specimen-grow");
     expect(grown.html).not.toBe(before);
     expect(grown.attrs).toEqual((await markOf(page, "specimen-grow-static")).attrs);
+    // The seed changed with the shape: the ring rests somewhere else…
+    const ringOf = (html: string) => html.match(/<path d="([^"]+)" fill="none" stroke="#8B2332"/i)?.[1];
+    expect(ringOf(before)).toBeTruthy();
+    expect(ringOf(grown.html)).not.toBe(ringOf(before));
+    // …the fruit was re-dealt (it lifted away, then landed again)…
+    expect(frames.berriesAtEnd).toBe(4);
+    expect(frames.fewestBerries).toBe(0);
+    // …and the promotion still ended on its berry landing with its ripples
+    expect(frames.rippled).toBe(true);
+    expect(frames.lastOverlayIsBerry).toBe(true);
 
     // A new petal, and a change of mind while it is still opening: the
     // second waits its turn, and the mark ends on the LAST shape asked for

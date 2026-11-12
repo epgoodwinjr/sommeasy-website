@@ -40,6 +40,14 @@
 // nothing here reads a clock or touches the DOM. All timing lives in
 // MARK_MOTION.
 //
+// Real genomes change their SEED on every DNA change (identityEngine derives
+// it from the DNA's contents), and the seed is phase: where the ring rests,
+// where the bloom rests, which petals bear fruit. A growth animates through
+// that re-deal (README §14): the ring turns the short way, each of A's
+// petals goes to the nearest of B's (never more than half a sector), and
+// the fruit lifts and lands again — what both shapes have first, quietly,
+// and any ADDITIONAL berry last, as a new berry lands.
+//
 // A growth is QUIET unless it is asked to celebrate (README §13): the
 // shapes move from one genome's to the next and nothing else plays. The
 // swell, the pulse from the heart and the ripples where a berry lands are
@@ -273,8 +281,8 @@ export const MARK_MOTION = {
   newStamenAt: 0.45,
   newStamenSpan: 0.6,
   newStamenFadeSpan: 0.4,
-  berryLiftSpan: 0.28, // a new petal re-deals the fruit: it lifts…
-  berryRelandAt: 0.8, // …and lands again from here
+  berryLiftSpan: 0.28, // a new seed or petal re-deals the fruit: it lifts…
+  berryRelandAt: 0.8, // …and lands again from here, any additional berry last
   closeSpan: 0.45, // what a smaller genome drops closes over this share
 };
 
@@ -647,13 +655,57 @@ export function openState(params, t, duration = openLength(params)) {
 
 // ─── Growth: the same bloom, grown ───
 
-function sameFruit(a, b) {
-  if (a.petals !== b.petals) return false;
-  const shared = Math.min(Math.max(a.berries, b.berries), a.petals);
-  for (let k = 0; k < shared; k++) {
-    if (a.berryPetalOrder[k] !== b.berryPetalOrder[k]) return false;
+// The short way from one angle to another, in degrees: [−180, 180)
+function shortTurn(from, to) {
+  return ((((to - from) % 360) + 540) % 360) - 180;
+}
+
+// Two evenly spaced rings of features (petals, or the stamens between them):
+// for each of the `n` features of the sparser ring, the nearest of the `N`
+// on the denser one. `x0` is where the sparser ring's first feature sits on
+// the denser ring, in the denser ring's sectors. Consecutive features are at
+// least one of those sectors apart, so rounding never sends two to the same
+// slot and no feature travels more than half of one; the clamps only hold
+// that line when rounding lands exactly on a half.
+function nearestSlots(x0, n, N) {
+  const slots = [];
+  let first = 0;
+  for (let i = 0; i < n; i++) {
+    let slot = Math.round(x0 + (i * N) / n);
+    if (i === 0) first = slot;
+    else slot = Math.min(Math.max(slot, slots[i - 1] + 1), first + N - (n - i));
+    slots.push(slot);
   }
-  return true;
+  return slots.map((slot) => ((slot % N) + N) % N);
+}
+
+// Which of A's petals each of B's comes from, and which of A's stamens each
+// of B's does (−1: it is new). Petals are alike, so they are matched by
+// nearest angle, not by index (README §14): however the phase moved, none
+// travels more than half a sector, and a stamen stays between its petals.
+function matchBloom(a, b) {
+  const growing = b.petals >= a.petals;
+  const sparse = growing ? a : b;
+  const dense = growing ? b : a;
+  const x0 = (sparse.bloomPhase - dense.bloomPhase) / dense.sector;
+  const fromOf = (slots) => {
+    const from = new Array(b.petals).fill(-1);
+    // Growing: A's feature i goes to B's slot. Shrinking: B's i comes from A's slot
+    slots.forEach((slot, i) => { if (growing) from[slot] = i; else from[i] = slot; });
+    return from;
+  };
+  return {
+    petals: fromOf(nearestSlots(x0, sparse.petals, dense.petals)),
+    // A stamen sits half a sector on from its petal, on either ring
+    stamens: fromOf(nearestSlots(x0 + (dense.petals / sparse.petals - 1) / 2, sparse.petals, dense.petals)),
+  };
+}
+
+// Is the fruit where it was? The seeded shuffle that deals berries to petals
+// depends on the seed and on the petal count; when either changed, the old
+// fruit lifts away and the new lands (README §7.4, §14).
+function sameFruit(a, b) {
+  return a.genome.seed === b.genome.seed && a.petals === b.petals;
 }
 
 // Smaller on any dial that reads as size: a petal, reach or fruit lost.
@@ -667,6 +719,26 @@ function shrank(a, b) {
 // move also gained something (README §13)
 function celebrates(paramsA, paramsB, options) {
   return Boolean(options && options.celebrate) && !shrank(paramsA, paramsB);
+}
+
+// When B's fruit lands. With the fruit where it was, the berries B adds
+// land from half-way. Re-dealt, everything lands again from `berryRelandAt`:
+// the berries both shapes have (the first `shared`) quietly, and the ones B
+// adds after them — so the last thing a promotion does is land its berry.
+function fruitPlan(paramsA, paramsB, duration) {
+  const M = MARK_MOTION;
+  const shared = Math.min(paramsA.berries, paramsB.berries);
+  const redealt = !sameFruit(paramsA, paramsB);
+  const reland = duration * M.berryRelandAt;
+  return {
+    redealt,
+    shared,
+    added: paramsB.berries - shared,
+    // A berry both shapes have, landing again after a re-deal
+    sharedLands: (k) => reland + k * M.berryStepMs,
+    // A berry only B has (m counts from the first of them)
+    addedLands: (m) => (redealt ? reland + shared * M.berryStepMs : duration * M.newBerryAt) + m * M.newBerryStepMs,
+  };
 }
 
 /** How long a growth runs. At this time the state IS genome B's settled
@@ -683,15 +755,14 @@ export function growLength(paramsA, paramsB, duration = MARK_MOTION.growMs, opti
     end = Math.max(end, duration * (M.newPetalAt + M.newPetalSpan), duration * (M.newStamenAt + M.newStamenSpan));
   }
   if (festive) end = Math.max(end, duration * M.swellSpan, duration * M.pulseAt + M.pulseMs);
-  if (sameFruit(paramsA, paramsB)) {
-    const added = paramsB.berries - paramsA.berries;
-    if (added > 0) {
-      const lastLands = duration * M.newBerryAt + (added - 1) * M.newBerryStepMs;
-      const ripples = festive ? Math.max(...M.rippleLagsMs) + M.rippleMs : 0;
-      end = Math.max(end, lastLands + Math.max(M.newBerryMs, ripples));
-    }
-  } else if (paramsB.berries > 0) {
-    end = Math.max(end, duration * M.berryRelandAt + (paramsB.berries - 1) * M.berryStepMs + M.berryMs);
+  const fruit = fruitPlan(paramsA, paramsB, duration);
+  if (fruit.redealt && fruit.shared > 0) {
+    end = Math.max(end, fruit.sharedLands(fruit.shared - 1) + M.berryMs);
+  }
+  if (fruit.added > 0) {
+    // The last berry home — and, celebrating, its last ripple gone
+    const ripples = festive ? Math.max(...M.rippleLagsMs) + M.rippleMs : 0;
+    end = Math.max(end, fruit.addedLands(fruit.added - 1) + Math.max(M.newBerryMs, ripples));
   }
   return end;
 }
@@ -713,6 +784,7 @@ export function growState(paramsA, paramsB, t, duration = MARK_MOTION.growMs, op
   const M = MARK_MOTION;
   const G = MARK_GEOMETRY;
   const u = easeInOut(t / duration);
+  const left = 1 - u; // how much of the way is still to go: exactly 0 at the end
   const festive = celebrates(paramsA, paramsB, options);
 
   // Celebrating: the whole mark swells and settles, and one wide pulse
@@ -730,95 +802,115 @@ export function growState(paramsA, paramsB, t, duration = MARK_MOTION.growMs, op
   }
 
   state.tipBulge = mix(paramsA.tipBulge, paramsB.tipBulge, u);
-  state.ring.phase = mix(paramsA.ringPhase, paramsB.ringPhase, u);
+  // The ring turns the short way to its new phase — never more than half a
+  // circle — and is written back from B's, so it ends on it exactly
+  state.ring.phase = paramsB.ringPhase - shortTurn(paramsA.ringPhase, paramsB.ringPhase) * left;
   state.ring.burgundy = mix(paramsA.burgundySweepDeg, paramsB.burgundySweepDeg, u);
   state.ring.burgundyFull = state.ring.burgundy;
   state.ring.cream = RING_SPAN_DEG - state.ring.burgundy;
 
+  const match = matchBloom(paramsA, paramsB);
   for (let i = 0; i < paramsB.petals; i++) {
     const petal = state.petals[i];
-    const stamen = state.stamens[i];
-    if (i < paramsA.petals) {
-      // A petal both shapes have: it slides, lengthens and fills out
-      petal.angle = mix(paramsA.bloomPhase + i * paramsA.sector, petal.angle, u);
+    const from = match.petals[i];
+    if (from >= 0) {
+      // A petal both shapes have: it turns (the short way, from where A had
+      // it), lengthens and fills out
+      petal.angle -= shortTurn(paramsA.bloomPhase + from * paramsA.sector, petal.angle) * left;
       petal.tip = mix(paramsA.tipR, paramsB.tipR, u);
       petal.halfWidth = mix(paramsA.petalHalfWidthDeg, paramsB.petalHalfWidthDeg, u);
-      stamen.angle = mix(paramsA.bloomPhase + (i + 0.5) * paramsA.sector, stamen.angle, u);
-      stamen.tip = mix(paramsA.stamenTipR, paramsB.stamenTipR, u);
     } else {
       // A new petal opens at its final angle while the others make room
       const open = easeOut(t, duration * M.newPetalAt, duration * M.newPetalSpan);
       petal.tip = mix(G.petalBaseR, paramsB.tipR, open);
       petal.halfWidth = mix(paramsB.petalHalfWidthDeg * M.petalOpenWidth, paramsB.petalHalfWidthDeg, open);
       petal.opacity = Math.min(1, open * 3);
+    }
+    const stamen = state.stamens[i];
+    const stamenFrom = match.stamens[i];
+    if (stamenFrom >= 0) {
+      stamen.angle -= shortTurn(paramsA.bloomPhase + (stamenFrom + 0.5) * paramsA.sector, stamen.angle) * left;
+      stamen.tip = mix(paramsA.stamenTipR, paramsB.stamenTipR, u);
+    } else {
       stamen.tip = mix(G.stamenBaseR, paramsB.stamenTipR, easeOut(t, duration * M.newStamenAt, duration * M.newStamenSpan));
       stamen.opacity = easeOut(t, duration * M.newStamenAt, duration * M.newStamenFadeSpan);
     }
   }
 
+  // Where each of A's petals is in this state's list: the petal of B's it
+  // became, or — while it closes — a place after them
+  const petalOfA = new Array(paramsA.petals).fill(-1);
+  match.petals.forEach((from, i) => { if (from >= 0) petalOfA[from] = i; });
+
   // A smaller shape (a re-rate down, a bottle deleted): what it no longer
   // has closes and fades instead of vanishing
   const closing = 1 - easeOut(t, 0, duration * M.closeSpan);
   if (closing > 0) {
-    for (let i = paramsB.petals; i < paramsA.petals; i++) {
-      state.petals.push({
-        angle: paramsA.bloomPhase + i * paramsA.sector,
-        tip: mix(G.petalBaseR, paramsA.tipR, closing),
-        halfWidth: paramsA.petalHalfWidthDeg, opacity: closing,
-      });
-      state.stamens.push({
-        angle: paramsA.bloomPhase + (i + 0.5) * paramsA.sector,
-        tip: mix(G.stamenBaseR, paramsA.stamenTipR, closing), opacity: closing,
-      });
+    const keptStamen = new Set(match.stamens);
+    for (let i = 0; i < paramsA.petals; i++) {
+      if (petalOfA[i] < 0) {
+        petalOfA[i] = state.petals.length;
+        state.petals.push({
+          angle: paramsA.bloomPhase + i * paramsA.sector,
+          tip: mix(G.petalBaseR, paramsA.tipR, closing),
+          halfWidth: paramsA.petalHalfWidthDeg, opacity: closing,
+        });
+      }
+      if (!keptStamen.has(i)) {
+        state.stamens.push({
+          angle: paramsA.bloomPhase + (i + 0.5) * paramsA.sector,
+          tip: mix(G.stamenBaseR, paramsA.stamenTipR, closing), opacity: closing,
+        });
+      }
     }
   }
 
-  if (sameFruit(paramsA, paramsB)) {
-    // The fruit already there rides its petal; each new berry lands — and,
-    // celebrating, two ripples spread from where it does
-    for (let k = paramsA.berries; k < paramsB.berries; k++) {
-      const berry = state.berries[k];
-      const lands = duration * M.newBerryAt + (k - paramsA.berries) * M.newBerryStepMs;
-      const land = easeOut(t, lands, M.newBerryMs);
-      berry.scale = mix(M.newBerryScale, 1, land);
-      berry.opacity = land;
-      const at = festive ? berryPoint(state, berry) : null;
-      if (!at) continue;
-      for (const lag of M.rippleLagsMs) {
-        const spread = clamp01((t - lands - lag) / M.rippleMs);
-        if (spread > 0 && spread < 1) {
-          state.ripples.push({
-            x: at[0], y: at[1], r: mix(M.rippleFromR, M.rippleToR, 1 - Math.pow(1 - spread, 3)),
-            opacity: M.rippleOpacity * (1 - spread), width: M.rippleWidth,
-          });
-        }
-      }
-    }
-    if (closing > 0) {
-      for (let k = paramsB.berries; k < paramsA.berries; k++) {
-        state.berries.push({
-          petalIndex: paramsA.berryPetalOrder[k % paramsA.petals],
-          rf: berryRf(k, paramsA.petals), scale: 1, opacity: closing,
+  const fruit = fruitPlan(paramsA, paramsB, duration);
+  const berryOfA = (k, opacity) => ({
+    petalIndex: petalOfA[paramsA.berryPetalOrder[k % paramsA.petals]],
+    rf: berryRf(k, paramsA.petals), scale: 1, opacity,
+  });
+
+  // The berries B adds: each lands as a new berry does — and, celebrating,
+  // two ripples spread from where it lands. Quiet or not, the berry itself
+  // lands the same way; only the ripples are the celebration
+  for (let k = fruit.shared; k < paramsB.berries; k++) {
+    const berry = state.berries[k];
+    const lands = fruit.addedLands(k - fruit.shared);
+    const land = easeOut(t, lands, M.newBerryMs);
+    berry.scale = mix(M.newBerryScale, 1, land);
+    berry.opacity = land;
+    const at = festive ? berryPoint(state, berry) : null;
+    if (!at) continue;
+    for (const lag of M.rippleLagsMs) {
+      const spread = clamp01((t - lands - lag) / M.rippleMs);
+      if (spread > 0 && spread < 1) {
+        state.ripples.push({
+          x: at[0], y: at[1], r: mix(M.rippleFromR, M.rippleToR, 1 - Math.pow(1 - spread, 3)),
+          opacity: M.rippleOpacity * (1 - spread), width: M.rippleWidth,
         });
       }
+    }
+  }
+
+  if (!fruit.redealt) {
+    // The fruit already there rides its petal; what a smaller shape drops
+    // fades with the rest of what closes
+    if (closing > 0) {
+      for (let k = paramsB.berries; k < paramsA.berries; k++) state.berries.push(berryOfA(k, closing));
     }
   } else {
-    // A new petal count re-deals which petals bear fruit (the seeded
-    // shuffle depends on it): the old fruit lifts away, then the new lands
+    // A new seed or petal count re-deals which petals bear fruit: the old
+    // fruit lifts away, then the fruit both shapes have lands again, quietly
+    for (let k = 0; k < fruit.shared; k++) {
+      const land = easeOut(t, fruit.sharedLands(k), M.berryMs);
+      state.berries[k].scale = mix(M.berryLandScale, 1, land);
+      state.berries[k].opacity = land;
+    }
     const lift = 1 - easeOut(t, 0, duration * M.berryLiftSpan);
-    state.berries.forEach((berry, k) => {
-      const land = easeOut(t, duration * M.berryRelandAt + k * M.berryStepMs, M.berryMs);
-      berry.scale = mix(M.berryLandScale, 1, land);
-      berry.opacity = land;
-    });
     if (lift > 0) {
       const lifting = [];
-      for (let k = 0; k < paramsA.berries; k++) {
-        lifting.push({
-          petalIndex: paramsA.berryPetalOrder[k % paramsA.petals],
-          rf: berryRf(k, paramsA.petals), scale: 1, opacity: lift,
-        });
-      }
+      for (let k = 0; k < paramsA.berries; k++) lifting.push(berryOfA(k, lift));
       state.berries = lifting.concat(state.berries);
     }
   }
