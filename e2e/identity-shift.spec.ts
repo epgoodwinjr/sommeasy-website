@@ -434,6 +434,24 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     new MutationObserver(read).observe(document.body, { childList: true, subtree: true, attributes: true });
   }, selector);
   const bloomFrames = (page: Page): Promise<string[]> => page.evaluate(() => (window as any).__bloomFrames);
+
+  /** Record every toast the page shows, from now on. A toast is on screen
+   *  for four or five seconds and a celebrated growth outlasts the first of
+   *  them, so "is it visible" asked AFTER the growth is a race the toast
+   *  loses (it failed the full run on Nov 12, 2026). "Was it shown" is the
+   *  outcome — and it can only be watched from before the tap. */
+  const watchToasts = (page: Page) => page.evaluate(() => {
+    const seen: string[] = [];
+    (window as any).__toastsSeen = seen;
+    const read = () => document.querySelectorAll('[role="status"][aria-live="polite"] > div').forEach((pill) => {
+      const text = pill.textContent || "";
+      if (text && !seen.includes(text)) seen.push(text);
+    });
+    read();
+    new MutationObserver(read).observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
+  const toastsSeen = (page: Page): Promise<string> =>
+    page.evaluate(() => ((window as any).__toastsSeen as string[]).join(" | "));
   const berryRipple = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*stroke-width="0\.9"[^>]*opacity=/i;
 
   /** Heal, capture the baseline, and hand back the profile as it stands. */
@@ -469,6 +487,7 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     // No bloom on a wine's page until a verdict earns one
     await expect(page.getByTestId("wine-growth")).toHaveCount(0);
     await watchBloom(page, '[data-testid="wine-growth"] [data-testid="palate-mark"]');
+    await watchToasts(page);
     await wine.getByRole("button", { name: "🍷 Had it" }).click();
     await wine.getByTestId("rating-tile-loved").click();
     // The tiles hold, pressed, then the verdict takes their place
@@ -486,9 +505,9 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     expect(frames.some((f) => f.includes("scale("))).toBe(true);
     expect(frames.some((f) => berryRipple.test(f))).toBe(true);
 
-    // The existing toasts are kept
-    await expect(page.getByText(/Domaine Dujac added to your estates/)).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(/Your DNA has shifted: you're now The .+/)).toBeVisible({ timeout: 20_000 });
+    // The existing toasts are kept — both were shown (watched from the tap)
+    await expect.poll(() => toastsSeen(page), { timeout: 20_000 }).toMatch(/Domaine Dujac added to your estates/);
+    await expect.poll(() => toastsSeen(page), { timeout: 20_000 }).toMatch(/Your DNA has shifted: you're now The .+/);
     // …and the page says what the bottle did, as it always has
     await expect(wine).toContainText("What it did to your palate", { timeout: 15_000 });
   });
@@ -514,6 +533,7 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     await expect.poll(() => crest.getByTestId("palate-mark").innerHTML()).toBe(was);
 
     await watchBloom(page, '[data-testid="palate-strip"] [data-testid="palate-mark"]');
+    await watchToasts(page);
     await ask.getByTestId("rating-tile-loved").click();
     // The reply names what the rating did
     await expect(ask).toContainText("❤️ Loved it — noted. Domaine Dujac just joined your DNA.", { timeout: 30_000 });
@@ -533,8 +553,9 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     await expect(crest).toContainText(after.identity.epithet);
     await expect(crest).not.toContainText(before.archetype);
 
-    await expect(page.getByText(/Domaine Dujac added to your estates/)).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText(/Your DNA has shifted: you're now The .+/)).toBeVisible({ timeout: 20_000 });
+    // Both toasts were shown (watched from the tap — see watchToasts)
+    await expect.poll(() => toastsSeen(page), { timeout: 20_000 }).toMatch(/Domaine Dujac added to your estates/);
+    await expect.poll(() => toastsSeen(page), { timeout: 20_000 }).toMatch(/Your DNA has shifted: you're now The .+/);
   });
 
   test("logging the bottle that promotes an estate: the saved step shows the bloom as it was, then grown and celebrated", async ({ page }) => {
