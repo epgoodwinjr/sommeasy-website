@@ -92,7 +92,29 @@ export function verdictReply({ rating, promotions = [], nearest = null } = {}) {
   } else {
     consequence = RATING_CONSEQUENCE[rating];
   }
-  return `${r.emoji} ${r.label} — noted. ${consequence}`;
+  return `${verdictNoted(rating)} ${consequence}`;
+}
+
+/** What the reply can say at the tap, before the engine has answered:
+ *  "❤️ Loved it — noted." Every verdictReply opens with it. */
+export function verdictNoted(rating) {
+  const r = ratingFor(rating);
+  return r ? `${r.emoji} ${r.label} — noted.` : null;
+}
+
+/**
+ * A reply in its two parts: `noted` (known at the tap) and `more` (what the
+ * engine added when it answered — "" until it has). Home shows both as one
+ * line and SAYS each once: the noted line is read when the reply takes
+ * focus, and `more` is spoken by a status region that holds nothing else
+ * (docs/motion README §15.2). A reply that doesn't open with the noted line
+ * is all `more`.
+ */
+export function replyParts(noted, reply) {
+  const said = typeof noted === "string" ? noted : "";
+  if (typeof reply !== "string" || !reply) return { noted: said, more: "" };
+  if (!said || !reply.startsWith(said)) return { noted: "", more: reply };
+  return { noted: said, more: reply.slice(said.length).trim() };
 }
 
 /**

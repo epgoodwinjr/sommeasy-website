@@ -16,7 +16,7 @@ import { resolveFirstPourCards } from "@/lib/firstPour";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { HOME_TITLE, wineHref } from "@/lib/navTrail";
-import { crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, verdictMeta, verdictReply, whisperLine } from "@/lib/houseCopy";
+import { crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, replyParts, verdictMeta, verdictNoted, verdictReply, whisperLine } from "@/lib/houseCopy";
 import { welcomeNoticeCopy } from "@/lib/authCopy";
 import { growthOf, readPalate } from "@/lib/growthMoment";
 import Quiz from "@/components/Quiz";
@@ -38,7 +38,7 @@ import useStagger from "@/components/house/useStagger";
 import { HOME, ROW_STEP, prefersReducedMotion } from "@/components/house/motion";
 import Toast, { useToast } from "@/components/house/Toast";
 import { useNavTrail } from "@/components/house/RunningHead";
-import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, ink } from "@/components/house/tokens";
+import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, SR_ONLY, ink } from "@/components/house/tokens";
 
 // ─── Home: The House List (README §8.1) ───
 // The signed-in home reads like a wine list written for one person: a crest
@@ -99,16 +99,22 @@ const HOME_SETTLE_MS = 6000;
 const sameWine = (a, b) =>
   typeof a === "string" && typeof b === "string" && a.trim().toLowerCase() === b.trim().toLowerCase();
 
+const VERDICT_SAVE_FAILED = "Couldn’t save — try again from your journal.";
+
 /** From last night's reply, written in: "❤️ Loved it — noted." at once, and
  *  what the rating did written after it when the engine answers. The line's
- *  text is the reply's, whole, at every moment. */
-function WrittenReply({ noted, reply }) {
-  if (reply && !reply.startsWith(noted)) return reply;
-  const more = reply ? reply.slice(noted.length).trim() : "";
+ *  text is the reply's, whole, at every moment.
+ *
+ *  It is SAID once (docs/motion README §15.2). The noted line is read when
+ *  the reply takes focus. What arrives after that — `more` — is hidden from
+ *  screen readers here and spoken by the section's status region instead,
+ *  which holds nothing else: a written line inside a live region is
+ *  re-announced as its words are set and again as they settle. */
+function WrittenReply({ noted, more }) {
   return (
     <>
-      <WriteIn text={noted} />
-      {more && <>{" "}<WriteIn text={more} /></>}
+      {noted && <WriteIn text={noted} />}
+      {more && <span aria-hidden="true">{noted && " "}<WriteIn text={more} /></span>}
     </>
   );
 }
@@ -129,6 +135,8 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   // section stays until the next load
   const [verdict, setVerdict] = useState(null);
   const [verdictLoaded, setVerdictLoaded] = useState(false);
+  // What the reply's status region says (see the effect that sets it)
+  const [verdictSaid, setVerdictSaid] = useState("");
   // The journal read: { rows, newUser } once settled (rows null = failed)
   const [journal, setJournal] = useState(null);
   // "new" | "established" — decided once both reads settle, then frozen
@@ -289,11 +297,22 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
     setCrestIn(true);
   }, [layout]);
 
-  // The reply takes focus as it replaces the tiles: announced, and keyboard
-  // users keep their place
+  // The reply takes focus as it replaces the tiles: that is how its noted
+  // line is announced, and keyboard users keep their place
   useEffect(() => {
     if (verdict?.rating && !verdictHeld) replyRef.current?.focus({ preventScroll: true });
   }, [verdict?.rating, verdictHeld]);
+
+  // What comes after the tap — the engine's answer, or that the save failed
+  // — is handed to the status region a commit AFTER the line has the focus,
+  // so the two are never said over each other, and each is said once
+  useEffect(() => {
+    if (!verdict?.rating || verdictHeld) return;
+    const later = verdict.failed
+      ? VERDICT_SAVE_FAILED
+      : replyParts(verdictNoted(verdict.rating), verdict.reply).more;
+    if (later) setVerdictSaid(later);
+  }, [verdict?.rating, verdict?.reply, verdict?.failed, verdictHeld]);
 
   const hadCount = new Set([
     ...(journal?.rows || []).filter((r) => r.interaction_type === "had").map((r) => r.wine_name),
@@ -448,10 +467,10 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           style={{ padding: 0, borderBottom: "none" }}
         />
         {rated && !verdictHeld ? (
-          <p ref={replyRef} tabIndex={-1} role="status" style={{ ...replyLine, outline: "none" }}>
+          <p ref={replyRef} tabIndex={-1} data-testid="verdict-reply" style={{ ...replyLine, outline: "none" }}>
             {failed
-              ? "Couldn’t save — try again from your journal."
-              : <WrittenReply noted={`${rated.emoji} ${rated.label} — noted.`} reply={reply} />}
+              ? <span aria-hidden="true">{VERDICT_SAVE_FAILED}</span>
+              : <WrittenReply {...replyParts(verdictNoted(rating), reply)} />}
           </p>
         ) : (
           <Enter kind="fade" delay={at + HOME.follow + ROW_STEP}>
@@ -459,6 +478,9 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
             <TextAction tone="quiet" onClick={handleVerdictDismiss} disabled={Boolean(verdictHeld)} testId="verdict-dismiss">Not tonight</TextAction>
           </Enter>
         )}
+        {/* The section's one live region: in the page before it has anything
+            to say, and only ever handed plain words */}
+        <p role="status" data-testid="verdict-said" style={SR_ONLY}>{verdictSaid}</p>
       </section>
     );
   };

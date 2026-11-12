@@ -31,6 +31,14 @@ export { SOFT_OUT } from "./motion";
  *  0.22 on setting/fact/DNA rows, 0.2 on the rating list and Reserved rows. */
 export const leader = (width = 1.5, alpha = 0.25) => `${width}px dotted ${ink(alpha)}`;
 
+/** Heard, not seen: text for screen readers only — a status region that
+ *  says once what a written line shows (home's From last night reply).
+ *  `clip`, not clip-path: nothing here reads as an entrance left behind. */
+export const SR_ONLY = {
+  position: "absolute", width: 1, height: 1, margin: -1, padding: 0, border: 0,
+  overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap",
+};
+
 /** The page column: 560px, 28px gutters (auth pages: 400px / 36px). */
 export const COLUMN = 560;
 export const GUTTER = 28;

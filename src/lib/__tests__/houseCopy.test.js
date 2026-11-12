@@ -163,6 +163,39 @@ async function main() {
     assertEq(copy.verdictReply(), null, "no args");
   });
 
+  // docs/motion README §15.2: the reply is said once. What is known at the
+  // tap is read when the line takes focus; what the engine adds is spoken by
+  // a status region that holds nothing else.
+  await test("the noted line is what is known at the tap — and every reply opens with it", () => {
+    assertEq(copy.verdictNoted("loved"), "❤️ Loved it — noted.", "loved");
+    assertEq(copy.verdictNoted("not_for_me"), "👎 Not for me — noted.", "not for me");
+    assertEq(copy.verdictNoted("meh"), null, "junk rating");
+    for (const rating of ["loved", "liked", "fine", "not_for_me"]) {
+      const reply = copy.verdictReply({ rating, promotions: [{ displayName: "Raats" }] });
+      assertEq(reply.startsWith(`${copy.verdictNoted(rating)} `), true, `${rating}: the reply must open with its noted line`);
+    }
+  });
+
+  await test("a reply splits into what was noted and what came after — nothing said twice, nothing lost", () => {
+    const noted = copy.verdictNoted("loved");
+    assertEq(copy.replyParts(noted, null), { noted, more: "" }, "before the engine answers");
+    assertEq(copy.replyParts(noted, undefined), { noted, more: "" }, "undefined reply");
+    const reply = copy.verdictReply({ rating: "loved", nearest: { name: "Raats", n: 1 } });
+    const parts = copy.replyParts(noted, reply);
+    assertEq(parts, { noted, more: "Raats is now one loved bottle from joining your DNA." }, "the engine's answer");
+    assertEq(`${parts.noted} ${parts.more}`, reply, "the two parts are the reply, whole");
+    assertEq(parts.more.includes("noted"), false, "what came after never repeats the noted line");
+    for (const rating of ["loved", "liked", "fine", "not_for_me"]) {
+      const whole = copy.verdictReply({ rating });
+      const split = copy.replyParts(copy.verdictNoted(rating), whole);
+      assertEq(`${split.noted} ${split.more}`, whole, `${rating}: whole`);
+    }
+    // A reply that doesn't open with the noted line is all news
+    assertEq(copy.replyParts(noted, "Something else entirely."), { noted: "", more: "Something else entirely." }, "a foreign reply");
+    assertEq(copy.replyParts(null, null), { noted: "", more: "" }, "nothing at all");
+    assertEq(copy.replyParts(noted, noted), { noted, more: "" }, "a reply that is only the noted line");
+  });
+
   console.log("\n═══ Suite 4: the Log saved screen ═══");
 
   const shift = { shifted: true, title: "The Mosel Purist", epithet: "Slate, sugar and patience" };
