@@ -335,6 +335,45 @@ const asBrowser = (page: Page, html: string) =>
 
 const headerMark = (page: Page) => page.locator("header").getByTestId("palate-mark");
 
+/** The Welcome demo's block (the fixed frame the list and the picks play
+ *  in), whatever is showing in it, and how far under it the status line
+ *  sits. */
+const demoFrame = (page: Page) =>
+  page.getByTestId("welcome-demo").evaluate((demo) => {
+    const block = demo.firstElementChild as HTMLElement;
+    const status = demo.lastElementChild as HTMLElement;
+    const line = status.firstElementChild as HTMLElement;
+    const shown = Array.from(block.children)
+      .filter((el) => getComputedStyle(el).visibility !== "hidden")
+      .map((el) => el.getBoundingClientRect().height);
+    return {
+      height: block.getBoundingClientRect().height,
+      top: block.getBoundingClientRect().top + window.scrollY,
+      tallestShown: shown.length ? Math.max(...shown) : 0,
+      lineUnderBlock: line.getBoundingClientRect().top - block.getBoundingClientRect().bottom,
+    };
+  });
+
+/** Where every quiz option sits on the page (not the viewport — a tap may
+ *  scroll), to a hundredth of a pixel, with what it says. */
+const optionBoxes = (page: Page) =>
+  page.locator("main button[aria-pressed]").evaluateAll((options) =>
+    options.map((el) => {
+      const box = el.getBoundingClientRect();
+      const at = [box.left + window.scrollX, box.top + window.scrollY, box.width, box.height];
+      // Named by what it says, less the marks a tap adds or removes
+      const name = (el as HTMLElement).innerText.replace(/[✓✦]/g, "").replace(/\s+/g, " ").trim();
+      return `${name} @ ${at.map((n) => n.toFixed(2)).join(" ")}`;
+    }),
+  );
+
+/** The step's entrances are over: nothing in the page is mid-animation. */
+const entrancesDone = (page: Page) =>
+  expect.poll(() => page.evaluate(() =>
+    document.querySelector("main")!.getAnimations({ subtree: true })
+      .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).length,
+  ), { timeout: 10_000 }).toBe(0);
+
 test.describe("The front door — motion on", () => {
   test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
 
@@ -359,11 +398,15 @@ test.describe("The front door — motion on", () => {
     // Ready, and off-screen: it has not started, and shows nothing
     await expect(demo).toHaveAttribute("data-state", "idle", { timeout: 10_000 });
     await expect(demo).not.toContainText("By the bottle");
+    await expect(demo).not.toContainText("Newton Johnson Chardonnay");
+    await page.evaluate(() => document.fonts.ready);
+    const idle = await demoFrame(page);
 
     // Scrolled to: it plays — the list is read, then the picks write in
     await demo.scrollIntoViewIfNeeded();
     await expect(demo).toHaveAttribute("data-state", "playing", { timeout: 10_000 });
     await expect(demo).toContainText("By the bottle");
+    const reading = await demoFrame(page);
     await expect(demo).toContainText("Newton Johnson Chardonnay", { timeout: 15_000 });
     await expect(demo).toContainText("Three bottles, three kinds of yes.");
     // The Somm's note settles as its own words
@@ -371,6 +414,43 @@ test.describe("The front door — motion on", () => {
     await expect.poll(() => note.evaluate((el) => el.querySelectorAll("[data-word]").length), { timeout: 15_000 })
       .toBe(0);
     await expect(note).toHaveText("“Sea-cooled Chardonnay with your kind of nerve. White Burgundy that moved somewhere sunnier.”");
+    const picked = await demoFrame(page);
+
+    // The frame is fixed — the same height, in the same place, before the
+    // list, under it and under the picks: nothing below it ever moves…
+    expect(reading.height).toBe(idle.height);
+    expect(picked.height).toBe(idle.height);
+    expect(reading.top).toBe(idle.top);
+    expect(picked.top).toBe(idle.top);
+    // …and it is as tall as its tallest state and no taller (§13): at 375px
+    // that is the picks, and the status line sits 16px under them
+    const tallest = Math.max(reading.tallestShown, picked.tallestShown);
+    expect(tallest).toBeGreaterThan(200);
+    expect(idle.height).toBe(Math.ceil(tallest));
+    expect(picked.tallestShown).toBeGreaterThan(reading.tallestShown);
+    expect(picked.lineUnderBlock).toBe(16);
+    expect(reading.lineUnderBlock).toBe(16);
+  });
+
+  test("the demo's frame fits its tallest state at every phone width", async ({ page }) => {
+    // Which state is tallest depends on the width: the picks where the
+    // Somm's note takes a third line, the list where it takes two. Neither
+    // may ever reach the status line, and the frame holds no spare room
+    for (const width of [320, 375, 430]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/");
+      const demo = page.getByTestId("welcome-demo");
+      await expect(demo).toHaveAttribute("data-state", "playing", { timeout: 15_000 });
+      await expect(demo).toContainText("By the bottle");
+      await page.evaluate(() => document.fonts.ready);
+      const reading = await demoFrame(page);
+      await expect(page.getByTestId("welcome-demo-note")).toBeVisible({ timeout: 15_000 });
+      const picked = await demoFrame(page);
+      const tallest = Math.max(reading.tallestShown, picked.tallestShown);
+      expect(reading.height, `${width}px: the frame changed height mid-cycle`).toBe(picked.height);
+      expect(picked.height, `${width}px: the frame is not its tallest state`).toBe(Math.ceil(tallest));
+      expect(picked.lineUnderBlock, `${width}px: the status line`).toBe(16);
+    }
   });
 
   test("the quiz's bloom is bare until the first answer, then every change ends on the static mark", async ({ page }) => {
@@ -403,6 +483,68 @@ test.describe("The front door — motion on", () => {
     ));
     expect(two).not.toBe(one);
     await expect.poll(() => mark.innerHTML(), { timeout: 10_000 }).toBe(two);
+
+    // It grows quietly (§13): shapes change, and nothing swells, pulses or
+    // ripples — those belong to a real promotion. No frame it painted
+    // carried a scale, and none a ring spreading from the heart or a berry
+    const frames: string[] = await page.evaluate(() => Array.from((window as any).__bloomFrames));
+    expect(frames.length).toBeGreaterThan(10);
+    expect(frames.filter((frame) => frame.includes("scale(")).length).toBe(0);
+    const overlay = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*opacity=/i;
+    expect(frames.filter((frame) => overlay.test(frame)).length).toBe(0);
+  });
+
+  test("a quiz option never moves when it is tapped — nor does any other", async ({ page }) => {
+    // 375px is where it showed: selecting South Africa pushed Uruguay to a
+    // new line, and every row under it jumped
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Build your palate" }).click();
+    await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
+    await entrancesDone(page);
+
+    const before = await optionBoxes(page);
+    expect(before.length).toBeGreaterThan(10);
+    const option = (name: RegExp) => page.locator("main").getByRole("button", { name }).first();
+
+    // Select: the option turns burgundy and bold and gains its ✓ — and
+    // every option on the step is exactly where it was
+    for (const name of [/South Africa/, /France/, /Uruguay/, /Italy/]) {
+      await option(name).click();
+      await expect(option(name)).toHaveAttribute("aria-pressed", "true");
+      await expect(option(name)).toContainText("✓");
+      expect(await optionBoxes(page), `selecting ${name} moved an option`).toEqual(before);
+    }
+    // …and unselect: back to plain, and still nothing has moved
+    for (const name of [/France/, /South Africa/]) {
+      await option(name).click();
+      await expect(option(name)).toHaveAttribute("aria-pressed", "false");
+      await expect(option(name)).not.toContainText("✓");
+      expect(await optionBoxes(page), `unselecting ${name} moved an option`).toEqual(before);
+    }
+    // The selected weight really is heavier — the width was reserved, not
+    // the weight dropped
+    const weights = await page.evaluate(() => {
+      const weightOf = (pressed: string) => {
+        const el = document.querySelector(`main button[aria-pressed="${pressed}"]`)!;
+        const label = Array.from(el.querySelectorAll("span")).find((span) =>
+          !span.children.length && getComputedStyle(span).visibility === "visible" && /[a-z]{3}/i.test(span.textContent || ""))!;
+        return Number(getComputedStyle(label).fontWeight);
+      };
+      return { selected: weightOf("true"), plain: weightOf("false") };
+    });
+    expect(weights.selected).toBeGreaterThan(weights.plain);
+
+    // The grouped steps too: regions under their country
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Step 2 of 5")).toBeVisible();
+    await entrancesDone(page);
+    const regions = await optionBoxes(page);
+    expect(regions.length).toBeGreaterThan(3);
+    const first = page.locator("main button[aria-pressed]").first();
+    await first.click();
+    await expect(first).toHaveAttribute("aria-pressed", "true");
+    expect(await optionBoxes(page), "selecting a region moved an option").toEqual(regions);
   });
 });
 
@@ -421,6 +563,12 @@ test.describe("The front door — reduced motion", () => {
     await expect(demo).toContainText("Newton Johnson Chardonnay");
     await expect(demo).toContainText("Three bottles, three kinds of yes.");
     await expect(demo).not.toContainText("By the bottle");
+    // The same tight frame as with motion on: the picks are its tallest
+    // state at this width, with the status line 16px under them
+    await page.evaluate(() => document.fonts.ready);
+    const frame = await demoFrame(page);
+    expect(frame.height).toBe(Math.ceil(frame.tallestShown));
+    expect(frame.lineUnderBlock).toBe(16);
     // Nothing in it runs — not now, and not once it is scrolled to
     await expect.poll(() => demo.evaluate((el) => el.getAnimations({ subtree: true }).length), { timeout: 10_000 }).toBe(0);
     await demo.scrollIntoViewIfNeeded();

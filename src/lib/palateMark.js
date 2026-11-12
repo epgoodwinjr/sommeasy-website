@@ -33,11 +33,18 @@
 //
 // renderPalateMark is exactly that chain, and its bytes are what they were
 // before the state existed. revealState(params, t, think) and
-// growState(paramsA, paramsB, t, duration) return the state at a time t (ms)
-// — the bloom drawing itself, and the same bloom grown — and both END on
-// the settled state exactly, so a finished animation is byte-identical to
-// the static mark. Still pure: time comes in as a number; nothing here
-// reads a clock or touches the DOM. All timing lives in MARK_MOTION.
+// growState(paramsA, paramsB, t, duration, { celebrate }) return the state
+// at a time t (ms) — the bloom drawing itself, and the same bloom grown —
+// and both END on the settled state exactly, so a finished animation is
+// byte-identical to the static mark. Still pure: time comes in as a number;
+// nothing here reads a clock or touches the DOM. All timing lives in
+// MARK_MOTION.
+//
+// A growth is QUIET unless it is asked to celebrate (README §13): the
+// shapes move from one genome's to the next and nothing else plays. The
+// swell, the pulse from the heart and the ripples where a berry lands are
+// the celebration — a real promotion's, turned on by the caller — and even
+// then they never play for a shape that got smaller.
 
 // Brand palette only (CLAUDE.md), plus the app's own existing tints: the
 // petal fill is the home-strip gradient's lighter forest stop, the line
@@ -242,6 +249,7 @@ export const MARK_MOTION = {
   berryLandScale: 1.9,
   // Growth: the same bloom, from one genome to the next
   growMs: 2100,
+  // …and its celebration, when asked for: the swell, the pulse, the ripples
   swell: 0.06,
   swellSpan: 1.05, // of the duration
   pulseAt: 0.42, // of the duration: one wide pulse from the heart
@@ -648,17 +656,39 @@ function sameFruit(a, b) {
   return true;
 }
 
+// Smaller on any dial that reads as size: a petal, reach or fruit lost.
+// The ring's balance and the tips' roundness are neither more nor less.
+function shrank(a, b) {
+  return b.petals < a.petals || b.tipR < a.tipR || b.stamenTipR < a.stamenTipR || b.berries < a.berries;
+}
+
+// Does this growth play its celebration? Only when asked, and never for a
+// shape that got smaller — a demotion is not celebrated, even when the same
+// move also gained something (README §13)
+function celebrates(paramsA, paramsB, options) {
+  return Boolean(options && options.celebrate) && !shrank(paramsA, paramsB);
+}
+
 /** How long a growth runs. At this time the state IS genome B's settled
- *  mark — the swell, the pulse and every ripple have finished. */
-export function growLength(paramsA, paramsB, duration = MARK_MOTION.growMs) {
+ *  mark — and, celebrating, the swell, the pulse and every ripple have
+ *  finished. A quiet growth takes `duration` unless a petal or a berry is
+ *  still landing. */
+export function growLength(paramsA, paramsB, duration = MARK_MOTION.growMs, options) {
   if (!paramsA || !paramsB) return 0;
   const M = MARK_MOTION;
-  let end = Math.max(duration * M.swellSpan, duration * M.pulseAt + M.pulseMs);
+  const festive = celebrates(paramsA, paramsB, options);
+  let end = duration;
+  // A new petal and its stamen finish opening a little after the rest
+  if (paramsB.petals > paramsA.petals) {
+    end = Math.max(end, duration * (M.newPetalAt + M.newPetalSpan), duration * (M.newStamenAt + M.newStamenSpan));
+  }
+  if (festive) end = Math.max(end, duration * M.swellSpan, duration * M.pulseAt + M.pulseMs);
   if (sameFruit(paramsA, paramsB)) {
     const added = paramsB.berries - paramsA.berries;
     if (added > 0) {
       const lastLands = duration * M.newBerryAt + (added - 1) * M.newBerryStepMs;
-      end = Math.max(end, lastLands + Math.max(M.newBerryMs, Math.max(...M.rippleLagsMs) + M.rippleMs));
+      const ripples = festive ? Math.max(...M.rippleLagsMs) + M.rippleMs : 0;
+      end = Math.max(end, lastLands + Math.max(M.newBerryMs, ripples));
     }
   } else if (paramsB.berries > 0) {
     end = Math.max(end, duration * M.berryRelandAt + (paramsB.berries - 1) * M.berryStepMs + M.berryMs);
@@ -670,24 +700,33 @@ export function growLength(paramsA, paramsB, duration = MARK_MOTION.growMs) {
  * The mark `t` ms into growing from genome A's shape to genome B's
  * (README §7.4). It needs no idea of what was promoted — only the two
  * shapes. Dials that grew never pass through a smaller value on the way.
+ *
+ * Quiet by default: the shapes interpolate and nothing else plays. With
+ * `{ celebrate: true }` the whole mark also swells, a pulse crosses from
+ * the heart and each new berry ripples — unless the shape got smaller, in
+ * which case it plays exactly as the quiet one does. The shapes themselves
+ * are the same in both modes at every t.
  */
-export function growState(paramsA, paramsB, t, duration = MARK_MOTION.growMs) {
+export function growState(paramsA, paramsB, t, duration = MARK_MOTION.growMs, options) {
   const state = settledState(paramsB);
   if (!state || !paramsA) return state;
   const M = MARK_MOTION;
   const G = MARK_GEOMETRY;
   const u = easeInOut(t / duration);
+  const festive = celebrates(paramsA, paramsB, options);
 
-  // The whole mark swells and settles; one wide pulse crosses from the
-  // heart, whatever it was that grew
-  const swell = clamp01(t / (duration * M.swellSpan));
-  state.scale = swell < 1 ? 1 + M.swell * Math.sin(Math.PI * swell) : 1;
-  const pulse = clamp01((t - duration * M.pulseAt) / M.pulseMs);
-  if (pulse > 0 && pulse < 1) {
-    state.ripples.push({
-      x: 80, y: 80, r: mix(M.pulseFromR, M.pulseToR, 1 - Math.pow(1 - pulse, 3)),
-      opacity: M.pulseOpacity * (1 - pulse), width: M.pulseWidth,
-    });
+  // Celebrating: the whole mark swells and settles, and one wide pulse
+  // crosses from the heart, whatever it was that grew
+  if (festive) {
+    const swell = clamp01(t / (duration * M.swellSpan));
+    state.scale = swell < 1 ? 1 + M.swell * Math.sin(Math.PI * swell) : 1;
+    const pulse = clamp01((t - duration * M.pulseAt) / M.pulseMs);
+    if (pulse > 0 && pulse < 1) {
+      state.ripples.push({
+        x: 80, y: 80, r: mix(M.pulseFromR, M.pulseToR, 1 - Math.pow(1 - pulse, 3)),
+        opacity: M.pulseOpacity * (1 - pulse), width: M.pulseWidth,
+      });
+    }
   }
 
   state.tipBulge = mix(paramsA.tipBulge, paramsB.tipBulge, u);
@@ -735,15 +774,15 @@ export function growState(paramsA, paramsB, t, duration = MARK_MOTION.growMs) {
   }
 
   if (sameFruit(paramsA, paramsB)) {
-    // The fruit already there rides its petal; each new berry lands, and
-    // two ripples spread from where it does
+    // The fruit already there rides its petal; each new berry lands — and,
+    // celebrating, two ripples spread from where it does
     for (let k = paramsA.berries; k < paramsB.berries; k++) {
       const berry = state.berries[k];
       const lands = duration * M.newBerryAt + (k - paramsA.berries) * M.newBerryStepMs;
       const land = easeOut(t, lands, M.newBerryMs);
       berry.scale = mix(M.newBerryScale, 1, land);
       berry.opacity = land;
-      const at = berryPoint(state, berry);
+      const at = festive ? berryPoint(state, berry) : null;
       if (!at) continue;
       for (const lag of M.rippleLagsMs) {
         const spread = clamp01((t - lands - lag) / M.rippleMs);

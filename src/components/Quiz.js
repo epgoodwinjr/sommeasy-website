@@ -27,7 +27,9 @@ const { countries: COUNTRIES_RAW, regions: REGIONS_DATA, producers: PRODUCERS_DA
 // then the options set as words in Playfair under ruled small-caps heads.
 // A tapped option turns burgundy and wears a ✓; earned DNA (refine mode)
 // wears the ✦, explained by the legend in the header. Every option is a
-// toggle button (aria-pressed) with at least 40px of height to tap.
+// toggle button (aria-pressed) with at least 40px of height to tap, and it
+// holds the room its selected look needs from the start: a tap changes
+// color and weight and never moves an option (README §13).
 //
 // The header is a slim running head: back (to the previous step, or out of
 // a refine), the user's own bloom growing as they answer, "Step N of 5",
@@ -59,36 +61,63 @@ function optionDelays(base = STEP_AT.options) {
 
 // ─── Small UI components ───
 
+// The ✓'s place at the end of an option: held whether or not it shows. The
+// mark sits inside it out of flow, so neither its width nor the metrics of
+// whatever font draws it can reach the row.
+const CHECK_SLOT = 12;
+const checkSlot = { position: "relative", alignSelf: "center", width: CHECK_SLOT, height: CHECK_SLOT, flexShrink: 0 };
+const checkMark = {
+  position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+  fontFamily: SANS, fontSize: "13px", fontWeight: 700, lineHeight: 1, color: BURGUNDY,
+};
+const stacked = { gridArea: "1 / 1" };
+
 /**
- * One option: a word on the list to tick. A toggle button unless `pressed`
+ * One option: a word on the list to tick. A toggle button unless `selected`
  * is left out (the step 5 suggestions only fill the field). Selected is
- * burgundy with a ✓; `earned` wears the ✦ and is described by the legend.
+ * burgundy and bold with a ✓; `earned` wears the ✦ and is described by the
+ * legend.
+ *
+ * A toggle never changes size: its label sits in a cell a hidden bold copy
+ * holds open, and the ✓ has its slot from the start. The ✓ itself is in the
+ * DOM only while selected — the refine guard and the account seeder read it
+ * from the option's text.
  */
 function Choice({ label, emoji, prefix, selected, earned, onClick, enterDelay }) {
   const ref = useRef(null);
   const entering = useEntrance(ref, "rise", {
     delay: enterDelay, distance: QUIZ_STEP.optionPx, duration: D_WORD, play: enterDelay != null,
   });
+  const toggles = selected != null;
   return (
     <button
       ref={ref}
       type="button"
       onClick={onClick}
-      aria-pressed={selected == null ? undefined : selected}
+      aria-pressed={toggles ? selected : undefined}
       aria-describedby={earned ? LEGEND_ID : undefined}
       style={withEntrance({
         display: "inline-flex", alignItems: "baseline", gap: 6, minHeight: 40, padding: "9px 0",
         border: "none", background: "none", cursor: "pointer", textAlign: "left",
         fontFamily: SERIF, fontSize: "17px", lineHeight: "22px",
-        fontWeight: selected ? 600 : 400, color: selected || prefix ? BURGUNDY : INK,
+        fontWeight: 400, color: selected || prefix ? BURGUNDY : INK,
         transition: `color ${D_TAP}ms ease`,
       }, entering)}
     >
       {prefix && <span aria-hidden="true" style={{ fontFamily: SANS, fontSize: "14px", opacity: 0.7 }}>{prefix}</span>}
       {emoji && <span aria-hidden="true" style={{ fontSize: "15px" }}>{emoji}</span>}
-      <span>{label}</span>
+      {toggles ? (
+        <span style={{ display: "inline-grid" }}>
+          <span aria-hidden="true" style={{ ...stacked, fontWeight: 600, visibility: "hidden" }}>{label}</span>
+          <span style={{ ...stacked, fontWeight: selected ? 600 : 400 }}>{label}</span>
+        </span>
+      ) : <span>{label}</span>}
       {earned && <span aria-hidden="true" style={{ fontSize: "11px", color: BURGUNDY }}>✦</span>}
-      {selected && <span aria-hidden="true" style={{ fontFamily: SANS, fontSize: "13px", fontWeight: 700, color: BURGUNDY }}>✓</span>}
+      {toggles && (
+        <span aria-hidden="true" style={checkSlot}>
+          {selected && <span style={checkMark}>✓</span>}
+        </span>
+      )}
     </button>
   );
 }
@@ -810,6 +839,8 @@ export default function Quiz({ user, onProfileGenerated, initialAnswers, earnedD
             )}
           </div>
           <div style={headCell}>
+            {/* It grows quietly — no `celebrate`: the swell, the pulse and the
+                ripples belong to a real promotion (README §13) */}
             <PalateMarkLive
               genome={genome} size={44} bare={!answered}
               openMs={QUIZ_STEP.bloomMs} growMs={QUIZ_STEP.bloomMs}

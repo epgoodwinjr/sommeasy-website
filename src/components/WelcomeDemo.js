@@ -8,9 +8,10 @@
 //
 // It plays when 45% of it is in view, loops while it stays in view, and a
 // cycle that ends off-screen rests on the picks until it is seen again. The
-// block is a fixed height, so nothing below it ever moves. Under reduced
-// motion it shows its last frame — the picks, the last status line, a full
-// bar — and never plays.
+// block is a fixed height — its tallest state's, measured for the column it
+// is in (README §13) — so the status line sits just under it and nothing
+// below ever moves. Under reduced motion it shows its last frame — the
+// picks, the last status line, a full bar — and never plays.
 //
 // Decorative: one role="img" with a plain description; screen readers
 // don't sit through the loop. data-state is how e2e/motion.spec.ts sees
@@ -78,7 +79,10 @@ export const DEMO_CYCLE = {
 /** Inside the picks, from their start (the study's numbers). */
 const PICKS_AT = { head: 0, name: 180, leader: 420, price: 800, meta: 480, note: 700, noteStep: 34, rows: 1500, rowStep: 180 };
 
-const HEIGHT = 318;
+// The block's height until it has been measured, and wherever it can't be:
+// its tallest state on a phone (the picks, their note on three lines)
+const FALLBACK_HEIGHT = 284;
+const STATUS_GAP = 16;
 const ROW_INK = { before: 0.55, passing: 1, after: 0.78, others: 0.26 };
 const TICKS = ["i.", "ii.", "iii."];
 
@@ -279,6 +283,50 @@ export default function WelcomeDemo({ style }) {
   const [bar, setBar] = useState({ value: 0, ms: 0 });
   const [fading, setFading] = useState(false);
 
+  // The block is exactly as tall as its tallest state in this column: the
+  // list, or — where the Somm's note runs to a third line — the picks.
+  // Which one depends on the width, so it is measured: both are laid out
+  // once, unseen, read before the paint and taken away again, leaving
+  // nothing in the DOM. A new column width, or a web font arriving late,
+  // measures again.
+  const [height, setHeight] = useState(FALLBACK_HEIGHT);
+  const [measuring, setMeasuring] = useState(false);
+  const sizerRef = useRef(null);
+
+  useIsoLayoutEffect(() => { setMeasuring(true); }, []);
+
+  useIsoLayoutEffect(() => {
+    if (!measuring) return;
+    const states = Array.from(sizerRef.current?.children ?? []);
+    const tallest = Math.max(0, ...states.map((el) => el.getBoundingClientRect().height));
+    if (tallest > 0) setHeight(Math.ceil(tallest));
+    setMeasuring(false);
+  }, [measuring]);
+
+  useEffect(() => {
+    const block = blockRef.current;
+    if (!block) return undefined;
+    let live = true;
+    let width = block.offsetWidth;
+    const remeasure = () => { if (live) setMeasuring(true); };
+    let observer = null;
+    if (typeof ResizeObserver === "function") {
+      observer = new ResizeObserver(() => {
+        if (block.offsetWidth === width) return;
+        width = block.offsetWidth;
+        remeasure();
+      });
+      observer.observe(block);
+    }
+    // Text wraps differently once Playfair is in
+    const fonts = typeof document === "undefined" ? null : document.fonts;
+    if (fonts && fonts.status !== "loaded") fonts.ready.then(remeasure, () => {});
+    return () => {
+      live = false;
+      observer?.disconnect();
+    };
+  }, []);
+
   const at = useCallback((ms, fn) => {
     timers.current.push(setTimeout(fn, ms));
   }, []);
@@ -388,12 +436,21 @@ export default function WelcomeDemo({ style }) {
       aria-label="A wine list is read, three bottles on it step forward, and the Somm’s picks write themselves in."
       style={style}
     >
-      <div ref={blockRef} style={{ position: "relative", height: HEIGHT, opacity: fading ? 0 : 1 }}>
+      <div ref={blockRef} style={{ position: "relative", height, opacity: fading ? 0 : 1 }}>
+        {/* Both states, unseen, for the one commit that measures them */}
+        {measuring && (
+          <div ref={sizerRef} aria-hidden="true" style={{
+            position: "absolute", inset: "0 0 auto 0", visibility: "hidden", pointerEvents: "none",
+          }}>
+            <Sheet stage="read" />
+            <Picks />
+          </div>
+        )}
         {/* The sheet stays through the picks' first beats, leaving under them */}
         {!reduced && stage && <Sheet key={cycle} stage={stage} />}
         {showing === "picks" && <Picks key={reduced ? "still" : cycle} />}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginTop: STATUS_GAP }}>
         <SwapLine as="p" text={line} style={{
           fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.3,
           color: ink(0.75), minHeight: 20, textAlign: "center",

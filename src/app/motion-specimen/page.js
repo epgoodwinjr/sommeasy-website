@@ -91,6 +91,8 @@ function Bloom() {
   const [saved, setSaved] = useState(false);
   const [shape, setShape] = useState("base");
   const [breathing, setBreathing] = useState(false);
+  // On, the way GrowthMoment will have it (Session 4); off is the default
+  const [celebrate, setCelebrate] = useState(true);
   const [drawn, setDrawn] = useState("waiting");
   const genome = SHAPES.find((s) => s.id === shape).genome;
   return (
@@ -108,9 +110,15 @@ function Bloom() {
         <TextAction onClick={() => setSaved(true)} testId="specimen-save">The save lands</TextAction>
       </TextActions>
 
-      <p style={caption}>Growth — the same bloom, from one shape to the next (164px)</p>
+      <p style={caption}>
+        Growth — the same bloom, from one shape to the next (164px). {celebrate
+          ? "Celebrated, as a promotion is: a swell, a pulse, ripples — never for a smaller shape."
+          : "Quiet, as the quiz’s bloom grows: the shapes change and nothing else plays."}
+      </p>
       <div style={stage}>
-        <span data-testid="specimen-grow"><PalateMarkLive genome={genome} size={164} breathing={breathing} /></span>
+        <span data-testid="specimen-grow">
+          <PalateMarkLive genome={genome} size={164} breathing={breathing} celebrate={celebrate} />
+        </span>
         <span data-testid="specimen-grow-static"><PalateMark genome={genome} size={164} /></span>
       </div>
       <TextActions style={{ marginTop: 12 }}>
@@ -121,12 +129,15 @@ function Bloom() {
         <TextAction onClick={() => setBreathing((b) => !b)} testId="specimen-breathe">
           {breathing ? "Stop breathing" : "Breathe"}
         </TextAction>
+        <TextAction onClick={() => setCelebrate((c) => !c)} testId="specimen-celebrate">
+          {celebrate ? "Grow quietly" : "Celebrate"}
+        </TextAction>
       </TextActions>
 
       <p style={caption}>A promotion on arrival — the old shape, then grown 700ms later</p>
       <div style={stage}>
         <span data-testid="specimen-promotion">
-          <PalateMarkLive genome={SHAPES[2].genome} growFrom={GENOME} growDelay={700} size={164} />
+          <PalateMarkLive genome={SHAPES[2].genome} growFrom={GENOME} growDelay={700} size={164} celebrate />
         </span>
         <span data-testid="specimen-promotion-static"><PalateMark genome={SHAPES[2].genome} size={164} /></span>
       </div>

@@ -5,7 +5,7 @@
 // grows when the DNA grows, and breathes while the Somm thinks.
 //
 //   <PalateMarkLive genome={g} reveal ready={saved} />        the reveal draw
-//   <PalateMarkLive genome={after} growFrom={before} growDelay={700} />
+//   <PalateMarkLive genome={after} growFrom={before} growDelay={700} celebrate />
 //   <PalateMarkLive genome={g} />     at rest; grows whenever `genome` changes
 //   <PalateMarkLive genome={g} breathing />                   the Somm's wait
 //   <PalateMarkLive genome={g} bare={!answered} openMs={600} />  the quiz
@@ -25,6 +25,11 @@
 //   genome      changing it later grows the mark from the shape it shows to
 //               the new one over `growMs`. A change that lands mid-growth
 //               waits its turn, so the mark never jumps.
+//   celebrate   a growth is QUIET unless this is set: the shapes change and
+//               nothing else plays (README §13). Set, the mark also swells,
+//               a pulse crosses from its heart and each new berry ripples —
+//               a real promotion's growth — and even then only when the
+//               shape grew: palateMark.js never celebrates a smaller one.
 //   bare        the medallion alone, still, while true (the quiz before its
 //               first answer). When it turns false the bloom opens from it
 //               over `openMs` (the reveal's draw, at its own pace by
@@ -66,7 +71,7 @@ function createClock(host, props) {
   let shown = null; // the shape at rest on screen (null: nothing drawn yet, or bare)
   let isBare = false; // the bare medallion is what's on screen
   let target = null; // the shape the mark should end on
-  let playing = null; // { kind: "reveal" | "grow" | "open" | "close", start, from, to, think, ms }
+  let playing = null; // { kind: "reveal" | "grow" | "open" | "close", start, from, to, think, ms, mode }
   let awaitingReady = false; // a reduced-motion reveal that hasn't reported yet
   let painted = null;
 
@@ -123,8 +128,8 @@ function createClock(host, props) {
       if (t >= playing.ms) return restBare();
       paint(openState(playing.from, playing.ms - t, playing.ms));
     } else {
-      if (t >= growLength(playing.from, playing.to, playing.ms)) return rest(playing.to);
-      paint(growState(playing.from, playing.to, t, playing.ms));
+      if (t >= growLength(playing.from, playing.to, playing.ms, playing.mode)) return rest(playing.to);
+      paint(growState(playing.from, playing.to, t, playing.ms, playing.mode));
     }
     frameId = requestAnimationFrame(frame);
   };
@@ -137,7 +142,9 @@ function createClock(host, props) {
 
   function grow(from, to) {
     if (prefersReducedMotion()) return rest(to);
-    play({ kind: "grow", from, to, ms: props().growMs });
+    // The mode is read as the growth starts, so it can't change its length
+    // half-way through
+    play({ kind: "grow", from, to, ms: props().growMs, mode: { celebrate: Boolean(props().celebrate) } });
   }
 
   // From the bare medallion to the shape asked for, and back
@@ -245,7 +252,7 @@ function createClock(host, props) {
 }
 
 function LiveMark({
-  params, size, style, reveal, ready, minThink, growFrom, growDelay, growMs,
+  params, size, style, reveal, ready, minThink, growFrom, growDelay, growMs, celebrate,
   bare, openMs, breathing, onSettled, onDrawStart,
 }) {
   const hostRef = useRef(null);
@@ -254,7 +261,8 @@ function LiveMark({
 
   const props = useRef(null);
   props.current = {
-    params, size, reveal, ready, minThink, growFrom, growDelay, growMs, bare, openMs, onSettled, onDrawStart,
+    params, size, reveal, ready, minThink, growFrom, growDelay, growMs, celebrate, bare, openMs,
+    onSettled, onDrawStart,
   };
 
   // The SAME OBJECT on every render — not just the same string. The React
@@ -301,7 +309,7 @@ function LiveMark({
 export default function PalateMarkLive({
   genome, size = 96, style,
   reveal = false, ready = true, minThink = MARK_MOTION.thinkMs,
-  growFrom = null, growDelay = 0, growMs = MARK_MOTION.growMs,
+  growFrom = null, growDelay = 0, growMs = MARK_MOTION.growMs, celebrate = false,
   bare = false, openMs,
   breathing = false, onSettled, onDrawStart,
 }) {
@@ -311,7 +319,7 @@ export default function PalateMarkLive({
     <LiveMark
       params={params} size={size} style={style}
       reveal={reveal} ready={ready} minThink={minThink}
-      growFrom={growFrom} growDelay={growDelay} growMs={growMs}
+      growFrom={growFrom} growDelay={growDelay} growMs={growMs} celebrate={celebrate}
       bare={bare} openMs={openMs}
       breathing={breathing} onSettled={onSettled} onDrawStart={onDrawStart}
     />

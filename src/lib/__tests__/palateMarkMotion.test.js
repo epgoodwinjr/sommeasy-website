@@ -16,6 +16,12 @@
 //      tips, stamen tips and the berry count never pass through a smaller
 //      value on the way.
 //
+//   3. Celebration is opt-in (§13): a growth is QUIET unless asked — the
+//      shapes interpolate and nothing else plays. The swell, the heart
+//      pulse and the berry ripples are overlays a caller turns on, and even
+//      then never for a shape that got smaller. Both invariants hold in
+//      either mode, so every growth test here runs in both.
+//
 // plus the contracts PalateMarkLive leans on: the wait doesn't depend on
 // when it will end, the orbit hands over without a jump, every frame is
 // finite and brand-palette only.
@@ -102,6 +108,8 @@ const GROWTHS = [
   { name: "two more berries", a: BASE, b: withDials({ depth: 0.5 + 2 / 6 }), grew: ["berries"] },
   { name: "everything at once (same petals)", a: withDials({ spread: 0.2, range: 0.2, depth: 1 / 6 }), b: withDials({ spread: 0.9, range: 0.95, depth: 4 / 6, world: 0.9, color: 0.2 }), grew: ["petalTips", "stamenTips", "berries"] },
   { name: "a country: a new petal", a: BASE, b: withDials({ focus: 0.75 }), grew: ["petalTips", "stamenTips", "petals"] },
+  // No fruit to land afterwards: the new petal itself is the last thing to arrive
+  { name: "a new petal on a bare bloom", a: withDials({ depth: 0 }), b: withDials({ depth: 0, focus: 0.75 }), grew: ["petalTips", "stamenTips", "petals"] },
   { name: "two new petals and more", a: withDials({ focus: 0, spread: 0.1 }), b: withDials({ focus: 0.5, spread: 0.7, depth: 1 }), grew: ["petalTips", "stamenTips", "petals"] },
   { name: "the smallest palate to the fullest", a: PRODUCTION.italianFaithful, b: { ...PRODUCTION.stellenboschEd, seed: PRODUCTION.italianFaithful.seed }, grew: ["petalTips", "stamenTips", "petals"] },
   { name: "nothing moved", a: BASE, b: { ...BASE }, grew: ["petalTips", "stamenTips", "berries"] },
@@ -113,6 +121,23 @@ const OTHER_MOVES = [
   { name: "a petal gone", a: withDials({ focus: 0.75, depth: 1 }), b: withDials({ focus: 0.5, depth: 0.5 }) },
   { name: "a different seed entirely", a: PRODUCTION.saCurator, b: PRODUCTION.stellenboschFti },
 ];
+// Smaller on at least one dial that reads as size — even when another grew
+const SHRINKS = [
+  ...OTHER_MOVES.slice(0, 3),
+  // One dial each, so no size dial can drop out of the rule unnoticed
+  { name: "only shorter petals", a: withDials({ spread: 0.9 }), b: withDials({ spread: 0.3 }) },
+  { name: "only shorter stamens", a: withDials({ range: 0.9 }), b: withDials({ range: 0.2 }) },
+  { name: "only a berry gone", a: withDials({ depth: 4 / 6 }), b: withDials({ depth: 3 / 6 }) },
+  { name: "only a petal gone", a: withDials({ focus: 0.75 }), b: BASE },
+  { name: "a berry gained, reach lost", a: withDials({ spread: 0.9 }), b: withDials({ spread: 0.4, depth: 0.5 + 1 / 6 }) },
+  { name: "a petal gained, a berry lost", a: withDials({ depth: 4 / 6 }), b: withDials({ focus: 0.75, depth: 2 / 6 }) },
+  { name: "the fullest palate to the smallest", a: { ...PRODUCTION.stellenboschEd, seed: PRODUCTION.italianFaithful.seed }, b: PRODUCTION.italianFaithful },
+];
+
+// A growth plays quietly unless asked to celebrate (README §13)
+const QUIET = undefined;
+const CELEBRATE = { celebrate: true };
+const MODES = [["quiet", QUIET], ["celebrating", CELEBRATE]];
 
 async function main() {
   const mark = await import("../palateMark.js");
@@ -201,30 +226,45 @@ async function main() {
     assert(seven.petals === 7 && seven.berries === 3 && revealLength(seven) === 2340, "≈2.3s for 7 petals and 3 berries");
   });
 
-  test("growState at ∞ renders byte-identical to renderPalateMark of the target", () => {
-    for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES]) {
+  test("growState at ∞ renders byte-identical to renderPalateMark of the target — quiet or celebrating", () => {
+    for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES, ...SHRINKS]) {
       const pa = markParams(a), pb = markParams(b);
-      assert(render(growState(pa, pb, Infinity)) === renderPalateMark(b), name);
-      assert(render(growState(pa, pb, Infinity, 600)) === renderPalateMark(b), `${name} (600ms)`);
+      for (const [mode, options] of MODES) {
+        assert(render(growState(pa, pb, Infinity, MARK_MOTION.growMs, options)) === renderPalateMark(b), `${name} (${mode})`);
+        assert(render(growState(pa, pb, Infinity, 600, options)) === renderPalateMark(b), `${name} (${mode}, 600ms)`);
+      }
+      assert(render(growState(pa, pb, Infinity)) === renderPalateMark(b), `${name} (no duration given)`);
     }
   });
 
-  test("…and already at growLength, for the full growth and the quiz's 600ms", () => {
-    for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES]) {
+  test("…and already at growLength, for the full growth and the quiz's 600ms, in both modes", () => {
+    for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES, ...SHRINKS]) {
       const pa = markParams(a), pb = markParams(b);
-      for (const duration of [MARK_MOTION.growMs, 600]) {
-        const end = growLength(pa, pb, duration);
-        assert(end >= duration, `${name}: a growth shorter than its duration`);
-        assert(render(growState(pa, pb, end, duration), 164) === renderPalateMark(b, { size: 164 }), `${name} @${duration}: not settled at its length`);
-        assert(growState(pa, pb, end, duration).ripples.length === 0, `${name}: an overlay outlived the growth`);
+      for (const [mode, options] of MODES) {
+        for (const duration of [MARK_MOTION.growMs, 600]) {
+          const end = growLength(pa, pb, duration, options);
+          const label = `${name} (${mode}) @${duration}`;
+          assert(end >= duration, `${label}: a growth shorter than its duration`);
+          assert(render(growState(pa, pb, end, duration, options), 164) === renderPalateMark(b, { size: 164 }), `${label}: not settled at its length`);
+          assert(growState(pa, pb, end, duration, options).ripples.length === 0, `${label}: an overlay outlived the growth`);
+          assert(growState(pa, pb, end, duration, options).scale === 1, `${label}: still swollen at its length`);
+          // Not only the same bytes at two decimals: the state itself has
+          // arrived (a petal 99.99% open would round to the same markup)
+          assert(
+            JSON.stringify(growState(pa, pb, end, duration, options)) === JSON.stringify(settledState(pb)),
+            `${label}: the state is not the settled one at its length`
+          );
+        }
       }
     }
   });
 
   test("growth starts from genome A's shape: nothing jumps at t = 0", () => {
-    for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES.slice(0, 3)]) {
+    for (const [mode, options] of MODES) for (const { name: move, a, b } of [...GROWTHS, ...OTHER_MOVES.slice(0, 3)]) {
+      const name = `${move} (${mode})`;
       const pa = markParams(a), pb = markParams(b);
-      const from = settledState(pa), start = growState(pa, pb, 0);
+      const from = settledState(pa), start = growState(pa, pb, 0, MARK_MOTION.growMs, options);
+      assert(start.scale === 1 && start.ripples.length === 0, `${name}: an overlay at t=0`);
       for (let i = 0; i < pa.petals; i++) {
         assert(start.petals[i].tip === from.petals[i].tip && start.petals[i].angle === from.petals[i].angle, `${name}: petal ${i} moved at t=0`);
         assert(start.stamens[i].tip === from.stamens[i].tip, `${name}: stamen ${i} moved at t=0`);
@@ -241,7 +281,8 @@ async function main() {
     for (let t = 0; t <= 6000; t += 50) assert(revealState(p, t).ripples.length === 0, `reveal ripple at ${t}`);
     const pb = markParams(withDials({ depth: 0.5 + 1 / 6 }));
     let seen = 0;
-    for (let t = 0; t <= growLength(p, pb); t += 16) seen = Math.max(seen, growState(p, pb, t).ripples.length);
+    const D = MARK_MOTION.growMs;
+    for (let t = 0; t <= growLength(p, pb, D, CELEBRATE); t += 16) seen = Math.max(seen, growState(p, pb, t, D, CELEBRATE).ripples.length);
     assert(seen >= 2, "a new berry never rippled");
   });
 
@@ -250,12 +291,13 @@ async function main() {
   const visibleCount = (list) => list.filter((item) => item.opacity > 0).length;
 
   test("petal tips, stamen tips and the berry count never pass through a smaller value", () => {
-    for (const { name, a, b, grew } of GROWTHS) {
+    for (const [mode, options] of MODES) for (const duration of [MARK_MOTION.growMs, 600]) for (const { name: move, a, b, grew } of GROWTHS) {
+      const name = `${move} (${mode}, ${duration}ms)`;
       const pa = markParams(a), pb = markParams(b);
-      const end = growLength(pa, pb) + 32;
-      let prev = growState(pa, pb, 0);
+      const end = growLength(pa, pb, duration, options) + 32;
+      let prev = growState(pa, pb, 0, duration, options);
       for (let t = 4; t <= end; t += 4) {
-        const now = growState(pa, pb, t);
+        const now = growState(pa, pb, t, duration, options);
         // A new petal re-deals the fruit (README §7.4): the berries lift and
         // land again — the one sanctioned dip, so only same-petal growth
         // holds the berry count
@@ -383,40 +425,43 @@ async function main() {
       for (let t = 0; t <= 1900 + revealLength(p) + 100; t += 23) check(render(revealState(p, t)), `reveal@${t}`);
       for (let t = 0; t <= 2500; t += 23) check(render(revealState(p, t, Infinity)), `waiting@${t}`);
     }
-    for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES]) {
+    for (const [mode, options] of MODES) for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES, ...SHRINKS]) {
       const pa = markParams(a), pb = markParams(b);
-      for (let t = 0; t <= growLength(pa, pb) + 100; t += 23) check(render(growState(pa, pb, t)), `${name}@${t}`);
+      const D = MARK_MOTION.growMs;
+      for (let t = 0; t <= growLength(pa, pb, D, options) + 100; t += 23) check(render(growState(pa, pb, t, D, options)), `${name} (${mode})@${t}`);
     }
   });
 
-  test("growth is the README's: a 6% swell, a pulse from the heart, a berry that lands with two ripples", () => {
+  test("a celebrated growth is the README's: a 6% swell, a pulse from the heart, a berry that lands with two ripples", () => {
     const pa = markParams(BASE), pb = markParams(withDials({ depth: 0.5 + 1 / 6 }));
     const D = MARK_MOTION.growMs;
+    const grow = (t) => growState(pa, pb, t, D, CELEBRATE);
     assert(D === 2100, "the growth is 2100ms (decision M6)");
     const scales = [];
-    for (let t = 0; t <= growLength(pa, pb); t += 5) scales.push(growState(pa, pb, t).scale);
+    for (let t = 0; t <= growLength(pa, pb, D, CELEBRATE); t += 5) scales.push(grow(t).scale);
     assert(Math.abs(Math.max(...scales) - 1.06) < 1e-3 && Math.min(...scales) >= 1, "the swell peaks at 1.06 and never dips under 1");
-    const pulse = growState(pa, pb, D * 0.42 + 550).ripples.find((r) => r.x === 80 && r.y === 80);
+    const pulse = grow(D * 0.42 + 550).ripples.find((r) => r.x === 80 && r.y === 80);
     assert(pulse && pulse.r > 22 && pulse.r < 68 && pulse.opacity > 0 && pulse.opacity < 0.5, "the heart pulse, mid-flight");
-    assert(growState(pa, pb, D * 0.42 - 1).ripples.length === 0, "nothing before the pulse");
+    assert(grow(D * 0.42 - 1).ripples.length === 0, "nothing before the pulse");
     const lands = D * 0.5;
-    const berry = (t) => growState(pa, pb, t).berries[pb.berries - 1];
+    const berry = (t) => grow(t).berries[pb.berries - 1];
     assert(berry(lands - 1).opacity === 0, "the new berry is not there before it lands");
     assert(Math.abs(berry(lands).scale - 2.4) < 1e-9, "it lands from 2.4×");
     assert(berry(lands + 460).scale === 1 && berry(lands + 460).opacity === 1, "and is home 460ms later");
-    const offCentre = (t) => growState(pa, pb, t).ripples.filter((r) => r.x !== 80 || r.y !== 80);
+    const offCentre = (t) => grow(t).ripples.filter((r) => r.x !== 80 || r.y !== 80);
     assert(offCentre(lands + 110).length === 0, "no ripple before 120ms");
     assert(offCentre(lands + 300).length === 1, "one ripple from 120ms");
     assert(offCentre(lands + 600).length === 2, "two from 400ms");
     assert(offCentre(lands + 400 + 900).length === 0, "both gone 900ms after the second");
   });
 
-  test("nothing moved: the swell and the heart pulse play, and nothing else does", () => {
+  test("nothing moved, celebrated (a promotion that changes no dial): the swell and the heart pulse play, and nothing else does", () => {
     const p = markParams(BASE);
     const rest = settledState(p);
+    const D = MARK_MOTION.growMs;
     let pulsed = false, swelled = false;
-    for (let t = 0; t <= growLength(p, p); t += 10) {
-      const s = growState(p, p, t);
+    for (let t = 0; t <= growLength(p, p, D, CELEBRATE); t += 10) {
+      const s = growState(p, p, t, D, CELEBRATE);
       pulsed ||= s.ripples.length === 1;
       swelled ||= s.scale > 1.05;
       assert(s.ripples.length <= 1, "more than the one pulse");
@@ -432,14 +477,111 @@ async function main() {
     const pa = markParams(BASE), pb = markParams(withDials({ focus: 0.75 }));
     assert(pb.petals === pa.petals + 1, "fixture: one more petal");
     const D = MARK_MOTION.growMs;
-    assert(visibleCount(growState(pa, pb, 0).berries) === pa.berries, "A's fruit at the start");
-    assert(visibleCount(growState(pa, pb, D * 0.5).berries) === 0, "no fruit mid-way");
-    assert(visibleCount(growState(pa, pb, D * 0.8 + 1).berries) === 1, "the first berry lands from 80%");
-    const opening = growState(pa, pb, D * 0.5).petals[pb.petals - 1];
-    const final = settledState(pb).petals[pb.petals - 1];
-    assert(opening.angle === final.angle, "the new petal opens at its final angle");
-    assert(opening.tip > MARK_GEOMETRY.petalBaseR && opening.tip < final.tip, "and is part-way open at 50%");
-    assert(growState(pa, pb, D * 0.3).petals[pb.petals - 1].opacity === 0, "it starts at 30%");
+    for (const [mode, options] of MODES) {
+      const grow = (t) => growState(pa, pb, t, D, options);
+      assert(visibleCount(grow(0).berries) === pa.berries, `A's fruit at the start (${mode})`);
+      assert(visibleCount(grow(D * 0.5).berries) === 0, `no fruit mid-way (${mode})`);
+      assert(visibleCount(grow(D * 0.8 + 1).berries) === 1, `the first berry lands from 80% (${mode})`);
+      const opening = grow(D * 0.5).petals[pb.petals - 1];
+      const final = settledState(pb).petals[pb.petals - 1];
+      assert(opening.angle === final.angle, `the new petal opens at its final angle (${mode})`);
+      assert(opening.tip > MARK_GEOMETRY.petalBaseR && opening.tip < final.tip, `and is part-way open at 50% (${mode})`);
+      assert(grow(D * 0.3).petals[pb.petals - 1].opacity === 0, `it starts at 30% (${mode})`);
+    }
+  });
+
+  console.log("\n═══ 4. Celebration is opt-in (§13) ═══");
+
+  const shapesOf = (s) => JSON.stringify([s.petals, s.stamens, s.berries, s.ring, s.tipBulge, s.core, s.disc, s.frame, s.orbit, s.orbitRot, s.orbitEven]);
+
+  test("quiet growth — the default — emits no ripples and a scale of exactly 1 throughout", () => {
+    for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES, ...SHRINKS]) {
+      const pa = markParams(a), pb = markParams(b);
+      for (const duration of [MARK_MOTION.growMs, 600]) {
+        for (let t = 0; t <= growLength(pa, pb, duration) + 64; t += 4) {
+          const s = growState(pa, pb, t, duration);
+          assert(s.scale === 1, `${name} @${duration}: scale ${s.scale} at ${t}ms`);
+          assert(s.ripples.length === 0, `${name} @${duration}: a ripple at ${t}ms`);
+          assert(!render(s).includes("scale("), `${name} @${duration}: a swell reached the markup at ${t}ms`);
+        }
+      }
+    }
+  });
+
+  test("quiet is what you get without asking: no options, {}, and celebrate: false are the same growth", () => {
+    const pa = markParams(BASE), pb = markParams(withDials({ depth: 0.5 + 1 / 6, spread: 0.8 }));
+    const D = MARK_MOTION.growMs;
+    for (const options of [{}, { celebrate: false }, { celebrate: 0 }, null]) {
+      assert(growLength(pa, pb, D, options) === growLength(pa, pb, D), `length differs for ${JSON.stringify(options)}`);
+      for (let t = 0; t <= growLength(pa, pb, D) + 32; t += 40) {
+        assert(render(growState(pa, pb, t, D, options)) === render(growState(pa, pb, t)), `frame differs for ${JSON.stringify(options)} at ${t}`);
+      }
+    }
+    assert(growLength(pa, pb) === growLength(pa, pb, D), "the default duration is the growth's");
+  });
+
+  test("a celebratory shrink emits none either: no swell, no pulse, no ripple — it plays exactly as the quiet one does", () => {
+    for (const { name, a, b } of SHRINKS) {
+      const pa = markParams(a), pb = markParams(b);
+      for (const duration of [MARK_MOTION.growMs, 600]) {
+        assert(growLength(pa, pb, duration, CELEBRATE) === growLength(pa, pb, duration), `${name} @${duration}: a celebrated shrink runs longer`);
+        for (let t = 0; t <= growLength(pa, pb, duration) + 64; t += 4) {
+          const s = growState(pa, pb, t, duration, CELEBRATE);
+          assert(s.scale === 1, `${name} @${duration}: a shrink swelled (${s.scale}) at ${t}ms`);
+          assert(s.ripples.length === 0, `${name} @${duration}: a shrink pulsed or rippled at ${t}ms`);
+          assert(render(s) === render(growState(pa, pb, t, duration)), `${name} @${duration}: differs from the quiet shrink at ${t}ms`);
+        }
+      }
+    }
+  });
+
+  test("celebration only ADDS overlays: the shapes are the same, frame for frame, in both modes", () => {
+    for (const { name, a, b } of [...GROWTHS, ...OTHER_MOVES]) {
+      const pa = markParams(a), pb = markParams(b);
+      for (const duration of [MARK_MOTION.growMs, 600]) {
+        let celebrated = false;
+        for (let t = 0; t <= growLength(pa, pb, duration, CELEBRATE) + 32; t += 8) {
+          const quiet = growState(pa, pb, t, duration), loud = growState(pa, pb, t, duration, CELEBRATE);
+          assert(shapesOf(quiet) === shapesOf(loud), `${name} @${duration}: a shape differs between modes at ${t}ms`);
+          celebrated ||= loud.scale > 1 || loud.ripples.length > 0;
+        }
+        const grows = !SHRINKS.some((move) => move.a === a && move.b === b);
+        assert(celebrated === grows, `${name} @${duration}: ${grows ? "asked to celebrate, and nothing played" : "a shrink celebrated"}`);
+      }
+    }
+  });
+
+  test("a quiet growth takes its duration and no longer — unless fruit or a petal is still landing", () => {
+    const base = markParams(BASE);
+    for (const duration of [MARK_MOTION.growMs, 600]) {
+      // Reach, tips and the ring simply interpolate: done at the duration
+      for (const dials of [{ spread: 0.85 }, { range: 0.9 }, { world: 0.1, color: 0.9 }, {}]) {
+        assert(growLength(base, markParams(withDials(dials)), duration) === duration, `${JSON.stringify(dials)} @${duration}`);
+      }
+      // A new berry lands at half-way and takes newBerryMs to come home
+      const berry = markParams(withDials({ depth: 0.5 + 1 / 6 }));
+      assert(growLength(base, berry, duration) === Math.max(duration, duration * MARK_MOTION.newBerryAt + MARK_MOTION.newBerryMs), `a berry @${duration}`);
+      // …and never waits out a ripple that isn't there
+      assert(growLength(base, berry, duration) < growLength(base, berry, duration, CELEBRATE), `a quiet berry is as long as a celebrated one @${duration}`);
+      // A smaller shape has closed well before the duration
+      for (const { name, a, b } of OTHER_MOVES.slice(0, 2)) {
+        assert(growLength(markParams(a), markParams(b), duration) === duration, `${name} @${duration}`);
+      }
+    }
+    // The quiz's header bloom (600ms per change): a reach change is 600ms,
+    // not the 1.35s the heart pulse used to hold it for
+    assert(growLength(base, markParams(withDials({ spread: 0.85 })), 600) === 600, "the quiz's quiet growth");
+    assert(growLength(base, markParams(withDials({ spread: 0.85 })), 600, CELEBRATE) > 1300, "a celebrated one still waits for its pulse");
+  });
+
+  test("nothing moved, quietly: every frame is the settled mark, byte for byte", () => {
+    const p = markParams(BASE);
+    const still = renderPalateMark(BASE);
+    for (const duration of [MARK_MOTION.growMs, 600]) {
+      for (let t = 0; t <= growLength(p, p, duration) + 32; t += 10) {
+        assert(render(growState(p, p, t, duration)) === still, `something moved at ${t}ms (${duration}ms)`);
+      }
+    }
   });
 
   console.log("\n═══ The bare medallion, and the bloom opening from it (§8.2) ═══");
