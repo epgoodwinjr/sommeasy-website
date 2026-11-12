@@ -12,10 +12,16 @@ export const metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
+  // The image is app/opengraph-image.js (file-based, so Next adds og:image
+  // on every page); the Twitter card inherits it, its title and description
   openGraph: {
     title: "Sommeasy — Your Wine DNA Profile",
     description: "Never guess at a restaurant wine list again.",
     type: "website",
+    siteName: "Sommeasy",
+  },
+  twitter: {
+    card: "summary_large_image",
   },
 };
 

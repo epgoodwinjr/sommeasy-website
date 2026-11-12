@@ -16,6 +16,10 @@
 import { ratingFor } from "./ratings.js";
 import { CONFIDENCE_GATE, PROMOTION_THRESHOLDS, RATING_POINTS } from "./dnaThresholds.js";
 
+/** The brand's one line — Welcome's headline, home's sign-off and the link
+ *  preview image (opengraph-image.js) all say it, so it lives once. */
+export const TAGLINE = "Never guess at a wine list again.";
+
 const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
 
 /** 1–9 as words ("two"), digits past that. `capitalize` for a sentence start. */

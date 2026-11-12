@@ -630,6 +630,20 @@ async function main() {
     ]) assertEq(copy.readingLine(phase, count), line, `the demo's ${phase ?? "first"} line`);
   });
 
+  await test("SOURCE SCAN: the tagline lives in houseCopy.js — Welcome, home and the link preview say it from there", () => {
+    assertEq(copy.TAGLINE, "Never guess at a wine list again.", "the line");
+    const elsewhere = sourceFiles(SRC)
+      .filter((path) => !path.endsWith("houseCopy.js"))
+      .filter((path) => /Never guess at a wine list again/.test(withoutComments(readFileSync(path, "utf-8"))))
+      .map((path) => path.slice(SRC.length + 1));
+    assertEq(elsewhere, [], "import TAGLINE from @/lib/houseCopy");
+    // …and the files that say it (Welcome and home's sign-off are page.js) use it
+    for (const path of ["app/page.js", "app/opengraph-image.js"]) {
+      const source = readFileSync(join(SRC, path), "utf-8");
+      if (!/\bTAGLINE\b/.test(withoutComments(source))) throw new Error(`${path} doesn't say TAGLINE`);
+    }
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

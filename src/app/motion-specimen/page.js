@@ -35,7 +35,7 @@ import { D_EXIT, PICKS, pickDelay, picksCloseDelay, sommNoteDelay } from "@/comp
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 import { numeralCounter } from "@/lib/numerals";
 import { growthOf } from "@/lib/growthMoment";
-import { pickNote, ratedDoneLine, readingLine, savedCopy } from "@/lib/houseCopy";
+import { TAGLINE, pickNote, ratedDoneLine, readingLine, savedCopy } from "@/lib/houseCopy";
 
 const GENOME = { seed: 20260730, world: 0.62, color: 0.6, focus: 0.5, depth: 0.5, spread: 0.55, range: 0.6 };
 // Each shape has its own seed, as production's do: the identity engine
@@ -65,7 +65,7 @@ const SAVED_STEPS = {
   },
 };
 
-const HEADLINE = "Never guess at a wine list again.";
+const HEADLINE = TAGLINE;
 const NOTE = "Old-vine Chenin with real grip — the one to pour with the line fish. It has the waxy weight you keep coming back to, and enough salt on the finish to stand up to the lemon.";
 const WINES = [
   { name: "Raats Original Chenin Blanc", vintage: "2022", meta: "Stellenbosch · Chenin Blanc" },

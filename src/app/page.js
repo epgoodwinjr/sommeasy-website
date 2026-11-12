@@ -16,7 +16,7 @@ import { resolveFirstPourCards } from "@/lib/firstPour";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { HOME_TITLE, wineHref } from "@/lib/navTrail";
-import { crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, replyParts, verdictMeta, verdictNoted, verdictReply, whisperLine } from "@/lib/houseCopy";
+import { TAGLINE, crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, replyParts, verdictMeta, verdictNoted, verdictReply, whisperLine } from "@/lib/houseCopy";
 import { welcomeNoticeCopy } from "@/lib/authCopy";
 import { growthOf, readPalate } from "@/lib/growthMoment";
 import Quiz from "@/components/Quiz";
@@ -654,7 +654,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                   <p style={{
                     fontFamily: SERIF, fontStyle: "italic", fontSize: "12px", color: ink(0.4),
                     textAlign: "center", marginTop: 8,
-                  }}>Never guess at a wine list again.</p>
+                  }}>{TAGLINE}</p>
                 </Enter>
               </>
             );
@@ -684,7 +684,6 @@ function WelcomeBackMoment() {
 // demo that shows what Sommeasy does without a word of instruction. The
 // entrance follows §8.1's table; the entry's own offsets (leader, circle,
 // "Takes about two minutes.") are ENTRY_ENTER's.
-const WELCOME_HEADLINE = "Never guess at a wine list again.";
 
 function WelcomeScreen({ onStart, user, onSignOut, notice }) {
   return (
@@ -712,7 +711,7 @@ function WelcomeScreen({ onStart, user, onSignOut, notice }) {
       )}
 
       <WriteIn
-        as="h1" text={WELCOME_HEADLINE} delay={150} step={70} duration={600} awaitFonts
+        as="h1" text={TAGLINE} delay={150} step={70} duration={600} awaitFonts
         style={{
           fontFamily: SERIF, fontSize: "36px", fontWeight: 700, lineHeight: 1.08, letterSpacing: "-0.015em",
           color: INK, textWrap: "balance", marginTop: notice ? 22 : 34,
