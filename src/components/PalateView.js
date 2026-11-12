@@ -24,6 +24,7 @@ import { TIMELINE_HREF, buildingNow, dnaEntries, dnaGroups, evolutionRows } from
 import { bottlesAwayLine, dnaCount, dnaKindLabel } from "@/lib/houseCopy";
 import { numeralCounter } from "@/lib/numerals";
 import PalateMark from "./PalateMark";
+import SharePalate from "./SharePalate";
 import Divider from "./house/Divider";
 import Enter from "./house/Enter";
 import SectionHead from "./house/SectionHead";
@@ -258,6 +259,9 @@ export default function PalateView({ profile, timeline, accumulation }) {
       </Enter>
 
       <Signature profile={profile} accumulation={accumulation} />
+      {/* The card: the bloom, the title, the epithet, sommeasy.wine — made
+          in the browser, shared as a file or downloaded (README §16.3) */}
+      <SharePalate genome={profile.identity?.genome} title={profile.archetype} epithet={epithet} style={{ marginTop: 10 }} />
 
       {profile.narrative && (
         <section>
