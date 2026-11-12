@@ -434,6 +434,23 @@ const entrancesDone = (page: Page) =>
       .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).length,
   ), { timeout: 10_000 }).toBe(0);
 
+/** Where a primary entry's parts sit on its line (README §15.3). */
+const entryFit = (page: Page, name: string) =>
+  page.getByRole("button", { name }).evaluate((el) => {
+    const [label, leader, circle] = Array.from(el.children) as HTMLElement[];
+    const box = (node: Element) => node.getBoundingClientRect();
+    return {
+      // How far the circle's edge sits inside the column's right edge —
+      // the entry's line is as wide as the column, gutter to gutter
+      inside: Math.round((box(el).right - box(circle).right) * 10) / 10,
+      leader: Math.round(box(leader).width * 10) / 10,
+      circle: Math.round(box(circle).width),
+      lines: Math.round(box(label).height / parseFloat(getComputedStyle(label).lineHeight)),
+      font: parseFloat(getComputedStyle(label).fontSize),
+      scrolls: document.documentElement.scrollWidth > window.innerWidth,
+    };
+  });
+
 test.describe("The front door — motion on", () => {
   test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
 
@@ -608,6 +625,31 @@ test.describe("The front door — motion on", () => {
   });
 });
 
+test.describe("The front door, narrow — motion on", () => {
+  test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
+
+  test("the fit survives the entry's own entrance: at 320px the circle lands inside the gutter", async ({ page }) => {
+    // The label is fitted while the circle is still waiting to pop (held
+    // at 0.6 scale) and the label to rise — a fit read from painted boxes
+    // would see a smaller circle and leave it hanging out once it lands
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.goto("/");
+    const entry = page.getByRole("button", { name: "Build your palate" });
+    await expect(entry).toBeVisible({ timeout: 15_000 });
+    // The entrance is over: nothing finite still plays on the entry
+    await expect
+      .poll(() => entry.evaluate((el) => el.getAnimations({ subtree: true }).length), { timeout: 15_000 })
+      .toBe(0);
+    await page.evaluate(() => document.fonts.ready);
+    await expect.poll(async () => (await entryFit(page, "Build your palate")).inside, { timeout: 10_000 }).toBeGreaterThanOrEqual(0);
+    const at = await entryFit(page, "Build your palate");
+    expect(at.circle).toBe(48);
+    expect(at.lines).toBe(1);
+    expect(at.leader).toBeGreaterThanOrEqual(12);
+    expect(at.scrolls).toBe(false);
+  });
+});
+
 test.describe("The front door — reduced motion", () => {
   test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "reduce" } });
 
@@ -645,6 +687,46 @@ test.describe("The front door — reduced motion", () => {
     await page.getByRole("button", { name: /France/ }).first().click();
     const one = await asBrowser(page, renderPalateMark(composeIdentity({ ...ANSWERS, countries: ["france"] }).genome, { size: 44 }));
     await expect.poll(() => mark.innerHTML()).toBe(one);
+  });
+
+  // README §15.3 (from §14's polish list): under 344px a primary entry with
+  // a long label let its circle hang about 20px into the right gutter.
+  // ("Build your palate" runs out of room at 338px in this column.)
+  for (const width of [280, 320, 336]) {
+    test(`a primary entry keeps its circle inside the gutter at ${width}px — on one line, with its leader`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 700 });
+      await page.goto("/");
+      const entry = page.getByRole("button", { name: "Build your palate" });
+      await expect(entry).toBeVisible({ timeout: 15_000 });
+      await page.evaluate(() => document.fonts.ready);
+      const read = () => entryFit(page, "Build your palate");
+      await expect.poll(async () => (await read()).inside, { timeout: 10_000 }).toBeGreaterThanOrEqual(0);
+      const at = await read();
+      expect(at.scrolls, "the page scrolls sideways").toBe(false);
+      expect(at.lines, "the label wrapped").toBe(1);
+      expect(at.leader, "the leader lost its minimum").toBeGreaterThanOrEqual(12);
+      expect(at.circle, "the circle shrank — it is the tap's target").toBe(48);
+      // Set smaller only as far as it must be: never below a readable size
+      expect(at.font).toBeGreaterThanOrEqual(14);
+      expect(at.font).toBeLessThan(24);
+    });
+  }
+
+  test("…and where there is room — 344px and up — the label is exactly the size it was", async ({ page }) => {
+    for (const width of [344, 375, 430]) {
+      await page.setViewportSize({ width, height: 700 });
+      await page.goto("/");
+      const entry = page.getByRole("button", { name: "Build your palate" });
+      await expect(entry).toBeVisible({ timeout: 15_000 });
+      await page.evaluate(() => document.fonts.ready);
+      const label = entry.locator("> span").first();
+      await expect(label).toHaveCSS("font-size", "24px");
+      // A viewport that narrows and widens again gets its full size back
+      await page.setViewportSize({ width: 300, height: 700 });
+      await expect.poll(() => label.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeLessThan(24);
+      await page.setViewportSize({ width, height: 700 });
+      await expect(label).toHaveCSS("font-size", "24px");
+    }
   });
 });
 
