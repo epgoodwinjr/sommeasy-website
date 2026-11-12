@@ -1057,6 +1057,63 @@ async function realModuleTests() {
     assert(s.matchReasons.some((r) => r.type === "feedback_boost" && /producer/.test(r.label)),
       `reasons: ${s.matchReasons.map((r) => r.type + ":" + r.label)}`);
   });
+
+  // The estate note on a pick (Motion Session 6): the engine carries its
+  // producerLookup KEY ("kanonkop") — matching keys on it and stays as it
+  // is — and Match & picks names the producer through getProducerDisplayName,
+  // the name the estate wears on Your palate. Before, the note read
+  // "kanonkop — an estate already in your DNA."
+  console.log("\n═══ Country Attribution — REAL matchEngine: the estate note's producer ═══");
+  const { pickNote } = await import("../houseCopy.js");
+  const estateNote = (s) => pickNote({
+    reasons: s.matchReasons.map((r) => r.type),
+    producer: engine.getProducerDisplayName(s.detectedProducer, s.detectedProducerId),
+  });
+
+  test("Real engine: a Kanonkop line's estate note names Kanonkop, not its lookup key", () => {
+    const dna = { ...NO_DNA, estates: { stellenbosch: ["kanonkop"] } };
+    const s = scoreLine("Kanonkop - Paul Sauer 2019", dna);
+    assert(s.detectedProducer === "kanonkop", `the engine still carries its key: ${s.detectedProducer}`);
+    assert(s.matchReasons.some((r) => r.type === "estate"), `reasons: ${s.matchReasons.map((r) => r.type)}`);
+    const name = engine.getProducerDisplayName(s.detectedProducer, s.detectedProducerId);
+    assert(name === "Kanonkop", `display name: ${name}`);
+    const note = estateNote(s);
+    assert(note === "Kanonkop — an estate already in your DNA.", `note: ${note}`);
+  });
+
+  test("Real engine: a core-name line's note names the estate in full", () => {
+    const dna = { ...NO_DNA, estates: { hemel_en_aarde_walker_bay: ["newton_johnson_vineyards"] } };
+    const s = scoreLine("NEWTON JOHNSON Chardonnay, Hemel-en-Aarde 2023", dna);
+    const note = estateNote(s);
+    assert(note === "Newton Johnson Vineyards — an estate already in your DNA.", `note: ${note}`);
+  });
+
+  test("Real engine: a label read by Vision names the estate from the data, too", () => {
+    const dna = { ...NO_DNA, estates: { burgundy: ["domaine_dujac"] } };
+    const entry = {
+      name: "DOMAINE DUJAC Clos de la Roche 2019", price: 240,
+      visionData: { producer: "DOMAINE DUJAC", region: "Burgundy", country: "France", color: "red" },
+    };
+    const s = engine.matchWinesAgainstDNA([entry], dna, null).scoredEntries[0];
+    assert(s.matchReasons.some((r) => r.type === "estate"), `reasons: ${s.matchReasons.map((r) => r.type)}`);
+    const note = estateNote(s);
+    assert(note === "Domaine Dujac — an estate already in your DNA.", `note: ${note}`);
+  });
+
+  test("Real engine: a producer the data can't name is never printed by its key", () => {
+    const name = engine.getProducerDisplayName;
+    assert(name("a.r. lenoble", null) === "A.R. Lenoble", `trimmed: ${JSON.stringify(name("a.r. lenoble", null))}`);
+    assert(name(null, "kanonkop") === "Kanonkop", "by id alone");
+    // In producerLookup but filed under no region: no display name exists
+    assert(name("10 knots", null) === null, `lookup-only: ${name("10 knots", null)}`);
+    assert(name("no such producer", null) === null, "unknown key");
+    for (const junk of [undefined, null, "", "   ", 42, {}, []]) {
+      assert(name(junk, junk) === null, `junk ${JSON.stringify(junk)}`);
+    }
+    // …and the note gives way to the next reason rather than say the key
+    const note = pickNote({ reasons: ["estate", "varietal"], producer: name("10 knots", null), grape: "Pinotage" });
+    assert(note === "Pinotage — a grape already in your DNA.", `note: ${note}`);
+  });
 }
 
 realModuleTests()

@@ -34,7 +34,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryName, getRegionDisplayName, getVarietalDisplayName, getProducerDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 import { buildSommPayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
@@ -156,7 +156,9 @@ function pickFacts(pick) {
     // A vintage set inside the name is never printed twice
     vintage: vintage && !base.includes(String(vintage)) ? String(vintage) : null,
     meta: metaLine(region || country, grape || fallbackGrape(pick)),
-    names: { producer: pick.detectedProducer, region, grape, country },
+    // The estate note names the producer as Your palate does — never the
+    // engine's lookup key ("kanonkop")
+    names: { producer: getProducerDisplayName(pick.detectedProducer, pick.detectedProducerId), region, grape, country },
   };
 }
 

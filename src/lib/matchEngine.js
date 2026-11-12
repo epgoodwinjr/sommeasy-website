@@ -1459,6 +1459,25 @@ export function getVarietalDisplayName(varietalId) {
   return varietal ? varietal.name : null;
 }
 
+/** A matched producer's display name ("Kanonkop", "Domaine Dujac") — the
+ *  name its estate wears in the DNA — from what a scored entry carries:
+ *  `detectedProducer` (the producerLookup key on the text path, Vision's
+ *  reading on the image path) and `detectedProducerId`. Display only;
+ *  matching never reads it. A producer the data can't name → null, never
+ *  the key ("kanonkop"). */
+export function getProducerDisplayName(producer, producerId) {
+  const key = typeof producer === "string" ? producer.toLowerCase().trim() : "";
+  const lookup = key ? PRODUCER_LOOKUP[key] : null;
+  const id = (typeof producerId === "string" && producerId) || (lookup && lookup.producerId) || null;
+  if (!id) return null;
+  const byId = function(p) { return p.id === id; };
+  // Filed under its own region first, then anywhere (dnaNames' estate rule)
+  const found = ((lookup && PRODUCERS[lookup.regionId]) || []).find(byId)
+    || Object.values(PRODUCERS).reduce(function(hit, ps) { return hit || ps.find(byId); }, null);
+  const name = found && typeof found.name === "string" ? found.name.trim() : "";
+  return name || null;
+}
+
 export function getVarietalColor(varietalId) {
   if (!varietalId) return null;
   const varietal = VARIETALS.find(function(v) { return v.id === varietalId; });

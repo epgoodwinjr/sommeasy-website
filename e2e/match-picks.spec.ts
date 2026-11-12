@@ -109,5 +109,8 @@ test.describe("Match & picks — reading, fallback, flags (hard-fail)", () => {
     await expect(kanonkop).toContainText("📌 On your want list");
     await expect(kanonkop.getByTestId("choose-pick")).toBeVisible();
     await expect(kanonkop.getByRole("button", { name: "Had it? Rate it" })).toBeVisible();
+    // The engine's estate note names the producer as Your palate does —
+    // never the engine's lookup key ("kanonkop — …", Motion Session 6)
+    await expect(kanonkop.getByTestId("pick-note")).toHaveText("“Kanonkop — an estate already in your DNA.”");
   });
 });
