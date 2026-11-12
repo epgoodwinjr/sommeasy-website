@@ -568,8 +568,7 @@ async function main() {
     assert(/celebrate=\{grows && Boolean\(moment\.celebrate\)\}/.test(moment), "GrowthMoment celebrates only a moment that says so");
     const asking = sourceFiles(SRC)
       .filter((path) => /\.js$/.test(path) && /\bcelebrate(=|:\s*true)/.test(codeOf(path)))
-      .map((path) => relative(SRC, path))
-      .filter((path) => !/motion-specimen/.test(path));
+      .map((path) => relative(SRC, path));
     assertEq(asking.sort(), ["components/GrowthMoment.js", "components/PalateMarkLive.js"].sort(), "who asks the mark to celebrate");
   });
 

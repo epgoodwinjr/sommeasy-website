@@ -4,8 +4,7 @@
 // docs/motion/README.md §8.4, big moment 2).
 //
 // Presentation only: LogBottle hands it what the save found and it sets the
-// screen — so /motion-specimen can play the very same step over sample
-// content. `saved` is { name, rating, meta, genome, genomeBefore, moment,
+// screen. `saved` is { name, rating, meta, genome, genomeBefore, moment,
 // copy }: `moment` is growthOf()'s reading of the engine result and `copy`
 // is houseCopy's savedCopy(); none of the words are decided here.
 //

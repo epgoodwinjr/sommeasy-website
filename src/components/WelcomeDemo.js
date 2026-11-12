@@ -35,7 +35,7 @@ import { EASE } from "@/components/house/motion";
 import { BURGUNDY, INK, SANS, SERIF, TYPE, ink, leader } from "@/components/house/tokens";
 
 /** The sample list and its picks — the motion study's, nobody's data. */
-export const DEMO = {
+const DEMO = {
   head: "By the bottle · White",
   list: [
     ["Sancerre, Domaine Vacheron 2023", "92"],

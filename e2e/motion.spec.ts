@@ -15,20 +15,24 @@ import { BottleLogPage, RecommendPage } from "./fixtures/sommeasy-page";
  * OUTCOMES, never timings: where an animation ends, what it leaves behind,
  * and that nothing waits on it.
  *
- * Session 1 drives the foundations on /motion-specimen (sample content, not
- * linked from anywhere, deleted with the last session):
+ * Session 1's foundations were first proved on /motion-specimen (sample
+ * content); Session 6 deleted it and moved every check onto real pages
+ * (README §16.4), none dropped:
  *
  *   1. A written line ends as ONE plain text node whose textContent is its
- *      source string — and it was genuinely written word by word.
+ *      source string — and it was genuinely written word by word (Welcome's
+ *      headline and its demo's Somm note).
  *   2. An entrance leaves nothing behind: no running animation, no
- *      transform, the element's own opacity.
- *   3. A control is live while it is still entering.
- *   4. The reveal ends with a palate-mark whose markup equals the static
- *      render for the same genome; so does a growth, and a growth that was
- *      asked for mid-growth.
- *   5. Breathing is a loop on the wrapper, only while asked for.
+ *      transform, the element's own opacity (Welcome; the reveal's rows).
+ *   3. A control is live while it is still entering (Welcome's entry).
+ *   4. The reveal ends with a palate-mark whose markup AND wrapper equal the
+ *      static PalateMark for the same genome (/palate's); so does a growth
+ *      (identity-shift.spec.ts's real promotions), and a growth asked for
+ *      mid-growth (the quiz's header bloom).
+ *   5. Breathing is one loop, on the wrapper, only while asked for (the
+ *      reading view; /palate and home's marks carry none at rest).
  *   6. Under reduced motion: nothing is written word by word, the mark is
- *      settled at once, nothing loops.
+ *      settled at once, nothing loops (the front door, the reveal, the waits).
  *
  * Session 2 adds the front door, signed out, on the real pages:
  *
@@ -64,15 +68,15 @@ import { BottleLogPage, RecommendPage } from "./fixtures/sommeasy-page";
  *      to play is the new berry's ripple.
  *  15. A rating tile answers its tap — pressed, the others stepped back,
  *      every tile disabled — and stays for the hold; then the done line is
- *      written, settles to one text node and takes focus.
- *  16. Log's saved step (the real SavedStep, over sample content): on a
- *      promotion the bloom arrives in its OLD shape and ends on the new
- *      one, celebrated; on the quiet path it is settled from its first
- *      frame. Either way the lines are written and nothing is left behind.
+ *      written, settles to one text node and takes focus (a real home rec
+ *      row, rated "It was fine" — 0 points — its footprint erased after).
+ *  16. Log's saved step on the quiet path (a real "It was fine" save): the
+ *      bloom is settled from its first frame, the lines are written and
+ *      nothing is left behind. On a promotion the bloom arrives in its OLD
+ *      shape and ends on the new one, celebrated — identity-shift.spec.ts's
+ *      growth guards, earned through the real /log on the test account.
  *  17. Home and Your palate, signed in: the entrances end, nothing is left
  *      behind, and the crest's bloom is the static mark.
- *  (The real promotion — one earned through /log on the test account — is
- *  identity-shift.spec.ts's second guard.)
  *
  * Session 5 adds the waits (§8.5) on the real /recommend, the Somm scripted
  * by a held route (no Claude call) and the ledger asserted by delta:
@@ -99,12 +103,13 @@ import { BottleLogPage, RecommendPage } from "./fixtures/sommeasy-page";
  * discipline as quiz-completion.spec.ts — and assert the ledger by delta.
  *
  * Do NOT make these timing-tolerant by sleeping: poll for the outcome.
- * Read-only: /motion-specimen touches no account data.
+ * What writes restores: the reveal saves content-identical refines; a
+ * rating is "It was fine" (0 points) and afterEach erases its footprint.
  */
 
 const HEADLINE = "Never guess at a wine list again.";
-const NOTE =
-  "Old-vine Chenin with real grip — the one to pour with the line fish. It has the waxy weight you keep coming back to, and enough salt on the finish to stand up to the lemon.";
+// The Welcome demo's Somm note (WelcomeDemo.js — sample content)
+const DEMO_NOTE = "“Sea-cooled Chardonnay with your kind of nerve. White Burgundy that moved somewhere sunnier.”";
 
 /** Counts what motion did, from before the first script runs. */
 async function watchMotion(page: Page) {
@@ -129,22 +134,19 @@ const motionSeen = (page: Page) =>
 /** The markup inside a palate mark, and the wrapper's own attributes (its
  *  style as the browser reads it — the attribute's spacing differs between
  *  server HTML and a style React has since touched). */
-const markOf = (page: Page, holder: string) =>
-  page.getByTestId(holder).getByTestId("palate-mark").evaluate((el) => ({
+const wrapperOf = (mark: ReturnType<Page["locator"]>) =>
+  mark.evaluate((el) => ({
     html: el.innerHTML,
     attrs: Array.from(el.attributes)
       .map((a) => `${a.name}=${a.name === "style" ? (el as HTMLElement).style.cssText : a.value}`)
       .sort(),
   }));
 
-/** What a line of prose is made of right now. */
-const lineOf = (page: Page, testId: string) =>
-  page.getByTestId(testId).evaluate((el) => ({
-    text: el.textContent,
-    wordSpans: el.querySelectorAll("[data-word]").length,
-    children: el.childNodes.length,
-    onlyText: el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE,
-  }));
+/** Each row the reveal's recs entered as: its transform and opacity at rest. */
+const recRowsAtRest = (page: Page) =>
+  page.getByTestId("reveal-recs").getByTestId("rec-card").evaluateAll((rows) =>
+    rows.map((row) => `${getComputedStyle(row).transform}/${getComputedStyle(row).opacity}`));
+
 
 /** Animations still in play, ignoring loops that were asked for. */
 const finiteAnimations = (page: Page) =>
@@ -152,252 +154,123 @@ const finiteAnimations = (page: Page) =>
     document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).length,
   );
 
-test.describe("Motion on — outcomes, never timings", () => {
-  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+/** A line of prose, by locator: what it is made of right now. */
+const proseOf = (line: ReturnType<Page["locator"]>) =>
+  line.evaluate((el) => ({
+    text: el.textContent,
+    wordSpans: el.querySelectorAll("[data-word]").length,
+    children: el.childNodes.length,
+    onlyText: el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE,
+  }));
+
+test.describe("Motion on — outcomes, never timings (on Welcome)", () => {
+  // Session 1 proved these on /motion-specimen; since Session 6 they are
+  // proved on the real front door, signed out (README §16.4)
+  test.use({ storageState: { cookies: [], origins: [] }, contextOptions: { reducedMotion: "no-preference" } });
 
   test.beforeEach(async ({ page }) => {
     await watchMotion(page);
   });
 
   test("a written line is its source text throughout, and ends as one plain text node", async ({ page }) => {
-    await page.goto("/motion-specimen");
+    // Tall enough that the demo plays at once: the headline and the Somm's
+    // note in the demo are both written in
+    await page.setViewportSize({ width: 375, height: 900 });
+    await page.goto("/");
 
-    // It is written word by word (the spans exist at some point)…
-    await expect.poll(async () => (await motionSeen(page)).wordSpans, { timeout: 15_000 }).toBeGreaterThan(0);
-    // …and its textContent is the source string even mid-write
-    expect((await lineOf(page, "specimen-headline")).text).toBe(HEADLINE);
-    expect((await lineOf(page, "specimen-note")).text).toBe(NOTE);
+    // It is written word by word (the spans exist)… and its textContent is
+    // the source string even mid-write — read in the frame the spans are there
+    const midWrite = await page.evaluate(async () => {
+      const lines: [string, string][] = [["headline", "h1"], ["note", '[data-testid="welcome-demo-note"]']];
+      const seen: Record<string, string | null> = {};
+      const deadline = performance.now() + 20_000;
+      while (performance.now() < deadline && Object.keys(seen).length < lines.length) {
+        for (const [key, selector] of lines) {
+          const el = document.querySelector(selector);
+          if (!(key in seen) && el?.querySelector("[data-word]")) seen[key] = el.textContent;
+        }
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      return seen;
+    });
+    expect(midWrite).toEqual({ headline: HEADLINE, note: DEMO_NOTE });
 
     // Settled: no word spans, one text node, the same text — what a plain
     // <h1>{text}</h1> gives a screen reader
-    for (const [testId, source] of [["specimen-headline", HEADLINE], ["specimen-note", NOTE]] as const) {
-      await expect.poll(async () => (await lineOf(page, testId)).onlyText, { timeout: 20_000 }).toBe(true);
-      const line = await lineOf(page, testId);
-      expect(line.wordSpans).toBe(0);
-      expect(line.children).toBe(1);
-      expect(line.text).toBe(source);
+    for (const [line, source] of [[page.locator("h1"), HEADLINE], [page.getByTestId("welcome-demo-note"), DEMO_NOTE]] as const) {
+      await expect.poll(async () => (await proseOf(line)).onlyText, { timeout: 20_000 }).toBe(true);
+      const settled = await proseOf(line);
+      expect(settled.wordSpans).toBe(0);
+      expect(settled.children).toBe(1);
+      expect(settled.text).toBe(source);
     }
-    // Both lines were split: at least a span per word of the headline
-    expect((await motionSeen(page)).wordSpans).toBeGreaterThanOrEqual(HEADLINE.split(" ").length + NOTE.split(" ").length);
+    // Both lines were split: at least a span per word of each
+    expect((await motionSeen(page)).wordSpans).toBeGreaterThanOrEqual(HEADLINE.split(" ").length + DEMO_NOTE.split(" ").length);
   });
 
   test("an entrance leaves nothing behind", async ({ page }) => {
-    await page.goto("/motion-specimen");
-    // The last thing on the page to enter is the note's last word
-    await expect.poll(async () => (await lineOf(page, "specimen-note")).onlyText, { timeout: 20_000 }).toBe(true);
+    // Short enough that the demo waits below the fold (idle: it shows
+    // nothing) — so every animation on the page is an entrance, and ends
+    await page.setViewportSize({ width: 375, height: 560 });
+    await page.goto("/");
+    await expect.poll(async () => (await proseOf(page.locator("h1"))).onlyText, { timeout: 20_000 }).toBe(true);
+    await expect(page.getByTestId("welcome-demo")).toHaveAttribute("data-state", "idle", { timeout: 10_000 });
     await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
 
     const settled = await page.evaluate(() => {
-      const style = (testId: string) => getComputedStyle(document.querySelector(`[data-testid="${testId}"]`)!);
-      const main = document.querySelector("main")!;
-      // The page's own elements — not the insides of a palate mark, whose
-      // waiting medallion legitimately turns its beads
-      const all = Array.from(main.querySelectorAll("*")).filter((el): el is HTMLElement => el instanceof HTMLElement);
+      const css = (el: Element) => getComputedStyle(el);
+      const entry = Array.from(document.querySelectorAll("button")).find((b) => /Build your palate/.test(b.textContent || ""))!;
+      const [label, leader, circle] = Array.from(entry.children);
+      const sub = Array.from(document.querySelectorAll("p")).find((p) => /Tell us what you like/.test(p.textContent || ""))!;
+      const masthead = document.querySelector('img[src="/protea-icon.png"]')!.parentElement!;
+      const all = Array.from(document.body.querySelectorAll("*")).filter((el): el is HTMLElement => el instanceof HTMLElement);
       return {
-        riseTransform: style("specimen-rise").transform,
-        riseOpacity: style("specimen-rise").opacity,
-        popTransform: style("specimen-pop").transform,
-        fadeOpacity: style("specimen-fade").opacity,
+        // A rise (the sub line), a pop (the entry's circle), a fade (the
+        // masthead), a draw (the entry's leader)
+        riseTransform: css(sub).transform,
+        riseOpacity: css(sub).opacity,
+        labelTransform: css(label).transform,
+        popTransform: css(circle).transform,
+        popOpacity: css(circle).opacity,
+        fadeOpacity: css(masthead).opacity,
+        leaderClip: css(leader).clipPath,
         // Nothing at rest carries a transform, a clip or a zero opacity
-        transformed: all.filter((el) => getComputedStyle(el).transform !== "none").length,
-        clipped: all.filter((el) => getComputedStyle(el).clipPath !== "none").length,
-        invisible: all.filter((el) => getComputedStyle(el).opacity === "0").length,
+        transformed: all.filter((el) => css(el).transform !== "none").length,
+        clipped: all.filter((el) => css(el).clipPath !== "none").length,
+        invisible: all.filter((el) => css(el).opacity === "0").map((el) => el.tagName),
         // …and no inline style an entrance could have left
         inlineLeft: all.filter((el) => el.style.transform || el.style.clipPath || el.style.opacity === "0").length,
-        rows: Array.from(document.querySelectorAll('[data-testid="specimen-rows"] > *'))
-          .map((row) => `${getComputedStyle(row).transform}/${getComputedStyle(row).opacity}`),
       };
     });
     expect(settled.riseTransform).toBe("none");
     // The element's own opacity wins — the sub line rests at 0.55, not 1
     expect(settled.riseOpacity).toBe("0.55");
+    expect(settled.labelTransform).toBe("none");
     expect(settled.popTransform).toBe("none");
+    expect(settled.popOpacity).toBe("1");
     expect(settled.fadeOpacity).toBe("1");
+    expect(settled.leaderClip).toBe("none");
     expect(settled.transformed).toBe(0);
     expect(settled.clipped).toBe(0);
-    expect(settled.invisible).toBe(0);
+    expect(settled.invisible).toEqual([]);
     expect(settled.inlineLeft).toBe(0);
-    expect(settled.rows).toEqual(["none/1", "none/1", "none/1"]);
+    // (Rows entering ROW_STEP apart rest at none/1: the reveal's recs, below)
   });
 
   test("a control is live while it is still entering", async ({ page }) => {
-    await page.goto("/motion-specimen");
+    await page.goto("/");
     // Hydrated (the headline has started to write), and the entry — which
     // enters after it — is not all there yet
     await expect.poll(async () => (await motionSeen(page)).wordSpans, { timeout: 15_000 }).toBeGreaterThan(0);
-    const entry = page.getByTestId("specimen-entry");
-    const labelOpacity = await entry.locator("span").first().evaluate((el) => Number(getComputedStyle(el).opacity));
-    await entry.click();
-    await expect(page.getByText("Tapped 1×")).toBeVisible();
-    // The tap landed mid-entrance, on a button at its full size
-    expect(labelOpacity).toBeLessThan(1);
+    const entry = page.getByRole("button", { name: "Build your palate" });
     const box = await entry.boundingBox();
+    const labelOpacity = await entry.locator("> span").first().evaluate((el) => Number(getComputedStyle(el).opacity));
+    // force: no waiting for the entry to stop moving — the tap lands mid-entrance
+    await entry.click({ force: true });
+    await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 10_000 });
+    expect(labelOpacity).toBeLessThan(1);
+    // …on a control at its full size
     expect(box!.height).toBeGreaterThanOrEqual(40);
-  });
-
-  test("the reveal waits as a medallion, then ends on exactly the static mark", async ({ page }) => {
-    await page.goto("/motion-specimen");
-    const state = page.getByTestId("specimen-reveal-state");
-    const still = await markOf(page, "specimen-static");
-
-    // Waiting on the save: a medallion, no bloom — however long it takes
-    await expect(state).toHaveText("waiting");
-    await expect
-      .poll(async () => (await markOf(page, "specimen-reveal")).html.includes("<circle"), { timeout: 10_000 })
-      .toBe(true);
-    const waiting = await markOf(page, "specimen-reveal");
-    expect(waiting.html).not.toContain("<path"); // no petals, no ring
-    expect(waiting.html).not.toBe(still.html);
-    await expect(state).toHaveText("waiting");
-
-    // The save lands: it draws, and settles
-    await page.getByTestId("specimen-save").click();
-    await expect(state).toHaveText("settled", { timeout: 20_000 });
-    const drawn = await markOf(page, "specimen-reveal");
-    expect(drawn.html).toBe(still.html);
-    // The same wrapper PalateMark renders: testid, aria-hidden, style
-    expect(drawn.attrs).toEqual(still.attrs);
-    expect(drawn.html).toContain("<path");
-  });
-
-  test("a growth ends on the static mark for the new genome — even one asked for mid-growth", async ({ page }) => {
-    await page.goto("/motion-specimen");
-    await expect.poll(async () => (await markOf(page, "specimen-grow")).html).toBe((await markOf(page, "specimen-grow-static")).html);
-
-    // One berry more — under a new seed, as production promotes (README
-    // §14). Count the distinct frames on the way: it grew, it did not jump
-    const before = (await markOf(page, "specimen-grow")).html;
-    await page.getByTestId("specimen-shape-estate").click();
-    const frames = await page.evaluate(async () => {
-      const live = document.querySelector('[data-testid="specimen-grow"] [data-testid="palate-mark"]')!;
-      const target = document.querySelector('[data-testid="specimen-grow-static"] [data-testid="palate-mark"]')!;
-      const seen: string[] = [];
-      const deadline = performance.now() + 15_000;
-      while (performance.now() < deadline) {
-        if (seen[seen.length - 1] !== live.innerHTML) seen.push(live.innerHTML);
-        if (seen.length > 1 && live.innerHTML === target.innerHTML) break;
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-      }
-      // A berry's ripple is the thin cream ring (the heart's pulse is wider)
-      const berryRipple = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*stroke-width="0\.9"[^>]*opacity=/i;
-      const anyOverlay = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*opacity=/i;
-      const overlays = seen.filter((frame) => anyOverlay.test(frame));
-      // Fruit: the burgundy circles other than the heart (r 6.5, at rest in a growth)
-      const berries = (frame: string) => (frame.match(/<circle cx="[^"]*" cy="[^"]*" r="(?!6\.5")[^"]*" fill="#8B2332"/gi) || []).length;
-      return {
-        distinct: new Set(seen).size,
-        ended: live.innerHTML === target.innerHTML,
-        rippled: seen.some((frame) => berryRipple.test(frame)),
-        lastOverlayIsBerry: overlays.length > 0 && berryRipple.test(overlays[overlays.length - 1]),
-        fewestBerries: Math.min(...seen.map(berries)),
-        berriesAtEnd: berries(seen[seen.length - 1]),
-      };
-    });
-    expect(frames.ended).toBe(true);
-    expect(frames.distinct).toBeGreaterThan(5);
-    const grown = await markOf(page, "specimen-grow");
-    expect(grown.html).not.toBe(before);
-    expect(grown.attrs).toEqual((await markOf(page, "specimen-grow-static")).attrs);
-    // The seed changed with the shape: the ring rests somewhere else…
-    const ringOf = (html: string) => html.match(/<path d="([^"]+)" fill="none" stroke="#8B2332"/i)?.[1];
-    expect(ringOf(before)).toBeTruthy();
-    expect(ringOf(grown.html)).not.toBe(ringOf(before));
-    // …the fruit was re-dealt (it lifted away, then landed again)…
-    expect(frames.berriesAtEnd).toBe(4);
-    expect(frames.fewestBerries).toBe(0);
-    // …and the promotion still ended on its berry landing with its ripples
-    expect(frames.rippled).toBe(true);
-    expect(frames.lastOverlayIsBerry).toBe(true);
-
-    // A new petal, and a change of mind while it is still opening: the
-    // second waits its turn, and the mark ends on the LAST shape asked for
-    await page.getByTestId("specimen-shape-country").click();
-    await page.getByTestId("specimen-shape-region").click();
-    await expect
-      .poll(async () => (await markOf(page, "specimen-grow")).html === (await markOf(page, "specimen-grow-static")).html, { timeout: 20_000 })
-      .toBe(true);
-
-    // A promotion on arrival (growFrom): the old shape first, then grown
-    await expect
-      .poll(async () => (await markOf(page, "specimen-promotion")).html === (await markOf(page, "specimen-promotion-static")).html, { timeout: 20_000 })
-      .toBe(true);
-  });
-
-  test("breathing is a loop on the wrapper, and only while asked for", async ({ page }) => {
-    await page.goto("/motion-specimen");
-    const loops = () =>
-      page.getByTestId("specimen-grow").getByTestId("palate-mark").evaluate((el) =>
-        el.getAnimations().map((a) => (a as CSSAnimation).animationName),
-      );
-    await expect(page.getByTestId("specimen-breathe")).toHaveText("Breathe");
-    expect(await loops()).toEqual([]);
-    await page.getByTestId("specimen-breathe").click();
-    await expect.poll(loops).toEqual(["house-breathe"]);
-    await page.getByTestId("specimen-breathe").click();
-    await expect.poll(loops).toEqual([]);
-    // At rest again it is exactly the static mark's wrapper
-    expect((await markOf(page, "specimen-grow")).attrs).toEqual((await markOf(page, "specimen-grow-static")).attrs);
-  });
-});
-
-test.describe("Reduced motion — settled at once", () => {
-  test.use({ contextOptions: { reducedMotion: "reduce" } });
-
-  test.beforeEach(async ({ page }) => {
-    await watchMotion(page);
-  });
-
-  test("prose appears whole, the mark is already drawn, and nothing loops", async ({ page }) => {
-    await page.goto("/motion-specimen");
-    await expect(page.getByTestId("specimen-preference")).toContainText("Reduced motion is on", { timeout: 15_000 });
-
-    // The bloom is its settled frame without waiting on anything — the
-    // save hasn't landed, and it is still the static mark
-    const still = await markOf(page, "specimen-static");
-    await expect.poll(async () => (await markOf(page, "specimen-reveal")).html).toBe(still.html);
-    await expect(page.getByTestId("specimen-reveal-state")).toHaveText("waiting");
-    await page.getByTestId("specimen-save").click();
-    await expect(page.getByTestId("specimen-reveal-state")).toHaveText("settled");
-    expect((await markOf(page, "specimen-reveal")).html).toBe(still.html);
-
-    // Prose: whole, plain, never split
-    for (const [testId, source] of [["specimen-headline", HEADLINE], ["specimen-note", NOTE]] as const) {
-      const line = await lineOf(page, testId);
-      expect(line.onlyText).toBe(true);
-      expect(line.text).toBe(source);
-    }
-
-    // Growth: straight to the new shape, with no frames in between
-    await page.getByTestId("specimen-shape-country").click();
-    const frames = await page.evaluate(async () => {
-      const live = document.querySelector('[data-testid="specimen-grow"] [data-testid="palate-mark"]')!;
-      const target = document.querySelector('[data-testid="specimen-grow-static"] [data-testid="palate-mark"]')!;
-      const seen = new Set<string>();
-      for (let i = 0; i < 30; i++) {
-        seen.add(live.innerHTML);
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-      }
-      return { distinct: seen.size, ended: live.innerHTML === target.innerHTML };
-    });
-    expect(frames.ended).toBe(true);
-    expect(frames.distinct).toBe(1);
-    await expect
-      .poll(async () => (await markOf(page, "specimen-promotion")).html === (await markOf(page, "specimen-promotion-static")).html)
-      .toBe(true);
-
-    // Breathing is asked for and still does not run
-    await page.getByTestId("specimen-breathe").click();
-    await expect(page.getByTestId("specimen-breathe")).toHaveText("Stop breathing");
-    const loops = await page.getByTestId("specimen-grow").getByTestId("palate-mark").evaluate((el) => el.getAnimations().length);
-    expect(loops).toBe(0);
-
-    // Every entrance was a short fade: all done, nothing left running
-    await expect.poll(() => page.evaluate(() => document.getAnimations().length), { timeout: 10_000 }).toBe(0);
-    expect((await motionSeen(page)).wordSpans).toBe(0);
-
-    // A control is, of course, live
-    await page.getByTestId("specimen-entry").click();
-    await expect(page.getByText("Tapped 1×")).toBeVisible();
   });
 });
 
@@ -590,6 +463,27 @@ test.describe("The front door — motion on", () => {
     expect(frames.filter((frame) => frame.includes("scale(")).length).toBe(0);
     const overlay = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*opacity=/i;
     expect(frames.filter((frame) => overlay.test(frame)).length).toBe(0);
+
+    // A change of mind mid-growth: two answers in one go, the second landing
+    // while the first is still growing. It waits its turn, and the mark
+    // ends on the LAST shape asked for
+    const staticFor = (countries: string[]) =>
+      asBrowser(page, renderPalateMark(composeIdentity({ ...ANSWERS, countries }).genome, { size: 44 }));
+    const three = await staticFor(["france", "south_africa", "italy"]);
+    const four = await staticFor(["france", "south_africa", "italy", "spain"]);
+    expect(new Set([two, three, four]).size).toBe(3);
+    const between = await page.evaluate(() => {
+      const option = (name: string) => Array.from(document.querySelectorAll("main button[aria-pressed]"))
+        .find((el) => (el as HTMLElement).innerText.includes(name)) as HTMLElement;
+      const live = document.querySelector('header [data-testid="palate-mark"]')!;
+      option("Italy").click();
+      option("Spain").click();
+      return live.innerHTML;
+    });
+    // Neither shape had been reached when the second answer came
+    expect(between).not.toBe(three);
+    expect(between).not.toBe(four);
+    await expect.poll(() => mark.innerHTML(), { timeout: 15_000 }).toBe(four);
   });
 
   test("a quiz option never moves when it is tapped — nor does any other", async ({ page }) => {
@@ -698,16 +592,34 @@ test.describe("The front door — reduced motion", () => {
     await expect(demo).toHaveAttribute("data-state", "still");
     expect(await demo.evaluate((el) => el.getAnimations({ subtree: true }).length)).toBe(0);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(WELCOME_HEADLINE);
+    // Prose, whole and plain, never split: the headline and the Somm's note
+    for (const [line, source] of [[page.locator("h1"), WELCOME_HEADLINE], [page.getByTestId("welcome-demo-note"), DEMO_NOTE]] as const) {
+      expect(await proseOf(line)).toEqual({ text: source, wordSpans: 0, children: 1, onlyText: true });
+    }
     expect((await motionSeen(page)).wordSpans).toBe(0);
 
-    // The quiz's bloom: bare, then the settled mark at once
+    // The quiz's bloom: bare, then the settled mark at once — straight to the
+    // new shape, with no frame in between
     await page.getByRole("button", { name: "Build your palate" }).click();
     await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 15_000 });
     const mark = headerMark(page);
     expect(await mark.innerHTML()).not.toContain("<path");
+    await mark.evaluate((el) => {
+      const frames = new Set<string>();
+      (window as any).__bloomFrames = frames;
+      new MutationObserver(() => frames.add(el.innerHTML)).observe(el, { childList: true, subtree: true });
+    });
     await page.getByRole("button", { name: /France/ }).first().click();
     const one = await asBrowser(page, renderPalateMark(composeIdentity({ ...ANSWERS, countries: ["france"] }).genome, { size: 44 }));
     await expect.poll(() => mark.innerHTML()).toBe(one);
+    // Thirty frames later it has painted the new shape and nothing else
+    await page.evaluate(async () => { for (let i = 0; i < 30; i++) await new Promise((r) => requestAnimationFrame(r)); });
+    expect(await page.evaluate(() => Array.from((window as any).__bloomFrames))).toEqual([one]);
+
+    // Every entrance was a short fade: all done, nothing left running, and
+    // no word was ever split
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length), { timeout: 10_000 }).toBe(0);
+    expect((await motionSeen(page)).wordSpans).toBe(0);
   });
 
   // README §15.3 (from §14's polish list): under 344px a primary entry with
@@ -889,6 +801,7 @@ test.describe("The reveal, signed out — motion on", () => {
     // And when every entrance is over, none has left a thing behind
     await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
     expect(await leftBehind(page)).toEqual({ transformed: 0, clipped: 0, invisible: 0, inline: 0, wordSpans: 0 });
+    expect(await recRowsAtRest(page)).toEqual(["none/1"]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
   });
 });
@@ -996,12 +909,27 @@ test.describe("The reveal, signed in — motion on", () => {
     await expect.poll(() => finiteAnimations(page), { timeout: 25_000 }).toBe(0);
     expect(await leftBehind(page)).toEqual({ transformed: 0, clipped: 0, invisible: 0, inline: 0, wordSpans: 0 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+    // The recs entered as rows, ROW_STEP apart, and every one rests at none/1
+    const rows = await recRowsAtRest(page);
+    expect(rows.length).toBeGreaterThan(1);
+    expect(new Set(rows)).toEqual(new Set(["none/1"]));
+    const drawn = await wrapperOf(revealMark(page));
+    expect(drawn.html).toContain("<path");
 
     // One save, one ledger row (fire-and-forget — poll) — however many
     // times the button was tapped
     await expect.poll(() => countEvents(supabase, userId, "quiz_completed"), { timeout: 15_000 }).toBe(eventsBefore + 1);
     expect(holding, "the double tap saved the profile more than once").toBe(1);
     expect(await countEvents(supabase, userId, "quiz_completed")).toBe(eventsBefore + 1);
+
+    // At rest the drawn bloom IS what PalateMark renders — the same markup
+    // and the same wrapper (testid, aria-hidden, style) as /palate's static
+    // mark of the same genome at the same size
+    await page.goto("/palate");
+    const still176 = await wrapperOf(page.locator("main header").getByTestId("palate-mark"));
+    expect(still176.html).toBe(still);
+    expect(drawn.html).toBe(still176.html);
+    expect(drawn.attrs).toEqual(still176.attrs);
   });
 });
 
@@ -1133,26 +1061,88 @@ const restOf = (page: Page, root: string) =>
     };
   }, root);
 
+// A rating's footprint, put back. "It was fine" moves no DNA (0 points:
+// the engine returns before any accumulation write, and a fine bottle
+// pushes no count), so what a fine rating leaves is its journal row, any
+// dna_timeline row it added, and the identity fields the milestone hook may
+// silently refresh (every 5th rated bottle). Its wine_events rows are
+// append-forever: the guards assert deltas. Erased in afterEach, which runs
+// after a failed or timed-out test (wine-page.spec.ts's discipline).
+type Footprint = { wines: string[]; profile: Record<string, unknown> | null; eventIds: Set<string> };
+let footprint: Footprint | null = null;
+
+async function markFootprint(wines: string[]) {
+  const { supabase, userId } = await testDb();
+  for (const wine of wines) await supabase.from("wine_interactions").delete().eq("user_id", userId).eq("wine_name", wine);
+  const { data: profile } = await supabase
+    .from("wine_profiles").select("archetype, identity, red_count, white_count").eq("user_id", userId).single();
+  const { data: events } = await supabase.from("dna_timeline").select("id").eq("user_id", userId);
+  footprint = { wines, profile, eventIds: new Set((events ?? []).map((e) => e.id)) };
+  return { supabase, userId };
+}
+
+async function eraseFootprint(page: Page) {
+  if (!footprint) return;
+  const { wines, profile, eventIds } = footprint;
+  footprint = null;
+  const { supabase, userId } = await testDb();
+  // Kill in-flight page JS before touching the DB (the teardown-race rule)
+  await page.goto("about:blank").catch(() => {});
+  for (const wine of wines) await supabase.from("wine_interactions").delete().eq("user_id", userId).eq("wine_name", wine);
+  const { data: eventsNow } = await supabase.from("dna_timeline").select("id").eq("user_id", userId);
+  for (const e of eventsNow ?? []) {
+    if (!eventIds.has(e.id)) await supabase.from("dna_timeline").delete().eq("id", e.id);
+  }
+  if (profile) await supabase.from("wine_profiles").update(profile).eq("user_id", userId);
+}
+
+const FINE_DONE = "😐 It was fine — noted in your journal.";
+
+/** Home's first recommendation, ready to rate: its row, and its wine marked
+ *  as this test's footprint. */
+async function homeRec(page: Page) {
+  await page.goto("/");
+  const first = page.getByTestId("rec-card").first();
+  await expect(first).toBeVisible({ timeout: 20_000 });
+  const wine = (await first.getAttribute("data-wine"))!;
+  const db = await markFootprint([wine]);
+  // Address the row by its wine: an acted-on row stays put, by name
+  const row = page.locator(`[data-testid="rec-card"][data-wine="${wine.replace(/"/g, '\\"')}"]`);
+  return { ...db, wine, row };
+}
+
 test.describe("The rewards — motion on", () => {
   test.use({ contextOptions: { reducedMotion: "no-preference" } });
+  test.afterEach(async ({ page }) => { await eraseFootprint(page); });
 
-  test("a rating tile answers its tap and holds; then the done line is written and takes focus", async ({ page }) => {
-    await page.goto("/motion-specimen");
-    const holder = page.getByTestId("specimen-tiles");
-    await holder.scrollIntoViewIfNeeded();
-    await expect(holder.getByTestId("rating-tile-loved")).toBeEnabled({ timeout: 15_000 });
+  test("a rating tile answers its tap and holds; then the done line is written — whole throughout — and takes focus", async ({ page }) => {
+    // A real row: home's first recommendation, rated "It was fine" (0
+    // points — the DNA never moves), its footprint erased in afterEach
+    await watchMotion(page);
+    const { supabase, userId, row } = await homeRec(page);
+    const ratedBefore = await countEvents(supabase, userId, "rec_rated");
+    // Home has arrived before the tap
+    await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
+    await row.getByRole("button", { name: "🍷 Had it" }).click();
+    await expect(row.getByTestId("rating-tile-fine")).toBeEnabled();
 
-    const seen = await page.evaluate(async () => {
-      const host = document.querySelector('[data-testid="specimen-tiles"]')!;
-      const tile = host.querySelector('[data-testid="rating-tile-loved"]') as HTMLButtonElement;
+    const seen = await row.evaluate(async (host) => {
+      const tile = host.querySelector('[data-testid="rating-tile-fine"]') as HTMLButtonElement;
       const other = host.querySelector('[data-testid="rating-tile-liked"]') as HTMLButtonElement;
       const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-      let doneAt = 0;
-      let wordSpans = 0;
+      // The done line is the row's focusable line (the Somm's why is a <p> too)
+      const doneLine = () => host.querySelector('p[tabindex="-1"]');
+      // Watched through the whole write, from before the tap
+      const write = { doneAt: 0, wordSpans: 0, texts: [] as string[] };
+      (window as any).__doneWrite = write;
       new MutationObserver(() => {
-        if (!doneAt && host.querySelector("p")) doneAt = performance.now();
-        wordSpans = Math.max(wordSpans, host.querySelectorAll("[data-word]").length);
-      }).observe(host, { childList: true, subtree: true });
+        const line = doneLine();
+        if (!line) return;
+        if (!write.doneAt) write.doneAt = performance.now();
+        const spans = line.querySelectorAll("[data-word]").length;
+        write.wordSpans = Math.max(write.wordSpans, spans);
+        if (spans && !write.texts.includes(line.textContent || "")) write.texts.push(line.textContent || "");
+      }).observe(host, { childList: true, subtree: true, characterData: true, attributes: true });
       const tappedAt = performance.now();
       tile.click();
       const pressing = tile.getAnimations().length; // the press starts on the tap itself
@@ -1160,18 +1150,18 @@ test.describe("The rewards — motion on", () => {
       await frame();
       const held = {
         tilesStill: host.contains(tile),
-        doneYet: Boolean(host.querySelector("p")),
+        doneYet: Boolean(doneLine()),
         pressed: tile.hasAttribute("data-pressed"),
         allDisabled: Array.from(host.querySelectorAll("button")).every((b) => (b as HTMLButtonElement).disabled),
       };
       // While they are held the others step back
       let otherLowest = 1;
       const deadline = performance.now() + 5000;
-      while (!doneAt && performance.now() < deadline) {
+      while (!write.doneAt && performance.now() < deadline) {
         if (host.contains(other)) otherLowest = Math.min(otherLowest, Number(getComputedStyle(other).opacity));
         await frame();
       }
-      return { pressing, held, otherLowest, heldFor: doneAt - tappedAt, wordSpansAtArrival: wordSpans };
+      return { pressing, held, otherLowest, heldFor: write.doneAt - tappedAt };
     });
 
     expect(seen.pressing).toBeGreaterThan(0);
@@ -1180,137 +1170,77 @@ test.describe("The rewards — motion on", () => {
     // A floor, never a ceiling: the done line does not cut the press short
     expect(seen.heldFor).toBeGreaterThanOrEqual(PRESS.holdMs - 40);
 
-    // The done line: written word by word, then one plain text node — and
-    // it has the focus, as it always did
-    const line = holder.locator("p");
-    await expect(line).toHaveText("❤️ Loved it — noted in your journal.");
+    // The done line: written word by word, its text whole at every moment
+    // of the write, then one plain text node — and it has the focus
+    const line = row.locator('p[tabindex="-1"]');
+    await expect(line).toHaveText(FINE_DONE);
     await expect.poll(() => line.evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE), { timeout: 10_000 }).toBe(true);
+    const write = await page.evaluate(() => (window as any).__doneWrite as { wordSpans: number; texts: string[] });
+    expect(write.wordSpans).toBeGreaterThanOrEqual(7);
+    expect(write.texts).toEqual([FINE_DONE]);
+    expect(await line.textContent()).toBe(FINE_DONE);
     expect(await line.evaluate((el) => el === document.activeElement)).toBe(true);
-    await expect(holder.getByTestId("rating-tile-loved")).toHaveCount(0);
+    await expect(row.getByTestId("rating-tile-fine")).toHaveCount(0);
 
-    // Rate again: the tiles come back live
-    await page.getByTestId("specimen-tiles-reset").click();
-    await expect(holder.getByTestId("rating-tile-fine")).toBeEnabled();
-  });
-
-  test("the done line is written: its words arrive one by one, and its text is whole throughout", async ({ page }) => {
-    await watchMotion(page);
-    await page.goto("/motion-specimen");
-    const holder = page.getByTestId("specimen-tiles");
-    await holder.scrollIntoViewIfNeeded();
-    await expect(holder.getByTestId("rating-tile-fine")).toBeEnabled({ timeout: 15_000 });
-    // The page's own lines have been written by now, or will be: count from here
-    await expect.poll(async () => (await lineOf(page, "specimen-note")).onlyText, { timeout: 20_000 }).toBe(true);
-    const before = (await motionSeen(page)).wordSpans;
-    await holder.getByTestId("rating-tile-fine").click();
-    const line = holder.locator("p");
-    await expect(line).toHaveText("😐 It was fine — noted in your journal.", { timeout: 10_000 });
-    await expect.poll(async () => (await motionSeen(page)).wordSpans - before, { timeout: 10_000 }).toBeGreaterThanOrEqual(7);
-    await expect.poll(() => line.evaluate((el) => el.querySelectorAll("[data-word]").length), { timeout: 10_000 }).toBe(0);
-    expect(await line.textContent()).toBe("😐 It was fine — noted in your journal.");
-  });
-
-  test("the saved step, on a promotion: the bloom arrives in its old shape, grows celebrating into the new one, and the lines are written", async ({ page }) => {
-    await page.goto("/motion-specimen");
-    await page.getByTestId("specimen-saved-play-grown").scrollIntoViewIfNeeded();
-    await expect(page.getByTestId("specimen-saved-after").getByTestId("palate-mark")).toBeVisible({ timeout: 15_000 });
-    const before = (await markOf(page, "specimen-saved-before")).html;
-    const after = (await markOf(page, "specimen-saved-after")).html;
-    expect(after).not.toBe(before);
-
-    const seen = await page.evaluate(async () => {
-      const host = document.querySelector('[data-testid="specimen-saved"]')!;
-      const target = document.querySelector('[data-testid="specimen-saved-after"] [data-testid="palate-mark"]')!.innerHTML;
-      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-      const frames: string[] = [];
-      let headlineSpans = 0;
-      let headlineEarly = false; // the headline before the bloom began to grow
-      (document.querySelector('[data-testid="specimen-saved-play-grown"]') as HTMLElement).click();
-      const deadline = performance.now() + 25_000;
-      while (performance.now() < deadline) {
-        const mark = host.querySelector('[data-testid="palate-mark"]');
-        if (mark) {
-          if (frames[frames.length - 1] !== mark.innerHTML) frames.push(mark.innerHTML);
-          if (frames.length > 5 && mark.innerHTML === target) break;
-        }
-        const spans = host.querySelectorAll("h1 [data-word]");
-        headlineSpans = Math.max(headlineSpans, spans.length);
-        if (frames.length <= 1 && Array.from(spans).some((el) => Number(getComputedStyle(el).opacity) > 0.5)) headlineEarly = true;
-        await frame();
-      }
-      const berryRipple = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*stroke-width="0\.9"[^>]*opacity=/i;
-      const anyOverlay = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*opacity=/i;
-      const overlays = frames.filter((f) => anyOverlay.test(f));
-      return {
-        moment: host.firstElementChild?.getAttribute("data-moment"),
-        first: frames[0], last: frames[frames.length - 1], distinct: new Set(frames).size,
-        swelled: frames.some((f) => f.includes("scale(")),
-        lastOverlayIsBerry: overlays.length > 0 && berryRipple.test(overlays[overlays.length - 1]),
-        headlineSpans, headlineEarly,
-      };
-    });
-    expect(seen.moment).toBe("grown");
-    // It arrives as it WAS — the bloom the user already has — and ends as it is
-    expect(seen.first).toBe(before);
-    expect(seen.last).toBe(after);
-    expect(seen.distinct).toBeGreaterThan(20);
-    // Celebrated: the swell, and the promotion's berry landing last
-    expect(seen.swelled).toBe(true);
-    expect(seen.lastOverlayIsBerry).toBe(true);
-    // The page says why only once the bloom is growing
-    expect(seen.headlineEarly).toBe(false);
-    expect(seen.headlineSpans).toBeGreaterThan(0);
-
-    const saved = page.getByTestId("log-saved");
-    await expect(saved).toContainText("🧬 Your DNA just grew");
-    await expect(saved.locator("h1")).toHaveText("Ken Forrester just joined your DNA");
-    await expect(saved).toContainText("Two loved bottles made the case");
-    await expect(saved).toContainText("Ken Forrester The FMC Chenin Blanc 2021");
-    for (const way of ["See it in your palate", "Log another bottle", "Back to your list"]) {
-      await expect(saved.getByText(way)).toBeVisible();
-    }
-    // Everything settles into the plain page: written lines are one text
-    // node, and nothing an entrance used is left on any element
-    await expect.poll(async () => (await restOf(page, '[data-testid="specimen-saved"]')).running, { timeout: 20_000 }).toBe(0);
-    const rest = await restOf(page, '[data-testid="specimen-saved"]');
-    expect(rest).toEqual({ running: 0, invisible: [], clipped: 0, inline: 0, wordSpans: 0 });
-    expect(await saved.locator("h1").evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE)).toBe(true);
-    expect((await markOf(page, "specimen-saved")).html).toBe(after);
-    // A way on is live: Log another bottle closes the step
-    await saved.getByRole("button", { name: "Log another bottle" }).click();
-    await expect(page.getByTestId("log-saved")).toHaveCount(0);
+    // The one rating path: a journal row and its ledger event
+    await expect.poll(() => countEvents(supabase, userId, "rec_rated"), { timeout: 15_000 }).toBe(ratedBefore + 1);
+    // (Rate again: the wine page's Change brings the tiles back live — below)
   });
 
   test("the saved step, on the quiet path: the bloom stands settled from its first frame, and the page still arrives in ink", async ({ page }) => {
-    await page.goto("/motion-specimen");
-    await page.getByTestId("specimen-saved-play-quiet").scrollIntoViewIfNeeded();
-    await expect(page.getByTestId("specimen-saved-quiet-mark").getByTestId("palate-mark")).toBeVisible({ timeout: 15_000 });
-    const settled = (await markOf(page, "specimen-saved-quiet-mark")).html;
+    // A real save through /log, rated "It was fine": no promotion, no shift
+    const QUIET = "[e2e] Zzyzx Quiet Pour 2021";
+    const { supabase, userId } = await markFootprint([QUIET]);
+    const loggedBefore = await countEvents(supabase, userId, "bottle_logged");
+    await page.goto(`/log?q=${encodeURIComponent(QUIET)}`);
+    await expect(page.getByTestId("log-search-input")).toHaveValue(QUIET, { timeout: 15_000 });
+    await page.getByRole("button", { name: /as written/ }).click();
+    const rate = page.getByTestId("bottle-confirm");
+    await expect(rate).toBeVisible();
+    await rate.getByRole("radio", { name: "It was fine" }).click();
 
-    const seen = await page.evaluate(async () => {
-      const host = document.querySelector('[data-testid="specimen-saved"]')!;
-      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-      const frames = new Set<string>();
-      let headlineSpans = 0;
-      (document.querySelector('[data-testid="specimen-saved-play-quiet"]') as HTMLElement).click();
-      const until = performance.now() + 2500;
-      while (performance.now() < until) {
-        const mark = host.querySelector('[data-testid="palate-mark"]');
-        if (mark) frames.add(mark.innerHTML);
-        headlineSpans = Math.max(headlineSpans, host.querySelectorAll("h1 [data-word]").length);
-        await frame();
-      }
-      return { moment: host.firstElementChild?.getAttribute("data-moment"), frames: Array.from(frames), headlineSpans };
+    // Every frame the saved step's bloom paints, and how its headline is
+    // set, from before the save
+    await page.evaluate(() => {
+      const seen = { frames: [] as string[], headlineSpans: 0, stop: false };
+      (window as any).__quiet = seen;
+      const read = () => {
+        const host = document.querySelector('[data-testid="log-saved"]');
+        const mark = host?.querySelector('[data-testid="palate-mark"]');
+        if (mark && !seen.frames.includes(mark.innerHTML)) seen.frames.push(mark.innerHTML);
+        if (host) seen.headlineSpans = Math.max(seen.headlineSpans, host.querySelectorAll("h1 [data-word]").length);
+      };
+      const loop = () => { read(); if (!seen.stop) requestAnimationFrame(loop); };
+      loop();
+      new MutationObserver(read).observe(document.body, { childList: true, subtree: true, attributes: true });
     });
-    expect(seen.moment).toBe("quiet");
-    expect(seen.frames).toEqual([settled]); // one frame, ever: no growth
-    expect(seen.headlineSpans).toBeGreaterThan(0); // "Noted in your journal", written
+    await page.getByTestId("log-save").click();
 
     const saved = page.getByTestId("log-saved");
-    await expect(saved).toContainText("👍 Liked it");
+    await expect(saved).toBeVisible({ timeout: 30_000 });
+    await expect(saved).toHaveAttribute("data-moment", "quiet");
+    await expect(saved).toContainText("😐 It was fine");
     await expect(saved.locator("h1")).toHaveText("Noted in your journal");
-    await expect.poll(async () => (await restOf(page, '[data-testid="specimen-saved"]')).running, { timeout: 15_000 }).toBe(0);
-    expect(await restOf(page, '[data-testid="specimen-saved"]')).toEqual({ running: 0, invisible: [], clipped: 0, inline: 0, wordSpans: 0 });
+    await expect.poll(async () => (await restOf(page, '[data-testid="log-saved"]')).running, { timeout: 15_000 }).toBe(0);
+    expect(await restOf(page, '[data-testid="log-saved"]')).toEqual({ running: 0, invisible: [], clipped: 0, inline: 0, wordSpans: 0 });
+
+    const seen = await page.evaluate(() => {
+      const quiet = (window as any).__quiet;
+      quiet.stop = true;
+      return quiet as { frames: string[]; headlineSpans: number };
+    });
+    // One frame, ever: the account's bloom as the save left it (a fifth
+    // rating may refresh it silently — never a moment), at 132px, no growth
+    const { data: profile } = await supabase.from("wine_profiles").select("identity").eq("user_id", userId).single();
+    const settled = await asBrowser(page, renderPalateMark(profile!.identity.genome, { size: 132 }));
+    expect(seen.frames).toEqual([settled]);
+    expect(seen.headlineSpans).toBeGreaterThan(0); // "Noted in your journal", written
+
+    // The save is the one path: one row, one ledger event
+    const { data: rows } = await supabase
+      .from("wine_interactions").select("interaction_type, rating").eq("user_id", userId).eq("wine_name", QUIET);
+    expect(rows).toEqual([{ interaction_type: "had", rating: "fine" }]);
+    await expect.poll(() => countEvents(supabase, userId, "bottle_logged"), { timeout: 15_000 }).toBe(loggedBefore + 1);
   });
 
   test("home arrives in ink and leaves nothing behind; the crest's bloom is the static mark", async ({ page }) => {
@@ -1343,6 +1273,7 @@ test.describe("The rewards — motion on", () => {
     // At rest the crest's bloom is exactly what PalateMark renders
     const still = await asBrowser(page, renderPalateMark(profile!.identity.genome, { size: 76 }));
     expect(await crest.getByTestId("palate-mark").innerHTML()).toBe(still);
+    expect(await crest.getByTestId("palate-mark").evaluate((el) => el.getAnimations().length)).toBe(0);
   });
 
   test("your palate: the strand rises, each head draws, and nothing is left behind", async ({ page }) => {
@@ -1359,6 +1290,8 @@ test.describe("The rewards — motion on", () => {
     expect(await page.locator("main header").evaluate((el) => getComputedStyle(el).transform)).toBe("none");
     const still = await asBrowser(page, renderPalateMark(profile!.identity.genome, { size: 176 }));
     expect(await page.locator("main header").getByTestId("palate-mark").innerHTML()).toBe(still);
+    // Breathing is only ever asked for while the Somm works: at rest, no loop
+    expect(await page.locator("main header").getByTestId("palate-mark").evaluate((el) => el.getAnimations().length)).toBe(0);
   });
 });
 
@@ -1437,42 +1370,30 @@ test.describe("The rewards — a verdict changed on the wine page (motion on)", 
 
 test.describe("The rewards — reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
+  test.afterEach(async ({ page }) => { await eraseFootprint(page); });
 
-  test("a tap is answered at once: no hold, no word spans, and the saved step's bloom is already in its new shape", async ({ page }) => {
+  test("a tap is answered at once: no hold, no press, no word spans — the done line takes the tiles' place", async ({ page }) => {
     await watchMotion(page);
-    await page.goto("/motion-specimen");
-    await expect(page.getByTestId("specimen-preference")).toContainText("Reduced motion is on", { timeout: 15_000 });
-
-    // The done line takes the tiles' place on the tap, as it always did
-    const holder = page.getByTestId("specimen-tiles");
-    const swapped = await page.evaluate(async () => {
-      const host = document.querySelector('[data-testid="specimen-tiles"]')!;
-      const tile = host.querySelector('[data-testid="rating-tile-loved"]') as HTMLButtonElement;
+    const { row } = await homeRec(page);
+    await row.getByRole("button", { name: "🍷 Had it" }).click();
+    await expect(row.getByTestId("rating-tile-fine")).toBeEnabled();
+    const swapped = await row.evaluate(async (host) => {
+      const tile = host.querySelector('[data-testid="rating-tile-fine"]') as HTMLButtonElement;
       tile.click();
       const pressing = tile.getAnimations().length;
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      return { pressing, tilesGone: !host.querySelector("button"), line: host.querySelector("p")?.textContent };
+      return {
+        pressing,
+        tilesGone: !host.querySelector('[data-testid^="rating-tile"]'),
+        line: host.querySelector('p[tabindex="-1"]')?.textContent,
+      };
     });
-    expect(swapped).toEqual({ pressing: 0, tilesGone: true, line: "❤️ Loved it — noted in your journal." });
-    expect(await holder.locator("p").evaluate((el) => el === document.activeElement)).toBe(true);
-
-    // The saved step: the new shape from the first frame, at the big size
-    const after = (await markOf(page, "specimen-saved-after")).html;
-    const frames = await page.evaluate(async () => {
-      const host = document.querySelector('[data-testid="specimen-saved"]')!;
-      const seen = new Set<string>();
-      (document.querySelector('[data-testid="specimen-saved-play-grown"]') as HTMLElement).click();
-      for (let i = 0; i < 40; i++) {
-        const mark = host.querySelector('[data-testid="palate-mark"]');
-        if (mark) seen.add(mark.innerHTML);
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-      }
-      return Array.from(seen);
-    });
-    expect(frames).toEqual([after]);
-    await expect(page.getByTestId("log-saved").locator("h1")).toHaveText("Ken Forrester just joined your DNA");
+    expect(swapped).toEqual({ pressing: 0, tilesGone: true, line: FINE_DONE });
+    expect(await row.locator('p[tabindex="-1"]').evaluate((el) => el === document.activeElement)).toBe(true);
     await expect.poll(() => page.evaluate(() => document.getAnimations().length), { timeout: 10_000 }).toBe(0);
     expect((await motionSeen(page)).wordSpans).toBe(0);
+    // (The saved step's bloom, already in its new shape on a promotion:
+    // identity-shift.spec.ts, earned through the real /log)
   });
 });
 
@@ -1533,6 +1454,9 @@ const watchReading = (page: Page) => page.evaluate(() => {
   const seen = {
     lines: [] as string[], ticker: [] as { name: string; line: string }[],
     breathing: false, left: false, headDuring: false, tickerOwn: [] as string[],
+    // The bloom while it waits: every set of animations it carried, every
+    // markup it showed, and its wrapper less the loop's own declaration
+    loops: [] as string[], markups: [] as string[], wrapper: [] as string[],
   };
   (window as any).__reading = seen;
   const read = () => {
@@ -1548,6 +1472,14 @@ const watchReading = (page: Page) => page.evaluate(() => {
     if (name && ticker && !seen.tickerOwn.includes(ticker.style.opacity)) seen.tickerOwn.push(ticker.style.opacity);
     const mark = view.querySelector('[data-testid="palate-mark"]') as HTMLElement | null;
     if (mark && getComputedStyle(mark).animationName === "house-breathe") seen.breathing = true;
+    if (mark) {
+      const loops = mark.getAnimations().map((a) => (a as CSSAnimation).animationName).join(",");
+      if (!seen.loops.includes(loops)) seen.loops.push(loops);
+      if (!seen.markups.includes(mark.innerHTML)) seen.markups.push(mark.innerHTML);
+      seen.wrapper = Array.from(mark.attributes)
+        .map((a) => `${a.name}=${a.name === "style" ? mark.style.cssText.replace(/\s*animation[^;]*;?/g, "").trim() : a.value}`)
+        .sort();
+    }
     if (view.style.opacity === "0") seen.left = true;
     if (document.querySelector('[data-testid="running-head"]')) seen.headDuring = true;
   };
@@ -1556,7 +1488,7 @@ const watchReading = (page: Page) => page.evaluate(() => {
 });
 const readingSeen = (page: Page) => page.evaluate(() => (window as any).__reading as {
   lines: string[]; ticker: { name: string; line: string }[]; breathing: boolean; left: boolean; headDuring: boolean;
-  tickerOwn: string[];
+  tickerOwn: string[]; loops: string[]; markups: string[]; wrapper: string[];
 });
 
 /**
@@ -1632,6 +1564,15 @@ test.describe("The waits — motion on", () => {
     test.setTimeout(120_000);
     const { supabase, userId } = await testDb();
     const analyzedBefore = await countEvents(supabase, userId, "menu_analyzed");
+    const { data: profile } = await supabase.from("wine_profiles").select("identity").eq("user_id", userId).single();
+    // A mark at rest carries no loop: /palate's static mark, the wrapper a
+    // breathing bloom must otherwise be
+    await page.goto("/palate");
+    const restingMark = page.locator("main header").getByTestId("palate-mark");
+    await expect(restingMark).toBeVisible({ timeout: 20_000 });
+    expect(await restingMark.evaluate((el) => el.getAnimations().length)).toBe(0);
+    const staticWrapper = (await wrapperOf(restingMark)).attrs;
+
     await watchMotion(page);
     const somm = await scriptSomm(page);
     const rec = new RecommendPage(page);
@@ -1649,6 +1590,12 @@ test.describe("The waits — motion on", () => {
       "Reading 10 wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
     ]);
     expect(reading.breathing, "the bloom never breathed").toBe(true);
+    // Breathing is ONE loop, on the wrapper: the bloom inside it is the
+    // account's static mark throughout, and the wrapper is the static
+    // wrapper plus that loop (Session 1's specimen checks, on the real wait)
+    expect(reading.loops).toEqual(["house-breathe"]);
+    expect(reading.markups).toEqual([await asBrowser(page, renderPalateMark(profile!.identity.genome, { size: 96 }))]);
+    expect(reading.wrapper).toEqual(staticWrapper);
     expect(reading.headDuring, "the reading is full screen: no running head").toBe(false);
     expect(reading.left, "the view never played out before the picks arrived").toBe(true);
     // The ticker: more than one name went past, every one of them is on the
@@ -2020,6 +1967,8 @@ test.describe("The waits — reduced motion", () => {
     ]);
     expect(reading.ticker).toEqual([]);
     expect(reading.breathing).toBe(false);
+    // The bloom is asked to breathe, and no loop runs on it
+    expect(reading.loops).toEqual([""]);
     expect(reading.left).toBe(false);
 
     await expect(page.getByTestId("somm-thinking")).toBeVisible();

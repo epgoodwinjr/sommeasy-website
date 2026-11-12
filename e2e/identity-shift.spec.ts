@@ -394,6 +394,27 @@ test.describe("Identity shift — a milestone earned in the real UI moves the st
   });
 });
 
+/** What an entrance could have left on the page's own elements (not the
+ *  insides of a palate mark) — motion.spec.ts's restOf. */
+const restOf = (page: Page, root: string) =>
+  page.evaluate((selector) => {
+    const host = document.querySelector(selector)!;
+    const all = Array.from(host.querySelectorAll("*")).filter((el): el is HTMLElement => el instanceof HTMLElement);
+    return {
+      running: host.getAnimations({ subtree: true }).filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).length,
+      invisible: all.filter((el) => getComputedStyle(el).opacity === "0").map((el) => el.tagName + (el.dataset.testid ? `[${el.dataset.testid}]` : "")),
+      clipped: all.filter((el) => getComputedStyle(el).clipPath !== "none").length,
+      inline: all.filter((el) => el.style.clipPath || el.style.opacity === "0").length,
+      wordSpans: host.querySelectorAll("[data-word]").length,
+    };
+  }, root);
+
+/** A mark's wrapper attributes (its style as the browser reads it). */
+const wrapperAttrs = (mark: ReturnType<Page["locator"]>) =>
+  mark.evaluate((el) => Array.from(el.attributes)
+    .map((a) => `${a.name}=${a.name === "style" ? (el as HTMLElement).style.cssText : a.value}`)
+    .sort());
+
 test.describe("The growth moment — a promotion earned in the real UI grows the bloom (hard-fail)", () => {
   // The ONE real-flow guard for docs/motion §8.4: motion on, the test
   // account's own genomes, a promotion earned through the real /log UI.
@@ -579,14 +600,27 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     await expect(rate).toBeVisible();
     await rate.getByRole("radio", { name: "Loved it" }).click();
 
-    // Every frame the saved step's bloom paints, from before the save
+    // Every frame the saved step's bloom paints, from before the save — and,
+    // frame by frame, whether the headline was legible before the bloom
+    // began to grow (it must not be: the page says why once it is growing)
     await page.evaluate(() => {
       const frames: string[] = [];
+      const words = { spans: 0, early: false, stop: false };
       (window as any).__savedFrames = frames;
-      new MutationObserver(() => {
+      (window as any).__savedWords = words;
+      const read = () => {
         const mark = document.querySelector('[data-testid="log-saved"] [data-testid="palate-mark"]');
         if (mark && frames[frames.length - 1] !== mark.innerHTML) frames.push(mark.innerHTML);
-      }).observe(document.body, { childList: true, subtree: true, attributes: true });
+      };
+      new MutationObserver(read).observe(document.body, { childList: true, subtree: true, attributes: true });
+      const loop = () => {
+        read();
+        const spans = document.querySelectorAll('[data-testid="log-saved"] h1 [data-word]');
+        words.spans = Math.max(words.spans, spans.length);
+        if (frames.length <= 1 && Array.from(spans).some((el) => Number(getComputedStyle(el).opacity) > 0.5)) words.early = true;
+        if (!words.stop) requestAnimationFrame(loop);
+      };
+      loop();
     });
     await page.getByTestId("log-save").click();
 
@@ -618,10 +652,32 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     expect(frames[0]).toBe(was);
     expect(frames[frames.length - 1]).toBe(is);
     expect(new Set(frames).size).toBeGreaterThan(20);
-    // Celebrated — a promotion: the swell, and a berry landing with its ripples
+    // Celebrated — a promotion: the swell, and a berry landing with its
+    // ripples, the LAST thing to play
     expect(frames.some((f) => f.includes("scale("))).toBe(true);
     const berryRipple = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*stroke-width="0\.9"[^>]*opacity=/i;
     expect(frames.some((f) => berryRipple.test(f))).toBe(true);
+    const anyOverlay = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*opacity=/i;
+    const overlays = frames.filter((f) => anyOverlay.test(f));
+    expect(berryRipple.test(overlays[overlays.length - 1] ?? "")).toBe(true);
+    // A new seed re-deals the bloom (README §14): the ring rests somewhere
+    // else, and the fruit lifts away to none, then lands again — one more
+    const ringOf = (html: string) => html.match(/<path d="([^"]+)" fill="none" stroke="#8B2332"/i)?.[1];
+    expect(ringOf(was)).toBeTruthy();
+    expect(ringOf(is)).not.toBe(ringOf(was));
+    // Fruit: the burgundy circles other than the heart (r 6.5, at rest in a growth)
+    const berries = (frame: string) => (frame.match(/<circle cx="[^"]*" cy="[^"]*" r="(?!6\.5")[^"]*" fill="#8B2332"/gi) || []).length;
+    expect(berries(is)).toBe(berries(was) + 1);
+    expect(Math.min(...frames.map(berries))).toBe(0);
+    expect(berries(frames[frames.length - 1])).toBe(berries(is));
+    // The headline was written, and never legible before the bloom grew
+    const words = await page.evaluate(() => {
+      const w = (window as any).__savedWords;
+      w.stop = true;
+      return { spans: w.spans, early: w.early };
+    });
+    expect(words.early).toBe(false);
+    expect(words.spans).toBeGreaterThan(0);
 
     // The words are houseCopy's: the shift takes the headline, the promotion its line
     await expect(saved).toContainText("✨ Your palate shifted");
@@ -630,10 +686,17 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     await expect(saved).toContainText("🧬 Domaine Dujac joined your DNA");
     await expect(saved).toContainText("Domaine Dujac Clos de la Roche");
     await expect(saved.getByRole("link", { name: "See it in your palate" })).toBeVisible();
+    for (const way of ["Log another bottle", "Back to your list"]) await expect(saved.getByText(way)).toBeVisible();
     // …written in, and settled to plain text
     await expect
       .poll(() => saved.locator("h1").evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE), { timeout: 15_000 })
       .toBe(true);
+    // Everything settles into the plain page: nothing an entrance used is
+    // left on any element, and the bloom is exactly the new static mark
+    await expect.poll(async () => (await restOf(page, '[data-testid="log-saved"]')).running, { timeout: 20_000 }).toBe(0);
+    expect(await restOf(page, '[data-testid="log-saved"]')).toEqual({ running: 0, invisible: [], clipped: 0, inline: 0, wordSpans: 0 });
+    expect(await mark.innerHTML()).toBe(is);
+    const grownWrapper = await wrapperAttrs(mark);
 
     // The save itself is the one path: one row, one ledger event, the shift recorded
     const rows = await findGuardRows(supabase, userId);
@@ -645,5 +708,78 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
       .from("dna_timeline").select("wine_name")
       .eq("user_id", userId).eq("event_type", "shifted");
     expect(shiftedRows).toEqual([{ wine_name: LOG_WINE }]);
+
+    // A way on is live: Log another bottle closes the step
+    await saved.getByRole("button", { name: "Log another bottle" }).click();
+    await expect(page.getByTestId("log-saved")).toHaveCount(0);
+    // At rest the grown bloom's wrapper IS PalateMark's (/palate's static mark)
+    await page.goto("/palate");
+    const palateMark = page.locator("main header").getByTestId("palate-mark");
+    await expect(palateMark).toBeVisible({ timeout: 20_000 });
+    expect(await wrapperAttrs(palateMark)).toEqual(grownWrapper);
+  });
+});
+
+test.describe("The growth moment — reduced motion (hard-fail)", () => {
+  // The suite's default: under reduced motion a moment is still known, and
+  // nothing of it plays — the saved step shows the new shape at once
+  test.afterEach(async ({ page }) => { await restoreBaseline(page); });
+
+  test("logging the bottle that promotes an estate: the saved step's bloom is already the new shape — one frame, no word split", async ({ page }) => {
+    test.setTimeout(150_000);
+    const { supabase, userId } = await testDb();
+    await ensureEarnedFixture(supabase, userId);
+    await healStaleState(supabase, userId);
+    const { profile: before } = await captureBaseline(supabase, userId);
+    expect(before.archetype).not.toMatch(/Loyalist/);
+    expect(before.identity?.genome).toBeTruthy();
+    await page.addInitScript(() => {
+      const seen = { wordSpans: 0 };
+      (window as any).__words = seen;
+      new MutationObserver((records) => {
+        for (const record of records) record.addedNodes.forEach((node) => {
+          if (node instanceof Element) seen.wordSpans += (node.matches("[data-word]") ? 1 : 0) + node.querySelectorAll("[data-word]").length;
+        });
+      }).observe(document, { childList: true, subtree: true });
+    });
+
+    await page.goto(`/log?q=${encodeURIComponent(LOG_WINE)}`);
+    await expect(page.getByTestId("log-search-input")).toHaveValue(LOG_WINE, { timeout: 15_000 });
+    await page.getByRole("button", { name: /as written/ }).click();
+    const rate = page.getByTestId("bottle-confirm");
+    await expect(rate).toBeVisible();
+    await rate.getByRole("radio", { name: "Loved it" }).click();
+    await page.evaluate(() => {
+      const frames: string[] = [];
+      (window as any).__savedFrames = frames;
+      const read = () => {
+        const mark = document.querySelector('[data-testid="log-saved"] [data-testid="palate-mark"]');
+        if (mark && !frames.includes(mark.innerHTML)) frames.push(mark.innerHTML);
+      };
+      new MutationObserver(read).observe(document.body, { childList: true, subtree: true, attributes: true });
+      const loop = () => { read(); if (frames.length < 50) requestAnimationFrame(loop); };
+      loop();
+    });
+    await page.getByTestId("log-save").click();
+
+    const saved = page.getByTestId("log-saved");
+    await expect(saved).toBeVisible({ timeout: 30_000 });
+    await expect(saved).toHaveAttribute("data-moment", "grown");
+    await expect
+      .poll(async () => (await readProfile(supabase, userId)).archetype, { timeout: 20_000 })
+      .toMatch(/Loyalist$/);
+    const after = await readProfile(supabase, userId);
+    const is = await page.evaluate((markup) => {
+      const holder = document.createElement("div");
+      holder.innerHTML = markup;
+      return holder.innerHTML;
+    }, renderPalateMark(after.identity.genome, { size: 164 }));
+    await expect.poll(() => saved.getByTestId("palate-mark").innerHTML(), { timeout: 20_000 }).toBe(is);
+    // One frame, ever: the new shape, at the big size, from the first paint
+    await page.evaluate(async () => { for (let i = 0; i < 30; i++) await new Promise((r) => requestAnimationFrame(r)); });
+    expect(await page.evaluate(() => (window as any).__savedFrames)).toEqual([is]);
+    await expect(saved.locator("h1")).toHaveText(`You became ${after.archetype}`);
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length), { timeout: 10_000 }).toBe(0);
+    expect(await page.evaluate(() => (window as any).__words.wordSpans)).toBe(0);
   });
 });
