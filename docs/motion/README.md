@@ -411,3 +411,26 @@ Session 4 shipped growth across a re-deal, `GrowthMoment`, the rating tiles' pre
 3. **Under 344px wide, a primary `LeaderEntry` with a long label lets its circle overhang the right gutter** (§14). Keep the circle inside the gutter at 320px.
 
 Deferred, low odds, not for Session 5 unless trivial: a save failing inside the wine page's 430ms hold leaves focus on the block; a wine-page growth can start from a slightly stale shape; two promoting ratings on home within one read can leave the crest on the older strand until reload.
+
+## 16. Settled in Session 5, and Session 6 in full (Nov 12, 2026)
+
+Session 5 shipped the §15 items, the reading view, the picks' arrival, the Somm landing and the quiet pages. Verified: no engine, ledger or API file changed; no assertion was removed from any permanent guard (the identity-shift growth guards now record toasts from the tap instead of asking after the growth; table-verdict's reply check follows §15.2's markup); the test account is at its baseline. The picks moment was watched on `/motion-specimen` at 375px. Settled, not to be reopened:
+
+- Home's reply is two utterances, each said once: the noted line on focus, the consequence through one status region.
+- A long primary-entry label is set slightly smaller under about 340px instead of wrapping.
+- Log's label read shows the name it read for 650ms before the rate step.
+- On Somm fallback the "Somm says" block fades and closes; it does not jump.
+- Match's and Log's first views take the quiet-page entrance.
+- A failed or cancelled page-2 read brings the picks back with no entrance.
+
+**Session 6, in order:**
+
+1. **Pick notes name the producer properly.** The engine's estate note prints the lookup key ("kanonkop — an estate already in your DNA."). Give `pickNote` the producer's display name where `MatchList` assembles a pick's names, and add the unit test. Engine matching is untouched; this is display only.
+2. **The link preview image.** Next's built-in `opengraph-image` route (`next/og`, no new dependency), 1200×630: cream ground, the protea mark, "Sommeasy", and "Never guess at a wine list again." in the brand serif. Add the matching Twitter card (`summary_large_image`) in `layout.js`. A font file checked into the repo for the image is fine; it is an asset, not a dependency.
+3. **The shareable palate card (for Ed's review: where the action sits and its copy).** On `/palate`, a quiet text action under the signature: "Share your palate". It composes a 1080×1350 image in the browser from the existing `renderPalateMarkDocument`: the bloom, the title, the epithet, "sommeasy.wine". Share through the Web Share API with the file where the browser supports it; otherwise download it. No name, no email, no data beyond what is drawn. No public palate page, no new route, no new event type (the `wine_events` type CHECK is not amended).
+4. **Delete `/motion-specimen`** and everything only it uses. Move any motion-spec coverage that depended on it onto real pages or scripted routes, never losing a test's assertion.
+5. **CLAUDE.md:** collapse the per-session motion notes into the shipped state, as was done for the House List.
+
+Then: full unit and e2e runs, a production build, push. Ed walks the preview on a phone; one merge follows his sign-off. Do not merge or open the PR in this session.
+
+The promotional film is produced outside the repo from the finished preview. The Somm's fallback rate is being diagnosed in its own session and is not part of Session 6.
