@@ -214,7 +214,7 @@ Restyle `Quiz.js` to the House List look. This part was not in the motion study,
 - Header: RunningHead-style slim bar; "Step N of 5" as a meta line; the five-segment progress as a `ProgressLine` that fills on each step.
 - Chips become House List choices: a ruled, wrapping list of options in Playfair 17px, selected state in burgundy with a ✦ where today's refine chips wear one. Tap targets stay ≥ 40px. Every existing chip `data-testid`, the ✦ meaning and the refine/uncheck semantics are unchanged.
 - Step change: the leaving step fades and moves 8px left over 200ms; the arriving step's title rises, then its options settle in with a 20ms stagger capped at 300ms total.
-- **A bloom in the header that grows as the user answers.** 44px, composed client-side on every change from the answers so far through the existing pure `composeIdentity` → genome → `growState`, 600ms per change. It starts as the bare medallion. It is decorative (`aria-hidden`), and the title is never shown before the reveal.
+- **A bloom in the header that grows as the user answers.** 44px, composed client-side on every change from the answers so far through the existing pure `composeIdentity` → genome → `growState`, 600ms per change. It starts as the bare medallion. It is decorative (`aria-hidden`), and the title is never shown before the reveal. **It grows quietly (Ed, Nov 11):** shapes change, with no swell, pulse or ripple. Those belong to a real promotion (§8.4) only. See §13.
 - Confirm and fix: at 375px the step title appeared clipped under the sticky header on the live site.
 
 ### 8.3 The reveal (Session 3, big moment 1)
@@ -347,9 +347,19 @@ Session 1 shipped the foundations on `motion`. These choices it made are now par
 - **The orbit lands on exactly 0.** While turning, the beads are drawn evenly spaced so the ring has no seam; the spacing eases back as it coasts to rest. §7.3's note is satisfied.
 - **Reveal berries follow §7.3's table as written** (from the last petal's start), which is 120ms earlier than the study plays.
 - **Every new berry ripples**, not only the first.
-- **A shape that got smaller** (a re-rate down, a delete) closes and fades instead of vanishing. **Open for Session 4:** `growState` still plays the swell and the heart pulse on a shrink. A demotion is not celebrated, so Session 4 makes both growth-only (a shrink just closes, quietly) and adds the unit test.
+- **A shape that got smaller** (a re-rate down, a delete) closes and fades instead of vanishing. `growState` still plays the swell and the heart pulse on a shrink; that fix moved up to Session 3 (§13).
 - **Reduced motion drops entrance delays** as well as movement: everything is simply there.
 - **`PalateMarkLive` holds its `{ __html }` in a ref.** A new object literal on re-render makes React re-apply `innerHTML` and wipes a bloom mid-draw.
 - **Motion cannot be verified in a hidden browser pane** (its timeline does not advance). Verify in Playwright with motion on.
 - **`/motion-specimen`** exists for the preview and the motion spec. It goes in Session 6.
 - **The view-transition trial is reverted** (commit `37ce375`); see §6.
+
+## 13. Settled in Session 2, and first in Session 3 (Nov 11, 2026)
+
+Session 2 shipped Welcome, its demo and the quiz restyle. Reviewed on the preview at 375px: Welcome and the demo match the study; the quiz reads well through step 2. Settled, not to be reopened: "Build your palate"; the ✓ on selected options; the header back link ("‹ Back", or "‹ Your list" on step 1 of a refine); the foot bar holding only the primary action; `bareState` / `openState` and `PalateMarkLive`'s `bare` prop; `SwapLine` for a line that changes in place.
+
+**Session 3 starts with three fixes from the review, before the reveal:**
+
+1. **Celebration is opt-in.** `growState` (and `PalateMarkLive`) take a flag for the celebratory overlays: the swell, the heart pulse and the berry ripples. Default off. Off means the shapes interpolate and nothing else plays. The quiz header bloom leaves it off (Ed's decision: it grows quietly). `GrowthMoment` (§8.4, Session 4) turns it on, and even then **only when the shape grew**: a shrink never swells or pulses. Both invariants in §7.1 hold in either mode; add the unit tests (quiet growth emits no ripples and a scale of exactly 1 throughout; a celebratory shrink emits none either).
+2. **Quiz options must not move when tapped.** Today a selected option turns weight 600 and gains a ✓, which widens it and re-wraps its row, so the neighbours jump (at 375px, selecting South Africa pushes Uruguay to a new line). Reserve the selected width from the start: render the ✓ always and hide it with `visibility: hidden` until selected, and reserve the bold width (a hidden weight-600 copy of the label stacked in the same grid cell). Selecting or unselecting may change color and weight; it must never change any option's position. Add a motion-spec assertion: every option's bounding box is identical before and after a tap.
+3. **Tighten the Welcome demo's fixed height** to its tallest state, so the status line sits 16px under the sheet and the picks instead of about 60px. Keep it fixed (no layout shift between states).
