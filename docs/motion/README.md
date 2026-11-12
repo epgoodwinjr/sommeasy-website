@@ -151,7 +151,7 @@ All eased with a quartic ease-out. `revealLength(params)` in `palateMark.js` ret
 
 ### 7.4 Growth
 
-From the genome before the rating to the genome after it, over **2100ms**, eased in-out (cubic).
+From the genome before the rating to the genome after it, over **2100ms**, eased in-out (cubic). The swell, the heart pulse and the berry ripples below are the **celebration**: they play only when `celebrate` is asked for and the shape did not get smaller (§13). Real genomes also change their seed on every DNA change; §14 says how growth carries that.
 
 - Petals, stamens, tip bulge and the ring interpolate from A to B.
 - The whole mark swells: scale `1 + 0.06·sin(π·t/(1.05·duration))`.
@@ -363,3 +363,29 @@ Session 2 shipped Welcome, its demo and the quiz restyle. Reviewed on the previe
 1. **Celebration is opt-in.** `growState` (and `PalateMarkLive`) take a flag for the celebratory overlays: the swell, the heart pulse and the berry ripples. Default off. Off means the shapes interpolate and nothing else plays. The quiz header bloom leaves it off (Ed's decision: it grows quietly). `GrowthMoment` (§8.4, Session 4) turns it on, and even then **only when the shape grew**: a shrink never swells or pulses. Both invariants in §7.1 hold in either mode; add the unit tests (quiet growth emits no ripples and a scale of exactly 1 throughout; a celebratory shrink emits none either).
 2. **Quiz options must not move when tapped.** Today a selected option turns weight 600 and gains a ✓, which widens it and re-wraps its row, so the neighbours jump (at 375px, selecting South Africa pushes Uruguay to a new line). Reserve the selected width from the start: render the ✓ always and hide it with `visibility: hidden` until selected, and reserve the bold width (a hidden weight-600 copy of the label stacked in the same grid cell). Selecting or unselecting may change color and weight; it must never change any option's position. Add a motion-spec assertion: every option's bounding box is identical before and after a tap.
 3. **Tighten the Welcome demo's fixed height** to its tallest state, so the status line sits 16px under the sheet and the picks instead of about 60px. Keep it fixed (no layout shift between states).
+
+## 14. Settled in Session 3, and first in Session 4 (Nov 12, 2026)
+
+Session 3 shipped the §13 fixes and the reveal. Reviewed on the preview at 375px, signed out: options no longer move when tapped (0 of 19 on step 1), the medallion waits, the bloom draws, the title sets, the gate follows. Settled, not to be reopened:
+
+- The ✓ keeps its room with a fixed slot instead of hidden text (the refine-uncheck guard and the seeder read the option's text).
+- The demo's status line sits 16px under its taller state (30px under the other at 375px).
+- A quiet new berry still scales in; only its ripples are the celebration.
+- A move that both gains and loses plays quietly even when celebration is asked for.
+- The reveal's details: recs 5.2s after the draw starts (3.3s signed out), "Try again" as a filled leader entry, the gate as a ruled block, the narrative in italic Playfair.
+- **The signed-in reveal waits on the whole save (about 3.5–4.5s on a refine). Ed: leave it for launch.** Do not change the save path. Post-launch option: start the draw when the profile row lands and hold the saved line and the recs for the rest.
+- The double-tap guard on the quiz's last button.
+
+**Session 4 starts with one fix before the rewards: growth across a re-deal.**
+
+The study, the specimen and the unit tests grow a bloom with its seed held still. Production never does: `identityEngine.js` derives `genome.seed` from the DNA's contents (`fnv1a` of the sorted country, region, estate and grape ids), so every promotion changes the seed, and with it the ring's phase, the bloom's phase and which petals carry berries. Measured on the Session 3 module over 4,000 simulated estate promotions with a new seed each: the new berry's ripples played in 147 (the berries were re-dealt in the rest), the ring turned 120° on average, and in a quarter of cases it went more than half a circle. Ed's decision: **animate through it; no engine change.**
+
+1. **The ring turns the short way.** From A's phase to B's by the smaller arc, never more than 180°.
+2. **No petal travels more than half a sector.** Petals are alike, so when the phase changes, match A's petals to B's by nearest angle rather than by index.
+3. **When the fruit is re-dealt** (the seed or the petal count changed), A's berries lift over the first 28% as today. B's berries then land from 80%: the ones B has in common with A (the first `min(A.berries, B.berries)`) land quietly, 110ms apart, and **the additional ones land last**. Celebrating, each additional berry lands as §7.4's new berry does (scale 2.4→1 over 460ms, two ripples). An estate promotion therefore always ends on a berry landing with its ripples.
+4. **Both §7.1 invariants still hold**, and the growth length covers the last ripple.
+5. **Tests.** Unit: across sampled pairs with different seeds and one more berry, celebrating, a ripple plays at a berry in every case; the ring never travels more than 180°; no petal more than half its sector. The motion spec and `/motion-specimen`'s growth buttons must use a different seed for B, as production does.
+
+The quiz header bloom takes the same path, quietly.
+
+**For Session 5's polish list:** under 344px wide a primary `LeaderEntry` with a long label ("Save My Wine DNA", "Build your palate") lets its circle overhang the right gutter by about 20px. Keep the circle inside the gutter at 320px.
