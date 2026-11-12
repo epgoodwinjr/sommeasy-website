@@ -189,6 +189,50 @@ export const HOME = { crestWait: 900, divider: 120, date: 200, sections: 220, se
  *  section's head draws as it mounts, `step` apart. Nothing else enters. */
 export const PALATE = { divider: 150, heads: 250, step: 110 };
 
+/** What opens in place — Match's link field, the pasted list, Adjust, a
+ *  bypass noted: a quick rise, as it has always been. */
+export const QUICK_RISE = { duration: 300, distance: 10 };
+
+/** The quiet pages (§8.6) — Journal, Search, Account, a wine's page, and
+ *  the first view of Match and Log: the title rises, and everything under
+ *  it fades in together. Lists are for scanning; nothing staggers. */
+export const PAGE_REST = { kind: "fade", duration: 300, delay: 100 };
+
+/** The reading view (§8.5): under the bar, the names on the list flick
+ *  past one at a time — a new one every `step`, each fading up from `from`
+ *  — and the last fades out when the reading moves on. */
+export const TICKER = { step: 190, fadeMs: 160, from: 0.2, outMs: 250 };
+
+/**
+ * Your picks (§8.5's table), counted from the view's arrival. Pick n starts
+ * at `first` + `step`·n — pickDelay(n) — and inside it each part follows the
+ * pick's own start by `pick` (its numeral, label and rule are the head's:
+ * HEAD_ENTER). The closing divider draws `after` the last pick starts.
+ */
+export const PICKS = {
+  title: 80, sub: 180, terms: 300, termsText: 450, somm: 600,
+  first: 800, step: PICK_STEP,
+  pick: { name: 160, leader: 380, meta: 420, note: 520, price: 720, actions: 780 },
+  after: 800,
+};
+export const pickDelay = (index) => PICKS.first + PICKS.step * index;
+export const picksCloseDelay = (count) => (count > 0 ? pickDelay(count - 1) + PICKS.after : PICKS.first);
+
+/**
+ * The Somm lands (§8.5, decision M8). "The Somm is tasting…" fades out over
+ * `outMs` and the summary is written in at `summaryStep` a word while its
+ * block eases to fit over `heightMs`. From `notes` later, pick by pick,
+ * `noteStep` apart — sommNoteDelay(n) — the engine's note fades out (`outMs`)
+ * and the Somm's is written in at `noteWordStep` a word, its box easing to
+ * its new height. A pick the Somm changed fades in, in place, over `swapMs`.
+ */
+export const SOMM = {
+  outMs: 200, summaryStep: 30, heightMs: 450,
+  notes: 1250, noteStep: 520, noteWordStep: 26,
+  swapMs: 320,
+};
+export const sommNoteDelay = (index) => SOMM.notes + SOMM.noteStep * index;
+
 /** A view leaving (§5.1). Callers remove the view when it finishes. */
 export const EXIT = {
   from: { opacity: 1, transform: "none" },
@@ -247,6 +291,36 @@ export function playEntrance(el, kind, options = {}) {
       entranceTiming(kind, options, reduced),
     );
   } catch {
+    return null;
+  }
+}
+
+/**
+ * The one layout animation in the system (§8.5): a box whose content has
+ * just changed eases from the height it HAD (`from`, px — measured before
+ * the change) to the height it has now, so nothing under it jumps. Call it
+ * before the paint that would show the new content. Nothing is left on the
+ * box: no fill, no inline height, and its own overflow back when the ease
+ * ends or is cancelled. Under reduced motion — or where the browser can't —
+ * it does nothing, and the new height is simply there.
+ */
+export function easeHeight(el, from) {
+  if (!el || typeof el.animate !== "function" || !Number.isFinite(from) || prefersReducedMotion()) return null;
+  const to = el.getBoundingClientRect().height;
+  if (Math.abs(to - from) < 0.5) return null;
+  // What doesn't fit yet is clipped while the box grows
+  const own = el.style.overflow;
+  el.style.overflow = "hidden";
+  const restore = () => { el.style.overflow = own; };
+  try {
+    const animation = el.animate(
+      [{ height: `${from}px` }, { height: `${to}px` }],
+      { duration: SOMM.heightMs, easing: SOFT_OUT },
+    );
+    animation.finished.then(restore, restore);
+    return animation;
+  } catch {
+    restore();
     return null;
   }
 }

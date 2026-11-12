@@ -3,6 +3,9 @@
 // Log a bottle — /log (The House List §8.2), moved out of home in Phase 2.
 //
 // One client page, five steps: find → search | scanning → rate → saved.
+// The scanning step waits in ReadingView (docs/motion/README.md §8.5): the
+// bloom breathes, and when the label has been read the line changes to what
+// it said — a real beat, held long enough to read — before the rate step.
 // The logging semantics are home's, moved verbatim: compressImage → POST
 // /api/scan-label reads the label; the save runs previousRating read →
 // upsert had + rating (+ note/place) → resolveAndAccumulate →
@@ -42,9 +45,10 @@ import RuledField from "@/components/house/RuledField";
 import ChoiceLine from "@/components/house/ChoiceLine";
 import RatingList from "@/components/house/RatingList";
 import TextAction, { TextActions } from "@/components/house/TextAction";
-import ProgressLine from "@/components/house/ProgressLine";
 import EmptyState from "@/components/house/EmptyState";
-import { D_EXIT, EASE, EXIT, prefersReducedMotion } from "@/components/house/motion";
+import Enter from "@/components/house/Enter";
+import ReadingView from "@/components/ReadingView";
+import { D_EXIT, EASE, EXIT, PAGE_REST, prefersReducedMotion } from "@/components/house/motion";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
 const EYEBROWS = {
@@ -59,6 +63,11 @@ const PLACES = [{ id: "home", label: "At home" }, { id: "out", label: "Out" }];
 const NOTE_MAX = 500;
 
 const column = { maxWidth: COLUMN, margin: "0 auto", padding: `22px ${GUTTER}px 56px` };
+
+// The label read: what it looks for, then — once read — what it found, held
+// one beat (Match's READ_BEAT_MS) before the rate step
+const LABEL_LINE = "Producer, vintage, grape…";
+const LABEL_BEAT_MS = 650;
 const alertLine = { fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: BURGUNDY };
 const headline = {
   fontFamily: SERIF, fontSize: "27px", fontWeight: 700, lineHeight: 1.15,
@@ -118,6 +127,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
   const [catalog, setCatalog] = useState(null);
   const [scanError, setScanError] = useState("");
   const [scanProgress, setScanProgress] = useState(0);
+  const [scanLine, setScanLine] = useState(LABEL_LINE);
   const [entry, setEntry] = useState(null);
   const [rating, setRating] = useState(null);
   const [place, setPlace] = useState("home");
@@ -227,6 +237,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     };
     setScanError("");
     setScanProgress(0.9);
+    setScanLine(LABEL_LINE);
     setStep("scanning");
 
     try {
@@ -252,9 +263,11 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         ...entryFromScan(source, displayName, data.vintage),
         meta: confidentMeta(resolveWine(displayName)) || metaLine(data.region, data.country),
       };
-      // Let the reading bar complete before the rate step lands
+      // The label is read: the line says what it found and the bar
+      // completes, then the rate step lands
       setScanProgress(1);
-      setTimeout(() => { if (token === scanToken.current) beginRate(scanned); }, 300);
+      setScanLine([scanned.base, scanned.vintage].filter(Boolean).join(" "));
+      setTimeout(() => { if (token === scanToken.current) beginRate(scanned); }, LABEL_BEAT_MS);
     } catch {
       fail("Failed to process image. Please try again.");
     }
@@ -487,7 +500,8 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     const next = numeralCounter();
     return (
       <div data-testid="log-find">
-        <h1 style={TYPE.h1}>Log a bottle</h1>
+        <Enter as="h1" style={TYPE.h1}>Log a bottle</Enter>
+        <Enter {...PAGE_REST}>
         <p style={{ ...TYPE.sub, marginTop: 8 }}>Snap the label and rate it — every rating sharpens your DNA.</p>
         {scanError && (
           <p role="alert" data-testid="bottle-error" style={{ ...alertLine, marginTop: 18 }}>{scanError}</p>
@@ -522,6 +536,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
             ))}
           </>
         )}
+        </Enter>
       </div>
     );
   };
@@ -570,18 +585,18 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
   };
 
   const renderScanning = () => (
-    <div data-testid="bottle-processing" style={{
-      minHeight: 640, display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", textAlign: "center",
-    }}>
-      <div aria-hidden="true" style={{ fontSize: "34px", lineHeight: 1 }}>📸</div>
-      <div style={{ ...TYPE.eyebrow, letterSpacing: "0.24em", marginTop: 22 }}>Reading the label</div>
-      <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "21px", lineHeight: 1.35, color: INK, marginTop: 12 }}>
-        Producer, vintage, grape…
-      </p>
-      <ProgressLine variant="reading" value={scanProgress} duration={1600} label="Reading the label" style={{ marginTop: 20 }} />
-      <TextAction tone="quiet" opacity={0.5} onClick={cancelScan} style={{ marginTop: 32 }}>Cancel</TextAction>
-    </div>
+    <ReadingView
+      testId="bottle-processing"
+      genome={profile?.identity?.genome}
+      fallback={{ mark: "📸", eyebrow: "Reading the label" }}
+      eyebrow="📸 Reading the label"
+      line={scanLine}
+      progress={scanProgress}
+      barMs={scanProgress >= 1 ? 500 : 1600}
+      barLabel="Reading the label"
+      onCancel={cancelScan}
+      style={{ minHeight: 640 }}
+    />
   );
 
   const renderRate = () => {

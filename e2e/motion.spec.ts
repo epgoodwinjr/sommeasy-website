@@ -2,7 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { composeIdentity } from "../src/lib/identityEngine.js";
 import { MARK_MOTION, renderPalateMark } from "../src/lib/palateMark.js";
 import { PRESS } from "../src/components/house/motion.js";
-import { countEvents, testDb } from "./fixtures/test-db";
+import { countEvents, latestEvent, testDb } from "./fixtures/test-db";
+import { BottleLogPage, RecommendPage } from "./fixtures/sommeasy-page";
 
 /**
  * Motion (docs/motion/README.md §10) — the ONE spec that runs with motion on.
@@ -72,6 +73,26 @@ import { countEvents, testDb } from "./fixtures/test-db";
  *      behind, and the crest's bloom is the static mark.
  *  (The real promotion — one earned through /log on the test account — is
  *  identity-shift.spec.ts's second guard.)
+ *
+ * Session 5 adds the waits (§8.5) on the real /recommend, the Somm scripted
+ * by a held route (no Claude call) and the ledger asserted by delta:
+ *
+ *  18. The reading: the bloom breathes, the ticker shows only names that
+ *      are on the list and only while the list is being read, each line is
+ *      said, and the view leaves before the picks arrive.
+ *  19. The picks arrive in ink and leave nothing behind. When the Somm
+ *      lands its summary is written in and each engine note is rewritten,
+ *      pick by pick, in order — the boxes easing to their new heights, never
+ *      jumping; a pick the Somm changed arrives with the Somm's note.
+ *  20. Under reduced motion: no ticker, no exit, nothing written word by
+ *      word — the Somm's words take the engine's place in the same commit.
+ *  21. Log's label read (the scan scripted too): the same view — the bloom
+ *      breathes, and the line changes to what the label said before the
+ *      rate step arrives with it.
+ *
+ *  22. The quiet pages (§8.6) — Journal, Search, Account, a wine's page:
+ *      the title rises, everything under it comes in on ONE fade (a list
+ *      never staggers), and nothing is left behind.
  *
  * The signed-in reveal tests save the quiz in REFINE mode on the rich
  * account with its own seeded answers — content-identical, the same
@@ -1452,5 +1473,478 @@ test.describe("The rewards — reduced motion", () => {
     await expect(page.getByTestId("log-saved").locator("h1")).toHaveText("Ken Forrester just joined your DNA");
     await expect.poll(() => page.evaluate(() => document.getAnimations().length), { timeout: 10_000 }).toBe(0);
     expect((await motionSeen(page)).wordSpans).toBe(0);
+  });
+});
+
+// ─── The waits (Session 5, README §8.5) ───
+
+const WAIT_LIST = `Ken Forrester Old Vine Chenin Blanc, Stellenbosch 2022...$38
+Raats Original Chenin Blanc, Stellenbosch 2022...$48
+Kanonkop Pinotage, Stellenbosch 2019...$68
+Meerlust Rubicon, Stellenbosch 2018...$92
+Hamilton Russell Pinot Noir, Walker Bay 2020...$85
+Domaine William Fèvre Chablis Premier Cru 2021...$78
+Sancerre, Domaine Vacheron 2022...$62
+Pommard Premier Cru, Domaine de Courcel 2019...$132
+Mullineux Syrah, Swartland 2020...$72
+Catena Zapata Malbec, Mendoza 2020...$58`;
+const SOMM_SUMMARY = "A list that leans Cape, with two French detours worth the fare. Your lane tonight is white with backbone — three bottles below, each a different kind of yes.";
+const SOMM_NOTES = [
+  "With the roast chicken, this is the bottle — sea-cooled and nervy, with your kind of backbone. It drinks like something twice the price, and it will only get better as the evening goes on.",
+  "Your home grape at a kind price. Honeyed pear up front, that waxy old-vine grip underneath — the one to open while you decide on the rest.",
+  "Trust us on this one — off your usual map, but it rhymes with everything you love.",
+];
+
+/**
+ * A scripted Somm: the route is held until the test releases it, then
+ * answers with the first two picks on screen (so their notes are REWRITTEN)
+ * and one candidate that isn't (so a pick CHANGES). No Claude call.
+ */
+async function scriptSomm(page: Page) {
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const script = { kept: [] as string[], added: "", dropped: [] as string[] };
+  await page.route("**/api/somm-picks", async (route) => {
+    const body = route.request().postDataJSON();
+    await held;
+    const shown: string[] = await page.getByTestId("pick-card")
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-wine")!));
+    const index = (name: string) => body.candidates.findIndex((c: { name: string }) => c.name === name);
+    const other = body.candidates.findIndex((c: { name: string }) => !shown.includes(c.name));
+    script.kept = shown.slice(0, 2);
+    script.added = body.candidates[other].name;
+    script.dropped = shown.slice(2);
+    await route.fulfill({
+      json: {
+        picks: [
+          { i: index(shown[0]), role: "top", note: SOMM_NOTES[0] },
+          { i: index(shown[1]), role: "value", note: SOMM_NOTES[1] },
+          { i: other, role: "adventure", note: SOMM_NOTES[2] },
+        ],
+        sommSummary: SOMM_SUMMARY,
+      },
+    });
+  });
+  return { release: () => release(), script };
+}
+
+/** Everything the reading view shows, from before the list is handed over. */
+const watchReading = (page: Page) => page.evaluate(() => {
+  const seen = {
+    lines: [] as string[], ticker: [] as { name: string; line: string }[],
+    breathing: false, left: false, headDuring: false,
+  };
+  (window as any).__reading = seen;
+  const read = () => {
+    const view = document.querySelector('[data-testid="processing-spinner"]') as HTMLElement | null;
+    if (!view) return;
+    const line = view.querySelector('[aria-live="polite"]')?.textContent || "";
+    if (line && seen.lines[seen.lines.length - 1] !== line) seen.lines.push(line);
+    const name = view.querySelector('[data-testid="reading-ticker"]')?.textContent || "";
+    if (name && !seen.ticker.some((t) => t.name === name)) seen.ticker.push({ name, line });
+    const mark = view.querySelector('[data-testid="palate-mark"]') as HTMLElement | null;
+    if (mark && getComputedStyle(mark).animationName === "house-breathe") seen.breathing = true;
+    if (view.style.opacity === "0") seen.left = true;
+    if (document.querySelector('[data-testid="running-head"]')) seen.headDuring = true;
+  };
+  read();
+  new MutationObserver(read).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+});
+const readingSeen = (page: Page) => page.evaluate(() => (window as any).__reading as {
+  lines: string[]; ticker: { name: string; line: string }[]; breathing: boolean; left: boolean; headDuring: boolean;
+});
+
+/**
+ * Everything the Somm's landing does to Your picks, from before it lands:
+ * which note each pick has worn (and in what order the Somm's arrived), and
+ * every height the Somm's block and the first pick's note box pass through.
+ */
+const watchLanding = (page: Page) => page.evaluate(() => {
+  const seen = {
+    notes: {} as Record<string, string[]>, sommOrder: [] as string[],
+    blockHeights: [] as number[], noteHeights: [] as number[], clipped: 0, done: false,
+  };
+  (window as any).__landing = seen;
+  const firstWine = document.querySelector('[data-testid="pick-card"]')!.getAttribute("data-wine");
+  const push = (list: number[], el: Element | null | undefined) => {
+    if (!el) return;
+    const h = Math.round(el.getBoundingClientRect().height * 10) / 10;
+    if (list[list.length - 1] !== h) list.push(h);
+  };
+  const read = () => {
+    document.querySelectorAll('[data-testid="pick-card"]').forEach((card) => {
+      const wine = card.getAttribute("data-wine")!;
+      const worn = (seen.notes[wine] ||= []);
+      for (const id of ["pick-note", "somm-note"]) {
+        if (card.querySelector(`[data-testid="${id}"]`) && !worn.includes(id)) {
+          worn.push(id);
+          if (id === "somm-note") seen.sommOrder.push(wine);
+        }
+      }
+    });
+    const block = document.querySelector('[data-testid="somm-thinking"], [data-testid="somm-summary"]');
+    push(seen.blockHeights, block?.parentElement);
+    const first = Array.from(document.querySelectorAll('[data-testid="pick-card"]'))
+      .find((card) => card.getAttribute("data-wine") === firstWine);
+    push(seen.noteHeights, first?.querySelector('[data-testid="pick-note"], [data-testid="somm-note"]')?.parentElement);
+    seen.clipped = Math.max(seen.clipped, Array.from(document.querySelectorAll("main div"))
+      .filter((el) => (el as HTMLElement).style.overflow === "hidden").length);
+  };
+  const frame = () => {
+    read();
+    if (!seen.done) requestAnimationFrame(frame);
+  };
+  frame();
+  new MutationObserver(read).observe(document.body, { childList: true, subtree: true, attributes: true });
+});
+const landingSeen = (page: Page, stop = false) => page.evaluate((done) => {
+  const seen = (window as any).__landing;
+  if (done) seen.done = true;
+  return seen as {
+    notes: Record<string, string[]>; sommOrder: string[];
+    blockHeights: number[]; noteHeights: number[]; clipped: number;
+  };
+}, stop);
+
+/** Eased, not jumped: the heights between the first and the last all lie
+ *  between them, move one way only, and there are several of them. */
+function expectEased(heights: number[], what: string) {
+  const from = heights[0];
+  const to = heights[heights.length - 1];
+  expect(Math.abs(to - from), `${what} never changed height: ${JSON.stringify(heights)}`).toBeGreaterThan(8);
+  const between = heights.slice(1, -1);
+  expect(between.length, `${what} jumped from ${from} to ${to}`).toBeGreaterThanOrEqual(5);
+  const sign = Math.sign(to - from);
+  for (let i = 1; i < heights.length; i++) {
+    expect(Math.sign(heights[i] - heights[i - 1]) === sign, `${what} went back on itself: ${JSON.stringify(heights)}`).toBe(true);
+  }
+}
+
+test.describe("The waits — motion on", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  test("the reading breathes and shows only what it read; the picks arrive in ink; the Somm's words are written in over the engine's", async ({ page }) => {
+    test.setTimeout(120_000);
+    const { supabase, userId } = await testDb();
+    const analyzedBefore = await countEvents(supabase, userId, "menu_analyzed");
+    await watchMotion(page);
+    const somm = await scriptSomm(page);
+    const rec = new RecommendPage(page);
+    await rec.goto();
+    await expect(page.getByRole("heading", { name: "Match the wine list" })).toBeVisible({ timeout: 20_000 });
+    await rec.pasteToggle.click();
+    await rec.wineListTextarea.fill(WAIT_LIST);
+    await watchReading(page);
+    await rec.analyzeButton.click();
+
+    // ── The reading ──
+    await expect(rec.resultsHeading).toHaveText("Your picks", { timeout: 20_000 });
+    const reading = await readingSeen(page);
+    expect(reading.lines).toEqual([
+      "Reading 10 wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
+    ]);
+    expect(reading.breathing, "the bloom never breathed").toBe(true);
+    expect(reading.headDuring, "the reading is full screen: no running head").toBe(false);
+    expect(reading.left, "the view never played out before the picks arrived").toBe(true);
+    // The ticker: more than one name went past, every one of them is on the
+    // list, and none was first shown after the weighing began
+    expect(reading.ticker.length).toBeGreaterThan(1);
+    const onTheList = WAIT_LIST.toLowerCase();
+    for (const { name, line } of reading.ticker) {
+      for (const word of name.toLowerCase().match(/[a-zà-ÿ]{3,}/g) ?? []) {
+        expect(onTheList, `the ticker showed "${name}", which is not on the list`).toContain(word);
+      }
+      expect(line, `"${name}" was shown while the line read "${line}"`).toMatch(/^Reading /);
+    }
+
+    // ── The picks have arrived, and the Somm is still tasting ──
+    await expect(page.getByTestId("somm-thinking")).toContainText("The Somm is tasting");
+    await expect(rec.pickCards).toHaveCount(5);
+    await expect(page.getByTestId("pick-note")).toHaveCount(5);
+    await expect(page.getByTestId("somm-note")).toHaveCount(0);
+    await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
+    expect(await leftBehind(page)).toEqual({ transformed: 0, clipped: 0, invisible: 0, inline: 0, wordSpans: 0 });
+    // Every control was live the whole time it was arriving
+    await expect(page.getByTestId("choose-pick")).toHaveCount(5);
+    const engineNote = await rec.pickCards.first().getByTestId("pick-note").textContent();
+
+    // ── The Somm lands ──
+    await watchLanding(page);
+    somm.release();
+    const summary = page.getByTestId("somm-summary");
+    await expect(summary.locator("p")).toHaveText(SOMM_SUMMARY, { timeout: 15_000 });
+    await expect(page.getByTestId("somm-thinking")).toHaveCount(0);
+    await expect(page.getByTestId("somm-note")).toHaveCount(3, { timeout: 20_000 });
+    await expect(rec.pickCards).toHaveCount(3);
+    const { kept, added, dropped } = somm.script;
+    const card = (wine: string) => page.locator(`[data-testid="pick-card"][data-wine="${wine}"]`);
+    await expect(card(kept[0]).getByTestId("somm-note")).toHaveText(`“${SOMM_NOTES[0]}”`);
+    await expect(card(kept[1]).getByTestId("somm-note")).toHaveText(`“${SOMM_NOTES[1]}”`);
+    await expect(card(added).getByTestId("somm-note")).toHaveText(`“${SOMM_NOTES[2]}”`);
+    for (const wine of dropped) await expect(card(wine)).toHaveCount(0);
+    await expect(page.getByTestId("pick-note")).toHaveCount(0);
+
+    // Everything written settles into plain text, and nothing is left behind
+    await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
+    const landing = await landingSeen(page, true);
+    for (const el of [summary.locator("p"), card(kept[0]).getByTestId("somm-note"), card(kept[1]).getByTestId("somm-note")]) {
+      expect(await el.evaluate((node) => node.childNodes.length === 1 && node.firstChild?.nodeType === Node.TEXT_NODE)).toBe(true);
+    }
+    expect((await motionSeen(page)).wordSpans, "the Somm's words were never written word by word").toBeGreaterThan(20);
+    expect(await leftBehind(page)).toEqual({ transformed: 0, clipped: 0, invisible: 0, inline: 0, wordSpans: 0 });
+    expect(await page.evaluate(() => Array.from(document.querySelectorAll("main *"))
+      .filter((el) => (el as HTMLElement).style.overflow === "hidden").length),
+    "a box kept its ease's clipping").toBe(0);
+
+    // The picks the Somm kept wore the engine's note, then the Somm's — in
+    // rank order; the one it added never wore an engine note at all
+    expect(landing.notes[kept[0]]).toEqual(["pick-note", "somm-note"]);
+    expect(landing.notes[kept[1]]).toEqual(["pick-note", "somm-note"]);
+    expect(landing.notes[added]).toEqual(["somm-note"]);
+    expect(landing.sommOrder.indexOf(kept[0])).toBeLessThan(landing.sommOrder.indexOf(kept[1]));
+    expect(engineNote).not.toBe(`“${SOMM_NOTES[0]}”`);
+    // The one layout animation: both boxes eased to their new height
+    expect(landing.clipped, "nothing was ever clipped: no height eased").toBeGreaterThan(0);
+    expectEased(landing.blockHeights, "the Somm's block");
+    expectEased(landing.noteHeights, "the first pick's note");
+
+    // One analysis, one ledger row — the Somm's outcome riding it
+    await expect.poll(() => countEvents(supabase, userId, "menu_analyzed"), { timeout: 15_000 }).toBe(analyzedBefore + 1);
+    const event = await latestEvent(supabase, userId, "menu_analyzed");
+    expect(event!.payload.wines_parsed).toBe(10);
+    expect(event!.payload.somm.outcome).toBe("first_attempt");
+  });
+});
+
+// ─── The quiet pages (Session 5, README §8.6) ───
+
+/** Every entrance the page plays inside <main>, from before its first script. */
+async function watchEntrances(page: Page) {
+  await page.addInitScript(() => {
+    const calls: { tag: string; rises: boolean; fades: boolean; duration: unknown }[] = [];
+    (window as any).__entrances = calls;
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes: any, timing: any) {
+      const first = Array.isArray(keyframes) ? keyframes[0] : null;
+      if (this.closest("main") && first) {
+        calls.push({
+          tag: this.tagName.toLowerCase(),
+          rises: typeof first.transform === "string" && first.transform.startsWith("translateY"),
+          fades: first.opacity === 0 && first.transform === undefined,
+          duration: timing?.duration,
+        });
+      }
+      return animate.call(this, keyframes, timing);
+    };
+  });
+}
+/** The distinct entrances, in the order they first played. (`next dev` runs
+ *  under StrictMode, which mounts every effect twice: each entrance is
+ *  started, cancelled and started again — one entrance, two calls.) */
+const entrances = (page: Page) => page.evaluate(() => {
+  const calls = (window as any).__entrances as { tag: string; rises: boolean; fades: boolean; duration: unknown }[];
+  const seen = new Set<string>();
+  return calls.filter((call) => {
+    const key = JSON.stringify(call);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+});
+
+/** At rest: nothing in <main> carries a transform or a clip (a control may
+ *  rest at its own opacity — Search's Clear is invisible until there is a
+ *  query). */
+const restsClean = (page: Page) => page.evaluate(() => {
+  const all = Array.from(document.querySelectorAll("main *")).filter((el): el is HTMLElement => el instanceof HTMLElement);
+  return {
+    transformed: all.filter((el) => getComputedStyle(el).transform !== "none").length,
+    clipped: all.filter((el) => getComputedStyle(el).clipPath !== "none").length,
+    inline: all.filter((el) => el.style.transform || el.style.clipPath).length,
+  };
+});
+
+test.describe("The quiet pages — motion on", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  const PAGES = [
+    { path: "/journal", ready: (page: Page) => page.getByRole("heading", { name: "Journal", level: 1 }), title: "h1" },
+    { path: "/account", ready: (page: Page) => page.getByTestId("account-name-heading"), title: "div" },
+    { path: "/search", ready: (page: Page) => page.getByTestId("search-input"), title: "div" },
+  ];
+
+  for (const { path, ready, title } of PAGES) {
+    test(`${path}: the title rises, the rest comes in on one fade, and nothing is left behind`, async ({ page }) => {
+      await watchEntrances(page);
+      await page.goto(path);
+      await expect(ready(page)).toBeVisible({ timeout: 20_000 });
+      await expect.poll(() => finiteAnimations(page), { timeout: 15_000 }).toBe(0);
+      // Two entrances, and only two: lists are for scanning — no row has its own
+      expect(await entrances(page)).toEqual([
+        { tag: title, rises: true, fades: false, duration: 700 },
+        { tag: "div", rises: false, fades: true, duration: 300 },
+      ]);
+      expect(await restsClean(page)).toEqual({ transformed: 0, clipped: 0, inline: 0 });
+    });
+  }
+
+  test("a wine's page: its name rises, the rest fades in together — and stepping back plays the journal's entrance again", async ({ page }) => {
+    await watchEntrances(page);
+    await page.goto("/journal");
+    const row = page.getByTestId("journal-row").first();
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => finiteAnimations(page), { timeout: 15_000 }).toBe(0);
+    await page.evaluate(() => { (window as any).__entrances.length = 0; });
+    await row.click();
+    await expect(page.getByTestId("wine-page").locator("h1")).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => finiteAnimations(page), { timeout: 15_000 }).toBe(0);
+    expect(await entrances(page)).toEqual([
+      { tag: "header", rises: true, fades: false, duration: 700 },
+      { tag: "div", rises: false, fades: true, duration: 300 },
+    ]);
+    expect(await restsClean(page)).toEqual({ transformed: 0, clipped: 0, inline: 0 });
+
+    // Entrances play once per mount: back by the trail, the journal arrives again
+    await page.evaluate(() => { (window as any).__entrances.length = 0; });
+    await page.getByTestId("running-head-back").click();
+    await expect(page.getByRole("heading", { name: "Journal", level: 1 })).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => (await entrances(page)).length, { timeout: 15_000 }).toBe(2);
+    await expect.poll(() => finiteAnimations(page), { timeout: 15_000 }).toBe(0);
+  });
+});
+
+test.describe("The quiet pages — reduced motion", () => {
+  test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+  test("the journal simply fades in: nothing rises, nothing waits", async ({ page }) => {
+    await watchEntrances(page);
+    await page.goto("/journal");
+    await expect(page.getByRole("heading", { name: "Journal", level: 1 })).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => finiteAnimations(page), { timeout: 15_000 }).toBe(0);
+    expect(await entrances(page)).toEqual([
+      { tag: "h1", rises: false, fades: true, duration: 150 },
+      { tag: "div", rises: false, fades: true, duration: 150 },
+    ]);
+  });
+});
+
+/** A scripted label read: held until released, then one known bottle. */
+async function scriptLabel(page: Page) {
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/scan-label", async (route) => {
+    await held;
+    await route.fulfill({
+      json: { name: "Pinotage", producer: "Kanonkop", vintage: 2019, region: "Stellenbosch", country: "South Africa", confidence: "high" },
+    });
+  });
+  return () => release();
+}
+
+/** The label read's lines and whether its bloom breathed, from now on. */
+const watchLabelRead = (page: Page) => page.evaluate(() => {
+  const seen = { lines: [] as string[], breathing: false, ticker: "", headDuring: false };
+  (window as any).__label = seen;
+  const read = () => {
+    const view = document.querySelector('[data-testid="bottle-processing"]');
+    if (!view) return;
+    const line = view.querySelector('[aria-live="polite"]')?.textContent || "";
+    if (line && seen.lines[seen.lines.length - 1] !== line) seen.lines.push(line);
+    const mark = view.querySelector('[data-testid="palate-mark"]') as HTMLElement | null;
+    if (mark && getComputedStyle(mark).animationName === "house-breathe") seen.breathing = true;
+    seen.ticker += view.querySelector('[data-testid="reading-ticker"]')?.textContent || "";
+    if (document.querySelector('[data-testid="running-head"]')) seen.headDuring = true;
+  };
+  read();
+  new MutationObserver(read).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+});
+const labelSeen = (page: Page) => page.evaluate(() => (window as any).__label as {
+  lines: string[]; breathing: boolean; ticker: string; headDuring: boolean;
+});
+
+test.describe("The waits, Log's label — motion on", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  test("the bloom breathes while the label is read; the line says what it found; then the rate step has it", async ({ page }) => {
+    const release = await scriptLabel(page);
+    const log = new BottleLogPage(page);
+    await log.goto();
+    await watchLabelRead(page);
+    await log.uploadLabel("label-test-01.jpg");
+    const view = page.getByTestId("bottle-processing");
+    await expect(view).toBeVisible({ timeout: 15_000 });
+    await expect(view).toContainText("Producer, vintage, grape…");
+    await expect(view.getByTestId("palate-mark")).toHaveCSS("animation-name", "house-breathe");
+    release();
+    // The rate step arrives with what was read — nothing saved here
+    await expect(log.confirmState).toBeVisible({ timeout: 15_000 });
+    await expect(log.wineNameInput).toHaveValue("Kanonkop Pinotage");
+    const seen = await labelSeen(page);
+    expect(seen.lines).toEqual(["Producer, vintage, grape…", "Kanonkop Pinotage 2019"]);
+    expect(seen.breathing).toBe(true);
+    expect(seen.ticker, "a label has no list: its ticker never shows a thing").toBe("");
+    expect(seen.headDuring, "the label read is full screen: no running head").toBe(false);
+    await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
+  });
+});
+
+test.describe("The waits — reduced motion", () => {
+  test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+  test("no ticker, no exit, nothing written: the Somm's words take the engine's place in one commit", async ({ page }) => {
+    test.setTimeout(120_000);
+    await watchMotion(page);
+    const somm = await scriptSomm(page);
+    const rec = new RecommendPage(page);
+    await rec.goto();
+    await expect(page.getByRole("heading", { name: "Match the wine list" })).toBeVisible({ timeout: 20_000 });
+    await rec.pasteToggle.click();
+    await rec.wineListTextarea.fill(WAIT_LIST);
+    await watchReading(page);
+    await rec.analyzeButton.click();
+
+    await expect(rec.resultsHeading).toHaveText("Your picks", { timeout: 20_000 });
+    const reading = await readingSeen(page);
+    // The same three lines are said — only the motion is gone
+    expect(reading.lines).toEqual([
+      "Reading 10 wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
+    ]);
+    expect(reading.ticker).toEqual([]);
+    expect(reading.breathing).toBe(false);
+    expect(reading.left).toBe(false);
+
+    await expect(page.getByTestId("somm-thinking")).toBeVisible();
+    await expect(page.getByTestId("pick-note")).toHaveCount(5);
+    await watchLanding(page);
+    somm.release();
+    // The specs that poll somm-thinking → 0 read the notes on the very next
+    // line: by then everything the Somm said must already be in place
+    await expect.poll(() => page.getByTestId("somm-thinking").count(), { timeout: 15_000 }).toBe(0);
+    const atOnce = await page.evaluate(() => ({
+      summary: document.querySelector('[data-testid="somm-summary"] p')?.textContent,
+      somm: document.querySelectorAll('[data-testid="somm-note"]').length,
+      engine: document.querySelectorAll('[data-testid="pick-note"]').length,
+      cards: document.querySelectorAll('[data-testid="pick-card"]').length,
+    }));
+    expect(atOnce).toEqual({ summary: SOMM_SUMMARY, somm: 3, engine: 0, cards: 3 });
+    const landing = await landingSeen(page, true);
+    expect(landing.clipped, "a height was eased under reduced motion").toBe(0);
+    expect((await motionSeen(page)).wordSpans).toBe(0);
+    await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
+  });
+
+  test("Log's label read says the same two lines, with nothing breathing", async ({ page }) => {
+    const release = await scriptLabel(page);
+    const log = new BottleLogPage(page);
+    await log.goto();
+    await watchLabelRead(page);
+    await log.uploadLabel("label-test-01.jpg");
+    await expect(page.getByTestId("bottle-processing")).toBeVisible({ timeout: 15_000 });
+    release();
+    await expect(log.confirmState).toBeVisible({ timeout: 15_000 });
+    await expect(log.wineNameInput).toHaveValue("Kanonkop Pinotage");
+    const seen = await labelSeen(page);
+    expect(seen.lines).toEqual(["Producer, vintage, grape…", "Kanonkop Pinotage 2019"]);
+    expect(seen.breathing).toBe(false);
   });
 });

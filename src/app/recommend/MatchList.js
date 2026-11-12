@@ -23,6 +23,14 @@
 //   - Choosing quiets the other picks (faded, no choose button); the pill's
 //     Change brings their choose buttons back. Nothing is un-chosen until
 //     another pick is chosen — the ledger's `replaced` semantics.
+//
+// In motion (docs/motion/README.md §8.5, big moment 3): the reading view
+// breathes, flicks through the names it has really read and leaves before
+// the picks arrive; the picks are written in, in rank order; and when the
+// Somm lands, its summary and then each note are written in over the
+// engine's, nothing under them jumping. All of it is presentation — the
+// reading still commits nothing until the picks land, the Somm is still
+// progressive enhancement, and no write waits on any of it.
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
@@ -36,19 +44,23 @@ import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { metaLine, pickFlag, pickNote, picksSubline, readingLine, termsLine } from "@/lib/houseCopy";
 import { findJournalRow, termsFromPreferences } from "@/lib/matchTerms";
-import PalateMark from "@/components/PalateMark";
+import ReadingView from "@/components/ReadingView";
 import RunningHead from "@/components/house/RunningHead";
 import SectionHead from "@/components/house/SectionHead";
 import LeaderEntry from "@/components/house/LeaderEntry";
 import RuledField from "@/components/house/RuledField";
 import TextAction, { TextActions } from "@/components/house/TextAction";
-import ProgressLine from "@/components/house/ProgressLine";
 import Divider from "@/components/house/Divider";
+import RuleDraw from "@/components/house/RuleDraw";
 import EmptyState from "@/components/house/EmptyState";
 import Toast, { useToast } from "@/components/house/Toast";
 import Enter from "@/components/house/Enter";
+import {
+  D_EXIT, PAGE_REST, PICKS, QUICK_RISE, SOMM, pickDelay, picksCloseDelay, prefersReducedMotion, sommNoteDelay,
+} from "@/components/house/motion";
 import TonightsTerms, { STEER_MAX } from "./TonightsTerms";
 import PickEntry from "./PickEntry";
+import SommSays from "./SommSays";
 import { BURGUNDY, COLUMN, CREAM, GRADIENT, GUTTER, INK, PILL_SHADOW, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
 // ─── Image compression utility ───
@@ -112,6 +124,10 @@ const termsKeyOf = (steerText, color, min, max) =>
   JSON.stringify([steerText || null, color, min ?? null, max ?? null]);
 const priceOf = (digits) => (digits ? parseFloat(digits) : null);
 
+// What the reading's ticker may show: the names the parse really returned —
+// these, and never one it didn't (docs/motion README §8.5)
+const tickerNames = (entries) => entries.map((e) => formatWineName(e.name || "")).filter(Boolean);
+
 // The grape line when the engine didn't map one: Vision's own variety, or a
 // blend named by the wine's color (the old chips' fallback)
 function fallbackGrape(pick) {
@@ -146,10 +162,9 @@ function pickFacts(pick) {
 
 const column = { maxWidth: COLUMN, margin: "0 auto", padding: `22px ${GUTTER}px 56px` };
 const alertLine = { fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: BURGUNDY };
-
-/** What opens in place on this page rises quickly: 10px over 300ms, as it
- *  always has. Session 5 of docs/motion gives the picks their full timing. */
-const QUICK_RISE = { duration: 300, distance: 10 };
+// The terms bar's two rules: hairlines at its top and bottom edge, so they
+// can draw (a border can't)
+const termsRule = { position: "absolute", left: 0, right: 0, height: 1, background: ink(0.1) };
 
 /** "Get my picks" — the pill beside the link and under the pasted list. */
 function PillButton({ children, disabled, onClick, testId }) {
@@ -209,7 +224,9 @@ export default function MatchList({ isMobile = false }) {
   const [wineListText, setWineListText] = useState("");
   const [extractedFrom, setExtractedFrom] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
-  // The reading state — { line, progress } while the Somm reads
+  // The reading state while the Somm reads: { line, progress, names,
+  // leaving } — `names` only once a list has really been parsed (the
+  // ticker), `leaving` while the view plays out before the picks arrive
   const [reading, setReading] = useState(null);
   // The analysis
   const [picks, setPicks] = useState(null);
@@ -231,6 +248,12 @@ export default function MatchList({ isMobile = false }) {
   const [chosenWine, setChosenWine] = useState(null);
   const [changing, setChanging] = useState(false);
   const [bypassState, setBypassState] = useState(null); // null | "noted" | "dismissed"
+  // Picks the Somm didn't keep, fading out before its own take their place
+  const [goingKeys, setGoingKeys] = useState(null);
+  // False for the render in which Your picks arrives, true after it: only
+  // what mounts WITH the view plays the arrival — a pick that joins later
+  // (the Somm's, a refilter's) fades in, in place
+  const picksArrived = useRef(false);
   const sommSeqRef = useRef(0);
   const readTokenRef = useRef(0);
   const verdictSessionRef = useRef(null);
@@ -286,11 +309,12 @@ export default function MatchList({ isMobile = false }) {
   const view = reading ? "reading" : picks ? "picks" : "input";
   // Scroll to top on every step change: Match → Reading → Picks (§9.2)
   useEffect(() => { window.scrollTo(0, 0); }, [view]);
+  useEffect(() => { picksArrived.current = view === "picks"; }, [view]);
 
   // ─── The reading state ───
   const beginReading = () => {
     setErrorMsg("");
-    setReading({ line: readingLine("list"), progress: 0.9 });
+    setReading({ line: readingLine("list"), progress: 0.9, names: null, leaving: false });
     return ++readTokenRef.current;
   };
   const isStale = (token) => token !== readTokenRef.current;
@@ -362,10 +386,11 @@ export default function MatchList({ isMobile = false }) {
   // list's own state (pages, the extracted text) only once nothing can
   // cancel it.
   const finishReading = async (token, entries, source, beforeCommit) => {
-    setReading((r) => r && { ...r, line: readingLine("count", entries.length) });
+    // The list is parsed: for this one beat its names pass under the bar
+    setReading((r) => r && { ...r, line: readingLine("count", entries.length), names: tickerNames(entries) });
     await pause(READ_BEAT_MS);
     if (isStale(token)) return;
-    setReading((r) => r && { ...r, line: readingLine("weigh", entries.length) });
+    setReading((r) => r && { ...r, line: readingLine("weigh", entries.length), names: null });
     const analysis = analyzeEntries(entries, priceOf(minPrice), priceOf(maxPrice), colorPref);
     await pause(READ_BEAT_MS);
     if (isStale(token)) return;
@@ -373,6 +398,13 @@ export default function MatchList({ isMobile = false }) {
     if (done) {
       setReading((r) => r && { ...r, line: done, progress: 1 });
       await pause(READ_BEAT_MS);
+      if (isStale(token)) return;
+    }
+    // The view leaves before the picks arrive. Cancel is live through it,
+    // and still costs nothing: nothing is committed until it is over
+    if (!prefersReducedMotion()) {
+      setReading((r) => r && { ...r, leaving: true });
+      await pause(D_EXIT);
       if (isStale(token)) return;
     }
     beforeCommit?.();
@@ -387,6 +419,7 @@ export default function MatchList({ isMobile = false }) {
     // Invalidate any in-flight somm request so it can't overwrite this state.
     sommSeqRef.current++;
     if (sommState === "pending") setSommState("idle");
+    setGoingKeys(null);
     const menuCtx = buildMenuContext(scoredEntries.filter(e => e.score > 0));
     const pickCount = getPickCount(totalParsed, newColorPref);
     const curated = curatePicks(scoredEntries, {
@@ -506,6 +539,21 @@ export default function MatchList({ isMobile = false }) {
         setSommState("fallback");
         recordMenuAnalyzed({ outcome: "fallback", duration_ms: sommMs });
         return;
+      }
+      // The Somm lands (docs/motion §8.5). A pick it didn't keep fades out
+      // before its own fades in, in place; the rest stay where they are.
+      // Everything after — the summary, then each note written in over the
+      // engine's — is the picks' own presentation, staged from this commit
+      const kept = new Set(sommPicks.map(wineKey));
+      const going = curated.map(wineKey).filter((key) => !kept.has(key));
+      if (going.length > 0 && !prefersReducedMotion()) {
+        setGoingKeys(new Set(going));
+        await pause(SOMM.outMs);
+        setGoingKeys(null);
+        if (sommSeqRef.current !== seq) { // a refilter landed during the fade
+          recordMenuAnalyzed({ outcome: "superseded", duration_ms: sommMs });
+          return;
+        }
       }
       setPicks(sommPicks);
       setSommNotes(notes);
@@ -920,6 +968,7 @@ export default function MatchList({ isMobile = false }) {
     setSommSummary("");
     setSommState("idle");
     setSommTermsKey(null);
+    setGoingKeys(null);
     setAdjustOpen(false);
     setTilesOpen({});
     // A new table sitting: fresh verdict session, cleared declarations —
@@ -1014,8 +1063,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   const renderInput = () => {
     const next = numeralCounter();
     return (
-      <div>
-        <h1 style={TYPE.h1}>Match the wine list</h1>
+      <div key="input">
+        <Enter as="h1" style={TYPE.h1}>Match the wine list</Enter>
+        <Enter {...PAGE_REST}>
         <p style={{ ...TYPE.sub, marginTop: 8 }}>Share a wine list and we’ll find your best matches.</p>
         {errorMsg && (
           <p role="alert" data-testid="error-message" style={{ ...alertLine, marginTop: 18 }}>{errorMsg}</p>
@@ -1093,6 +1143,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
 
         <SectionHead numeral={next()} label="Tonight’s terms" style={{ margin: "24px 0 10px" }} />
         <TonightsTerms {...termsProps} steerId="steer-input" />
+        </Enter>
       </div>
     );
   };
@@ -1101,23 +1152,19 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // READING — the Somm is reading (screen 07)
   // ═══════════════════════════════════════════════════
   const renderReading = () => (
-    <div data-testid="processing-spinner" style={{
-      minHeight: "100vh", maxWidth: COLUMN, margin: "0 auto", padding: "0 44px",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      textAlign: "center",
-    }}>
-      <PalateMark genome={profile.identity?.genome} size={96} />
-      <div style={{ ...TYPE.eyebrow, letterSpacing: "0.24em", marginTop: 28 }}>🍷 The Somm is reading</div>
-      <p aria-live="polite" style={{
-        fontFamily: SERIF, fontStyle: "italic", fontSize: "22px", lineHeight: 1.35, color: INK,
-        marginTop: 12, minHeight: 60, textWrap: "balance",
-      }}>{reading.line}</p>
-      <ProgressLine
-        variant="reading" value={reading.progress} duration={reading.progress >= 1 ? 500 : 2300}
-        label="Reading the list" style={{ marginTop: 14 }}
-      />
-      <TextAction tone="quiet" opacity={0.5} onClick={cancelReading} style={{ marginTop: 36 }}>Cancel</TextAction>
-    </div>
+    <ReadingView
+      testId="processing-spinner"
+      genome={profile.identity?.genome}
+      eyebrow="🍷 The Somm is reading"
+      line={reading.line}
+      progress={reading.progress}
+      barMs={reading.progress >= 1 ? 500 : 2300}
+      barLabel="Reading the list"
+      names={reading.names}
+      leaving={reading.leaving}
+      onCancel={cancelReading}
+      style={{ minHeight: "100vh", maxWidth: COLUMN, margin: "0 auto", padding: "0 44px" }}
+    />
   );
 
   // ═══════════════════════════════════════════════════
@@ -1131,25 +1178,36 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     const askAgainVisible = hasPicks && sommState !== "pending"
       && termsKeyOf(steer.trim().slice(0, STEER_MAX), colorPref, priceOf(minPrice), priceOf(maxPrice)) !== sommTermsKey;
     const seenKeys = new Set();
+    // The arrival (docs/motion §8.5's table): everything that mounts with
+    // the view is written in, each part on its delay from PICKS. A pick that
+    // joins later is handed no delay — it fades in where it stands
+    const arriving = !picksArrived.current;
+    const closeAt = picksCloseDelay(picks.length);
     return (
-      <div>
-        <h1 data-testid="results-heading" style={TYPE.h1}>{hasPicks ? "Your picks" : "No matches found"}</h1>
-        <p style={{ ...TYPE.sub, marginTop: 8 }}>
+      <div key="picks">
+        <Enter as="h1" delay={PICKS.title} data-testid="results-heading" style={TYPE.h1}>
+          {hasPicks ? "Your picks" : "No matches found"}
+        </Enter>
+        <Enter as="p" delay={PICKS.sub} style={{ ...TYPE.sub, marginTop: 8 }}>
           {picksSubline({ wines: totalParsed, pages: pageCount, picks: picks.length })}
-        </p>
+        </Enter>
 
         {/* The terms bar — Adjust opens Tonight's terms in place */}
         <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-          marginTop: 16, padding: "6px 0", borderTop: `1px solid ${ink(0.1)}`, borderBottom: `1px solid ${ink(0.1)}`,
+          position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          marginTop: 16, padding: "7px 0",
         }}>
-          <span style={{
+          <RuleDraw enterDelay={PICKS.terms} style={{ ...termsRule, top: 0 }} />
+          <RuleDraw enterDelay={PICKS.terms} style={{ ...termsRule, bottom: 0 }} />
+          <Enter as="span" kind="fade" delay={PICKS.termsText} style={{
             fontFamily: SANS, fontSize: "10px", fontWeight: 600, lineHeight: 1.5, textTransform: "uppercase",
             letterSpacing: "0.14em", color: ink(0.55), minWidth: 0, overflowWrap: "anywhere",
-          }}>{termsLine({ color: colorPref, min: minPrice, max: maxPrice, steer })}</span>
-          <TextAction size={12} weight={700} ariaExpanded={adjustOpen} onClick={() => setAdjustOpen((open) => !open)}>
-            Adjust ›
-          </TextAction>
+          }}>{termsLine({ color: colorPref, min: minPrice, max: maxPrice, steer })}</Enter>
+          <Enter as="span" kind="fade" delay={PICKS.termsText} style={{ flexShrink: 0 }}>
+            <TextAction size={12} weight={700} ariaExpanded={adjustOpen} onClick={() => setAdjustOpen((open) => !open)}>
+              Adjust ›
+            </TextAction>
+          </Enter>
         </div>
         {adjustOpen && (
           <Enter {...QUICK_RISE} style={{ marginTop: 18 }}>
@@ -1162,24 +1220,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </Enter>
         )}
 
-        {/* The Somm says — "tasting" while it curates; omitted on fallback */}
-        {hasPicks && sommState === "pending" && (
-          <div data-testid="somm-thinking" style={{ textAlign: "center", marginTop: 28 }}>
-            <div style={TYPE.eyebrow}>🍷 The Somm says</div>
-            <p style={{
-              fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.55, color: ink(0.55), marginTop: 10,
-            }}>The Somm is tasting…</p>
-          </div>
-        )}
-        {hasPicks && sommState === "done" && sommSummary && (
-          <div data-testid="somm-summary" style={{ textAlign: "center", marginTop: 28 }}>
-            <div style={TYPE.eyebrow}>🍷 The Somm says</div>
-            <p style={{
-              fontFamily: SERIF, fontStyle: "italic", fontSize: "16px", lineHeight: 1.55, color: INK,
-              marginTop: 10, textWrap: "pretty",
-            }}>{sommSummary}</p>
-          </div>
-        )}
+        {/* The Somm says — "tasting" while it curates, its summary written
+            in when it lands; gone on fallback */}
+        <SommSays state={hasPicks ? sommState : "idle"} summary={sommSummary} enterDelay={PICKS.somm} />
 
         {hasPicks && (
           <div data-testid="picks-container">
@@ -1207,8 +1250,12 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   price={pick.price != null ? `$${pick.price}` : null}
                   meta={facts.meta}
                   flag={rating ? null : pickFlag(journalRow)}
-                  note={sommNote || pickNote({ reasons: (pick.matchReasons || []).map((r) => r.type), ...facts.names })}
-                  sommNote={Boolean(sommNote)}
+                  note={pickNote({ reasons: (pick.matchReasons || []).map((r) => r.type), ...facts.names })}
+                  sommNote={sommNote}
+                  sommDelay={sommNoteDelay(i)}
+                  enterDelay={arriving ? pickDelay(i) : undefined}
+                  swapIn={!arriving}
+                  going={Boolean(goingKeys?.has(wineKey(pick)))}
                   chosen={chosen}
                   quiet={quiet}
                   changing={changing}
@@ -1232,7 +1279,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           }}>We’ll ask how it drank tomorrow morning.</p>
         )}
 
-        <Divider style={{ marginTop: 36 }} />
+        <Divider enterDelay={closeAt} style={{ marginTop: 36 }} />
+        <Enter kind="fade" delay={closeAt}>
         {hasPicks && bypassState === null && (
           <div style={{ textAlign: "center", marginTop: 10 }}>
             <TextAction tone="quiet" underlined opacity={0.5} testId="bypass-somm" onClick={handleBypass}>
@@ -1270,6 +1318,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           )}
           <TextAction testId="scan-again-button" onClick={handleReset}>📋 Scan another list</TextAction>
         </div>
+        </Enter>
       </div>
     );
   };
@@ -1281,7 +1330,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           state, so the trail keeps calling it "Match a list" (a "Your
           picks" label elsewhere would land on an empty Match page) */}
       {view !== "reading" && (
-        <RunningHead {...(view === "picks" && { backLabel: "Match a list", onBack: handleReset })} />
+        <RunningHead enter={view === "picks"} {...(view === "picks" && { backLabel: "Match a list", onBack: handleReset })} />
       )}
       {/* Mounted in every view: a new list can arrive mid-read (it
           supersedes the old one) and "Add another page" lives over the picks */}

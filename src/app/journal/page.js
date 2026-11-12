@@ -29,6 +29,8 @@ import WineRow from "@/components/house/WineRow";
 import TimelineRow from "@/components/house/TimelineRow";
 import Divider from "@/components/house/Divider";
 import EmptyState from "@/components/house/EmptyState";
+import Enter from "@/components/house/Enter";
+import { PAGE_REST } from "@/components/house/motion";
 import TextAction from "@/components/house/TextAction";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
@@ -253,7 +255,8 @@ export default function JournalPage() {
     <>
       <RunningHead />
       <main style={column}>
-        <h1 style={TYPE.h1}>Journal</h1>
+        <Enter as="h1" style={TYPE.h1}>Journal</Enter>
+        <Enter {...PAGE_REST}>
         <p style={{ ...TYPE.sub, marginTop: 8 }}>Your tasting history and wishlist</p>
         <ChoiceTabs
           panelId={PANEL}
@@ -286,6 +289,7 @@ export default function JournalPage() {
             </p>
           </>
         )}
+        </Enter>
       </main>
       <Toast toasts={toasts} aboveServiceBar />
       <ServiceBar />

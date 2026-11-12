@@ -79,6 +79,7 @@ async function main() {
     RISE_PX, WORD_PX, EXIT_PX, POP_FROM, D_REDUCED, FONT_WAIT_MS, BREATHE_MS, BREATHE_SCALE, BREATHE_ANIMATION,
     ENTRANCES, EXIT, HIDDEN, HEAD_ENTER, ENTRY_ENTER, ROW_ENTER, REVEAL, DOTS, dotAnimation,
     PRESS, PRESS_KEYFRAMES, GROWTH, SAVED, HOME, PALATE,
+    PICKS, SOMM, TICKER, PAGE_REST, QUICK_RISE, pickDelay, picksCloseDelay, sommNoteDelay, easeHeight,
     prefersReducedMotion, entranceKeyframes, entranceTiming, playEntrance,
   } = motion;
 
@@ -203,6 +204,47 @@ async function main() {
     assert(PALATE.heads + 3 * PALATE.step < 1200, "the palate's heads are all drawing within 1.2s");
   });
 
+  await test("Your picks is §8.5's table, value for value — counted from the view's arrival", () => {
+    const { title, sub, terms, termsText, somm, first, step } = PICKS;
+    assertEq(
+      { title, sub, terms, termsText, somm, first, step },
+      { title: 80, sub: 180, terms: 300, termsText: 450, somm: 600, first: 800, step: 450 },
+      "the view",
+    );
+    assertEq(step, PICK_STEP, "picks are PICK_STEP apart");
+    assertEq(PICKS.pick, { name: 160, leader: 380, meta: 420, note: 520, price: 720, actions: 780 }, "inside a pick, from its own start");
+    assertEq([0, 1, 2, 3].map(pickDelay), [800, 1250, 1700, 2150], "pick n starts at 800 + 450·n");
+    // A pick's name, leader and price keep the rhythm every other row has
+    assertEq(
+      { leader: PICKS.pick.leader - PICKS.pick.name, end: PICKS.pick.price - PICKS.pick.name },
+      ROW_ENTER, "a pick's row is a row",
+    );
+    // The closing divider draws after the last pick — the study's 2500 for three
+    assertEq(picksCloseDelay(3), 2500, "three picks");
+    assert(picksCloseDelay(1) > pickDelay(0) + PICKS.pick.actions, "after the last pick's actions have begun to arrive");
+    assertEq(picksCloseDelay(0), PICKS.first, "no picks: where the first would have started");
+    assertEq(picksCloseDelay(-2), PICKS.first, "junk count");
+  });
+
+  await test("the Somm lands as §8.5 says: tasting out over 200ms, the summary at 30ms a word, notes from 1250ms, 520ms apart, 26ms a word", () => {
+    assertEq(SOMM, { outMs: 200, summaryStep: 30, heightMs: 450, notes: 1250, noteStep: 520, noteWordStep: 26, swapMs: 320 }, "SOMM");
+    assertEq([0, 1, 2].map(sommNoteDelay), [1250, 1770, 2290], "pick by pick");
+    // The summary has begun before the first note is rewritten
+    assert(SOMM.outMs < SOMM.notes, "the summary leads the notes");
+  });
+
+  await test("the reading's ticker is §8.5's: a name every 190ms, each on a 160ms fade", () => {
+    assertEq(TICKER, { step: 190, fadeMs: 160, from: 0.2, outMs: 250 }, "TICKER");
+    assert(TICKER.fadeMs < TICKER.step, "a name has landed before the next one starts");
+    assert(TICKER.from > 0 && TICKER.from < 1, "a flick, not a blink");
+  });
+
+  await test("the quiet pages (§8.6): the title rises, the rest fades in together over 300ms; what opens in place rises quickly", () => {
+    assertEq(PAGE_REST, { kind: "fade", duration: 300, delay: 100 }, "PAGE_REST");
+    assert(ENTRANCES[PAGE_REST.kind] === ENTRANCES.fade, "a single fade — lists are for scanning, nothing staggers");
+    assertEq(QUICK_RISE, { duration: 300, distance: 10 }, "QUICK_RISE");
+  });
+
   console.log("\n═══ 2. The rules every entrance follows ═══");
 
   await test("only opacity, transform and clip-path animate", () => {
@@ -310,6 +352,87 @@ async function main() {
     assertEq(playEntrance(undefined, "rise"), null, "undefined element");
     assertEq(playEntrance({}, "rise"), null, "an element that can't animate");
     assertEq(playEntrance({ animate() { throw new Error("NotSupportedError"); } }, "rise"), null, "a browser that refuses the keyframes");
+  });
+
+  console.log("\n═══ 3b. easeHeight — the one layout animation (§8.5) ═══");
+
+  /** A box whose natural height is `natural`, recording what it was asked to animate. */
+  function fakeBox(natural, { overflow = "" } = {}) {
+    const calls = [];
+    let settle;
+    let refuse;
+    const box = {
+      calls,
+      style: { overflow },
+      getBoundingClientRect: () => ({ height: natural }),
+      animate(keyframes, timing) {
+        const finished = new Promise((resolve, reject) => { settle = resolve; refuse = reject; });
+        calls.push({ keyframes, timing, overflowDuring: box.style.overflow });
+        return { finished, cancel: () => refuse(new Error("AbortError")) };
+      },
+      finish: () => settle(),
+    };
+    return box;
+  }
+
+  await test("eases the box from the height it had to the height it has: height only, SOFT_OUT, 450ms, no fill", () => {
+    withMotionPreference(false, () => {
+      const box = fakeBox(96);
+      const animation = easeHeight(box, 40);
+      assert(animation, "an animation is returned, so a caller can cancel it");
+      assertEq(box.calls.length, 1, "one animation");
+      assertEq(box.calls[0].keyframes, [{ height: "40px" }, { height: "96px" }], "from the old height to the new");
+      assertEq(box.calls[0].timing, { duration: 450, easing: SOFT_OUT }, "no fill: the box ends on its own height");
+      assertEq(box.calls[0].overflowDuring, "hidden", "what doesn't fit yet is clipped while the box grows");
+    });
+  });
+
+  await test("leaves nothing behind: the box's own overflow comes back when the ease ends — or is cancelled", async () => {
+    await withMotionPreference(false, async () => {
+      const ended = fakeBox(96, { overflow: "" });
+      easeHeight(ended, 40);
+      assertEq(ended.style.overflow, "hidden", "clipped during");
+      ended.finish();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assertEq(ended.style.overflow, "", "restored after");
+
+      const cancelled = fakeBox(20, { overflow: "visible" });
+      const animation = easeHeight(cancelled, 80);
+      animation.cancel();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assertEq(cancelled.style.overflow, "visible", "restored after a cancel");
+    });
+  });
+
+  await test("closes a box to nothing, and opens one from nothing", () => {
+    withMotionPreference(false, () => {
+      const closing = fakeBox(0);
+      easeHeight(closing, 72);
+      assertEq(closing.calls[0].keyframes, [{ height: "72px" }, { height: "0px" }], "closing");
+      const opening = fakeBox(72);
+      easeHeight(opening, 0);
+      assertEq(opening.calls[0].keyframes, [{ height: "0px" }, { height: "72px" }], "opening");
+    });
+  });
+
+  await test("does nothing when there is nothing to ease — and nothing at all under reduced motion", () => {
+    withMotionPreference(false, () => {
+      const same = fakeBox(64);
+      assertEq(easeHeight(same, 64.2), null, "the same height, to the pixel");
+      assertEq(same.calls.length, 0, "no animation");
+      assertEq(same.style.overflow, "", "and the box untouched");
+      assertEq(easeHeight(null, 40), null, "no box");
+      assertEq(easeHeight({ style: {}, getBoundingClientRect: () => ({ height: 9 }) }, 40), null, "a box that can't animate");
+      assertEq(easeHeight(fakeBox(96), NaN), null, "an unknown old height");
+      const refuses = { style: { overflow: "" }, getBoundingClientRect: () => ({ height: 96 }), animate() { throw new Error("NotSupportedError"); } };
+      assertEq(easeHeight(refuses, 40), null, "a browser that refuses the keyframes");
+      assertEq(refuses.style.overflow, "", "…leaves the box as it was");
+    });
+    withMotionPreference(true, () => {
+      const box = fakeBox(96);
+      assertEq(easeHeight(box, 40), null, "reduced motion");
+      assertEq(box.calls.length, 0, "the new height is simply there");
+    });
   });
 
   console.log("\n═══ 4. useStagger ═══");
@@ -501,6 +624,68 @@ async function main() {
     for (const file of ["LeaderDraw.js", "RuleDraw.js"]) {
       const source = readFileSync(join(HOUSE, file), "utf-8");
       assert(/play:\s*enterDelay\s*!=\s*null|const play = enterDelay != null/.test(source), `${file} must rest when enterDelay is absent`);
+    }
+  });
+
+  await test("SOURCE SCAN: Your picks' and the Somm's timings live in motion.js — the page and its parts type none of them", () => {
+    const unweighted = (code) => code.replace(/fontWeight:\s*\d+/g, "");
+    const files = ["MatchList.js", "PickEntry.js", "SommSays.js"].map((name) => join(SRC, "app", "recommend", name));
+    const table = [
+      PICKS.first, PICKS.pick.leader, PICKS.pick.meta, PICKS.pick.note, PICKS.pick.price, PICKS.pick.actions,
+      SOMM.notes, SOMM.noteStep, SOMM.heightMs, TICKER.step,
+    ];
+    for (const path of files) {
+      const code = unweighted(codeOf(path));
+      for (const ms of new Set(table)) {
+        assert(!types(code, ms), `${relative(SRC, path)} types ${ms} — it belongs in motion.js`);
+      }
+    }
+    const page = codeOf(files[0]);
+    assert(/\bpickDelay\(/.test(page) && /\bsommNoteDelay\(/.test(page) && /PICKS\.title/.test(page), "MatchList must take the arrival from PICKS");
+    assert(!/const QUICK_RISE\s*=/.test(page), "QUICK_RISE lives in motion.js");
+    assert(/PICKS\.pick\./.test(codeOf(files[1])), "PickEntry must take its parts' offsets from PICKS.pick");
+    assert(/SOMM\.summaryStep/.test(codeOf(files[2])), "SommSays must write the summary at SOMM's pace");
+  });
+
+  await test("SOURCE SCAN: one reading view — Match and Log both wait in ReadingView, and it types none of the ticker", () => {
+    const view = codeOf(join(SRC, "components", "ReadingView.js"));
+    assert(/<PalateMarkLive\b[^>]*\bbreathing\b/.test(view), "the bloom breathes while something is read");
+    assert(/<SwapLine\b[^>]*aria-live="polite"/.test(view), "the line cross-fades, and is the view's live region");
+    assert(/TICKER\.step/.test(view) && /TICKER\.fadeMs/.test(view) && /TICKER\.outMs/.test(view), "the ticker is TICKER's");
+    for (const ms of [TICKER.step, TICKER.fadeMs, TICKER.outMs]) {
+      assert(!types(view, ms), `ReadingView.js types ${ms} — it belongs in motion.js`);
+    }
+    // Decorative, and never under reduced motion
+    assert(/aria-hidden="true"[^>]*data-testid="reading-ticker"|data-testid="reading-ticker"[^>]*aria-hidden="true"/.test(view), "the ticker is hidden from screen readers");
+    for (const path of [join(SRC, "app", "recommend", "MatchList.js"), join(SRC, "app", "log", "LogBottle.js")]) {
+      assert(/<ReadingView\b/.test(codeOf(path)), `${relative(SRC, path)} must wait in ReadingView`);
+    }
+  });
+
+  await test("SOURCE SCAN: height is animated in ONE place — easeHeight, reached only through useRewrite", () => {
+    const animatesHeight = sourceFiles(SRC)
+      .filter((path) => /\.js$/.test(path) && /\.animate\(\s*\[\s*\{[^}]*\bheight\b/.test(codeOf(path)))
+      .map((path) => relative(SRC, path));
+    assertEq(animatesHeight, ["components/house/motion.js"], "who animates a height");
+    const callers = sourceFiles(SRC)
+      .filter((path) => /\.js$/.test(path) && /\beaseHeight\(/.test(codeOf(path)))
+      .map((path) => relative(SRC, path))
+      .filter((path) => path !== "components/house/motion.js");
+    assertEq(callers, ["components/house/useRewrite.js"], "who eases a height");
+    // No CSS transition on a height either: §8.5's is the one exception
+    const transitions = sourceFiles(SRC)
+      .filter((path) => /\.js$/.test(path) && /transition:\s*[`"'][^`"']*\bheight\b/.test(codeOf(path)))
+      .map((path) => relative(SRC, path));
+    assertEq(transitions, [], "no CSS height transitions");
+  });
+
+  await test("SOURCE SCAN: the quiet pages enter with PAGE_REST — none types its own fade", () => {
+    for (const path of [
+      join(SRC, "app", "journal", "page.js"), join(SRC, "app", "search", "page.js"),
+      join(SRC, "app", "account", "page.js"), join(SRC, "app", "wine", "WinePage.js"),
+    ]) {
+      const code = codeOf(path);
+      assert(/<Enter \{\.\.\.PAGE_REST\}/.test(code), `${relative(SRC, path)} must fade its rows in with PAGE_REST`);
     }
   });
 

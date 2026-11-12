@@ -17,11 +17,16 @@
 // page keys its head by the wine (<RunningHead key={name} />) to record the
 // step. Home has no head but records its visit with useNavTrail("Your
 // list"). Never on Home, the full-screen reading states, or auth pages.
+//
+// `enter` fades the head in as it mounts — Your picks arriving after the
+// full-screen reading (docs/motion/README.md §8.5). The head itself fades:
+// a wrapper would take its stickiness.
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { HOME_TITLE, backTarget, recordVisit, stepBack, titleForPath } from "@/lib/navTrail";
+import useEntrance, { withEntrance } from "./useEntrance";
 import { BURGUNDY, COLUMN, SANS, ink } from "./tokens";
 
 // Read the trail before paint on client navigations (no label flash);
@@ -59,18 +64,20 @@ const cell = {
   width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
 };
 
-export default function RunningHead({ title, backLabel, onBack, hideSearch = false }) {
+export default function RunningHead({ title, backLabel, onBack, hideSearch = false, enter = false }) {
   const trail = useNavTrail(title);
   const label = backLabel ?? trail.backLabel;
+  const headRef = useRef(null);
+  const entering = useEntrance(headRef, "fade", { play: enter });
 
   return (
-    <header data-testid="running-head" style={{
+    <header ref={headRef} data-testid="running-head" style={withEntrance({
       position: "sticky", top: 0, zIndex: 30,
       padding: "calc(env(safe-area-inset-top) + 4px) 14px 4px",
       background: "rgba(245,240,232,0.92)",
       backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)",
       borderBottom: `1px solid ${ink(0.07)}`,
-    }}>
+    }, entering)}>
       <div style={{
         display: "grid", gridTemplateColumns: "minmax(0,1fr) 44px minmax(0,1fr)",
         alignItems: "center", maxWidth: COLUMN, margin: "0 auto",

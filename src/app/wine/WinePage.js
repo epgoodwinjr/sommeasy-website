@@ -46,7 +46,7 @@ import { growthOf, readPalate } from "@/lib/growthMoment";
 import { evolutionToastMessages, saveInteraction } from "@/components/WineRecList";
 import GrowthMoment from "@/components/GrowthMoment";
 import Enter from "@/components/house/Enter";
-import { GROWTH } from "@/components/house/motion";
+import { GROWTH, PAGE_REST } from "@/components/house/motion";
 import RunningHead, { useGoBack } from "@/components/house/RunningHead";
 import ServiceBar from "@/components/house/ServiceBar";
 import Toast, { carryToasts, useToast } from "@/components/house/Toast";
@@ -610,7 +610,7 @@ export default function WinePage({ name }) {
 
   return page(
     <>
-      <header style={{ textAlign: "center" }}>
+      <Enter as="header" style={{ textAlign: "center" }}>
         {meta && <div style={eyebrow}>{meta}</div>}
         <h1 style={{
           fontFamily: SERIF, fontSize: "28px", fontWeight: 700, lineHeight: 1.15, letterSpacing: "-0.01em",
@@ -619,7 +619,8 @@ export default function WinePage({ name }) {
         {vintage && (
           <div style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "18px", color: BURGUNDY, marginTop: 6 }}>{vintage}</div>
         )}
-      </header>
+      </Enter>
+      <Enter {...PAGE_REST}>
       <Divider style={{ marginTop: 20 }} />
 
       <div ref={standingRef} tabIndex={-1} style={{ outline: "none" }}>
@@ -745,6 +746,7 @@ export default function WinePage({ name }) {
           )}
         </div>
       )}
+      </Enter>
     </>
   );
 }
