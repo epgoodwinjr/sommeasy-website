@@ -16,7 +16,9 @@ import { testDb } from "./fixtures/test-db";
  * title, epithet and address sit where palateCard.js plans them, and whose
  * every other pixel is bare cream — nothing beyond what is drawn. Where a
  * file can't be shared, or share() refuses, it downloads; a dismissed share
- * does neither. No request leaves on the tap: no route, no event.
+ * does neither; a second tap while the sheet is open does nothing; a card
+ * that couldn't be made is made again on the next tap. No request leaves on
+ * the tap: no route, no event.
  */
 
 // A PNG's size, read from its IHDR chunk (bytes 16–23, big-endian)
@@ -72,8 +74,10 @@ const CARD_FONTS = {
 
 /** Before any script: Web Share as the test says it is. "file" shares
  *  files (and keeps what it was handed); "none" has no Web Share;
- *  "refuse" and "dismiss" reject as a browser does. */
-async function webShare(page: Page, mode: "file" | "none" | "refuse" | "dismiss") {
+ *  "refuse" and "dismiss" reject as a browser does; "hold" keeps the sheet
+ *  open until `__releaseShare()`, and a share() while it is open rejects
+ *  with InvalidStateError, as browsers do. */
+async function webShare(page: Page, mode: "file" | "none" | "refuse" | "dismiss" | "hold") {
   await page.addInitScript((m) => {
     const w = window as any;
     w.__shareCalls = [];
@@ -92,6 +96,11 @@ async function webShare(page: Page, mode: "file" | "none" | "refuse" | "dismiss"
         w.__sharedFile = data.files?.[0];
         if (m === "refuse") throw new DOMException("no activation", "NotAllowedError");
         if (m === "dismiss") throw new DOMException("dismissed", "AbortError");
+        if (m === "hold") {
+          if (w.__sheetOpen) throw new DOMException("a share is already open", "InvalidStateError");
+          w.__sheetOpen = true;
+          await new Promise<void>((resolve) => { w.__releaseShare = () => { w.__sheetOpen = false; resolve(); }; });
+        }
       },
     });
   }, mode);
@@ -215,6 +224,11 @@ test.describe("The palate card", () => {
     });
     expect(order.share).toBeGreaterThan(order.signature);
     expect(order.share).toBeLessThan(order.evolution);
+    // What a download did is said through a status region that is already
+    // in the page, empty — one mounted with its words often goes unheard
+    const said = page.getByTestId("share-palate-said");
+    await expect(said).toHaveAttribute("role", "status");
+    await expect(said).toHaveText("");
 
     const sent: string[] = [];
     page.on("request", (r) => sent.push(r.url()));
@@ -226,7 +240,7 @@ test.describe("The palate card", () => {
     // Nothing recorded, nowhere called
     expect(sent.filter((u) => /\/api\/|supabase\.co/.test(u))).toEqual([]);
     // A share needs no line of its own: the sheet was the answer
-    await expect(page.getByTestId("share-palate-saved")).toHaveCount(0);
+    await expect(said).toHaveText("");
 
     const { plan, lineHeights } = await planInPage(page, words);
     const card = await readCard(page, { shared: true }, plan, lineHeights,
@@ -257,7 +271,7 @@ test.describe("The palate card", () => {
     const bytes = readFileSync(path!);
     expect(bytes.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
     expect({ width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) }).toEqual({ width: 1080, height: 1350 });
-    await expect(page.getByTestId("share-palate-saved")).toHaveText("Your card is in your downloads.");
+    await expect(page.getByTestId("share-palate-said")).toHaveText("Your card is in your downloads.");
     // The downloaded card is the same card
     const { plan, lineHeights } = await planInPage(page, words);
     const card = await readCard(page, { dataUrl: `data:image/png;base64,${bytes.toString("base64")}` }, plan, lineHeights,
@@ -272,7 +286,7 @@ test.describe("The palate card", () => {
     const download = page.waitForEvent("download");
     await action.click();
     expect((await download).suggestedFilename()).toBe("sommeasy-palate.png");
-    await expect(page.getByTestId("share-palate-saved")).toBeVisible();
+    await expect(page.getByTestId("share-palate-said")).toHaveText("Your card is in your downloads.");
 
     const fresh = await page.context().newPage();
     await webShare(fresh, "dismiss");
@@ -284,10 +298,60 @@ test.describe("The palate card", () => {
     // The rejection has landed by the time the page answers again
     await fresh.evaluate(() => new Promise((r) => setTimeout(r, 0)));
     expect(downloads).toBe(0);
-    await expect(fresh.getByTestId("share-palate-saved")).toHaveCount(0);
+    await expect(fresh.getByTestId("share-palate-said")).toHaveText("");
     await expect(fresh.getByTestId("share-palate-failed")).toHaveCount(0);
     await expect(action).toHaveText("Share your palate");
     await fresh.close();
+  });
+
+  test("a card that couldn't be made is made again on the next tap — and the action keeps its focus", async ({ page }) => {
+    // The first card fails (a canvas that can't encode — iOS under memory
+    // pressure); every later one is made as usual
+    await page.addInitScript(() => {
+      const w = window as any;
+      w.__toBlobCalls = 0;
+      const toBlob = HTMLCanvasElement.prototype.toBlob;
+      HTMLCanvasElement.prototype.toBlob = function (callback: BlobCallback, ...rest: any[]) {
+        w.__toBlobCalls += 1;
+        if (w.__toBlobCalls === 1) return callback(null);
+        return toBlob.call(this, callback, ...rest);
+      };
+    });
+    await webShare(page, "file");
+    const action = await openPalate(page);
+    // The card made ahead of the tap has failed
+    await expect.poll(() => page.evaluate(() => (window as any).__toBlobCalls), { timeout: 15_000 }).toBe(1);
+    await action.focus();
+    await action.click();
+    // The tap makes it again, and shares it — no failure said
+    await expect.poll(() => page.evaluate(() => (window as any).__shareCalls.length), { timeout: 15_000 }).toBe(1);
+    expect(await page.evaluate(() => (window as any).__toBlobCalls)).toBe(2);
+    await expect(page.getByTestId("share-palate-failed")).toHaveCount(0);
+    await expect(action).toHaveText("Share your palate");
+    // Making the card never took the focus from the action
+    await expect(action).toBeFocused();
+  });
+
+  test("a second tap while the sheet is open does nothing — no second share, no download", async ({ page }) => {
+    await webShare(page, "hold");
+    const action = await openPalate(page);
+    let downloads = 0;
+    page.on("download", () => downloads++);
+    await action.click();
+    await expect.poll(() => page.evaluate(() => (window as any).__shareCalls.length), { timeout: 15_000 }).toBe(1);
+    await action.click();
+    await action.click();
+    // The page has answered both taps by now
+    await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+    expect(await page.evaluate(() => (window as any).__shareCalls.length)).toBe(1);
+    expect(downloads).toBe(0);
+    await expect(page.getByTestId("share-palate-said")).toHaveText("");
+    await expect(page.getByTestId("share-palate-failed")).toHaveCount(0);
+    // The sheet closes: the action is live again
+    await page.evaluate(() => (window as any).__releaseShare());
+    await action.click();
+    await expect.poll(() => page.evaluate(() => (window as any).__shareCalls.length), { timeout: 15_000 }).toBe(2);
+    expect(downloads).toBe(0);
   });
 
   test("a palate whose genome isn't one offers no card", async ({ page }) => {

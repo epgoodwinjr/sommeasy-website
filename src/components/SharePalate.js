@@ -10,8 +10,13 @@
 // The card is made AHEAD of the tap, once the page has settled: a browser
 // lets share() open only inside the tap's user activation (Safari's window
 // is short), and drawing, decoding the bloom and encoding the PNG could
-// outlast it. A tap that beats the card waits for it; if share() then
-// refuses, the card downloads instead.
+// outlast it. A tap that beats the card waits for it (the action stays
+// focused, saying so); if share() then refuses, the card downloads instead.
+// One share at a time: a second tap while the sheet is open does nothing.
+// A card that couldn't be made isn't kept — the next tap makes it again.
+// What a download did is said through a status region that is in the page
+// before it has anything to say (a region mounted with its words in it
+// often goes unannounced).
 //
 // Only the file is shared — no title, text or link rides with it — and
 // nothing is recorded: no route, no event (the wine_events catalog is
@@ -35,6 +40,9 @@ const COLORS = { title: INK, epithet: BURGUNDY, site: ink(0.55) };
 const RULE = ink(0.15);
 // After the page's entrances (PALATE in motion.js ends well inside this)
 const MAKE_AFTER_MS = 1200;
+// A face that hasn't loaded by then is drawn in its fallback (Georgia, the
+// system sans) rather than holding the card on a slow network
+const FONT_WAIT_MS = 3000;
 
 // Tracked text (the address) set letter by letter — canvas letterSpacing
 // isn't everywhere yet
@@ -65,7 +73,8 @@ async function makeCard({ genome, title, epithet }) {
   if (typeof document === "undefined") return null;
   // Every face drawn, loaded first (a failed load falls back, as the page does)
   if (document.fonts?.load) {
-    await Promise.all(Object.values(FONTS).map((font) => document.fonts.load(font).catch(() => null)));
+    const loaded = Promise.all(Object.values(FONTS).map((font) => document.fonts.load(font).catch(() => null)));
+    await Promise.race([loaded, new Promise((resolve) => setTimeout(resolve, FONT_WAIT_MS))]);
   }
   const canvas = document.createElement("canvas");
   canvas.width = C.width;
@@ -134,13 +143,17 @@ export default function SharePalate({ genome, title, epithet, style }) {
   const usable = Boolean(title) && renderPalateMarkDocument(genome, { size: 1 }) !== "";
   const key = usable ? JSON.stringify([genome, title, epithet ?? null]) : null;
   const making = useRef(null); // { key, promise }
+  const sharing = useRef(false); // a tap is being answered
   const [card, setCard] = useState(null); // { key, file }
   const [state, setState] = useState("idle"); // idle | making | saved | failed
 
   const cardFor = (k) => {
     if (making.current?.key !== k) {
       const promise = makeCard({ genome, title, epithet }).catch(() => null);
-      making.current = { key: k, promise };
+      const entry = { key: k, promise };
+      making.current = entry;
+      // A card that couldn't be made isn't kept: the next tap tries again
+      promise.then((file) => { if (!file && making.current === entry) making.current = null; });
     }
     return making.current.promise;
   };
@@ -160,39 +173,52 @@ export default function SharePalate({ genome, title, epithet, style }) {
   if (!usable) return null;
 
   const share = async () => {
-    let file = card?.key === key ? card.file : null;
-    if (!file) {
-      setState("making");
-      file = await cardFor(key);
-      if (!file) { setState("failed"); return; }
-    }
-    if (canShareFile(file)) {
-      try {
-        await navigator.share({ files: [file] });
-        setState("idle");
-        return;
-      } catch (err) {
-        // Dismissed: nothing to say. Refused (the tap's activation ran out,
-        // or the platform said no): the download below still gives the card
-        if (err?.name === "AbortError") { setState("idle"); return; }
-      }
-    }
+    // One at a time: a tap while the card is being made or the sheet is
+    // open does nothing (a second share() would reject, and must not read
+    // as a refusal to download through)
+    if (sharing.current) return;
+    sharing.current = true;
     try {
-      download(file);
-      setState("saved");
-    } catch {
-      setState("failed");
+      let file = card?.key === key ? card.file : null;
+      if (!file) {
+        setState("making");
+        file = await cardFor(key);
+        if (!file) { setState("failed"); return; }
+      }
+      if (canShareFile(file)) {
+        try {
+          await navigator.share({ files: [file] });
+          setState("idle");
+          return;
+        } catch (err) {
+          // Dismissed, or a sheet already open: nothing to say. Refused (the
+          // tap's activation ran out, or the platform said no): the download
+          // below still gives the card
+          if (err?.name === "AbortError" || err?.name === "InvalidStateError") { setState("idle"); return; }
+        }
+      }
+      try {
+        download(file);
+        setState("saved");
+      } catch {
+        setState("failed");
+      }
+    } finally {
+      sharing.current = false;
     }
   };
 
   return (
     <div style={{ textAlign: "center", ...style }}>
-      <TextAction tone="quiet" underlined testId="share-palate" onClick={share} disabled={state === "making"}>
+      {/* Never disabled: a disabled button drops the focus it holds. While
+          the card is made it says so, and a tap does nothing */}
+      <TextAction tone="quiet" underlined testId="share-palate" onClick={share}>
         {state === "making" ? SHARE_COPY.making : SHARE_COPY.action}
       </TextAction>
-      {state === "saved" && (
-        <p data-testid="share-palate-saved" role="status" style={said}>{SHARE_COPY.saved}</p>
-      )}
+      {/* In the page before it has anything to say, so the line is heard */}
+      <p data-testid="share-palate-said" role="status" style={state === "saved" ? said : quiet}>
+        {state === "saved" ? SHARE_COPY.saved : ""}
+      </p>
       {state === "failed" && (
         <p data-testid="share-palate-failed" role="alert" style={{ ...said, color: BURGUNDY, fontStyle: "italic", fontFamily: SERIF }}>
           {SHARE_COPY.failed}
@@ -203,3 +229,5 @@ export default function SharePalate({ genome, title, epithet, style }) {
 }
 
 const said = { fontFamily: SANS, fontSize: "12px", lineHeight: 1.5, color: ink(0.5), margin: "-4px 0 0" };
+// Empty, it takes no room (an empty block's negative margin would pull the page up)
+const quiet = { margin: 0 };
