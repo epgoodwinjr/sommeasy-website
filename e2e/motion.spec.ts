@@ -1532,7 +1532,7 @@ async function scriptSomm(page: Page) {
 const watchReading = (page: Page) => page.evaluate(() => {
   const seen = {
     lines: [] as string[], ticker: [] as { name: string; line: string }[],
-    breathing: false, left: false, headDuring: false,
+    breathing: false, left: false, headDuring: false, tickerOwn: [] as string[],
   };
   (window as any).__reading = seen;
   const read = () => {
@@ -1540,8 +1540,12 @@ const watchReading = (page: Page) => page.evaluate(() => {
     if (!view) return;
     const line = view.querySelector('[aria-live="polite"]')?.textContent || "";
     if (line && seen.lines[seen.lines.length - 1] !== line) seen.lines.push(line);
-    const name = view.querySelector('[data-testid="reading-ticker"]')?.textContent || "";
+    const ticker = view.querySelector('[data-testid="reading-ticker"]') as HTMLElement | null;
+    const name = ticker?.textContent || "";
     if (name && !seen.ticker.some((t) => t.name === name)) seen.ticker.push({ name, line });
+    // What the slot rests at while it shows a name — the opacity each flick
+    // fades up TO, and the last name fades out FROM
+    if (name && ticker && !seen.tickerOwn.includes(ticker.style.opacity)) seen.tickerOwn.push(ticker.style.opacity);
     const mark = view.querySelector('[data-testid="palate-mark"]') as HTMLElement | null;
     if (mark && getComputedStyle(mark).animationName === "house-breathe") seen.breathing = true;
     if (view.style.opacity === "0") seen.left = true;
@@ -1552,6 +1556,7 @@ const watchReading = (page: Page) => page.evaluate(() => {
 });
 const readingSeen = (page: Page) => page.evaluate(() => (window as any).__reading as {
   lines: string[]; ticker: { name: string; line: string }[]; breathing: boolean; left: boolean; headDuring: boolean;
+  tickerOwn: string[];
 });
 
 /**
@@ -1656,6 +1661,19 @@ test.describe("The waits — motion on", () => {
       }
       expect(line, `"${name}" was shown while the line read "${line}"`).toMatch(/^Reading /);
     }
+    // A name flicks up to the slot's own opacity and the last fades out
+    // from it: that has to be 1 (the meta style's alpha rides its color),
+    // or every name would peak at full ink and snap back
+    expect(reading.tickerOwn.filter((own) => own !== "0")).toEqual(["1"]);
+
+    // A re-render in the middle of the arrival — Adjust opened and closed —
+    // must not move a rule's origin out from under a draw still pending:
+    // every pick's rule draws from its left end
+    await page.getByRole("button", { name: "Adjust ›" }).click();
+    await page.getByRole("button", { name: "Adjust ›" }).click();
+    const origins = await page.locator('[data-testid="pick-card"] h2 > span[aria-hidden="true"]:last-child')
+      .evaluateAll((rules) => rules.map((rule) => getComputedStyle(rule).transformOrigin.split(" ")[0]));
+    expect(origins).toEqual(["0px", "0px", "0px", "0px", "0px"]);
 
     // ── The picks have arrived, and the Somm is still tasting ──
     await expect(page.getByTestId("somm-thinking")).toContainText("The Somm is tasting");
@@ -1885,6 +1903,97 @@ test.describe("The waits, Log's label — motion on", () => {
     expect(seen.ticker, "a label has no list: its ticker never shows a thing").toBe("");
     expect(seen.headDuring, "the label read is full screen: no running head").toBe(false);
     await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
+  });
+});
+
+const PAGE_ONE = WAIT_LIST.split("\n").map((line) => {
+  const [name, price] = line.split("...$");
+  return { name, price: Number(price), color: null, variety: null, region: null, country: null, producer: null, vintage: null };
+});
+const PAGE_TWO_ERROR = "We couldn’t read that page — try a clearer photo.";
+
+test.describe("The waits, another page — motion on", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  test("a page that fails (or is cancelled) brings the picks back as they were — its error seen at once, nothing replayed; a page that reads arrives", async ({ page }) => {
+    test.setTimeout(120_000);
+    const { supabase, userId } = await testDb();
+    const analyzedBefore = await countEvents(supabase, userId, "menu_analyzed");
+    await watchEntrances(page);
+    // The scan is scripted (no Claude call): page one reads, page two fails
+    // when released, page three is cancelled, page four reads
+    let scans = 0;
+    const gates: (() => void)[] = [];
+    await page.route("**/api/parse-wine-list", async (route) => {
+      scans += 1;
+      if (scans === 1) return route.fulfill({ json: { wines: PAGE_ONE, rawText: "" } });
+      await new Promise<void>((resolve) => gates.push(resolve));
+      if (scans === 2) return route.fulfill({ json: { error: PAGE_TWO_ERROR } });
+      return route.fulfill({ json: { wines: [{ ...PAGE_ONE[0], name: "Raats Family Cabernet Franc, Stellenbosch 2020", price: 55 }], rawText: "" } });
+    });
+    await page.route("**/api/somm-picks", (route) => route.abort());
+
+    const rec = new RecommendPage(page);
+    await rec.goto();
+    await expect(page.getByRole("heading", { name: "Match the wine list" })).toBeVisible({ timeout: 20_000 });
+    await rec.uploadFile("label-test-01.jpg");
+    await expect(rec.resultsHeading).toHaveText("Your picks", { timeout: 30_000 });
+    await expect(page.getByTestId("somm-thinking")).toHaveCount(0, { timeout: 15_000 });
+    await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
+    const picksBefore = await rec.pickCards.evaluateAll((cards) => cards.map((card) => card.getAttribute("data-wine")));
+    expect(picksBefore.length).toBe(5);
+    await expect.poll(() => countEvents(supabase, userId, "menu_analyzed"), { timeout: 15_000 }).toBe(analyzedBefore + 1);
+
+    // ── Another page, and it fails ──
+    await page.evaluate(() => {
+      (window as any).__entrances.length = 0;
+      // How visible the error is at the moment it first exists: its own
+      // opacity times every ancestor's (an entrance waiting on its delay
+      // holds its element at 0)
+      const seen = { errorOpacity: null as number | null };
+      (window as any).__page2 = seen;
+      new MutationObserver(() => {
+        const error = document.querySelector('[data-testid="add-page-error"]');
+        if (!error || seen.errorOpacity !== null) return;
+        let opacity = 1;
+        for (let el: Element | null = error; el; el = el.parentElement) opacity *= Number(getComputedStyle(el).opacity);
+        seen.errorOpacity = opacity;
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+    await page.getByTestId("file-input-add-page").setInputFiles("e2e/fixtures/images/label-test-02.jpg");
+    await expect(rec.processingSpinner).toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => gates.length, { timeout: 15_000 }).toBe(1);
+    gates[0]();
+    const error = page.getByTestId("add-page-error");
+    await expect(error).toHaveText(PAGE_TWO_ERROR, { timeout: 15_000 });
+    expect(await page.evaluate(() => (window as any).__page2.errorOpacity), "the error waited behind an entrance").toBe(1);
+    // The picks are back exactly as they were, and nothing played to bring them
+    await expect(rec.resultsHeading).toHaveText("Your picks");
+    expect(await rec.pickCards.evaluateAll((cards) => cards.map((card) => card.getAttribute("data-wine")))).toEqual(picksBefore);
+    await expect(page.getByTestId("pick-note")).toHaveCount(5);
+    expect(await entrances(page), "the arrival replayed for picks that never left").toEqual([]);
+    expect(await finiteAnimations(page)).toBe(0);
+
+    // ── Another page, cancelled mid-read: the same, with nothing to say ──
+    await page.getByTestId("file-input-add-page").setInputFiles("e2e/fixtures/images/label-test-02.jpg");
+    await expect(rec.processingSpinner).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(rec.resultsHeading).toHaveText("Your picks", { timeout: 15_000 });
+    await expect(page.getByTestId("add-page-error")).toHaveCount(0);
+    expect(await entrances(page)).toEqual([]);
+    expect(await rec.pickCards.evaluateAll((cards) => cards.map((card) => card.getAttribute("data-wine")))).toEqual(picksBefore);
+    gates[1]?.(); // the cancelled read lands on nothing
+
+    // ── Another page that READS: picks have landed, and they arrive ──
+    await page.getByTestId("file-input-add-page").setInputFiles("e2e/fixtures/images/label-test-02.jpg");
+    await expect(rec.processingSpinner).toBeVisible({ timeout: 15_000 });
+    await expect.poll(() => gates.length, { timeout: 15_000 }).toBe(3);
+    gates[2]();
+    await expect(page.getByText(/11 wines across 2 pages/)).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => (await entrances(page)).length, { timeout: 15_000 }).toBeGreaterThan(5);
+    await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
+    // Only pages that read reach the ledger: the first, and this one
+    await expect.poll(() => countEvents(supabase, userId, "menu_analyzed"), { timeout: 15_000 }).toBe(analyzedBefore + 2);
   });
 });
 

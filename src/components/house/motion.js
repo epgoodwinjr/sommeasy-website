@@ -308,10 +308,19 @@ export function easeHeight(el, from) {
   if (!el || typeof el.animate !== "function" || !Number.isFinite(from) || prefersReducedMotion()) return null;
   const to = el.getBoundingClientRect().height;
   if (Math.abs(to - from) < 0.5) return null;
-  // What doesn't fit yet is clipped while the box grows
-  const own = el.style.overflow;
+  // What doesn't fit yet is clipped while the box grows. A box already
+  // easing is wearing the last ease's clipping, not its own style — a
+  // cancelled ease is only heard a microtask later — so the box's own
+  // overflow is remembered from the first ease, and put back by the last
+  const inFlight = EASING.get(el);
+  const ease = { own: inFlight ? inFlight.own : el.style.overflow };
+  EASING.set(el, ease);
   el.style.overflow = "hidden";
-  const restore = () => { el.style.overflow = own; };
+  const restore = () => {
+    if (EASING.get(el) !== ease) return; // a later ease has the box now
+    EASING.delete(el);
+    el.style.overflow = ease.own;
+  };
   try {
     const animation = el.animate(
       [{ height: `${from}px` }, { height: `${to}px` }],
@@ -324,3 +333,6 @@ export function easeHeight(el, from) {
     return null;
   }
 }
+
+// The boxes easing right now, each with the overflow it had before any ease
+const EASING = new WeakMap();

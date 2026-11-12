@@ -10,8 +10,12 @@
 // All sample content: the wines, the note and the palate are the motion
 // study's ("The Stellenbosch Loyalist"), not anyone's data.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SavedStep from "@/app/log/SavedStep";
+import PickEntry from "@/app/recommend/PickEntry";
+import SommSays from "@/app/recommend/SommSays";
+import ReadingView from "@/components/ReadingView";
+import { DEMO } from "@/components/WelcomeDemo";
 import GrowthMoment from "@/components/GrowthMoment";
 import PalateMark from "@/components/PalateMark";
 import PalateMarkLive from "@/components/PalateMarkLive";
@@ -27,10 +31,11 @@ import WineRow from "@/components/house/WineRow";
 import WriteIn from "@/components/house/WriteIn";
 import useReducedMotion from "@/components/house/useReducedMotion";
 import useStagger from "@/components/house/useStagger";
+import { D_EXIT, PICKS, pickDelay, picksCloseDelay, sommNoteDelay } from "@/components/house/motion";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 import { numeralCounter } from "@/lib/numerals";
 import { growthOf } from "@/lib/growthMoment";
-import { ratedDoneLine, savedCopy } from "@/lib/houseCopy";
+import { pickNote, ratedDoneLine, readingLine, savedCopy } from "@/lib/houseCopy";
 
 const GENOME = { seed: 20260730, world: 0.62, color: 0.6, focus: 0.5, depth: 0.5, spread: 0.55, range: 0.6 };
 // Each shape has its own seed, as production's do: the identity engine
@@ -209,6 +214,102 @@ function Rewards() {
   );
 }
 
+// Session 5 — the waits (§8.5): the reading view over the Welcome demo's
+// sample list, then the picks with the Somm landing over the engine's notes.
+// The study's three picks; the lines are houseCopy's, the engine notes too.
+const READ_NAMES = DEMO.list.map(([name]) => name);
+const SOMM_SUMMARY = "A list that leans French but hides its best value in the Cape. Your lane tonight is white with backbone — three bottles below, each a different kind of yes.";
+const SAMPLE_PICKS = [
+  {
+    wine: "Newton Johnson Chardonnay 2023", role: "🏆 Top Pick", name: "Newton Johnson Chardonnay", vintage: "2023", price: "$78",
+    meta: "Hemel-en-Aarde · Chardonnay", note: pickNote({ reasons: ["varietal"], grape: "Chardonnay" }),
+    somm: "With the roast chicken, this is the bottle — sea-cooled Chardonnay with your kind of nerve. It drinks like white Burgundy that moved somewhere sunnier.",
+  },
+  {
+    wine: "Ken Forrester Old Vine Reserve Chenin Blanc 2022", role: "💰 Great Value", name: "Ken Forrester Old Vine Reserve Chenin Blanc", vintage: "2022", price: "$48",
+    meta: "Stellenbosch · Chenin Blanc", note: pickNote({ reasons: ["region", "varietal"], region: "Stellenbosch", grape: "Chenin Blanc" }),
+    somm: "Your home grape at a kind price. Honeyed pear up front, that waxy old-vine grip underneath.",
+  },
+  {
+    wine: "López de Heredia Viña Gravonia Blanco 2015", role: "🧭 Adventure", name: "López de Heredia Viña Gravonia Blanco", vintage: "2015", price: "$74",
+    meta: "Rioja · Viura", note: pickNote({ reasons: ["country"], country: "Spain" }),
+    somm: "Trust us on this one. Aged white Rioja is Chenin’s eccentric uncle — nutty, saline, unforgettable.",
+  },
+];
+// The reading's beats, as the real page holds them (READ_BEAT_MS)
+const READ_BEAT = 650;
+
+function Waits() {
+  // null → reading (beat 0–3, then leaving) → picks
+  const [stage, setStage] = useState(null);
+  const [somm, setSomm] = useState("pending");
+  const timers = useRef([]);
+  const clear = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  useEffect(() => clear, []);
+  const at = (ms, fn) => timers.current.push(setTimeout(fn, ms));
+  const read = () => {
+    clear();
+    setSomm("pending");
+    setStage({ view: "reading", beat: 0, leaving: false });
+    // A real scan waits here for the list; the specimen's arrives in a second
+    at(1200, () => setStage({ view: "reading", beat: 1, leaving: false }));
+    at(1200 + READ_BEAT, () => setStage({ view: "reading", beat: 2, leaving: false }));
+    at(1200 + 2 * READ_BEAT, () => setStage({ view: "reading", beat: 3, leaving: false }));
+    at(1200 + 3 * READ_BEAT, () => setStage({ view: "reading", beat: 3, leaving: true }));
+    at(1200 + 3 * READ_BEAT + D_EXIT, () => setStage({ view: "picks" }));
+  };
+  const lines = [
+    readingLine("list"), readingLine("count", READ_NAMES.length),
+    readingLine("weigh", READ_NAMES.length), readingLine("done", SAMPLE_PICKS.length),
+  ];
+  return (
+    <>
+      <p style={caption}>
+        The wait — the bloom breathes, the list’s names flick past once it has been read, and the view leaves.
+        Then the picks are written in; when the Somm lands, its words are written over the engine’s and nothing jumps.
+      </p>
+      <TextActions>
+        <TextAction onClick={read} testId="specimen-read-play">Read a list</TextAction>
+        <TextAction onClick={() => setSomm("done")} disabled={stage?.view !== "picks"} testId="specimen-somm-land">The Somm lands</TextAction>
+        <TextAction tone="secondary" onClick={() => setSomm("fallback")} disabled={stage?.view !== "picks"} testId="specimen-somm-fallback">The Somm can’t be reached</TextAction>
+        <TextAction tone="secondary" onClick={() => setSomm("pending")} disabled={stage?.view !== "picks"} testId="specimen-somm-again">Ask again</TextAction>
+      </TextActions>
+      <div data-testid="specimen-waits" style={{ marginTop: 12 }}>
+        {stage?.view === "reading" && (
+          <ReadingView
+            testId="specimen-reading"
+            genome={GENOME}
+            eyebrow="🍷 The Somm is reading"
+            line={lines[stage.beat]}
+            progress={stage.beat >= 3 ? 1 : 0.9}
+            barMs={stage.beat >= 3 ? 500 : 2300}
+            barLabel="Reading the list"
+            names={stage.beat === 1 ? READ_NAMES : null}
+            leaving={stage.leaving}
+            onCancel={() => { clear(); setStage(null); }}
+            style={{ minHeight: 440 }}
+          />
+        )}
+        {stage?.view === "picks" && (
+          <div data-testid="specimen-picks">
+            <Enter as="h2" delay={PICKS.title} style={TYPE.h1}>Your picks</Enter>
+            <SommSays state={somm} summary={SOMM_SUMMARY} enterDelay={PICKS.somm} />
+            {SAMPLE_PICKS.map((pick, i) => (
+              <PickEntry
+                key={pick.wine} index={i} wine={pick.wine} role={pick.role} name={pick.name} vintage={pick.vintage}
+                price={pick.price} meta={pick.meta} note={pick.note}
+                sommNote={somm === "done" ? pick.somm : null} sommDelay={sommNoteDelay(i)}
+                enterDelay={pickDelay(i)} canChoose canRate
+              />
+            ))}
+            <Divider enterDelay={picksCloseDelay(SAMPLE_PICKS.length)} style={{ marginTop: 36 }} />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function MotionSpecimen() {
   const [run, setRun] = useState(0);
   const reduced = useReducedMotion();
@@ -217,7 +318,7 @@ export default function MotionSpecimen() {
       <RunningHead title="Motion specimen" />
       <main style={{ maxWidth: COLUMN, margin: "0 auto", padding: `22px ${GUTTER}px 72px` }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 22 }}>
-          <span style={{ ...TYPE.eyebrow }}>Motion specimen · Sessions 1–4</span>
+          <span style={{ ...TYPE.eyebrow }}>Motion specimen · Sessions 1–5</span>
           <button type="button" data-testid="specimen-replay" onClick={() => setRun((n) => n + 1)} style={{
             minHeight: 40, padding: "0 4px", border: "none", background: "none", cursor: "pointer",
             fontFamily: SANS, fontSize: "13px", fontWeight: 700, color: BURGUNDY,
@@ -238,6 +339,8 @@ export default function MotionSpecimen() {
           <Bloom />
           <Divider style={{ margin: "40px 0 6px" }} />
           <Rewards />
+          <Divider style={{ margin: "40px 0 6px" }} />
+          <Waits />
         </div>
       </main>
     </div>

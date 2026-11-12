@@ -404,6 +404,24 @@ async function main() {
     });
   });
 
+  await test("a second ease on the same box, begun as the first is cancelled, still leaves the box's own overflow", async () => {
+    await withMotionPreference(false, async () => {
+      // useRewrite's cleanup cancels one ease and the next starts in the
+      // same breath — before the first's cancel has been heard. The second
+      // must not mistake the first's clipping for the box's own style
+      const box = fakeBox(96, { overflow: "" });
+      const first = easeHeight(box, 40);
+      first.cancel();
+      easeHeight(box, 60);
+      assertEq(box.style.overflow, "hidden", "clipped through the second ease");
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assertEq(box.style.overflow, "hidden", "the first's late restore doesn't unclip the second");
+      box.finish();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assertEq(box.style.overflow, "", "and the box ends as it began");
+    });
+  });
+
   await test("closes a box to nothing, and opens one from nothing", () => {
     withMotionPreference(false, () => {
       const closing = fakeBox(0);
@@ -677,6 +695,29 @@ async function main() {
       .filter((path) => /\.js$/.test(path) && /transition:\s*[`"'][^`"']*\bheight\b/.test(codeOf(path)))
       .map((path) => relative(SRC, path));
     assertEq(transitions, [], "no CSS height transitions");
+  });
+
+  await test("SOURCE SCAN: a rule that draws keeps its origin for as long as it is mounted", () => {
+    // A caller may hand `enterDelay` on its arrival render only (Your picks
+    // does). If the origin followed the live prop, the next re-render would
+    // drop it under a draw still pending — and the rule would grow from its
+    // centre. The origin is decided once, when the rule mounts
+    const rule = codeOf(join(HOUSE, "RuleDraw.js"));
+    assert(/const drawn = useRef\(play\)\.current;/.test(rule), "RuleDraw must latch whether it draws at mount");
+    assert(/drawn \? \{ \.\.\.style, transformOrigin: origin \} : style/.test(rule), "…and key its origin on that, not on the live prop");
+  });
+
+  await test("SOURCE SCAN: Your picks' arrival plays for picks that LANDED — never for a view that merely came back", () => {
+    const page = codeOf(join(SRC, "app", "recommend", "MatchList.js"));
+    // commitAnalysis is the only thing that earns an arrival
+    assert(/picksLanded\.current \+= 1/.test(page), "an analysis that commits must count as a landing");
+    // The error a failed page leaves over the picks is never inside an entrance
+    const alert = page.indexOf('data-testid="add-page-error"');
+    assert(alert > 0, "add-page-error is missing");
+    const before = page.slice(0, alert);
+    const opened = (before.match(/<Enter\b/g) || []).length;
+    const closed = (before.match(/<\/Enter>/g) || []).length + (before.match(/<Enter\b[^>]*\/>/g) || []).length;
+    assertEq(opened - closed, 0, "add-page-error sits inside an <Enter> — a failed page must never wait to be seen");
   });
 
   await test("SOURCE SCAN: the quiet pages enter with PAGE_REST — none types its own fade", () => {

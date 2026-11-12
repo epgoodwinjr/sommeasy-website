@@ -34,16 +34,19 @@ import TextAction from "@/components/house/TextAction";
 import useReducedMotion from "@/components/house/useReducedMotion";
 import { useIsoLayoutEffect } from "@/components/house/useEntrance";
 import { D_EXIT, EASE, EXIT, TICKER } from "@/components/house/motion";
-import { INK, SERIF, TYPE } from "@/components/house/tokens";
+import { INK, SERIF, TYPE, ink } from "@/components/house/tokens";
 
 const MARK = 96;
 const lineStyle = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "22px", lineHeight: 1.35, color: INK,
   marginTop: 12, minHeight: 60, textWrap: "balance",
 };
-// The ticker's slot and Cancel's margin share the room Cancel always had
+// The ticker's slot and Cancel's margin share the room Cancel always had.
+// The meta style, with its alpha in the COLOR: the slot's own opacity is
+// what each name flicks up to and fades from, so it has to rest at 1
 const tickerSlot = {
-  ...TYPE.meta, lineHeight: "14px", height: 14, marginTop: 12, maxWidth: "100%",
+  ...TYPE.meta, opacity: 1, color: ink(TYPE.meta.opacity),
+  lineHeight: "14px", height: 14, marginTop: 12, maxWidth: "100%",
   overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
 };
 

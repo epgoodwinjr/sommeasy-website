@@ -14,15 +14,17 @@
 // wrapper carries no transform and no opacity of its own. Under reduced
 // motion every kind is a short fade with no movement and no delay. The ref
 // reaches the element, for a line that takes focus when it arrives.
+// `play={false}` mounts it at rest — the same element, no entrance — for a
+// view that has come back rather than arrived (read once, at the mount).
 
 import { forwardRef, useCallback, useRef } from "react";
 import useEntrance, { withEntrance } from "./useEntrance";
 
 const Enter = forwardRef(function Enter({
-  kind = "rise", delay = 0, duration, distance, as: Tag = "div", style, children, ...rest
+  kind = "rise", delay = 0, duration, distance, play = true, as: Tag = "div", style, children, ...rest
 }, forwarded) {
   const ref = useRef(null);
-  const entering = useEntrance(ref, kind, { delay, duration, distance });
+  const entering = useEntrance(ref, kind, { delay, duration, distance, play });
   const setRef = useCallback((el) => {
     ref.current = el;
     if (typeof forwarded === "function") forwarded(el);

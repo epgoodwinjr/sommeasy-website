@@ -250,10 +250,17 @@ export default function MatchList({ isMobile = false }) {
   const [bypassState, setBypassState] = useState(null); // null | "noted" | "dismissed"
   // Picks the Somm didn't keep, fading out before its own take their place
   const [goingKeys, setGoingKeys] = useState(null);
-  // False for the render in which Your picks arrives, true after it: only
-  // what mounts WITH the view plays the arrival — a pick that joins later
-  // (the Somm's, a refilter's) fades in, in place
-  const picksArrived = useRef(false);
+  // The arrival (docs/motion §8.5) is earned by picks LANDING — an analysis
+  // that commits — and plays once, for what mounts with the view then.
+  // `picksMounted` is false for the render in which the picks view mounts
+  // and true after it, so a pick that joins later (the Somm's, a refilter's)
+  // fades in, in place. `picksLanded` / `picksPlayed` tell a landing from a
+  // view that merely came back: another page that failed to read, or was
+  // cancelled, returns the picks exactly as they were — nothing plays, and
+  // its error is seen at once
+  const picksMounted = useRef(false);
+  const picksLanded = useRef(0);
+  const picksPlayed = useRef(0);
   const sommSeqRef = useRef(0);
   const readTokenRef = useRef(0);
   const verdictSessionRef = useRef(null);
@@ -309,7 +316,13 @@ export default function MatchList({ isMobile = false }) {
   const view = reading ? "reading" : picks ? "picks" : "input";
   // Scroll to top on every step change: Match → Reading → Picks (§9.2)
   useEffect(() => { window.scrollTo(0, 0); }, [view]);
-  useEffect(() => { picksArrived.current = view === "picks"; }, [view]);
+  useEffect(() => {
+    picksMounted.current = view === "picks";
+    if (view === "picks") picksPlayed.current = picksLanded.current;
+  }, [view]);
+  // Constant for a mounted picks view's first render; false ever after
+  const picksFirstRender = view === "picks" && !picksMounted.current;
+  const arriving = picksFirstRender && picksLanded.current !== picksPlayed.current;
 
   // ─── The reading state ───
   const beginReading = () => {
@@ -351,6 +364,7 @@ export default function MatchList({ isMobile = false }) {
   // algorithmic picks are already on screen), then the ledger. `source`
   // ("scan" | "pdf" | "url" | "paste") rides the menu_analyzed event.
   const commitAnalysis = (a, source) => {
+    picksLanded.current += 1;
     setTotalParsed(a.entries.length);
     userDNARef.current = a.userDNA;
     setScoredEntries(a.scored);
@@ -1178,17 +1192,18 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     const askAgainVisible = hasPicks && sommState !== "pending"
       && termsKeyOf(steer.trim().slice(0, STEER_MAX), colorPref, priceOf(minPrice), priceOf(maxPrice)) !== sommTermsKey;
     const seenKeys = new Set();
-    // The arrival (docs/motion §8.5's table): everything that mounts with
-    // the view is written in, each part on its delay from PICKS. A pick that
-    // joins later is handed no delay — it fades in where it stands
-    const arriving = !picksArrived.current;
+    // The arrival (docs/motion §8.5's table): when the picks have just
+    // landed, everything that mounts with the view is written in, each part
+    // on its delay from PICKS. A pick that joins later is handed no delay —
+    // it fades in where it stands. A view that only came back plays nothing
     const closeAt = picksCloseDelay(picks.length);
+    const enterAt = (delay) => (arriving ? delay : undefined);
     return (
       <div key="picks">
-        <Enter as="h1" delay={PICKS.title} data-testid="results-heading" style={TYPE.h1}>
+        <Enter as="h1" play={arriving} delay={PICKS.title} data-testid="results-heading" style={TYPE.h1}>
           {hasPicks ? "Your picks" : "No matches found"}
         </Enter>
-        <Enter as="p" delay={PICKS.sub} style={{ ...TYPE.sub, marginTop: 8 }}>
+        <Enter as="p" play={arriving} delay={PICKS.sub} style={{ ...TYPE.sub, marginTop: 8 }}>
           {picksSubline({ wines: totalParsed, pages: pageCount, picks: picks.length })}
         </Enter>
 
@@ -1197,13 +1212,13 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
           marginTop: 16, padding: "7px 0",
         }}>
-          <RuleDraw enterDelay={PICKS.terms} style={{ ...termsRule, top: 0 }} />
-          <RuleDraw enterDelay={PICKS.terms} style={{ ...termsRule, bottom: 0 }} />
-          <Enter as="span" kind="fade" delay={PICKS.termsText} style={{
+          <RuleDraw enterDelay={enterAt(PICKS.terms)} style={{ ...termsRule, top: 0 }} />
+          <RuleDraw enterDelay={enterAt(PICKS.terms)} style={{ ...termsRule, bottom: 0 }} />
+          <Enter as="span" kind="fade" play={arriving} delay={PICKS.termsText} style={{
             fontFamily: SANS, fontSize: "10px", fontWeight: 600, lineHeight: 1.5, textTransform: "uppercase",
             letterSpacing: "0.14em", color: ink(0.55), minWidth: 0, overflowWrap: "anywhere",
           }}>{termsLine({ color: colorPref, min: minPrice, max: maxPrice, steer })}</Enter>
-          <Enter as="span" kind="fade" delay={PICKS.termsText} style={{ flexShrink: 0 }}>
+          <Enter as="span" kind="fade" play={arriving} delay={PICKS.termsText} style={{ flexShrink: 0 }}>
             <TextAction size={12} weight={700} ariaExpanded={adjustOpen} onClick={() => setAdjustOpen((open) => !open)}>
               Adjust ›
             </TextAction>
@@ -1222,7 +1237,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
 
         {/* The Somm says — "tasting" while it curates, its summary written
             in when it lands; gone on fallback */}
-        <SommSays state={hasPicks ? sommState : "idle"} summary={sommSummary} enterDelay={PICKS.somm} />
+        <SommSays state={hasPicks ? sommState : "idle"} summary={sommSummary} enterDelay={enterAt(PICKS.somm)} />
 
         {hasPicks && (
           <div data-testid="picks-container">
@@ -1253,8 +1268,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   note={pickNote({ reasons: (pick.matchReasons || []).map((r) => r.type), ...facts.names })}
                   sommNote={sommNote}
                   sommDelay={sommNoteDelay(i)}
-                  enterDelay={arriving ? pickDelay(i) : undefined}
-                  swapIn={!arriving}
+                  enterDelay={enterAt(pickDelay(i))}
+                  swapIn={!picksFirstRender}
                   going={Boolean(goingKeys?.has(wineKey(pick)))}
                   chosen={chosen}
                   quiet={quiet}
@@ -1279,8 +1294,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           }}>We’ll ask how it drank tomorrow morning.</p>
         )}
 
-        <Divider enterDelay={closeAt} style={{ marginTop: 36 }} />
-        <Enter kind="fade" delay={closeAt}>
+        <Divider enterDelay={enterAt(closeAt)} style={{ marginTop: 36 }} />
+        <Enter kind="fade" play={arriving} delay={closeAt}>
         {hasPicks && bypassState === null && (
           <div style={{ textAlign: "center", marginTop: 10 }}>
             <TextAction tone="quiet" underlined opacity={0.5} testId="bypass-somm" onClick={handleBypass}>
@@ -1300,15 +1315,18 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             </TextActions>
           </Enter>
         )}
+        </Enter>
         {/* Only another page can fail over the picks (they're untouched —
             a page commits nothing until it reads): its error sits beside
             the control that retries it, under its own id, never the input
-            view's error-message (PR #21) */}
+            view's error-message (PR #21). Never inside an entrance: a
+            failed page is seen the moment the picks are back */}
         {errorMsg && (
           <p role="alert" aria-live="polite" data-testid="add-page-error" style={{ ...alertLine, textAlign: "center", marginTop: 18 }}>
             {errorMsg}
           </p>
         )}
+        <Enter kind="fade" play={arriving} delay={closeAt}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 8 }}>
           {extractedFrom === "scan" && (
             <TextAction tone="secondary" onClick={() => {
@@ -1330,7 +1348,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           state, so the trail keeps calling it "Match a list" (a "Your
           picks" label elsewhere would land on an empty Match page) */}
       {view !== "reading" && (
-        <RunningHead enter={view === "picks"} {...(view === "picks" && { backLabel: "Match a list", onBack: handleReset })} />
+        <RunningHead enter={arriving} {...(view === "picks" && { backLabel: "Match a list", onBack: handleReset })} />
       )}
       {/* Mounted in every view: a new list can arrive mid-read (it
           supersedes the old one) and "Add another page" lives over the picks */}
