@@ -389,3 +389,25 @@ The study, the specimen and the unit tests grow a bloom with its seed held still
 The quiz header bloom takes the same path, quietly.
 
 **For Session 5's polish list:** under 344px wide a primary `LeaderEntry` with a long label ("Save My Wine DNA", "Build your palate") lets its circle overhang the right gutter by about 20px. Keep the circle inside the gutter at 320px.
+
+## 15. Settled in Session 4, and first in Session 5 (Nov 12, 2026)
+
+Session 4 shipped growth across a re-deal, `GrowthMoment`, the rating tiles' press, and the entrances on home and /palate. Verified independently on the Session 4 module: over 4,000 simulated estate promotions with a new seed each, the new berry's ripples play in all 4,000 and every growth ends byte-identical to the static mark. The promotion was watched on `/motion-specimen` at 375px. Settled, not to be reopened:
+
+- `growthMoment.js` decides and `GrowthMoment.js` is the only thing that hands a growth to the mark. Only a promotion or a positive shift celebrates.
+- With the re-deal, a promotion's berry lands about 2.7s after the saved step arrives, as the reason line is written. §8.4's table is superseded on that point.
+- The wine page brings a 96px bloom up under the verdict when a verdict earns it, and removes it when a later verdict there earns nothing.
+- Log has no tiles; its timeline starts when the save lands.
+- Home's crest waits for the layout, 900ms at most. Its title and epithet change in place after a shift.
+- On /palate the title and epithet rise with the mark.
+- The quiet path's reason line arrives at 750ms. A demotion with no shift is quiet.
+- Every done line is written, Want and Pass included.
+- **Your picks: a promotion there keeps its toast. No bloom is added to that page**; its moment is the picks arriving (§8.5).
+
+**Session 5 starts with these, before §8.5:**
+
+1. **Run the full e2e suite first, before touching `src/`.** Session 4's last commit (`8c80531`) was verified against five specs, not the whole suite. If anything fails, fix that first and say so in the summary.
+2. **Home's reply is announced twice by some screen readers.** Make it one announcement.
+3. **Under 344px wide, a primary `LeaderEntry` with a long label lets its circle overhang the right gutter** (§14). Keep the circle inside the gutter at 320px.
+
+Deferred, low odds, not for Session 5 unless trivial: a save failing inside the wine page's 430ms hold leaves focus on the block; a wine-page growth can start from a slightly stale shape; two promoting ratings on home within one read can leave the crest on the older strand until reload.
