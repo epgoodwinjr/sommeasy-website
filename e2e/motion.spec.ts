@@ -1259,6 +1259,79 @@ test.describe("The rewards — motion on", () => {
   });
 });
 
+test.describe("The rewards — a verdict changed on the wine page (motion on)", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  // A rated row that resolves to nothing, rated and re-rated "It was fine":
+  // 0 points either way, so the DNA never moves. afterEach deletes it and
+  // puts back the identity fields the milestone hook may silently refresh
+  // (wine-page.spec.ts's discipline); journal_rerated is append-forever.
+  const WINE = "[e2e] Zzyzx Press Check 2020";
+  let restore: { identity: Record<string, unknown> | null; eventIds: Set<string> } | null = null;
+
+  test.afterEach(async ({ page }) => {
+    if (!restore) return;
+    const { identity, eventIds } = restore;
+    restore = null;
+    const { supabase, userId } = await testDb();
+    await page.goto("about:blank").catch(() => {});
+    await supabase.from("wine_interactions").delete().eq("user_id", userId).eq("wine_name", WINE);
+    const { data: eventsNow } = await supabase.from("dna_timeline").select("id").eq("user_id", userId);
+    for (const e of eventsNow ?? []) {
+      if (!eventIds.has(e.id)) await supabase.from("dna_timeline").delete().eq("id", e.id);
+    }
+    if (identity) await supabase.from("wine_profiles").update(identity).eq("user_id", userId);
+  });
+
+  test("Change → a tile: the tile that was tapped is the one that presses, and Keep stays with the tiles through the hold", async ({ page }) => {
+    const { supabase, userId } = await testDb();
+    await supabase.from("wine_interactions").delete().eq("user_id", userId).eq("wine_name", WINE);
+    const { data: identity } = await supabase
+      .from("wine_profiles").select("archetype, identity, red_count, white_count").eq("user_id", userId).single();
+    const { data: events } = await supabase.from("dna_timeline").select("id").eq("user_id", userId);
+    restore = { identity, eventIds: new Set((events ?? []).map((e) => e.id)) };
+    await supabase.from("wine_interactions").insert({
+      user_id: userId, wine_name: WINE, interaction_type: "had", rating: "fine", source_url: "e2e_press",
+    });
+
+    await page.goto(`/wine?name=${encodeURIComponent(WINE)}`);
+    const wine = page.getByTestId("wine-page");
+    await expect(page.getByTestId("wine-verdict")).toContainText("It was fine", { timeout: 20_000 });
+    await page.getByTestId("wine-change").click();
+    await expect(wine.getByRole("group", { name: "Change your verdict" })).toBeVisible();
+    await expect(wine.getByRole("button", { name: /^Keep/ })).toBeVisible();
+
+    const seen = await page.evaluate(async () => {
+      const host = document.querySelector('[data-testid="wine-page"]')!;
+      const tile = host.querySelector('[data-testid="rating-tile-fine"]') as HTMLButtonElement;
+      const keep = Array.from(host.querySelectorAll("button")).find((b) => /^Keep/.test(b.textContent || "")) as HTMLButtonElement;
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      tile.click();
+      await frame();
+      await frame();
+      return {
+        // The SAME button: a rebuilt one would be pressed already, with nothing to play
+        sameTile: host.querySelector('[data-testid="rating-tile-fine"]') === tile,
+        pressed: tile.hasAttribute("data-pressed"),
+        pressing: tile.isConnected && tile.getAnimations().length > 0,
+        prompt: host.querySelector('[role="group"]')?.getAttribute("aria-label"),
+        keepStays: keep.isConnected,
+        keepDisabled: keep.disabled,
+        keepSays: keep.textContent,
+      };
+    });
+    expect(seen).toEqual({
+      sameTile: true, pressed: true, pressing: true, prompt: "Change your verdict",
+      keepStays: true, keepDisabled: true, keepSays: "Keep 😐 It was fine",
+    });
+
+    // Then the verdict takes the tiles' place, as it always did
+    await expect(page.getByTestId("wine-verdict")).toContainText("It was fine", { timeout: 10_000 });
+    await expect(wine.getByTestId("rating-tile-fine")).toHaveCount(0);
+    await expect(page.getByTestId("wine-growth")).toHaveCount(0); // no moment, no bloom
+  });
+});
+
 test.describe("The rewards — reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
 

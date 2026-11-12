@@ -134,13 +134,18 @@ export default function WinePage({ name }) {
   const [note, setNote] = useState("");
   const [noteFailed, setNoteFailed] = useState(false);
   // The bloom, when a verdict here earned a promotion or a shift:
-  // { key, from, genome, moment } — it stays for the visit
+  // { key, from, genome, moment } — it stays until a later verdict here
+  // earns none
   const [growth, setGrowth] = useState(null);
   // The genome as this page last knew it: the shape a growth starts from
   const genomeNow = useRef(null);
-  // The tapped tile answers before the verdict takes the tiles' place
+  // The tapped tile answers before the verdict takes the tiles' place. What
+  // was on screen at the tap stays exactly as it was through the hold —
+  // `heldView` is { keep } when the tap changed a verdict (the Keep line it
+  // sat over), null for a first one: a different element in the tiles' place
+  // would rebuild them, and the press would have nothing to play on
   const [held, press] = usePressHold();
-  const lastPrompt = useRef("How was it?");
+  const heldView = useRef(null);
   const { toasts, showToast } = useToast({ receivesCarried: true });
   const goBack = useGoBack();
   const standingRef = useRef(null);
@@ -301,6 +306,7 @@ export default function WinePage({ name }) {
   const rate = async (rating) => {
     if (pending) return;
     const before = row;
+    heldView.current = wineStanding(before) === "rated" && tilesOpen ? { keep: keepLabel(before.rating) } : null;
     press(rating);
     placeRow(edited({ interaction_type: "had", rating }));
     setTilesOpen(false);
@@ -519,29 +525,29 @@ export default function WinePage({ name }) {
   const factRows = particulars(facts, vintage);
   const next = numeralCounter();
 
-  const tiles = (prompt) => {
-    lastPrompt.current = prompt;
-    return (
-      <RatingTiles
-        variant="page" prompt={prompt} onRate={rate} disabled={pending} rated={held}
-        autoFocus={tilesOpen} style={{ marginTop: 20 }}
-      />
-    );
-  };
+  const tiles = (prompt) => (
+    <RatingTiles
+      variant="page" prompt={prompt} onRate={rate} disabled={pending} rated={held}
+      autoFocus={tilesOpen} style={{ marginTop: 20 }}
+    />
+  );
 
   const renderStanding = () => {
-    // The answer just given: the tiles stay, pressed, for a beat
-    if (held) return tiles(lastPrompt.current);
-    if (standing === "rated" && tilesOpen) {
+    // Changing a verdict — and, for a beat after the tap, the answer just
+    // given: the same tiles, pressed, over the same Keep line
+    const changing = held ? heldView.current : standing === "rated" && tilesOpen;
+    if (changing) {
       return (
         <>
           {tiles("Change your verdict")}
-          <TextAction tone="quiet" size={12} opacity={0.5} onClick={keepVerdict} style={{ marginTop: 4 }}>
-            {keepLabel(row.rating)}
+          <TextAction tone="quiet" size={12} opacity={0.5} disabled={Boolean(held)} onClick={keepVerdict} style={{ marginTop: 4 }}>
+            {held ? heldView.current.keep : keepLabel(row.rating)}
           </TextAction>
         </>
       );
     }
+    // A first verdict, held the same way
+    if (held) return tiles("How was it?");
     if (standing === "rated") {
       const where = verdictWhere(row);
       return (

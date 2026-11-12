@@ -163,7 +163,7 @@ async function main() {
     }
     // The tiles stay until the press has settled — §8.4's 430ms, when the step leaves
     assertEq(PRESS.holdMs, 430, "the hold");
-    assert(PRESS.holdMs >= PRESS.ms && PRESS.holdMs >= PRESS.restMs, "the hold ends before the press has settled");
+    assert(PRESS.holdMs >= PRESS.ms && PRESS.holdMs >= PRESS.restMs, "the hold must outlast the press and the others stepping back");
   });
 
   await test("the saved step is §8.4's table, value for value — counted from the step's arrival (the table's 740)", () => {

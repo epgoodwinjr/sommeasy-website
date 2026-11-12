@@ -179,9 +179,9 @@ export const SAVED = {
  * Home (§8.6), counted from the moment the layout is chosen: the crest rises
  * as one, the divider draws, the date line (or the whisper, written) follows,
  * then each numbered section — its head, and `follow` later its entry or
- * rows — `sectionStep` apart. `crestWait` is the longest the crest holds for
- * the layout before it rises on its own; `swapMs` its title changing in
- * place after a shift.
+ * rows — `sectionStep` apart; the footer follows the last of them by
+ * `footer`. `crestWait` is the longest the crest holds for the layout before
+ * it rises on its own.
  */
 export const HOME = { crestWait: 900, divider: 120, date: 200, sections: 220, sectionStep: 110, follow: 70, footer: 260 };
 
