@@ -18,9 +18,11 @@
 // delay. Under reduced motion the text never splits — it fades in whole.
 // A `text` that changes after the mount is simply shown; remount (a new
 // key) to write again. Any other prop (data-testid, id) lands on the
-// element. It adds no aria-live: a live region is the caller's to own.
+// element, and the ref reaches it — the SAME element while it writes and
+// once it has settled, for a line that takes focus when it arrives. It adds
+// no aria-live: a live region is the caller's to own.
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import {
   D_WORD, FONT_WAIT_MS, HIDDEN, SOFT_OUT, WORD_STEP,
   entranceKeyframes, playEntrance, prefersReducedMotion,
@@ -31,11 +33,16 @@ const WORD = { display: "inline-block" };
 
 const now = () => (typeof performance === "undefined" ? Date.now() : performance.now());
 
-export default function WriteIn({
+const WriteIn = forwardRef(function WriteIn({
   text, as: Tag = "span", delay = 0, step = WORD_STEP, duration = D_WORD,
   awaitFonts = false, onDone, style, ...rest
-}) {
+}, forwarded) {
   const ref = useRef(null);
+  const setRef = useCallback((el) => {
+    ref.current = el;
+    if (typeof forwarded === "function") forwarded(el);
+    else if (forwarded) forwarded.current = el;
+  }, [forwarded]);
   const startedAt = useRef(null);
   const firstText = useRef(text);
   const onDoneRef = useRef(onDone);
@@ -110,7 +117,7 @@ export default function WriteIn({
     // Words and the whitespace between them, in order: [word, space, word, …]
     const parts = String(text ?? "").split(/(\s+)/);
     return (
-      <Tag ref={ref} style={style} {...rest}>
+      <Tag ref={setRef} style={style} {...rest}>
         {parts.map((part, i) => (
           i % 2 === 1 || part === "" ? part : <span key={i} data-word="" style={WORD}>{part}</span>
         ))}
@@ -119,5 +126,7 @@ export default function WriteIn({
   }
   // Hidden only while it can't have started: in server HTML, or waiting on fonts
   const hidden = shown === "waiting" || (shown === "start" && hydrating);
-  return <Tag ref={ref} style={withEntrance(style, hidden ? HIDDEN : null)} {...rest}>{text}</Tag>;
-}
+  return <Tag ref={setRef} style={withEntrance(style, hidden ? HIDDEN : null)} {...rest}>{text}</Tag>;
+});
+
+export default WriteIn;

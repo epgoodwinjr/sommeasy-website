@@ -133,6 +133,62 @@ export const REVEAL = {
 export const DOTS = { ms: 1400, step: 180, rest: 0.25 };
 export const dotAnimation = (index) => `house-dot ${DOTS.ms}ms ease-in-out ${index * DOTS.step}ms infinite backwards`;
 
+/**
+ * A rating tile answering its tap (§8.4): the tapped tile presses and
+ * settles while the other three step back; the tiles stay on screen for
+ * `holdMs` before the done line takes their place. The save itself starts on
+ * the tap — nothing waits on the press.
+ */
+export const PRESS = { ms: 380, easing: "ease-out", down: 0.88, up: 1.08, restMs: 220, rest: 0.25, holdMs: 430 };
+export const PRESS_KEYFRAMES = [
+  { offset: 0, transform: "none" },
+  { offset: 0.3, transform: `scale(${PRESS.down})` },
+  { offset: 0.65, transform: `scale(${PRESS.up})` },
+  { offset: 1, transform: "none" },
+];
+
+/**
+ * A promotion or a shift (§8.4): the bloom shows in its OLD shape, and
+ * `delay` after it arrives it grows into the new one (the growth itself is
+ * the mark's: MARK_MOTION in src/lib/palateMark.js). `inPlace` is the size
+ * the growth takes on a page that has no bloom of its own (the wine page).
+ */
+export const GROWTH = { delay: 700, riseMs: 600, inPlace: 96 };
+
+/**
+ * Log a bottle's saved step (§8.4), counted from the step's arrival — the
+ * README's table, less the 740ms it counts from the tap. `grown` is the big
+ * moment; `quiet` a rating with no promotion and no shift, which should feel
+ * finished, not smaller. Each line of what else moved follows the bottle's
+ * row by `linesAfter`.
+ */
+export const SAVED = {
+  grown: {
+    size: 164, eyebrow: 1850, headline: 2050, sub: 2650, rule: 3350, row: 3450, ways: 4300,
+  },
+  quiet: {
+    size: 132, eyebrow: 250, headline: 450, sub: 750, rule: 1050, row: 1150, ways: 1650,
+  },
+  headlineStep: 85, headlineMs: 650, // written
+  subStep: 30, // written
+  ruleGap: 200, // the row's second rule, after its first
+  linesAfter: 500,
+};
+
+/**
+ * Home (§8.6), counted from the moment the layout is chosen: the crest rises
+ * as one, the divider draws, the date line (or the whisper, written) follows,
+ * then each numbered section — its head, and `follow` later its entry or
+ * rows — `sectionStep` apart. `crestWait` is the longest the crest holds for
+ * the layout before it rises on its own; `swapMs` its title changing in
+ * place after a shift.
+ */
+export const HOME = { crestWait: 900, divider: 120, date: 200, sections: 220, sectionStep: 110, follow: 70, footer: 260 };
+
+/** Your palate (§8.6): the strand rises, the divider draws, and each
+ *  section's head draws as it mounts, `step` apart. Nothing else enters. */
+export const PALATE = { divider: 150, heads: 250, step: 110 };
+
 /** A view leaving (§5.1). Callers remove the view when it finishes. */
 export const EXIT = {
   from: { opacity: 1, transform: "none" },

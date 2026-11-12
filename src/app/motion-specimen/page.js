@@ -11,8 +11,11 @@
 // study's ("The Stellenbosch Loyalist"), not anyone's data.
 
 import { useState } from "react";
+import SavedStep from "@/app/log/SavedStep";
+import GrowthMoment from "@/components/GrowthMoment";
 import PalateMark from "@/components/PalateMark";
 import PalateMarkLive from "@/components/PalateMarkLive";
+import RatingTiles, { DoneLine, usePressHold } from "@/components/house/RatingTiles";
 import Divider from "@/components/house/Divider";
 import Enter from "@/components/house/Enter";
 import LeaderEntry from "@/components/house/LeaderEntry";
@@ -26,6 +29,8 @@ import useReducedMotion from "@/components/house/useReducedMotion";
 import useStagger from "@/components/house/useStagger";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 import { numeralCounter } from "@/lib/numerals";
+import { growthOf } from "@/lib/growthMoment";
+import { ratedDoneLine, savedCopy } from "@/lib/houseCopy";
 
 const GENOME = { seed: 20260730, world: 0.62, color: 0.6, focus: 0.5, depth: 0.5, spread: 0.55, range: 0.6 };
 // Each shape has its own seed, as production's do: the identity engine
@@ -37,6 +42,23 @@ const SHAPES = [
   { id: "estate", label: "An estate", genome: { ...GENOME, depth: 0.5 + 1 / 6, seed: 1903486215 } },
   { id: "country", label: "A country", genome: { ...GENOME, focus: 0.75, seed: 2750139408 } },
 ];
+
+// The saved step's two paths (§8.4), over the study's sample bottle. The
+// words are houseCopy's and the moment is growthOf's — as Log computes them.
+const BOTTLE = { name: "Ken Forrester The FMC Chenin Blanc 2021", meta: "Stellenbosch · Chenin Blanc" };
+const PROMOTED = [{ displayName: "Ken Forrester", dimension: "estate" }];
+const SAVED_STEPS = {
+  grown: {
+    ...BOTTLE, rating: "loved", genomeBefore: GENOME, genome: SHAPES[2].genome,
+    moment: growthOf({ promotions: PROMOTED }),
+    copy: savedCopy({ rating: "loved", promotions: PROMOTED }),
+  },
+  quiet: {
+    ...BOTTLE, rating: "liked", genomeBefore: GENOME, genome: GENOME,
+    moment: growthOf({}),
+    copy: savedCopy({ rating: "liked" }),
+  },
+};
 
 const HEADLINE = "Never guess at a wine list again.";
 const NOTE = "Old-vine Chenin with real grip — the one to pour with the line fish. It has the waxy weight you keep coming back to, and enough salt on the finish to stand up to the lemon.";
@@ -141,9 +163,47 @@ function Bloom() {
       <p style={caption}>A promotion on arrival — the old shape, then grown 700ms later</p>
       <div style={stage}>
         <span data-testid="specimen-promotion">
-          <PalateMarkLive genome={SHAPES[2].genome} growFrom={GENOME} growDelay={700} size={164} celebrate />
+          <GrowthMoment genome={SHAPES[2].genome} from={GENOME} moment={growthOf({ promotions: PROMOTED })} size={164} />
         </span>
         <span data-testid="specimen-promotion-static"><PalateMark genome={SHAPES[2].genome} size={164} /></span>
+      </div>
+    </>
+  );
+}
+
+// Session 4 — the rewards (§8.4): a tile answering its tap, the done line
+// written in, and Log's saved step on both of its paths
+function Rewards() {
+  const [rating, setRating] = useState(null);
+  const [held, press] = usePressHold();
+  const [step, setStep] = useState(null); // { kind, run }
+  const play = (kind) => setStep((now) => ({ kind, run: (now?.run || 0) + 1 }));
+  return (
+    <>
+      <p style={caption}>A rating tile answers its tap — it presses, the others step back, then the done line is written</p>
+      <div data-testid="specimen-tiles">
+        {(!rating || held) && (
+          <RatingTiles variant="verdict" rated={held} onRate={(r) => { press(r); setRating(r); }} />
+        )}
+        {rating && !held && <DoneLine autoFocus>{ratedDoneLine(rating)}</DoneLine>}
+      </div>
+      <TextActions style={{ marginTop: 8 }}>
+        <TextAction onClick={() => setRating(null)} testId="specimen-tiles-reset">Rate again</TextAction>
+      </TextActions>
+
+      <p style={caption}>Log a bottle’s saved step — the big moment (a promotion), and the quiet path</p>
+      <TextActions>
+        <TextAction onClick={() => play("grown")} testId="specimen-saved-play-grown">A promotion lands</TextAction>
+        <TextAction onClick={() => play("quiet")} testId="specimen-saved-play-quiet">The quiet path</TextAction>
+      </TextActions>
+      <div data-testid="specimen-saved" style={{ marginTop: 12 }}>
+        {step && <SavedStep key={step.run} saved={SAVED_STEPS[step.kind]} onLogAnother={() => setStep(null)} />}
+      </div>
+      {/* What the saved step's bloom starts as and ends as, at rest */}
+      <div style={{ ...stage, marginTop: 16 }}>
+        <span data-testid="specimen-saved-before"><PalateMark genome={SAVED_STEPS.grown.genomeBefore} size={164} /></span>
+        <span data-testid="specimen-saved-after"><PalateMark genome={SAVED_STEPS.grown.genome} size={164} /></span>
+        <span data-testid="specimen-saved-quiet-mark"><PalateMark genome={SAVED_STEPS.quiet.genome} size={132} /></span>
       </div>
     </>
   );
@@ -157,7 +217,7 @@ export default function MotionSpecimen() {
       <RunningHead title="Motion specimen" />
       <main style={{ maxWidth: COLUMN, margin: "0 auto", padding: `22px ${GUTTER}px 72px` }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, marginBottom: 22 }}>
-          <span style={{ ...TYPE.eyebrow }}>Motion specimen · Session 1</span>
+          <span style={{ ...TYPE.eyebrow }}>Motion specimen · Sessions 1–4</span>
           <button type="button" data-testid="specimen-replay" onClick={() => setRun((n) => n + 1)} style={{
             minHeight: 40, padding: "0 4px", border: "none", background: "none", cursor: "pointer",
             fontFamily: SANS, fontSize: "13px", fontWeight: 700, color: BURGUNDY,
@@ -176,6 +236,8 @@ export default function MotionSpecimen() {
           <Ink />
           <Divider style={{ margin: "40px 0 6px" }} />
           <Bloom />
+          <Divider style={{ margin: "40px 0 6px" }} />
+          <Rewards />
         </div>
       </main>
     </div>

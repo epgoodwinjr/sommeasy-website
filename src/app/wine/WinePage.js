@@ -20,6 +20,11 @@
 //
 // Unknown ≠ empty: a failed read never shows the not-in-your-journal
 // actions — rating over a row we couldn't read would count it twice.
+//
+// In motion (docs/motion/README.md §8.4): the tapped tile answers before
+// the verdict takes the tiles' place, and a verdict that earns a promotion
+// or an identity shift brings the bloom up under it — in the shape it had,
+// growing into the one it has now. The toasts are kept.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
@@ -37,7 +42,11 @@ import {
   sommRoleTag, timelineLine, verdictWhere, wineMeta,
 } from "@/lib/houseCopy";
 import { hasStoredResolution, sameVein, wineFacts, wineStanding } from "@/lib/journalView";
+import { growthOf, readPalate } from "@/lib/growthMoment";
 import { evolutionToastMessages, saveInteraction } from "@/components/WineRecList";
+import GrowthMoment from "@/components/GrowthMoment";
+import Enter from "@/components/house/Enter";
+import { GROWTH } from "@/components/house/motion";
 import RunningHead, { useGoBack } from "@/components/house/RunningHead";
 import ServiceBar from "@/components/house/ServiceBar";
 import Toast, { carryToasts, useToast } from "@/components/house/Toast";
@@ -46,7 +55,7 @@ import SectionHead from "@/components/house/SectionHead";
 import WineRow from "@/components/house/WineRow";
 import { FactRow } from "@/components/house/SettingRow";
 import RuledField from "@/components/house/RuledField";
-import RatingTiles from "@/components/house/RatingTiles";
+import RatingTiles, { usePressHold } from "@/components/house/RatingTiles";
 import TextAction, { TextActions } from "@/components/house/TextAction";
 import ConfirmBlock from "@/components/house/ConfirmBlock";
 import EmptyState from "@/components/house/EmptyState";
@@ -124,6 +133,14 @@ export default function WinePage({ name }) {
   const removeTrigger = useRef(null);
   const [note, setNote] = useState("");
   const [noteFailed, setNoteFailed] = useState(false);
+  // The bloom, when a verdict here earned a promotion or a shift:
+  // { key, from, genome, moment } — it stays for the visit
+  const [growth, setGrowth] = useState(null);
+  // The genome as this page last knew it: the shape a growth starts from
+  const genomeNow = useRef(null);
+  // The tapped tile answers before the verdict takes the tiles' place
+  const [held, press] = usePressHold();
+  const lastPrompt = useRef("How was it?");
   const { toasts, showToast } = useToast({ receivesCarried: true });
   const goBack = useGoBack();
   const standingRef = useRef(null);
@@ -149,7 +166,7 @@ export default function WinePage({ name }) {
         const [ints, profile, timeline] = await Promise.all([
           supabase.from("wine_interactions").select("*").eq("user_id", u.id)
             .order("updated_at", { ascending: false }),
-          supabase.from("wine_profiles").select("recommendations").eq("user_id", u.id).maybeSingle(),
+          supabase.from("wine_profiles").select("recommendations, identity").eq("user_id", u.id).maybeSingle(),
           supabase.from("dna_timeline").select("*").eq("user_id", u.id).eq("wine_name", name)
             .order("event_at", { ascending: false }),
         ]);
@@ -159,6 +176,7 @@ export default function WinePage({ name }) {
         } else {
           const mine = ints.data.find((r) => r.wine_name === name) || null;
           const recList = Array.isArray(profile.data?.recommendations) ? profile.data.recommendations : [];
+          genomeNow.current = profile.data?.identity?.genome ?? null;
           setJournal(ints.data);
           setRecs(recList);
           setRow(mine);
@@ -283,11 +301,12 @@ export default function WinePage({ name }) {
   const rate = async (rating) => {
     if (pending) return;
     const before = row;
+    press(rating);
     placeRow(edited({ interaction_type: "had", rating }));
     setTilesOpen(false);
     setActionError("");
     setPending(true);
-    const { error, result } = await saveInteraction({
+    const { error, result, shift } = await saveInteraction({
       supabase, userId: userId.current, wineName: name, type: "had", rating,
       previousRating: before?.rating || null,
       surface: "wine_page",
@@ -309,6 +328,19 @@ export default function WinePage({ name }) {
     // A note typed while a first verdict was saving had no row to land on
     if (noteDraft.current.trim().slice(0, NOTE_MAX) !== noteSaved.current) writeNote(noteDraft.current);
     readEvents();
+    // A promotion or a shift: the bloom comes up under the verdict in the
+    // shape it had and grows into what the recompose just wrote. Anything
+    // less leaves no bloom here — and a read that failed changes nothing
+    const moment = growthOf({ promotions: result?.promotions, demotions: result?.demotions, shift });
+    if (!moment.grow) {
+      setGrowth(null);
+      return;
+    }
+    const now = await readPalate(supabase, userId.current);
+    if (!now) return;
+    const from = genomeNow.current;
+    genomeNow.current = now.genome;
+    setGrowth((g) => ({ key: (g?.key || 0) + 1, from, genome: now.genome, moment }));
   };
 
   // ─── Want it / Pass, for a wine not yet in the journal ───
@@ -487,14 +519,19 @@ export default function WinePage({ name }) {
   const factRows = particulars(facts, vintage);
   const next = numeralCounter();
 
-  const tiles = (prompt) => (
-    <RatingTiles
-      variant="page" prompt={prompt} onRate={rate} disabled={pending}
-      autoFocus={tilesOpen} style={{ marginTop: 20 }}
-    />
-  );
+  const tiles = (prompt) => {
+    lastPrompt.current = prompt;
+    return (
+      <RatingTiles
+        variant="page" prompt={prompt} onRate={rate} disabled={pending} rated={held}
+        autoFocus={tilesOpen} style={{ marginTop: 20 }}
+      />
+    );
+  };
 
   const renderStanding = () => {
+    // The answer just given: the tiles stay, pressed, for a beat
+    if (held) return tiles(lastPrompt.current);
     if (standing === "rated" && tilesOpen) {
       return (
         <>
@@ -583,6 +620,13 @@ export default function WinePage({ name }) {
         {renderStanding()}
         {actionError && <p role="alert" style={{ ...alertLine, marginTop: 10 }}>{actionError}</p>}
       </div>
+
+      {growth && (
+        <Enter key={growth.key} duration={GROWTH.riseMs} data-testid="wine-growth"
+          style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
+          <GrowthMoment genome={growth.genome} from={growth.from} moment={growth.moment} size={GROWTH.inPlace} />
+        </Enter>
+      )}
 
       {sommNote && (
         <section>

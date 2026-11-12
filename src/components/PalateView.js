@@ -10,6 +10,11 @@
 // section says so — unknown ≠ empty, never "nothing yet" on a guess. The
 // decisions (the DNA rows, Building now, Recently evolved) live in
 // palateView.js, pure and tested; this file lays them out.
+//
+// In motion (docs/motion/README.md §8.6): the strand rises, the signature's
+// divider draws (its rails already ease to their marks), and each section's
+// head draws as it mounts. Nothing else enters, and nothing waits on a
+// scroll — the rows are for reading.
 
 import { useRef, useState } from "react";
 import { formatWineName } from "@/lib/matchEngine";
@@ -20,8 +25,11 @@ import { bottlesAwayLine, dnaCount, dnaKindLabel } from "@/lib/houseCopy";
 import { numeralCounter } from "@/lib/numerals";
 import PalateMark from "./PalateMark";
 import Divider from "./house/Divider";
+import Enter from "./house/Enter";
 import SectionHead from "./house/SectionHead";
 import Rail from "./house/Rail";
+import useStagger from "./house/useStagger";
+import { PALATE } from "./house/motion";
 import ProgressLine from "./house/ProgressLine";
 import TimelineRow from "./house/TimelineRow";
 import TextAction, { TextActions } from "./house/TextAction";
@@ -45,7 +53,7 @@ function Signature({ profile, accumulation }) {
   const hasColor = signature.redCount + signature.whiteCount > 0;
   return (
     <section data-testid="palate-signature">
-      <Divider style={{ marginTop: 22 }} />
+      <Divider enterDelay={PALATE.divider} style={{ marginTop: 22 }} />
       <h2 style={{ ...TYPE.eyebrow, textAlign: "center", marginTop: 14 }}>Palate Signature</h2>
       {hasWorlds && (
         <Rail left="Old World" right="New World" value={signature.newWorldShare} style={{ marginTop: 18 }} />
@@ -65,11 +73,11 @@ function Signature({ profile, accumulation }) {
   );
 }
 
-function RecentlyEvolved({ numeral, timeline }) {
+function RecentlyEvolved({ numeral, timeline, enterDelay }) {
   const rows = evolutionRows(timeline);
   return (
     <section data-testid="palate-evolution">
-      <SectionHead numeral={numeral} label="Recently evolved" style={{ margin: "32px 0 2px" }} />
+      <SectionHead numeral={numeral} label="Recently evolved" enterDelay={enterDelay} style={{ margin: "32px 0 2px" }} />
       {rows === null ? (
         <p style={prose}>We couldn’t read your recent changes just now.</p>
       ) : rows.length === 0 ? (
@@ -111,11 +119,11 @@ function BuildingRow({ row, delay }) {
   );
 }
 
-function BuildingNow({ numeral, accumulation }) {
+function BuildingNow({ numeral, accumulation, enterDelay }) {
   const building = buildingNow(accumulation);
   return (
     <section data-testid="palate-building">
-      <SectionHead numeral={numeral} label="Building now" style={{ margin: "28px 0 2px" }} />
+      <SectionHead numeral={numeral} label="Building now" enterDelay={enterDelay} style={{ margin: "28px 0 2px" }} />
       {building === null ? (
         <p style={prose}>We couldn’t read what’s building just now.</p>
       ) : building.rows.length === 0 ? (
@@ -164,7 +172,7 @@ const groupLabel = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", fontWeight: 400, color: BURGUNDY, marginTop: 20,
 };
 
-function YourDna({ numeral, profile, accumulation }) {
+function YourDna({ numeral, profile, accumulation, enterDelay }) {
   const entries = dnaEntries({ profile, accumulation, names: DNA_NAMES });
   const groups = dnaGroups(entries);
   // The quiz's named wines aren't dimensions the engine evolves, but they're
@@ -173,7 +181,7 @@ function YourDna({ numeral, profile, accumulation }) {
     .filter((w) => typeof w === "string" && w.trim());
   return (
     <section data-testid="palate-dna">
-      <SectionHead numeral={numeral} label="Your DNA" style={{ margin: "28px 0 0" }} />
+      <SectionHead numeral={numeral} label="Your DNA" enterDelay={enterDelay} style={{ margin: "28px 0 0" }} />
       {groups.map((g) => (
         <div key={g.kind}>
           <h3 style={groupLabel}>{g.label}</h3>
@@ -228,11 +236,14 @@ export default function PalateView({ profile, timeline, accumulation }) {
   // fallback for a row the engine hasn't composed yet
   const epithet = profile.identity?.epithet || signatureLine(profile, accumulation);
   const next = numeralCounter();
+  // Each section's head draws as it mounts, one after another
+  const head = useStagger(PALATE.heads, PALATE.step);
 
   return (
     <div>
-      {/* The strand: the bloom (generated from the genome) is the hero */}
-      <header style={{ textAlign: "center" }}>
+      {/* The strand: the bloom (generated from the genome) is the hero. It
+          rises with its title and epithet, as one */}
+      <Enter as="header" style={{ textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center" }}>
           <PalateMark genome={profile.identity?.genome} size={176} />
         </div>
@@ -244,22 +255,22 @@ export default function PalateView({ profile, timeline, accumulation }) {
             fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.45, color: BURGUNDY, marginTop: 8,
           }}>{epithet}</p>
         )}
-      </header>
+      </Enter>
 
       <Signature profile={profile} accumulation={accumulation} />
 
       {profile.narrative && (
         <section>
-          <SectionHead numeral={next()} label="In the Somm’s words" style={{ margin: "32px 0 12px" }} />
+          <SectionHead numeral={next()} label="In the Somm’s words" enterDelay={head()} style={{ margin: "32px 0 12px" }} />
           <p style={{
             fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.65, color: ink(0.78), textWrap: "pretty",
           }}>{profile.narrative}</p>
         </section>
       )}
 
-      <RecentlyEvolved numeral={next()} timeline={timeline} />
-      <BuildingNow numeral={next()} accumulation={accumulation} />
-      <YourDna numeral={next()} profile={profile} accumulation={accumulation} />
+      <RecentlyEvolved numeral={next()} timeline={timeline} enterDelay={head()} />
+      <BuildingNow numeral={next()} accumulation={accumulation} enterDelay={head()} />
+      <YourDna numeral={next()} profile={profile} accumulation={accumulation} enterDelay={head()} />
       <QuizLinks />
     </div>
   );

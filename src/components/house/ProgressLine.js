@@ -6,13 +6,16 @@
 //               ease it toward 0.9 while waiting, then 1 on the response;
 //               pass `duration` (Match reads over 2.3s, the label 1.6s).
 // `value` is 0–1. With a `label` it's an announced progressbar; without
-// one it's decoration.
+// one it's decoration. `delay` staggers the first fill only: once the bar has
+// filled, a later change of `value` eases straight to it (docs/motion §8.4).
 
+import { useState } from "react";
 import useMounted from "./useMounted";
 import { SAGE, SAGE_TRACK, SOFT_OUT, ink } from "./tokens";
 
 export default function ProgressLine({ value, variant, duration, delay = 0, label, style }) {
   const mounted = useMounted();
+  const [filled, setFilled] = useState(false);
   const reading = variant === "reading";
   const pct = Math.round(Math.min(1, Math.max(0, Number(value) || 0)) * 100);
   const a11y = label
@@ -23,9 +26,9 @@ export default function ProgressLine({ value, variant, duration, delay = 0, labe
       width: reading ? 180 : "100%", height: reading ? 2 : 3, borderRadius: reading ? 2 : 3,
       background: reading ? ink(0.1) : SAGE_TRACK, overflow: "hidden", ...style,
     }}>
-      <div style={{
+      <div onTransitionEnd={() => setFilled(true)} style={{
         height: "100%", background: SAGE, width: mounted ? `${pct}%` : "0%",
-        transition: `width ${duration ?? (reading ? 2300 : 900)}ms ${SOFT_OUT} ${delay}ms`,
+        transition: `width ${duration ?? (reading ? 2300 : 900)}ms ${SOFT_OUT} ${filled ? 0 : delay}ms`,
       }} />
     </div>
   );

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { composeIdentity } from "../src/lib/identityEngine.js";
 import { MARK_MOTION, renderPalateMark } from "../src/lib/palateMark.js";
+import { PRESS } from "../src/components/house/motion.js";
 import { countEvents, testDb } from "./fixtures/test-db";
 
 /**
@@ -53,6 +54,24 @@ import { countEvents, testDb } from "./fixtures/test-db";
  *      line would be, and the retry saves.
  *  13. Under reduced motion the bloom is settled from its first frame and
  *      nothing is written word by word.
+ *
+ * Session 4 adds growth across a re-deal (README §14) and the rewards
+ * (§8.4, §8.6):
+ *
+ *  14. A promotion's growth changes the seed, as production does: the ring
+ *      rests elsewhere, the fruit lifts and lands again, and the last thing
+ *      to play is the new berry's ripple.
+ *  15. A rating tile answers its tap — pressed, the others stepped back,
+ *      every tile disabled — and stays for the hold; then the done line is
+ *      written, settles to one text node and takes focus.
+ *  16. Log's saved step (the real SavedStep, over sample content): on a
+ *      promotion the bloom arrives in its OLD shape and ends on the new
+ *      one, celebrated; on the quiet path it is settled from its first
+ *      frame. Either way the lines are written and nothing is left behind.
+ *  17. Home and Your palate, signed in: the entrances end, nothing is left
+ *      behind, and the crest's bloom is the static mark.
+ *  (The real promotion — one earned through /log on the test account — is
+ *  identity-shift.spec.ts's second guard.)
  *
  * The signed-in reveal tests save the quiz in REFINE mode on the rich
  * account with its own seeded answers — content-identical, the same
@@ -991,5 +1010,292 @@ test.describe("The reveal, signed in — when the save goes wrong", () => {
     // Text only: no mark, and the reading line has gone
     await expect(revealMark(page)).toHaveCount(0);
     await expect(page.getByTestId("reveal-reading")).toHaveCount(0);
+  });
+});
+
+// ─── The rewards (Session 4): tiles, the saved step, home and the palate ───
+
+/** What an entrance could have left on the page's own elements (not the
+ *  insides of a palate mark). */
+const restOf = (page: Page, root: string) =>
+  page.evaluate((selector) => {
+    const host = document.querySelector(selector)!;
+    const all = Array.from(host.querySelectorAll("*")).filter((el): el is HTMLElement => el instanceof HTMLElement);
+    return {
+      running: host.getAnimations({ subtree: true }).filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).length,
+      invisible: all.filter((el) => getComputedStyle(el).opacity === "0").map((el) => el.tagName + (el.dataset.testid ? `[${el.dataset.testid}]` : "")),
+      clipped: all.filter((el) => getComputedStyle(el).clipPath !== "none").length,
+      inline: all.filter((el) => el.style.clipPath || el.style.opacity === "0").length,
+      wordSpans: host.querySelectorAll("[data-word]").length,
+    };
+  }, root);
+
+test.describe("The rewards — motion on", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+  test("a rating tile answers its tap and holds; then the done line is written and takes focus", async ({ page }) => {
+    await page.goto("/motion-specimen");
+    const holder = page.getByTestId("specimen-tiles");
+    await holder.scrollIntoViewIfNeeded();
+    await expect(holder.getByTestId("rating-tile-loved")).toBeEnabled({ timeout: 15_000 });
+
+    const seen = await page.evaluate(async () => {
+      const host = document.querySelector('[data-testid="specimen-tiles"]')!;
+      const tile = host.querySelector('[data-testid="rating-tile-loved"]') as HTMLButtonElement;
+      const other = host.querySelector('[data-testid="rating-tile-liked"]') as HTMLButtonElement;
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      let doneAt = 0;
+      let wordSpans = 0;
+      new MutationObserver(() => {
+        if (!doneAt && host.querySelector("p")) doneAt = performance.now();
+        wordSpans = Math.max(wordSpans, host.querySelectorAll("[data-word]").length);
+      }).observe(host, { childList: true, subtree: true });
+      const tappedAt = performance.now();
+      tile.click();
+      const pressing = tile.getAnimations().length; // the press starts on the tap itself
+      await frame();
+      await frame();
+      const held = {
+        tilesStill: host.contains(tile),
+        doneYet: Boolean(host.querySelector("p")),
+        pressed: tile.hasAttribute("data-pressed"),
+        allDisabled: Array.from(host.querySelectorAll("button")).every((b) => (b as HTMLButtonElement).disabled),
+      };
+      // While they are held the others step back
+      let otherLowest = 1;
+      const deadline = performance.now() + 5000;
+      while (!doneAt && performance.now() < deadline) {
+        if (host.contains(other)) otherLowest = Math.min(otherLowest, Number(getComputedStyle(other).opacity));
+        await frame();
+      }
+      return { pressing, held, otherLowest, heldFor: doneAt - tappedAt, wordSpansAtArrival: wordSpans };
+    });
+
+    expect(seen.pressing).toBeGreaterThan(0);
+    expect(seen.held).toEqual({ tilesStill: true, doneYet: false, pressed: true, allDisabled: true });
+    expect(seen.otherLowest).toBeLessThanOrEqual(PRESS.rest + 0.02);
+    // A floor, never a ceiling: the done line does not cut the press short
+    expect(seen.heldFor).toBeGreaterThanOrEqual(PRESS.holdMs - 40);
+
+    // The done line: written word by word, then one plain text node — and
+    // it has the focus, as it always did
+    const line = holder.locator("p");
+    await expect(line).toHaveText("❤️ Loved it — noted in your journal.");
+    await expect.poll(() => line.evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE), { timeout: 10_000 }).toBe(true);
+    expect(await line.evaluate((el) => el === document.activeElement)).toBe(true);
+    await expect(holder.getByTestId("rating-tile-loved")).toHaveCount(0);
+
+    // Rate again: the tiles come back live
+    await page.getByTestId("specimen-tiles-reset").click();
+    await expect(holder.getByTestId("rating-tile-fine")).toBeEnabled();
+  });
+
+  test("the done line is written: its words arrive one by one, and its text is whole throughout", async ({ page }) => {
+    await watchMotion(page);
+    await page.goto("/motion-specimen");
+    const holder = page.getByTestId("specimen-tiles");
+    await holder.scrollIntoViewIfNeeded();
+    await expect(holder.getByTestId("rating-tile-fine")).toBeEnabled({ timeout: 15_000 });
+    // The page's own lines have been written by now, or will be: count from here
+    await expect.poll(async () => (await lineOf(page, "specimen-note")).onlyText, { timeout: 20_000 }).toBe(true);
+    const before = (await motionSeen(page)).wordSpans;
+    await holder.getByTestId("rating-tile-fine").click();
+    const line = holder.locator("p");
+    await expect(line).toHaveText("😐 It was fine — noted in your journal.", { timeout: 10_000 });
+    await expect.poll(async () => (await motionSeen(page)).wordSpans - before, { timeout: 10_000 }).toBeGreaterThanOrEqual(7);
+    await expect.poll(() => line.evaluate((el) => el.querySelectorAll("[data-word]").length), { timeout: 10_000 }).toBe(0);
+    expect(await line.textContent()).toBe("😐 It was fine — noted in your journal.");
+  });
+
+  test("the saved step, on a promotion: the bloom arrives in its old shape, grows celebrating into the new one, and the lines are written", async ({ page }) => {
+    await page.goto("/motion-specimen");
+    await page.getByTestId("specimen-saved-play-grown").scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("specimen-saved-after").getByTestId("palate-mark")).toBeVisible({ timeout: 15_000 });
+    const before = (await markOf(page, "specimen-saved-before")).html;
+    const after = (await markOf(page, "specimen-saved-after")).html;
+    expect(after).not.toBe(before);
+
+    const seen = await page.evaluate(async () => {
+      const host = document.querySelector('[data-testid="specimen-saved"]')!;
+      const target = document.querySelector('[data-testid="specimen-saved-after"] [data-testid="palate-mark"]')!.innerHTML;
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      const frames: string[] = [];
+      let headlineSpans = 0;
+      let headlineEarly = false; // the headline before the bloom began to grow
+      (document.querySelector('[data-testid="specimen-saved-play-grown"]') as HTMLElement).click();
+      const deadline = performance.now() + 25_000;
+      while (performance.now() < deadline) {
+        const mark = host.querySelector('[data-testid="palate-mark"]');
+        if (mark) {
+          if (frames[frames.length - 1] !== mark.innerHTML) frames.push(mark.innerHTML);
+          if (frames.length > 5 && mark.innerHTML === target) break;
+        }
+        const spans = host.querySelectorAll("h1 [data-word]");
+        headlineSpans = Math.max(headlineSpans, spans.length);
+        if (frames.length <= 1 && Array.from(spans).some((el) => Number(getComputedStyle(el).opacity) > 0.5)) headlineEarly = true;
+        await frame();
+      }
+      const berryRipple = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*stroke-width="0\.9"[^>]*opacity=/i;
+      const anyOverlay = /<circle[^>]*fill="none"[^>]*stroke="#F5F0E8"[^>]*opacity=/i;
+      const overlays = frames.filter((f) => anyOverlay.test(f));
+      return {
+        moment: host.firstElementChild?.getAttribute("data-moment"),
+        first: frames[0], last: frames[frames.length - 1], distinct: new Set(frames).size,
+        swelled: frames.some((f) => f.includes("scale(")),
+        lastOverlayIsBerry: overlays.length > 0 && berryRipple.test(overlays[overlays.length - 1]),
+        headlineSpans, headlineEarly,
+      };
+    });
+    expect(seen.moment).toBe("grown");
+    // It arrives as it WAS — the bloom the user already has — and ends as it is
+    expect(seen.first).toBe(before);
+    expect(seen.last).toBe(after);
+    expect(seen.distinct).toBeGreaterThan(20);
+    // Celebrated: the swell, and the promotion's berry landing last
+    expect(seen.swelled).toBe(true);
+    expect(seen.lastOverlayIsBerry).toBe(true);
+    // The page says why only once the bloom is growing
+    expect(seen.headlineEarly).toBe(false);
+    expect(seen.headlineSpans).toBeGreaterThan(0);
+
+    const saved = page.getByTestId("log-saved");
+    await expect(saved).toContainText("🧬 Your DNA just grew");
+    await expect(saved.locator("h1")).toHaveText("Ken Forrester just joined your DNA");
+    await expect(saved).toContainText("Two loved bottles made the case");
+    await expect(saved).toContainText("Ken Forrester The FMC Chenin Blanc 2021");
+    for (const way of ["See it in your palate", "Log another bottle", "Back to your list"]) {
+      await expect(saved.getByText(way)).toBeVisible();
+    }
+    // Everything settles into the plain page: written lines are one text
+    // node, and nothing an entrance used is left on any element
+    await expect.poll(async () => (await restOf(page, '[data-testid="specimen-saved"]')).running, { timeout: 20_000 }).toBe(0);
+    const rest = await restOf(page, '[data-testid="specimen-saved"]');
+    expect(rest).toEqual({ running: 0, invisible: [], clipped: 0, inline: 0, wordSpans: 0 });
+    expect(await saved.locator("h1").evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE)).toBe(true);
+    expect((await markOf(page, "specimen-saved")).html).toBe(after);
+    // A way on is live: Log another bottle closes the step
+    await saved.getByRole("button", { name: "Log another bottle" }).click();
+    await expect(page.getByTestId("log-saved")).toHaveCount(0);
+  });
+
+  test("the saved step, on the quiet path: the bloom stands settled from its first frame, and the page still arrives in ink", async ({ page }) => {
+    await page.goto("/motion-specimen");
+    await page.getByTestId("specimen-saved-play-quiet").scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("specimen-saved-quiet-mark").getByTestId("palate-mark")).toBeVisible({ timeout: 15_000 });
+    const settled = (await markOf(page, "specimen-saved-quiet-mark")).html;
+
+    const seen = await page.evaluate(async () => {
+      const host = document.querySelector('[data-testid="specimen-saved"]')!;
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      const frames = new Set<string>();
+      let headlineSpans = 0;
+      (document.querySelector('[data-testid="specimen-saved-play-quiet"]') as HTMLElement).click();
+      const until = performance.now() + 2500;
+      while (performance.now() < until) {
+        const mark = host.querySelector('[data-testid="palate-mark"]');
+        if (mark) frames.add(mark.innerHTML);
+        headlineSpans = Math.max(headlineSpans, host.querySelectorAll("h1 [data-word]").length);
+        await frame();
+      }
+      return { moment: host.firstElementChild?.getAttribute("data-moment"), frames: Array.from(frames), headlineSpans };
+    });
+    expect(seen.moment).toBe("quiet");
+    expect(seen.frames).toEqual([settled]); // one frame, ever: no growth
+    expect(seen.headlineSpans).toBeGreaterThan(0); // "Noted in your journal", written
+
+    const saved = page.getByTestId("log-saved");
+    await expect(saved).toContainText("👍 Liked it");
+    await expect(saved.locator("h1")).toHaveText("Noted in your journal");
+    await expect.poll(async () => (await restOf(page, '[data-testid="specimen-saved"]')).running, { timeout: 15_000 }).toBe(0);
+    expect(await restOf(page, '[data-testid="specimen-saved"]')).toEqual({ running: 0, invisible: [], clipped: 0, inline: 0, wordSpans: 0 });
+  });
+
+  test("home arrives in ink and leaves nothing behind; the crest's bloom is the static mark", async ({ page }) => {
+    const { supabase, userId } = await testDb();
+    const { data: profile } = await supabase.from("wine_profiles").select("archetype, identity").eq("user_id", userId).single();
+    await page.goto("/");
+    const crest = page.getByTestId("palate-strip");
+    await expect(crest).toBeVisible({ timeout: 20_000 });
+    await expect(crest).toContainText(profile!.archetype);
+    // The list has arrived: its sections, its recommendations, its footer
+    await expect(page.getByRole("heading", { name: "Tonight, out" })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("link", { name: "Match the wine list" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Your Sommeasy" })).toBeVisible();
+    await expect(page.getByTestId("rec-card").first()).toBeVisible({ timeout: 15_000 });
+
+    await expect.poll(async () => (await restOf(page, "body")).running, { timeout: 20_000 }).toBe(0);
+    const rest = await restOf(page, "body");
+    expect(rest.invisible).toEqual([]);
+    expect(rest.clipped).toBe(0);
+    expect(rest.inline).toBe(0);
+    expect(rest.wordSpans).toBe(0);
+    // No entrance left a transform: only a struck or quiet element may carry
+    // an opacity of its own, and nothing on home is transformed at rest
+    const transformed = await page.evaluate(() =>
+      Array.from(document.body.querySelectorAll("*"))
+        .filter((el): el is HTMLElement => el instanceof HTMLElement && getComputedStyle(el).transform !== "none")
+        .map((el) => el.tagName + (el.dataset.testid ? `[${el.dataset.testid}]` : "")));
+    expect(transformed).toEqual([]);
+
+    // At rest the crest's bloom is exactly what PalateMark renders
+    const still = await asBrowser(page, renderPalateMark(profile!.identity.genome, { size: 76 }));
+    expect(await crest.getByTestId("palate-mark").innerHTML()).toBe(still);
+  });
+
+  test("your palate: the strand rises, each head draws, and nothing is left behind", async ({ page }) => {
+    const { supabase, userId } = await testDb();
+    const { data: profile } = await supabase.from("wine_profiles").select("archetype, identity").eq("user_id", userId).single();
+    await page.goto("/palate");
+    await expect(page.getByTestId("palate-archetype")).toHaveText(profile!.archetype, { timeout: 20_000 });
+    await expect(page.getByTestId("palate-dna")).toBeVisible();
+
+    await expect.poll(async () => (await restOf(page, "main")).running, { timeout: 20_000 }).toBe(0);
+    const rest = await restOf(page, "main");
+    expect(rest).toEqual({ running: 0, invisible: [], clipped: 0, inline: 0, wordSpans: 0 });
+    // The strand's header rests with no transform of its own
+    expect(await page.locator("main header").evaluate((el) => getComputedStyle(el).transform)).toBe("none");
+    const still = await asBrowser(page, renderPalateMark(profile!.identity.genome, { size: 176 }));
+    expect(await page.locator("main header").getByTestId("palate-mark").innerHTML()).toBe(still);
+  });
+});
+
+test.describe("The rewards — reduced motion", () => {
+  test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+  test("a tap is answered at once: no hold, no word spans, and the saved step's bloom is already in its new shape", async ({ page }) => {
+    await watchMotion(page);
+    await page.goto("/motion-specimen");
+    await expect(page.getByTestId("specimen-preference")).toContainText("Reduced motion is on", { timeout: 15_000 });
+
+    // The done line takes the tiles' place on the tap, as it always did
+    const holder = page.getByTestId("specimen-tiles");
+    const swapped = await page.evaluate(async () => {
+      const host = document.querySelector('[data-testid="specimen-tiles"]')!;
+      const tile = host.querySelector('[data-testid="rating-tile-loved"]') as HTMLButtonElement;
+      tile.click();
+      const pressing = tile.getAnimations().length;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      return { pressing, tilesGone: !host.querySelector("button"), line: host.querySelector("p")?.textContent };
+    });
+    expect(swapped).toEqual({ pressing: 0, tilesGone: true, line: "❤️ Loved it — noted in your journal." });
+    expect(await holder.locator("p").evaluate((el) => el === document.activeElement)).toBe(true);
+
+    // The saved step: the new shape from the first frame, at the big size
+    const after = (await markOf(page, "specimen-saved-after")).html;
+    const frames = await page.evaluate(async () => {
+      const host = document.querySelector('[data-testid="specimen-saved"]')!;
+      const seen = new Set<string>();
+      (document.querySelector('[data-testid="specimen-saved-play-grown"]') as HTMLElement).click();
+      for (let i = 0; i < 40; i++) {
+        const mark = host.querySelector('[data-testid="palate-mark"]');
+        if (mark) seen.add(mark.innerHTML);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      }
+      return Array.from(seen);
+    });
+    expect(frames).toEqual([after]);
+    await expect(page.getByTestId("log-saved").locator("h1")).toHaveText("Ken Forrester just joined your DNA");
+    await expect.poll(() => page.evaluate(() => document.getAnimations().length), { timeout: 10_000 }).toBe(0);
+    expect((await motionSeen(page)).wordSpans).toBe(0);
   });
 });

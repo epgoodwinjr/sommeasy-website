@@ -22,7 +22,7 @@ import { useEffect, useRef } from "react";
 import { romanNumeral } from "@/lib/numerals";
 import { ratedDoneLine } from "@/lib/houseCopy";
 import SectionHead from "@/components/house/SectionHead";
-import RatingTiles, { DoneLine } from "@/components/house/RatingTiles";
+import RatingTiles, { DoneLine, usePressHold } from "@/components/house/RatingTiles";
 import TextAction, { TextActions } from "@/components/house/TextAction";
 import { BURGUNDY, CREAM, GRADIENT, INK, PILL_SHADOW, SANS, SERIF, TYPE, ink, leader } from "@/components/house/tokens";
 
@@ -63,6 +63,12 @@ export default function PickEntry({
   chosen = false, quiet = false, changing = false, canChoose = false, canRate = false,
   tilesOpen = false, rating = null, onChoose, onOpenRate, onRate, onChange,
 }) {
+  // The tapped tile answers before the done line takes the tiles' place
+  const [held, press] = usePressHold();
+  const rate = (r) => {
+    press(r);
+    onRate?.(r);
+  };
   return (
     <div data-testid="pick-card" data-wine={wine} style={{
       opacity: quiet ? 0.45 : 1, transition: "opacity 0.3s ease",
@@ -97,8 +103,8 @@ export default function PickEntry({
           {canRate && <TextAction tone="secondary" opacity={0.55} onClick={onOpenRate}>Had it? Rate it</TextAction>}
         </TextActions>
       )}
-      {tilesOpen && <RatingTiles autoFocus onRate={onRate} style={{ marginTop: 8 }} />}
-      {rating && <DoneLine autoFocus>{ratedDoneLine(rating)}</DoneLine>}
+      {(tilesOpen || held) && <RatingTiles autoFocus onRate={rate} rated={held} style={{ marginTop: 8 }} />}
+      {rating && !held && <DoneLine autoFocus>{ratedDoneLine(rating)}</DoneLine>}
     </div>
   );
 }

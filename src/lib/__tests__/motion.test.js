@@ -15,6 +15,9 @@
 //      else under src/; globals.css's keyframes agree with the tokens; the
 //      primitives are one file each and no page keeps a private Rise; the
 //      reveal's timings (§8.3) live in motion.js and Quiz.js types none.
+//   6. The rewards (§8.4): a tile's press, the saved step's timeline (the
+//      README's table, counted from the step's arrival), home's and the
+//      palate's entrances — and the pages that play them type none of it.
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -75,6 +78,7 @@ async function main() {
     SOFT_OUT, EASE, D_TAP, D_FADE, D_RISE, D_LEADER, D_POP, D_EXIT, WORD_STEP, D_WORD, ROW_STEP, PICK_STEP,
     RISE_PX, WORD_PX, EXIT_PX, POP_FROM, D_REDUCED, FONT_WAIT_MS, BREATHE_MS, BREATHE_SCALE, BREATHE_ANIMATION,
     ENTRANCES, EXIT, HIDDEN, HEAD_ENTER, ENTRY_ENTER, ROW_ENTER, REVEAL, DOTS, dotAnimation,
+    PRESS, PRESS_KEYFRAMES, GROWTH, SAVED, HOME, PALATE,
     prefersReducedMotion, entranceKeyframes, entranceTiming, playEntrance,
   } = motion;
 
@@ -144,6 +148,59 @@ async function main() {
     // — without it the second and third show at full ink, then snap down
     assertEq(dotAnimation(0), "house-dot 1400ms ease-in-out 0ms infinite backwards", "the first dot");
     assertEq(dotAnimation(2), "house-dot 1400ms ease-in-out 360ms infinite backwards", "the third");
+  });
+
+  await test("a rating tile's press is §8.4's: 1 → 0.88 → 1.08 → 1 over 380ms, the others to 0.25 over 220ms", () => {
+    assertEq(
+      { ms: PRESS.ms, down: PRESS.down, up: PRESS.up, restMs: PRESS.restMs, rest: PRESS.rest },
+      { ms: 380, down: 0.88, up: 1.08, restMs: 220, rest: 0.25 },
+      "the press",
+    );
+    assertEq(PRESS_KEYFRAMES.map((k) => k.transform), ["none", "scale(0.88)", "scale(1.08)", "none"], "the keyframes");
+    assertEq(PRESS_KEYFRAMES.map((k) => k.offset), [0, 0.3, 0.65, 1], "…at the study's offsets");
+    for (const frame of PRESS_KEYFRAMES) {
+      assertEq(Object.keys(frame).sort(), ["offset", "transform"], "the press only transforms");
+    }
+    // The tiles stay until the press has settled — §8.4's 430ms, when the step leaves
+    assertEq(PRESS.holdMs, 430, "the hold");
+    assert(PRESS.holdMs >= PRESS.ms && PRESS.holdMs >= PRESS.restMs, "the hold ends before the press has settled");
+  });
+
+  await test("the saved step is §8.4's table, value for value — counted from the step's arrival (the table's 740)", () => {
+    const ARRIVES = 740; // the README counts from the tap
+    assertEq(GROWTH.delay, 1440 - ARRIVES, "growth begins 700ms after the screen arrives");
+    assertEq(
+      SAVED.grown,
+      {
+        size: 164, eyebrow: 2590 - ARRIVES, headline: 2790 - ARRIVES, sub: 3390 - ARRIVES,
+        rule: 4090 - ARRIVES, row: 4190 - ARRIVES, ways: 5040 - ARRIVES,
+      },
+      "the big moment",
+    );
+    assertEq({ step: SAVED.headlineStep, subStep: SAVED.subStep }, { step: 85, subStep: 30 }, "the written lines");
+    // The quiet path: settled at 132px, the eyebrow at 250ms, and the same
+    // parts in the same order, sooner
+    assertEq({ size: SAVED.quiet.size, eyebrow: SAVED.quiet.eyebrow }, { size: 132, eyebrow: 250 }, "the quiet path");
+    const order = ["eyebrow", "headline", "sub", "rule", "row", "ways"];
+    for (const path of [SAVED.grown, SAVED.quiet]) {
+      for (let i = 1; i < order.length; i++) assert(path[order[i]] > path[order[i - 1]], `${order[i]} arrives before ${order[i - 1]}`);
+    }
+    for (const part of order) assert(SAVED.quiet[part] < SAVED.grown[part], `the quiet ${part} is no sooner than the big moment's`);
+    assert(SAVED.grown.size > SAVED.quiet.size, "the big moment's bloom is the bigger one (M6)");
+    // The bloom has grown before the page says why: the eyebrow follows the growth's start
+    assert(SAVED.grown.eyebrow > GROWTH.delay, "the eyebrow arrives before the growth begins");
+  });
+
+  await test("home arrives in under 1.2s from the layout's choice; the palate's heads draw as it mounts", () => {
+    // Four sections (out, in, from last night, chosen), four rows in the last
+    const lastSection = HOME.sections + 3 * HOME.sectionStep;
+    const lastRow = lastSection + HOME.follow + 3 * ROW_STEP;
+    assert(lastRow < 1200, `the last row starts at ${lastRow}ms`);
+    assert(HOME.divider < HOME.date && HOME.date <= HOME.sections, "crest, divider, date line, then the sections");
+    assert(HOME.crestWait > 0 && HOME.crestWait <= 1000, "the crest never waits long for the layout");
+    assert(HOME.follow > 0 && HOME.sectionStep > HOME.follow, "an entry follows its own head, before the next head");
+    assert(PALATE.divider < PALATE.heads && PALATE.step > 0, "the divider, then the heads one after another");
+    assert(PALATE.heads + 3 * PALATE.step < 1200, "the palate's heads are all drawing within 1.2s");
   });
 
   console.log("\n═══ 2. The rules every entrance follows ═══");
@@ -327,6 +384,81 @@ async function main() {
     // number held beside the save
     assert(!/MIN_READING_MS/.test(code), "the reveal's minimum wait is the mark's think time");
     assert(!/@keyframes/.test(code), "keyframes live in globals.css");
+  });
+
+  // Code only: prose in comments may quote the tables
+  const codeOf = (path) => readFileSync(path, "utf-8")
+    .replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "").replace(/\s\/\/ .*$/gm, "");
+  const types = (code, ms) => new RegExp(`(^|[^\\w.])${ms}\\b`).test(code);
+
+  await test("SOURCE SCAN: the saved step's timings live in motion.js — SavedStep and LogBottle type none of them", () => {
+    // A font weight is not a timing
+    const unweighted = (code) => code.replace(/fontWeight:\s*\d+/g, "");
+    const step = unweighted(codeOf(join(SRC, "app", "log", "SavedStep.js")));
+    const log = unweighted(codeOf(join(SRC, "app", "log", "LogBottle.js")));
+    assert(/\bSAVED\b/.test(step) && /\bGROWTH\b/.test(step), "SavedStep must take its timings from SAVED and GROWTH");
+    const table = [...Object.values(SAVED.grown), ...Object.values(SAVED.quiet), GROWTH.delay, SAVED.headlineStep, PRESS.holdMs];
+    for (const ms of new Set(table)) {
+      assert(!types(step, ms), `SavedStep.js types ${ms} — it belongs in motion.js`);
+    }
+    // The saved step is SavedStep's: LogBottle sets no bloom of its own
+    for (const px of [SAVED.grown.size, SAVED.quiet.size]) {
+      assert(!types(log, px), `LogBottle.js types ${px} — the saved step's bloom is SavedStep's`);
+    }
+    assert(!/PalateMark/.test(log), "LogBottle must not render the bloom itself");
+    assert(/setTimeout\(arrive, D_EXIT\)/.test(log), "the rate step leaves over D_EXIT");
+    assert(/<GrowthMoment\b/.test(step) && !/PalateMarkLive/.test(step), "the saved step's bloom is GrowthMoment's");
+  });
+
+  await test("SOURCE SCAN: one GrowthMoment — every surface that answers a rating with the bloom goes through it", () => {
+    const surfaces = [
+      join(SRC, "app", "log", "SavedStep.js"), join(SRC, "app", "wine", "WinePage.js"), join(SRC, "app", "page.js"),
+    ];
+    for (const path of surfaces) {
+      const code = codeOf(path);
+      assert(/<GrowthMoment\b/.test(code), `${relative(SRC, path)} doesn't use GrowthMoment`);
+      assert(!/celebrate/.test(code), `${relative(SRC, path)} decides the celebration itself — growthOf() does`);
+    }
+    for (const path of [join(SRC, "app", "log", "LogBottle.js"), join(SRC, "app", "wine", "WinePage.js"), join(SRC, "app", "page.js")]) {
+      assert(/\bgrowthOf\(/.test(codeOf(path)), `${relative(SRC, path)} must read the moment with growthOf()`);
+    }
+    // The decision lives in one place, and only GrowthMoment hands it to the mark
+    const moment = codeOf(join(SRC, "components", "GrowthMoment.js"));
+    assert(/celebrate=\{grows && Boolean\(moment\.celebrate\)\}/.test(moment), "GrowthMoment celebrates only a moment that says so");
+    const asking = sourceFiles(SRC)
+      .filter((path) => /\.js$/.test(path) && /\bcelebrate(=|:\s*true)/.test(codeOf(path)))
+      .map((path) => relative(SRC, path))
+      .filter((path) => !/motion-specimen/.test(path));
+    assertEq(asking.sort(), ["components/GrowthMoment.js", "components/PalateMarkLive.js"].sort(), "who asks the mark to celebrate");
+  });
+
+  await test("SOURCE SCAN: the tiles' press is PRESS's — RatingTiles types none of it, and the hold is its own hook", () => {
+    const tiles = codeOf(join(HOUSE, "RatingTiles.js"));
+    assert(/PRESS_KEYFRAMES/.test(tiles) && /PRESS\.holdMs/.test(tiles) && /PRESS\.rest\b/.test(tiles), "RatingTiles must take the press from PRESS");
+    for (const n of [PRESS.ms, PRESS.holdMs, PRESS.restMs, "0\\.88", "1\\.08"]) {
+      assert(!types(tiles, n), `RatingTiles.js types ${String(n).replace(/\\/g, "")} — it belongs in motion.js`);
+    }
+    assert(/export function usePressHold\b/.test(tiles), "the hold is usePressHold");
+    // Nothing waits on the press: the tap rates in the same handler
+    assert(/playPress\(e\.currentTarget\);\s*onRate\?\.\(rating\.id\);/.test(tiles), "a tile must rate on the tap itself");
+    assert(!/setTimeout\([^)]*onRate/.test(tiles), "a rating must never be delayed by the press");
+    // Every surface that shows tiles holds them through the press
+    for (const path of [
+      join(SRC, "components", "WineRecList.js"), join(SRC, "app", "recommend", "PickEntry.js"),
+      join(SRC, "app", "wine", "WinePage.js"), join(SRC, "app", "page.js"),
+    ]) {
+      const code = codeOf(path);
+      assert(/usePressHold\(\)/.test(code) && /rated=\{/.test(code), `${relative(SRC, path)} shows tiles without holding them through the press`);
+    }
+  });
+
+  await test("SOURCE SCAN: home's and the palate's entrances are HOME's and PALATE's", () => {
+    const home = codeOf(join(SRC, "app", "page.js"));
+    assert(/HOME\.sections/.test(home) && /HOME\.follow/.test(home) && /HOME\.crestWait/.test(home), "home must take its entrance from HOME");
+    const palate = codeOf(join(SRC, "components", "PalateView.js"));
+    assert(/PALATE\.heads/.test(palate) && /PALATE\.divider/.test(palate), "the palate must take its entrance from PALATE");
+    // The layout is chosen first: nothing below the crest enters before it
+    assert(/\{layout && \(\s*<>\s*<Divider enterDelay=\{HOME\.divider\}/.test(home), "the divider must wait for the layout");
   });
 
   await test("SOURCE SCAN: globals.css stops every CSS keyframe loop under reduced motion", () => {
