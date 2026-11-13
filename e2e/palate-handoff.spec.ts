@@ -87,7 +87,7 @@ test.describe("Never Lose a Palate — anonymous quiz stash", () => {
     await expect(gate).toBeVisible();
     await expect(gate).toContainText("Your full reading is ready");
     await expect(gate).toContainText("it evolves with every bottle you rate");
-    await expect(gate).toContainText("Held on this device for 7 days");
+    await expect(gate).toContainText("Held on this device for seven days");
     await expect(gate.getByRole("link", { name: /Save My Wine DNA/ })).toHaveAttribute("href", "/signup");
     const signin = page.getByTestId("teaser-signin");
     await expect(signin).toContainText(/fold this into your palate/);

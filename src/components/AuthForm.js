@@ -409,7 +409,7 @@ export default function AuthForm({ mode, params }) {
           // New passwords follow the 8-char policy; sign-in stays
           // length-agnostic so legacy shorter passwords still get in
           minLength={isLogin ? undefined : 8}
-          placeholder={isLogin ? "••••••••" : "At least 8 characters"}
+          placeholder={isLogin ? "••••••••" : "At least eight characters"}
           helper={isLogin ? undefined : AUTH_MESSAGES.password_helper}
           style={{ marginTop: isLogin ? 22 : 20 }}
         />

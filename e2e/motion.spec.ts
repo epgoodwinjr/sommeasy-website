@@ -1587,7 +1587,7 @@ test.describe("The waits — motion on", () => {
     await expect(rec.resultsHeading).toHaveText("Your picks", { timeout: 20_000 });
     const reading = await readingSeen(page);
     expect(reading.lines).toEqual([
-      "Reading 10 wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
+      "Reading ten wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
     ]);
     expect(reading.breathing, "the bloom never breathed").toBe(true);
     // Breathing is ONE loop, on the wrapper: the bloom inside it is the
@@ -1936,7 +1936,7 @@ test.describe("The waits, another page — motion on", () => {
     await expect(rec.processingSpinner).toBeVisible({ timeout: 15_000 });
     await expect.poll(() => gates.length, { timeout: 15_000 }).toBe(3);
     gates[2]();
-    await expect(page.getByText(/11 wines across 2 pages/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/11 wines across two pages/)).toBeVisible({ timeout: 20_000 });
     await expect.poll(async () => (await entrances(page)).length, { timeout: 15_000 }).toBeGreaterThan(5);
     await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
     // Only pages that read reach the ledger: the first, and this one
@@ -1963,7 +1963,7 @@ test.describe("The waits — reduced motion", () => {
     const reading = await readingSeen(page);
     // The same three lines are said — only the motion is gone
     expect(reading.lines).toEqual([
-      "Reading 10 wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
+      "Reading ten wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
     ]);
     expect(reading.ticker).toEqual([]);
     expect(reading.breathing).toBe(false);

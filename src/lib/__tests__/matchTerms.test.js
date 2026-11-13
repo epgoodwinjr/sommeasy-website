@@ -187,6 +187,117 @@ async function main() {
     assertEq(terms.isPickable(null), false, "junk");
   });
 
+  console.log("\n═══ Suite: the lone Adventure (Nov 2026) — one wine from a list that matched nothing ═══");
+
+  // A scored entry as the engine leaves one the palate found nothing in
+  const blank = (name, price, extra = {}) => ({ name, price, score: 0, matchReasons: [], detectedColor: null, ...extra });
+  const red = (name, price, extra = {}) => blank(name, price, { detectedColor: "red", ...extra });
+  const white = (name, price, extra = {}) => blank(name, price, { detectedColor: "white", ...extra });
+  const pickOf = (entries, t = {}) => terms.loneAdventure(entries, t)?.name ?? null;
+
+  await test("palateLean: the color the palate has more of — and none when it is even or unknown", () => {
+    assertEq(terms.palateLean({ red_count: 3, white_count: 1 }), "red", "more reds");
+    assertEq(terms.palateLean({ red_count: 1, white_count: 2 }), "white", "more whites");
+    assertEq(terms.palateLean({ red_count: 2, white_count: 2 }), null, "even");
+    assertEq(terms.palateLean({ red_count: 0, white_count: 0 }), null, "nothing counted");
+    assertEq(terms.palateLean({}), null, "no counts");
+    assertEq(terms.palateLean(null), null, "no profile");
+    assertEq(terms.palateLean({ red_count: "many", white_count: NaN }), null, "junk");
+    assertEq(terms.palateLean({ red_count: 2 }), "red", "one count alone");
+  });
+
+  await test("canAdventure: a wine with a price that the palate has nothing against", () => {
+    assertEq(terms.canAdventure(blank("A", 40)), true, "priced, unscored");
+    assertEq(terms.canAdventure(blank("A", null)), false, "no price — a pick needs one");
+    assertEq(terms.canAdventure(blank("A", undefined)), false, "price missing");
+    assertEq(terms.canAdventure(blank("A", 40, { score: -5 })), false, "rated against (a negative score) is never the adventure");
+    assertEq(terms.canAdventure(null), false, "junk");
+  });
+
+  await test("fitsAdventure: tonight's color, and INSIDE the budget — an adventure is never also a stretch", () => {
+    assertEq(terms.fitsAdventure(red("A", 60), { color: "red", min: 40, max: 80 }), true, "fits both");
+    assertEq(terms.fitsAdventure(red("A", 81), { max: 80 }), false, "one dollar over the max: the Splurge band is not for it");
+    assertEq(terms.fitsAdventure(red("A", 39), { min: 40 }), false, "under the minimum");
+    assertEq(terms.fitsAdventure(red("A", 80), { max: 80 }), true, "exactly the max");
+    assertEq(terms.fitsAdventure(white("A", 60), { color: "red" }), false, "the wrong color");
+    assertEq(terms.fitsAdventure(blank("A", 60), { color: "red" }), true, "an unknown color fits red, as it does for every pick");
+    assertEq(terms.fitsAdventure(blank("A", 60), {}), true, "no terms");
+    assertEq(terms.fitsAdventure(blank("A", 60)), true, "terms missing altogether");
+    assertEq(terms.fitsAdventure(blank("A", 60, { score: -2 }), {}), false, "rated against");
+  });
+
+  await test("THE TRIGGER: only a list where nothing scored — one match anywhere and there is no lone Adventure", () => {
+    const list = [red("A", 40), red("B", 50), red("C", 60)];
+    assertEq(pickOf(list), "B", "nothing scored → a pick");
+    assertEq(pickOf([...list, red("D", 70, { score: 0.4 })]), null, "a wine that scores on its producer's rating alone is a match: no Adventure");
+    assertEq(pickOf([...list, blank("E", null, { score: 3 })]), null, "even an unpriced match");
+    assertEq(pickOf([]), null, "an empty list");
+    assertEq(pickOf(null), null, "junk");
+    assertEq(pickOf([blank("A", null), blank("B", null)]), null, "no wine shows a price");
+    assertEq(pickOf([red("A", 40, { score: -5 })]), null, "the only wine is one the diner rated against");
+  });
+
+  await test("THE RULE, with no lean and no terms: the middle of the price range (the lower middle of an even count)", () => {
+    assertEq(pickOf([blank("A", 30), blank("B", 40), blank("C", 50), blank("D", 60), blank("E", 70)]), "C", "five → the third");
+    assertEq(pickOf([blank("A", 30), blank("B", 40), blank("C", 50), blank("D", 60)]), "B", "four → the second, never the dearer half");
+    assertEq(pickOf([blank("A", 30), blank("B", 300)]), "A", "two → the cheaper");
+    assertEq(pickOf([blank("A", 30)]), "A", "one");
+    assertEq(pickOf([blank("E", 70), blank("A", 30), blank("D", 60), blank("B", 40), blank("C", 50)]), "C", "the list's order doesn't matter, the prices do");
+    assertEq(pickOf([blank("A", 30), blank("B", 50), blank("C", 50), blank("D", 50), blank("E", 90)]), "C", "equal prices keep the list's order");
+    assertEq(pickOf([blank("A", 30), blank("B", 40), blank("C", 2000)]), "B", "one trophy bottle doesn't drag the middle up");
+  });
+
+  await test("THE RULE, leaning: the palate's color first, then a wine of unknown color, then anything", () => {
+    const list = [white("W1", 30), white("W2", 40), white("W3", 50), red("R1", 90), red("R2", 120), blank("U", 45)];
+    assertEq(pickOf(list, { lean: "red" }), "R1", "a red lean takes the middle RED, though the list's middle is a white");
+    assertEq(pickOf(list, { lean: "white" }), "W2", "a white lean takes the middle white");
+    assertEq(pickOf(list, {}), "U", "no lean: the middle of them all");
+    assertEq(pickOf([white("W1", 30), white("W2", 40), blank("U", 45)], { lean: "red" }), "U", "no reds: the wine that might be one");
+    assertEq(pickOf([white("W1", 30), white("W2", 40), white("W3", 50)], { lean: "red" }), "W2", "nothing but whites: the middle white");
+    assertEq(pickOf([red("R", 60), blank("Fizz", 50, { detectedColor: "sparkling" })], { lean: "red" }), "R", "a sparkling wine is no red");
+    assertEq(pickOf([blank("Cava Brut Nature", 50), red("R", 60)], { lean: "red" }), "R", "sparkling by its name");
+  });
+
+  await test("THE RULE, under tonight's terms: a chosen color outranks the lean, and the budget is the budget", () => {
+    const list = [white("W1", 30), white("W2", 40), white("W3", 50), red("R1", 60), red("R2", 90), red("R3", 120)];
+    assertEq(pickOf(list, { color: "white", lean: "red" }), "W2", "white tonight, whatever the lean");
+    assertEq(pickOf(list, { color: "red", lean: "white" }), "R2", "red tonight");
+    assertEq(pickOf(list, { color: "sparkling" }), null, "no sparkling on the list: no Adventure");
+    assertEq(pickOf(list, { lean: "red", max: 80 }), "R1", "the one red inside the max");
+    assertEq(pickOf(list, { lean: "red", max: 55 }), "W2", "no red inside the max: the middle of what fits");
+    assertEq(pickOf(list, { lean: "red", min: 100 }), "R3", "a minimum");
+    assertEq(pickOf(list, { min: 35, max: 55 }), "W2", "both ends");
+    assertEq(pickOf(list, { max: 20 }), null, "nothing inside the budget: no Adventure — never a stretch");
+    assertEq(pickOf(list, { max: "80", min: "", lean: "red" }), "R1", "limits as the amount fields hold them");
+    assertEq(pickOf([blank("U", 50), red("R", 60)], { color: "red" }), "R", "a known red before an unknown, when red is asked for");
+    assertEq(pickOf([blank("U", 50), red("R", 60)], { color: "red", lean: "white" }), "R", "…and the lean has no say in it once a color is chosen");
+    assertEq(pickOf([red("R", 60, { visionData: { color: "red" } }), white("W", 50, { visionData: { color: "white" } })], { color: "white" }), "W", "a photographed wine's color");
+  });
+
+  await test("the pick is a COPY wearing the Adventure role, and the list is left as it was", () => {
+    const list = [red("A", 40), red("B", 50), red("C", 60)];
+    const before = JSON.stringify(list);
+    const pick = terms.loneAdventure(list, { lean: "red" });
+    assertEq(pick.pickType, "adventure", "the role");
+    assertEq(pick.name, "B", "the wine");
+    assertEq(JSON.stringify(list), before, "the list");
+    assertEq(list[1].pickType, undefined, "the entry itself wears no role");
+    assertEq(terms.loneAdventure(list, { lean: "red" }), pick, "asked again, the same answer");
+  });
+
+  await test("rankAdventures: every wine that fits, once, the pick first — the Somm's slate in the engine's order", () => {
+    const list = [
+      white("W1", 30), white("W2", 40), red("R1", 60), red("R2", 90), red("R3", 120), red("R4", 150),
+      blank("U", 45), blank("NoPrice", null), red("Disliked", 70, { score: -5 }), red("Dear", 400),
+    ];
+    const ranked = terms.rankAdventures(list, { lean: "red", max: 200 }).map((e) => e.name);
+    // Reds from the middle out (the cheaper of two equally near first), then the unknown, then the whites
+    assertEq(ranked, ["R2", "R1", "R3", "R4", "U", "W1", "W2"], "the order");
+    assertEq(ranked[0], pickOf(list, { lean: "red", max: 200 }), "its first is the pick");
+    assertEq(terms.rankAdventures([...list, red("Match", 50, { score: 2 })], { lean: "red" }), [], "a list that matched anything has no ranking");
+    assertEq(terms.rankAdventures("junk", {}), [], "junk");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

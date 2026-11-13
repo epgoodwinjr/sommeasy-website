@@ -17,7 +17,8 @@ export const REPO = new URL("../../", import.meta.url);
 const at = (path) => new URL(path, REPO).href;
 
 const engine = await import(at("src/lib/matchEngine.js"));
-const { buildSommPayload } = await import(at("src/lib/sommPicks.js"));
+const { buildSommPayload, buildAdventurePayload } = await import(at("src/lib/sommPicks.js"));
+const { loneAdventure, palateLean } = await import(at("src/lib/matchTerms.js"));
 
 // ─── Palates ───
 
@@ -180,6 +181,80 @@ Marqués de Murrieta Rioja Reserva 2018...$64
 Fontodi Chianti Classico 2020...$70
 Produttori del Barbaresco, Barbaresco 2019...$96
 Penfolds Bin 389 Cabernet Shiraz, South Australia 2020...$118`,
+  // The lone Adventure (Nov 13, 2026): lists the e2e palate (South Africa,
+  // France; Pinot Noir, Chardonnay, Chenin Blanc) matches NOTHING on.
+  // Producers are invented on purpose — a producer the data knows scores on
+  // its reputation alone, and one match anywhere means no lone Adventure.
+  nomatch11: `WHITES
+Tenuta Immaginaria Soave Classico, Veneto 2022...$38
+Bodegas Inventadas Albariño, Rías Baixas 2022...$46
+Weingut Erfunden Riesling Kabinett, Mosel 2021...$52
+Quinta Inventada Vinho Verde 2022...$34
+
+REDS
+Tenuta Immaginaria Valpolicella Superiore, Veneto 2020...$48
+Bodegas Inventadas Tempranillo Reserva, Rioja 2016...$74
+Fattoria Fittizia Nero d'Avola, Sicily 2021...$42
+Cantina Finta Barbera d'Alba 2020...$56
+Bodega Imaginada Malbec, Mendoza 2020...$64
+Quinta Inventada Touriga Nacional, Douro 2018...$88
+
+SPARKLING
+Cantina Finta Prosecco Superiore NV...$44`,
+  // A neighbourhood trattoria: thirty Italian bottles, nothing else
+  trattoria30: `SPUMANTE
+Cantina Finta Prosecco Superiore, Valdobbiadene NV...$44
+Tenuta Immaginaria Franciacorta Brut NV...$78
+
+BIANCHI
+Tenuta Immaginaria Soave Classico, Veneto 2022...$38
+Cantina Finta Gavi di Gavi, Piedmont 2022...$46
+Fattoria Fittizia Vermentino, Sardinia 2022...$42
+Poggio Inventato Vernaccia di San Gimignano 2022...$40
+Cantina Finta Pinot Grigio, Alto Adige 2022...$44
+Masseria Finta Fiano di Avellino, Campania 2021...$54
+Masseria Finta Greco di Tufo, Campania 2021...$56
+Tenuta Immaginaria Verdicchio dei Castelli di Jesi 2022...$40
+Fattoria Fittizia Etna Bianco, Sicily 2021...$62
+Cantina Finta Arneis, Roero 2022...$48
+Cantina Finta Friulano, Friuli 2021...$50
+Tenuta Immaginaria Lugana, Lombardy 2022...$46
+
+ROSSI
+Tenuta Immaginaria Valpolicella Superiore, Veneto 2020...$48
+Tenuta Immaginaria Amarone della Valpolicella 2017...$135
+Cantina Finta Barbera d'Alba 2020...$56
+Cantina Finta Dolcetto d'Alba 2021...$46
+Cantina Finta Barolo, Piedmont 2018...$120
+Cantina Finta Langhe Nebbiolo 2020...$64
+Poggio Inventato Chianti Classico Riserva 2018...$72
+Poggio Inventato Rosso di Montalcino 2020...$68
+Poggio Inventato Brunello di Montalcino 2017...$140
+Poggio Inventato Vino Nobile di Montepulciano 2018...$70
+Fattoria Fittizia Nero d'Avola, Sicily 2021...$42
+Fattoria Fittizia Etna Rosso, Sicily 2020...$66
+Masseria Finta Aglianico del Vulture 2018...$58
+Masseria Finta Primitivo di Manduria 2020...$50
+Masseria Finta Montepulciano d'Abruzzo 2020...$44
+Cantina Finta Lagrein, Alto Adige 2020...$60`,
+  // For the broad palate (France, Italy, US, Spain; Syrah, Grenache,
+  // Sangiovese, Nebbiolo, Sauvignon Blanc, Cabernet): a Central European
+  // and Greek list it has never met
+  mitteleuropa12: `WHITE
+Weingut Erfunden Riesling Kabinett, Mosel 2021...$52
+Weingut Erfunden Riesling Trocken, Rheingau 2021...$58
+Weingut Ausgedacht Grüner Veltliner, Wachau 2022...$48
+Weingut Ausgedacht Grüner Veltliner Smaragd, Wachau 2020...$82
+Ktima Plasto Assyrtiko, Santorini 2022...$64
+Pince Kitalált Furmint Dry, Tokaj 2021...$46
+
+RED
+Weingut Ausgedacht Blaufränkisch, Burgenland 2020...$54
+Weingut Ausgedacht Zweigelt, Burgenland 2021...$42
+Weingut Erfunden Spätburgunder, Baden 2020...$66
+Ktima Plasto Xinomavro, Naoussa 2019...$56
+Ktima Plasto Agiorgitiko, Nemea 2020...$44
+Quinta Inventada Touriga Nacional, Douro 2018...$88`,
   // Six bottles whose prices didn't parse
   unpriced6: `Kanonkop Pinotage, Stellenbosch 2019
 Meerlust Rubicon, Stellenbosch 2018
@@ -251,6 +326,50 @@ function payloadFor(entries, { palate = E2E_PALATE, min = null, max = null, colo
 
 const text = (list, opts) => () => payloadFor(engine.parseWineList(LISTS[list]), opts);
 
+/** The lone Adventure's path, as the page takes it (MatchList.js): nothing
+ *  scored → matchTerms' loneAdventure is the page's one pick → the Somm is
+ *  asked buildAdventurePayload's question (its own slate, exactly one pick).
+ *  `counts` are the profile's red_count / white_count — the palate's lean.
+ *  Throws when the list matches anything: then it is no Adventure's case. */
+function adventureFor(entries, { palate = E2E_PALATE, counts = { red_count: 1, white_count: 2 }, min = null, max = null, color = "all", steer = null } = {}) {
+  const { profile, rated } = palate;
+  const dna = {
+    countries: profile.countries || [],
+    regions: profile.regions || {},
+    estates: profile.estates || {},
+    varietals: profile.varietals || [],
+    specificWines: profile.specific_wines || [],
+  };
+  const feedback = rated.length > 0 ? engine.buildFeedbackSignals(rated) : null;
+  const { scoredEntries: scored } = engine.matchWinesAgainstDNA(entries, dna, feedback);
+  const matched = scored.filter((e) => e.score > 0);
+  if (matched.length > 0) throw new Error(`not a no-match list: ${matched.length} matched (${matched[0].name})`);
+  const lean = palateLean({ ...profile, ...counts });
+  const pick = loneAdventure(scored, { color, min, max, lean });
+  const payload = buildAdventurePayload({
+    scoredEntries: scored,
+    profile,
+    ratedInteractions: rated,
+    totalParsed: entries.length,
+    budget: { min, max },
+    color: color === "all" ? null : color,
+    lean,
+    steer,
+    display: { varietal: engine.getVarietalDisplayName, region: engine.getRegionDisplayName, country: engine.getCountryName },
+  });
+  return {
+    payload,
+    shape: {
+      parsed: entries.length, matched: 0, enginePicks: pick ? 1 : 0,
+      candidates: payload.candidates.length,
+      asked: pick ? 1 : 0,           // the page shows one pick, or none
+      pickCount: payload.pickCount,  // what the Somm is asked for
+      enginePick: pick ? pick.name : null,
+    },
+  };
+}
+const adventure = (list, opts) => () => adventureFor(engine.parseWineList(LISTS[list]), opts);
+
 /** The 7-wine list as the engine scored it before the Oct 30, 2026 resolver
  *  change (six candidates, not seven) — the payload that retried 18 of 18
  *  times in the ledger. The old engine is read out of git into results/. */
@@ -306,6 +425,13 @@ export const CASES = [
   ["realistic40 max$41", text("realistic40", { max: 41 })],
   ["realistic40 max$39 (lone splurge)", text("realistic40", { max: 39 })],
   ["unpriced x6 max$60 (direct caller)", unpricedUnderBudget],  // labels carry no commas: --only splits on them
+  // The lone Adventure (Nov 13, 2026): lists that matched nothing — one pick asked
+  ["adventure nomatch11", adventure("nomatch11")],
+  ["adventure nomatch11 red", adventure("nomatch11", { color: "red" })],
+  ["adventure nomatch11 max$45", adventure("nomatch11", { max: 45 })],
+  ["adventure nomatch11 steer steak", adventure("nomatch11", { steer: "something for a steak night" })],
+  ["adventure trattoria30", adventure("trattoria30")],
+  ["adventure mitteleuropa12/broad", adventure("mitteleuropa12", { palate: BROAD_PALATE, counts: { red_count: 5, white_count: 1 } })],
 ];
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

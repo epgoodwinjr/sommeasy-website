@@ -23,6 +23,13 @@
 //   - Choosing quiets the other picks (faded, no choose button); the pill's
 //     Change brings their choose buttons back. Nothing is un-chosen until
 //     another pick is chosen — the ledger's `replaced` semantics.
+//   - The lone Adventure (Nov 2026): a list that matched NOTHING no longer
+//     ends in "No matches found". When a priced wine fits tonight's terms,
+//     the page shows one pick — role Adventure (matchTerms' loneAdventure:
+//     tonight's color or the palate's lean, then the middle of the prices) —
+//     under a line that says so, with the way back to the quiz under it. The
+//     Somm is asked its own question (buildAdventurePayload: one wine,
+//     nearest in spirit); rating or choosing it is the normal path.
 //
 // In motion (docs/motion/README.md §8.5, big moment 3): the reading view
 // breathes, flicks through the names it has really read and leaves before
@@ -33,17 +40,23 @@
 // progressive enhancement, and no write waits on any of it.
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase";
 import { parseWineList, entriesFromVision, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryName, getRegionDisplayName, getVarietalDisplayName, getProducerDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
-import { buildSommPayload } from "@/lib/sommPicks";
+import { buildSommPayload, buildAdventurePayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload, sommCurationPayload, menuAnalyzedPayload } from "@/lib/wineEvents";
 import { evolutionToastMessages } from "@/components/WineRecList";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
-import { emptyCause, glassNote, loneSplurgeLine, metaLine, pickFlag, pickNote, picksHeading, picksSubline, readingLine, termsLine } from "@/lib/houseCopy";
-import { findJournalRow, isPickable, termsFromPreferences } from "@/lib/matchTerms";
+import {
+  PALATE_NUDGE, emptyCause, glassNote, loneAdventureLine, loneSplurgeLine, metaLine, pickFlag, pickNote, picksHeading,
+  picksSubline, readingLine, showsPalateNudge, termsLine,
+} from "@/lib/houseCopy";
+import {
+  canAdventure, findJournalRow, fitsAdventure, isPickable, loneAdventure, palateLean, termsFromPreferences,
+} from "@/lib/matchTerms";
 import ReadingView from "@/components/ReadingView";
 import RunningHead from "@/components/house/RunningHead";
 import SectionHead from "@/components/house/SectionHead";
@@ -167,6 +180,28 @@ const alertLine = { fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", li
 // The terms bar's two rules: hairlines at its top and bottom edge, so they
 // can draw (a border can't)
 const termsRule = { position: "absolute", left: 0, right: 0, height: 1, background: ink(0.1) };
+
+// Did anything on the list score? When nothing did, the page's one pick is
+// the lone Adventure (matchTerms.js)
+const nothingMatched = (scored) => Array.isArray(scored) && !scored.some((e) => e.score > 0);
+
+const nudgeLine = { fontFamily: SERIF, fontStyle: "italic", fontSize: "14.5px", lineHeight: 1.55, color: ink(0.7) };
+
+/** "Know there’s more you love? Add it to your palate and we’ll spot it next
+ *  time." — the way back to the quiz, under a lone Adventure and under "No
+ *  matches found". The link's padding is its hit area (an inline box's
+ *  vertical padding moves no line). */
+function PalateNudge({ style }) {
+  return (
+    <p data-testid="palate-nudge" style={{ ...nudgeLine, ...style }}>
+      {PALATE_NUDGE.lead}{" "}
+      <Link href={PALATE_NUDGE.href} data-testid="palate-nudge-link" style={{
+        color: BURGUNDY, fontWeight: 600, textDecoration: "underline", textUnderlineOffset: 3, padding: "12px 0",
+      }}>{PALATE_NUDGE.link}</Link>{" "}
+      {PALATE_NUDGE.tail}
+    </p>
+  );
+}
 
 /** "Get my picks" — the pill beside the link and under the pasted list. */
 function PillButton({ children, disabled, onClick, testId }) {
@@ -355,11 +390,17 @@ export default function MatchList({ isMobile = false }) {
     const { scoredEntries: scored, userDNA } = matchWinesAgainstDNA(entries, dna, feedbackSignals);
     const matched = scored.filter((e) => e.score > 0);
     const pickCount = getPickCount(entries.length, colorP);
-    const curated = curatePicks(scored, {
+    const picked = curatePicks(scored, {
       minPrice: minP, maxPrice: maxP, colorPreference: colorP, maxPicks: pickCount,
       menuContext: buildMenuContext(matched), userDNA,
     });
-    return { entries, scored, matched, curated, pickCount, userDNA, minP, maxP, colorP };
+    // Nothing on the list scored: one wine that fits tonight's terms, if
+    // there is one — the lone Adventure. A list with any match is curatePicks'
+    const adventure = matched.length === 0
+      ? loneAdventure(scored, { color: colorP, min: minP, max: maxP, lean: palateLean(profile) })
+      : null;
+    const curated = adventure ? [adventure] : picked;
+    return { entries, scored, matched, curated, pickCount, userDNA, minP, maxP, colorP, adventure: Boolean(adventure) };
   };
 
   // The picks land: state, then The Somm (progressive enhancement — the
@@ -382,12 +423,12 @@ export default function MatchList({ isMobile = false }) {
     // sample of what was read (menuAnalyzedPayload)
     const analysisMeta = {
       source: source || null, entries: a.entries, scored: a.scored.length, matchCount: a.matched.length,
-      picksShown: a.curated.length, terms: { min: a.minP, max: a.maxP, color: a.colorP },
+      picksShown: a.curated.length, loneAdventure: a.adventure, terms: { min: a.minP, max: a.maxP, color: a.colorP },
     };
     if (a.curated.length > 0) {
       askTheSomm({
         scored: a.scored, curated: a.curated, pickCount: a.pickCount, totalWines: a.entries.length,
-        minP: a.minP, maxP: a.maxP, colorP: a.colorP, analysisMeta,
+        minP: a.minP, maxP: a.maxP, colorP: a.colorP, adventure: a.adventure, analysisMeta,
       });
     } else {
       recordEvent(supabase, user.id, "menu_analyzed", menuAnalyzedPayload({
@@ -411,7 +452,8 @@ export default function MatchList({ isMobile = false }) {
     const analysis = analyzeEntries(entries, priceOf(minPrice), priceOf(maxPrice), colorPref);
     await pause(READ_BEAT_MS);
     if (isStale(token)) return;
-    const done = readingLine("done", analysis.curated.length);
+    // (a lone Adventure is no "kind of yes": the reading says nothing of it)
+    const done = readingLine("done", analysis.adventure ? 0 : analysis.curated.length);
     if (done) {
       setReading((r) => r && { ...r, line: done, progress: 1 });
       await pause(READ_BEAT_MS);
@@ -439,9 +481,21 @@ export default function MatchList({ isMobile = false }) {
     setGoingKeys(null);
     const menuCtx = buildMenuContext(scoredEntries.filter(e => e.score > 0));
     const pickCount = getPickCount(totalParsed, newColorPref);
+    const minP = newMinPrice ? parseFloat(newMinPrice) : null;
+    const maxP = newMaxPrice ? parseFloat(newMaxPrice) : null;
+    if (nothingMatched(scoredEntries)) {
+      // The lone Adventure under the new terms. The Somm's own choice stays
+      // while it still fits them (its note with it); otherwise the engine's
+      const terms = { color: newColorPref, min: minP, max: maxP, lean: palateLean(profile) };
+      const current = picks?.[0];
+      const kept = current && sommNotes[wineKey(current)] && fitsAdventure(current, terms) ? current : null;
+      const adventure = kept || loneAdventure(scoredEntries, terms);
+      setPicks(adventure ? [adventure] : []);
+      return;
+    }
     const curated = curatePicks(scoredEntries, {
-      minPrice: newMinPrice ? parseFloat(newMinPrice) : null,
-      maxPrice: newMaxPrice ? parseFloat(newMaxPrice) : null,
+      minPrice: minP,
+      maxPrice: maxP,
       colorPreference: newColorPref,
       maxPicks: pickCount,
       menuContext: menuCtx,
@@ -461,12 +515,15 @@ export default function MatchList({ isMobile = false }) {
   // makes this call the one that records menu_analyzed (with the somm
   // outcome). "Ask the Somm again" passes none and records only the
   // somm_curation cost event.
-  const askTheSomm = async ({ scored, curated, pickCount, totalWines, minP, maxP, colorP, analysisMeta = null }) => {
+  //
+  // `adventure`: the list matched nothing and the page shows the lone
+  // Adventure. The Somm is then asked a different question — its own slate
+  // (the priced wines that fit the terms) and exactly one pick, the wine
+  // nearest in spirit — and everything after is the same landing.
+  const askTheSomm = async ({ scored, curated, pickCount, totalWines, minP, maxP, colorP, adventure = false, analysisMeta = null }) => {
     const seq = ++sommSeqRef.current;
-    const payload = buildSommPayload({
+    const asked = {
       scoredEntries: scored,
-      algorithmicPicks: curated,
-      pickCount,
       profile,
       ratedInteractions: ratedInteractionsRef.current,
       totalParsed: totalWines,
@@ -474,7 +531,10 @@ export default function MatchList({ isMobile = false }) {
       color: colorP === "all" ? null : colorP,
       steer: steer.trim() || null,
       display: { varietal: getVarietalDisplayName, region: getRegionDisplayName, country: getCountryName },
-    });
+    };
+    const payload = adventure
+      ? buildAdventurePayload({ ...asked, lean: palateLean(profile) })
+      : buildSommPayload({ ...asked, algorithmicPicks: curated, pickCount });
     // The terms this ask read — "Ask the Somm again" appears once they change
     setSommTermsKey(termsKeyOf(payload.steer, colorP, minP, maxP));
     // The analysis event, fired exactly once whatever The Somm's fate.
@@ -518,6 +578,7 @@ export default function MatchList({ isMobile = false }) {
         recordEvent(supabase, user.id, "somm_curation", sommCurationPayload(data.meta, {
           candidates: payload.candidates.length,
           pickCount: payload.pickCount,
+          mode: payload.mode,
         }));
       }
       const sommMs = data?.meta?.durationMs ?? clientMs;
@@ -588,6 +649,7 @@ export default function MatchList({ isMobile = false }) {
       minP: priceOf(minPrice),
       maxP: priceOf(maxPrice),
       colorP: colorPref,
+      adventure: nothingMatched(scoredEntries),
     });
   };
 
@@ -1172,16 +1234,26 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     // terms excluded every match, every wine read was by the glass, the
     // matches show no price, or nothing matched
     const leftOut = scoredEntries ? Math.max(0, totalParsed - scoredEntries.length) : 0;
+    const matchedCount = scoredEntries ? scoredEntries.filter((e) => e.score > 0).length : null;
+    // …or nothing was read at all, or nothing matched and tonight's terms
+    // leave no room for an adventure (`open`: the wines one could have been)
     const counts = hasPicks || !scoredEntries ? {} : {
+      read: totalParsed,
       pickable: scoredEntries.filter(isPickable).length,
-      matched: scoredEntries.filter((e) => e.score > 0).length,
+      matched: matchedCount,
       scored: scoredEntries.length,
       leftOut,
+      open: matchedCount === 0 ? scoredEntries.filter(canAdventure).length : 0,
     };
+    const cause = hasPicks ? null : emptyCause(counts);
     // Wines poured by the glass only are left out of the picks — and said so
-    const glassLine = glassNote({ leftOut, cause: hasPicks ? null : emptyCause(counts) });
+    const glassLine = glassNote({ leftOut, cause });
     // One pick, over the max: the budget fit nothing and this is the stretch
     const loneSplurge = loneSplurgeLine({ picks, max: maxPrice });
+    // One pick on a list that matched nothing: the adventure worth taking
+    const loneAdventureSaid = loneAdventureLine({ picks, matched: matchedCount });
+    // The way back to the quiz: under that pick, and under "No matches found"
+    const nudge = showsPalateNudge({ loneAdventure: Boolean(loneAdventureSaid), picks: picks.length, cause });
     // Quiet the others only while the chosen pick is on screen — a refilter
     // or the Somm's re-curation may have taken it off the list
     const chosenShown = Boolean(chosenWine) && picks.some((p) => p.name === chosenWine);
@@ -1206,6 +1278,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           <Enter as="p" kind="fade" play={arriving} delay={PICKS.sub} data-testid="glass-note" style={{
             fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: ink(0.6), marginTop: 6,
           }}>{glassLine}</Enter>
+        )}
+        {nudge && !hasPicks && (
+          <Enter kind="fade" play={arriving} delay={PICKS.sub}><PalateNudge style={{ marginTop: 10 }} /></Enter>
         )}
 
         {/* The terms bar — Adjust opens Tonight's terms in place */}
@@ -1247,6 +1322,11 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5, color: ink(0.7), margin: "26px 0 -8px",
               }}>{loneSplurge}</Enter>
             )}
+            {loneAdventureSaid && (
+              <Enter as="p" kind="fade" play={arriving} delay={PICKS.somm} data-testid="lone-adventure-line" style={{
+                fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5, color: ink(0.7), margin: "26px 0 -8px",
+              }}>{loneAdventureSaid}</Enter>
+            )}
             {picks.map((pick, i) => {
               const facts = pickFacts(pick);
               const typeInfo = getPickTypeInfo(pick.pickType);
@@ -1273,7 +1353,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   pickType={pick.pickType}
                   meta={facts.meta}
                   flag={rating ? null : pickFlag(journalRow)}
-                  note={pickNote({ reasons: (pick.matchReasons || []).map((r) => r.type), ...facts.names })}
+                  // (the engine has no palate reason for a lone Adventure: no note)
+                  note={loneAdventureSaid ? null : pickNote({ reasons: (pick.matchReasons || []).map((r) => r.type), ...facts.names })}
                   sommNote={sommNote}
                   sommDelay={sommNoteDelay(i)}
                   enterDelay={enterAt(pickDelay(i))}
@@ -1293,6 +1374,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                 />
               );
             })}
+            {nudge && (
+              <Enter kind="fade" play={arriving} delay={closeAt}><PalateNudge style={{ marginTop: 22 }} /></Enter>
+            )}
           </div>
         )}
         {chosenWine && (

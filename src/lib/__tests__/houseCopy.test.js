@@ -59,10 +59,25 @@ async function main() {
 
   console.log("\n═══ Suite 1: numbers and the bottles math ═══");
 
-  await test("numberWord writes one through nine as words, digits past that", () => {
-    assertEq([1, 2, 3, 9].map((n) => copy.numberWord(n)), ["one", "two", "three", "nine"], "words");
-    assertEq(copy.numberWord(12), "12", "digits past nine");
+  await test("numberWord writes zero through ten as words, digits past that (the house rule)", () => {
+    assertEq([0, 1, 2, 3, 9, 10].map((n) => copy.numberWord(n)), ["zero", "one", "two", "three", "nine", "ten"], "words");
+    assertEq([11, 12, 40, 250].map((n) => copy.numberWord(n)), ["11", "12", "40", "250"], "digits past ten");
     assertEq(copy.numberWord(2, { capitalize: true }), "Two", "sentence start");
+    assertEq(copy.numberWord(10, { capitalize: true }), "Ten", "ten opens a sentence");
+    assertEq(copy.numberWord(0, { capitalize: true }), "Zero", "zero opens a sentence");
+    assertEq(copy.numberWord(14, { capitalize: true }), "14", "digits have no capital");
+    // Not a count → printed as it came, never a wrong word
+    assertEq([2.5, -1].map((n) => copy.numberWord(n)), ["2.5", "-1"], "not a count");
+  });
+
+  await test("countOf writes a count with its noun: words to ten, the noun agreeing", () => {
+    assertEq(copy.countOf(1, "wine"), "one wine", "one");
+    assertEq(copy.countOf(8, "wine"), "eight wines", "eight");
+    assertEq(copy.countOf(10, "wine"), "ten wines", "ten");
+    assertEq(copy.countOf(11, "wine"), "11 wines", "eleven is digits");
+    assertEq(copy.countOf(0, "wine"), "zero wines", "zero");
+    assertEq(copy.countOf(3, "wine", { capitalize: true }), "Three wines", "opening a sentence");
+    assertEq(copy.countOf(2, "page"), "two pages", "another noun");
   });
 
   await test("bottles to promote come from the real thresholds, per dimension", () => {
@@ -367,7 +382,10 @@ async function main() {
   await test("as the picks appear: N bottles, N kinds of yes — written as words", () => {
     assertEq(copy.readingLine("done", 3), "Three bottles, three kinds of yes.", "three");
     assertEq(copy.readingLine("done", 1), "One bottle, one kind of yes.", "one");
-    assertEq(copy.readingLine("done", 12), "12 bottles, 12 kinds of yes.", "past nine");
+    assertEq(copy.readingLine("done", 10), "Ten bottles, ten kinds of yes.", "ten is still a word");
+    assertEq(copy.readingLine("done", 12), "12 bottles, 12 kinds of yes.", "past ten");
+    assertEq(copy.readingLine("count", 10), "Reading ten wines…", "ten wines");
+    assertEq(copy.readingLine("count", 11), "Reading 11 wines…", "eleven");
     assertEq(copy.readingLine("done", 0), null, "no picks — no line");
   });
 
@@ -417,14 +435,15 @@ async function main() {
     assertEq(copy.pickNote(), null, "nothing at all");
   });
 
-  await test("the picks sub line counts the list, its pages and the picks", () => {
+  await test("the picks sub line counts the list, its pages and the picks — to ten in words", () => {
     assertEq(copy.picksSubline({ wines: 42, pages: 1, picks: 3 }), "42 wines — here’s where to start", "the usual");
-    assertEq(copy.picksSubline({ wines: 42, pages: 2, picks: 3 }), "42 wines across 2 pages — here’s where to start", "pages");
-    assertEq(copy.picksSubline({ wines: 60, pages: 1, picks: 7 }), "60 wines — here are your top 7", "a long slate");
-    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 1 }), "1 wine — here’s where to start", "one wine");
+    assertEq(copy.picksSubline({ wines: 42, pages: 2, picks: 3 }), "42 wines across two pages — here’s where to start", "pages");
+    assertEq(copy.picksSubline({ wines: 60, pages: 1, picks: 7 }), "60 wines — here are your top seven", "a long slate");
+    assertEq(copy.picksSubline({ wines: 300, pages: 12, picks: 10 }), "300 wines across 12 pages — here are your top ten", "ten picks, twelve pages");
+    assertEq(copy.picksSubline({ wines: 8, pages: 1, picks: 5 }), "Eight wines — here’s where to start", "a short list opens with its word, capitalized");
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 1 }), "One wine — here’s where to start", "one wine");
     assertEq(copy.picksSubline({ wines: 12, pages: 1, picks: 0 }),
-      "We read 12 wines and none of them matches your palate yet. If something here is your kind of wine, add its grape or region to your palate and we’ll know it next time.",
-      "no matches");
+      "We read 12 wines and none of them matches your palate yet.", "no matches");
   });
 
   await test("zero picks says WHY: the terms excluded every match, or there was no match at all", () => {
@@ -432,12 +451,15 @@ async function main() {
     assertEq(copy.picksHeading({ picks: 0, pickable: 7 }), "Nothing fits tonight’s terms", "heading, terms");
     assertEq(copy.picksSubline({ wines: 40, pages: 1, picks: 0, pickable: 7 }),
       "We read 40 wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.", "sub, terms");
-    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 0, pickable: 1 }),
-      "We read 1 wine and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.", "one wine");
-    // A true no-match — adjusting the terms would not help, so the line no longer says to
+    assertEq(copy.picksSubline({ wines: 8, pages: 1, picks: 0, pickable: 1 }),
+      "We read eight wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.", "eight, as a word");
+    // A true no-match with nothing to offer: the line stops there, and the
+    // page points to the quiz under it (PALATE_NUDGE)
     assertEq(copy.picksHeading({ picks: 0, pickable: 0 }), "No matches found", "heading, no match");
     assertEq(copy.picksSubline({ wines: 12, pages: 1, picks: 0, pickable: 0 }),
-      "We read 12 wines and none of them matches your palate yet. If something here is your kind of wine, add its grape or region to your palate and we’ll know it next time.", "sub, no match");
+      "We read 12 wines and none of them matches your palate yet.", "sub, no match");
+    assertEq(copy.picksSubline({ wines: 3, pages: 1, picks: 0, pickable: 0 }),
+      "We read three wines and none of them matches your palate yet.", "three, as a word");
     assertEq(copy.picksHeading({ picks: 0 }), "No matches found", "unknown → never claims matches exist");
     assertEq(copy.picksHeading({ picks: 0, pickable: "many" }), "No matches found", "junk");
     // And with picks, the heading it always had
@@ -445,34 +467,61 @@ async function main() {
     assertEq(copy.picksSubline({ wines: 40, pages: 1, picks: 2, pickable: 9 }), "40 wines — here’s where to start", "a short slate is still a slate");
   });
 
-  await test("zero picks, each cause its own honest line: the terms, by-the-glass only, no prices, no match", () => {
-    // What the page knows: wines read, wines scored (the rest were left out
-    // as by-the-glass), wines the palate matched, matches with a price
+  await test("zero picks, the full table: nothing read, the terms, by-the-glass only, no prices, no room for an adventure, no match", () => {
+    // What the page knows: wines read; wines scored (the rest were left out
+    // as by-the-glass); wines the palate matched; matches with a price; and,
+    // on a list that matched nothing, the wines that could be the lone
+    // Adventure under no terms at all (`open`)
     const cause = (x) => copy.emptyCause(x);
-    assertEq(cause({ pickable: 3, matched: 3, scored: 9, leftOut: 0 }), "terms", "matches with prices exist → the terms excluded them");
-    assertEq(cause({ pickable: 0, matched: 0, scored: 0, leftOut: 6 }), "glass", "every wine read was by the glass");
-    assertEq(cause({ pickable: 0, matched: 4, scored: 9, leftOut: 0 }), "prices", "matches exist, none has a price");
-    assertEq(cause({ pickable: 0, matched: 0, scored: 9, leftOut: 0 }), "none", "nothing matched");
+    assertEq(cause({ read: 0, pickable: 0, matched: 0, scored: 0, leftOut: 0, open: 0 }), "unread", "nothing was read");
+    assertEq(cause({ read: 9, pickable: 3, matched: 3, scored: 9, leftOut: 0, open: 0 }), "terms", "matches with prices exist → the terms excluded them");
+    assertEq(cause({ read: 6, pickable: 0, matched: 0, scored: 0, leftOut: 6, open: 0 }), "glass", "every wine read was by the glass");
+    assertEq(cause({ read: 9, pickable: 0, matched: 4, scored: 9, leftOut: 0, open: 0 }), "prices", "matches exist, none has a price");
+    assertEq(cause({ read: 9, pickable: 0, matched: 0, scored: 9, leftOut: 0, open: 5 }), "no_room", "nothing matched, and the terms shut out every wine an adventure could be");
+    assertEq(cause({ read: 9, pickable: 0, matched: 0, scored: 9, leftOut: 0, open: 0 }), "none", "nothing matched and nothing can be offered");
     // Precedence: what would bring picks back comes first
-    assertEq(cause({ pickable: 2, matched: 5, scored: 9, leftOut: 3 }), "terms", "terms before everything");
-    assertEq(cause({ pickable: 0, matched: 0, scored: 9, leftOut: 3 }), "none", "some bottles were scored and none matched: not a glass-only list");
-    assertEq(cause({ pickable: 0, matched: 2, scored: 9, leftOut: 3 }), "prices", "unpriced matches beside glass pours");
-    assertEq(cause(), "none", "unknown never claims a cause");
-    assertEq(cause({ matched: "many", scored: null, leftOut: NaN }), "none", "junk");
+    assertEq(cause({ read: 12, pickable: 2, matched: 5, scored: 9, leftOut: 3, open: 0 }), "terms", "terms before everything");
+    assertEq(cause({ read: 12, pickable: 0, matched: 0, scored: 9, leftOut: 3, open: 0 }), "none", "some bottles were scored and none matched: not a glass-only list");
+    assertEq(cause({ read: 12, pickable: 0, matched: 2, scored: 9, leftOut: 3, open: 0 }), "prices", "unpriced matches beside glass pours");
+    assertEq(cause({ read: 12, pickable: 0, matched: 0, scored: 9, leftOut: 3, open: 2 }), "no_room", "no room, beside glass pours");
+    // Unknown never claims a cause — and "no room" needs to KNOW nothing matched
+    assertEq(cause(), "none", "unknown");
+    assertEq(cause({ open: 4 }), "none", "open wines, but whether anything matched is unknown");
+    assertEq(cause({ matched: "many", scored: null, leftOut: NaN, open: "some" }), "none", "junk");
+    assertEq(cause({ pickable: 0, matched: 0, scored: 9, leftOut: 0, open: 5 }), "no_room", "the count read is not needed for it");
+
+    // Nothing read
+    const unread = { picks: 0, read: 0, pickable: 0, matched: 0, scored: 0, leftOut: 0, open: 0 };
+    assertEq(copy.picksHeading(unread), "No wines found", "heading, unread");
+    assertEq(copy.picksSubline({ wines: 0, pages: 0, ...unread }),
+      "We couldn’t find a wine in what you shared. Try a clearer photo, or paste the list as text.", "sub, unread");
 
     // By the glass only
-    const glass = { picks: 0, pickable: 0, matched: 0, scored: 0, leftOut: 6 };
+    const glass = { picks: 0, read: 6, pickable: 0, matched: 0, scored: 0, leftOut: 6, open: 0 };
     assertEq(copy.picksHeading(glass), "Only by-the-glass pours here", "heading, glass");
     assertEq(copy.picksSubline({ wines: 6, pages: 1, ...glass }),
-      "We read 6 wines, and each is poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there.", "sub, glass");
-    assertEq(copy.picksSubline({ wines: 1, pages: 1, ...glass, leftOut: 1 }),
-      "We read 1 wine, and it is poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there.", "sub, one glass");
+      "We read six wines, and each is poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there.", "sub, glass");
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, ...glass, read: 1, leftOut: 1 }),
+      "We read one wine, and it is poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there.", "sub, one glass");
 
     // No prices
-    const prices = { picks: 0, pickable: 0, matched: 4, scored: 9, leftOut: 0 };
+    const prices = { picks: 0, read: 9, pickable: 0, matched: 4, scored: 9, leftOut: 0, open: 0 };
     assertEq(copy.picksHeading(prices), "No prices to pick by", "heading, prices");
     assertEq(copy.picksSubline({ wines: 9, pages: 1, ...prices }),
-      "We read 9 wines and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices.", "sub, prices");
+      "We read nine wines and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices.", "sub, prices");
+
+    // No room for an adventure: nothing matched, so the page must not say
+    // matches exist — only that the terms leave nothing to offer
+    const noRoom = { picks: 0, read: 9, pickable: 0, matched: 0, scored: 9, leftOut: 0, open: 5 };
+    assertEq(copy.picksHeading(noRoom), "Nothing fits tonight’s terms", "heading, no room");
+    assertEq(copy.picksSubline({ wines: 9, pages: 1, ...noRoom }),
+      "We read nine wines. None is a clear match for your palate, and tonight’s terms leave no room for an adventure. Adjust them and we’ll find one worth taking.", "sub, no room");
+
+    // One wine read: the lines agree with it ("none of them" would not)
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 0, read: 1, pickable: 0, matched: 0, scored: 1, leftOut: 0, open: 0 }),
+      "We read one wine and it doesn’t match your palate yet.", "sub, none, one wine");
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 0, read: 1, pickable: 0, matched: 0, scored: 1, leftOut: 0, open: 1 }),
+      "We read one wine. It isn’t a clear match for your palate, and tonight’s terms leave no room for an adventure. Adjust them and we’ll take another look.", "sub, no room, one wine");
 
     // The terms and the true no-match are untouched by the new counts
     assertEq(copy.picksHeading({ picks: 0, pickable: 3, matched: 3, scored: 9, leftOut: 2 }), "Nothing fits tonight’s terms", "heading, terms");
@@ -481,9 +530,38 @@ async function main() {
     assertEq(copy.picksHeading({ ...prices, picks: 2 }), "Your picks", "picks");
   });
 
+  await test("the page never says it found matches on a list where it found none (every consistent set of counts)", () => {
+    let seen = 0;
+    for (let read = 0; read <= 4; read++) for (let leftOut = 0; leftOut <= read; leftOut++) {
+      const scored = read - leftOut;
+      for (let matched = 0; matched <= scored; matched++) for (let pickable = 0; pickable <= matched; pickable++) {
+        for (let open = 0; open <= (matched === 0 ? scored : 0); open++) {
+          const counts = { picks: 0, read, pickable, matched, scored, leftOut, open };
+          const heading = copy.picksHeading(counts);
+          const sub = copy.picksSubline({ wines: read, pages: 1, ...counts });
+          const where = JSON.stringify(counts);
+          seen++;
+          if (matched === 0) {
+            if (/found matches/.test(sub)) throw new Error(`claims matches with none: ${where} → ${sub}`);
+            if (/your matches/.test(sub)) throw new Error(`promises matches with none: ${where} → ${sub}`);
+            if (heading === "No prices to pick by") throw new Error(`blames prices with no match: ${where}`);
+          } else if (!/found matches/.test(sub)) {
+            throw new Error(`matches exist and the line doesn't say so: ${where} → ${sub}`);
+          }
+          // "No matches found" stays only where nothing can be offered
+          const nothingToOffer = read > 0 && matched === 0 && open === 0 && !(scored === 0 && leftOut > 0);
+          if ((heading === "No matches found") !== nothingToOffer) throw new Error(`"No matches found" misplaced: ${where} → ${heading}`);
+        }
+      }
+    }
+    if (seen < 60) throw new Error(`only ${seen} sets of counts were checked`);
+  });
+
   await test("wines left out for being by the glass are said so — only when some were", () => {
-    assertEq(copy.glassNote({ leftOut: 6 }), "6 wines here are poured by the glass only. We pick bottles, so we left them out.", "several");
-    assertEq(copy.glassNote({ leftOut: 1 }), "1 wine here is poured by the glass only. We pick bottles, so we left it out.", "one");
+    assertEq(copy.glassNote({ leftOut: 6 }), "Six wines here are poured by the glass only. We pick bottles, so we left them out.", "several");
+    assertEq(copy.glassNote({ leftOut: 3 }), "Three wines here are poured by the glass only. We pick bottles, so we left them out.", "Ed's example");
+    assertEq(copy.glassNote({ leftOut: 12 }), "12 wines here are poured by the glass only. We pick bottles, so we left them out.", "past ten");
+    assertEq(copy.glassNote({ leftOut: 1 }), "One wine here is poured by the glass only. We pick bottles, so we left it out.", "one");
     assertEq(copy.glassNote({ leftOut: 0 }), null, "none left out → silence");
     assertEq(copy.glassNote({ leftOut: 6, cause: "glass" }), null, "the sub line already said it");
     assertEq(copy.glassNote(), null, "unknown");
@@ -500,6 +578,121 @@ async function main() {
     assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }], max: "" }), null, "no max, no line");
     assertEq(copy.loneSplurgeLine({ picks: [], max: 39 }), null, "no picks");
     assertEq(copy.loneSplurgeLine(), null, "junk → silence");
+  });
+
+  await test("a lone Adventure says nothing was a clear match — only on a list that matched nothing", () => {
+    const LINE = "Nothing on this list is a clear match for your palate, so here’s the adventure we’d take.";
+    const adventure = { pickType: "adventure", price: 48 };
+    assertEq(copy.loneAdventureLine({ picks: [adventure], matched: 0 }), LINE, "one Adventure, nothing matched");
+    assertEq(copy.loneAdventureLine({ picks: [adventure], matched: 4 }), null, "an Adventure among real matches is just a role");
+    assertEq(copy.loneAdventureLine({ picks: [{ pickType: "top", price: 48 }], matched: 0 }), null, "not an Adventure");
+    assertEq(copy.loneAdventureLine({ picks: [adventure, adventure], matched: 0 }), null, "two picks are not a lone one");
+    assertEq(copy.loneAdventureLine({ picks: [], matched: 0 }), null, "no picks");
+    assertEq(copy.loneAdventureLine({ picks: [adventure] }), null, "whether anything matched is unknown → never claims it");
+    assertEq(copy.loneAdventureLine(), null, "junk → silence");
+    // A lone Adventure is never also a lone Splurge: it always fits the budget
+    assertEq(copy.loneSplurgeLine({ picks: [adventure], max: 60 }), null, "inside the max");
+  });
+
+  await test("the palate nudge: Ed's line, in the parts the page links — to the quiz's refine", () => {
+    assertEq(copy.PALATE_NUDGE, {
+      lead: "Know there’s more you love?", link: "Add it to your palate", tail: "and we’ll spot it next time.",
+      href: "/?quiz=refine",
+    }, "the parts");
+    assertEq(`${copy.PALATE_NUDGE.lead} ${copy.PALATE_NUDGE.link} ${copy.PALATE_NUDGE.tail}`,
+      "Know there’s more you love? Add it to your palate and we’ll spot it next time.", "read whole, it is Ed's sentence");
+    // Where it shows: under a lone Adventure, and under a no-match with nothing to offer
+    assertEq(copy.showsPalateNudge({ loneAdventure: true }), true, "under the lone Adventure");
+    assertEq(copy.showsPalateNudge({ picks: 0, cause: "none" }), true, "under No matches found");
+    for (const cause of ["unread", "terms", "glass", "prices", "no_room"]) {
+      assertEq(copy.showsPalateNudge({ picks: 0, cause }), false, `not under ${cause}`);
+    }
+    assertEq(copy.showsPalateNudge({ picks: 5, cause: "none" }), false, "not beside ordinary picks");
+    assertEq(copy.showsPalateNudge(), false, "junk");
+  });
+
+  await test("THE NUMBERS RULE: no sentence houseCopy writes prints zero through ten as a digit", () => {
+    // Every number in a line, prices aside: "$40" is a price, "12" a count
+    const smallDigits = (line) => (String(line).match(/\$?\d[\d,.]*/g) || [])
+      .filter((token) => !token.startsWith("$") && Number(token.replace(/[,.]$/, "").replace(/,/g, "")) <= 10);
+    const EMPTY = [
+      { pickable: 2, matched: 2, scored: 9, leftOut: 0, open: 0 },   // terms
+      { pickable: 0, matched: 0, scored: 0, leftOut: 3, open: 0 },   // glass
+      { pickable: 0, matched: 2, scored: 9, leftOut: 0, open: 0 },   // prices
+      { pickable: 0, matched: 0, scored: 9, leftOut: 0, open: 3 },   // no room
+      { pickable: 0, matched: 0, scored: 9, leftOut: 0, open: 0 },   // none
+    ];
+    const said = [];
+    for (let n = 0; n <= 10; n++) {
+      said.push(
+        copy.numberWord(n), copy.countOf(n, "wine"), copy.bottlesPhrase(n), copy.bottlesAwayLine(n),
+        copy.reservedCaption(n), copy.readingLine("count", n), copy.readingLine("done", n),
+        copy.glassNote({ leftOut: n }),
+        copy.verdictReply({ rating: "loved", nearest: { name: "Chenin Blanc", n } }),
+      );
+      for (const pages of [1, 2, 10]) for (const picks of [1, 5, 6, 10]) {
+        said.push(copy.picksSubline({ wines: n, pages, picks }));
+      }
+      for (const counts of EMPTY) said.push(copy.picksSubline({ wines: n, pages: 1, picks: 0, read: n, ...counts }));
+    }
+    for (const dimension of ["estate", "varietal", "region", "country"]) {
+      const saved = copy.savedCopy({ rating: "loved", promotions: [{ displayName: "Kanonkop", dimension }] });
+      said.push(saved.eyebrow, saved.headline, saved.sub, ...saved.lines);
+    }
+    said.push(copy.savedCopy({ rating: "loved", isFirst: true }).sub);
+    const lines = said.filter((line) => typeof line === "string" && line);
+    if (lines.length < 200) throw new Error(`only ${lines.length} lines were checked`);
+    assertEq(lines.filter((line) => smallDigits(line).length > 0), [], "zero through ten are written as words");
+    // …and anything above ten stays digits
+    assertEq(copy.picksSubline({ wines: 11, pages: 11, picks: 5 }), "11 wines across 11 pages — here’s where to start", "eleven");
+    assertEq(copy.glassNote({ leftOut: 11 }), "11 wines here are poured by the glass only. We pick bottles, so we left them out.", "eleven glasses");
+    // A sentence that opens with its number capitalizes it
+    for (const line of [copy.glassNote({ leftOut: 3 }), copy.picksSubline({ wines: 8, pages: 1, picks: 5 }), copy.reservedCaption(2), copy.readingLine("done", 4)]) {
+      if (!/^[A-Z]/.test(line)) throw new Error(`opens with a lowercase number: ${line}`);
+    }
+  });
+
+  await test("moreOf: \"three more regions\" — the count as a word, the noun agreeing with it", () => {
+    assertEq(copy.moreOf(3, "region"), "three more regions", "three");
+    assertEq(copy.moreOf(1, "region"), "one more region", "one — and the noun is singular");
+    assertEq(copy.moreOf(10, "producer"), "ten more producers", "ten");
+    assertEq(copy.moreOf(15, "producer"), "15 more producers", "past ten");
+    assertEq(copy.moreOf(4, "wine", { capitalize: true }), "Four more wines", "opening a line");
+  });
+
+  await test("SOURCE SCAN — the numbers rule outside houseCopy: the app's other sentences write their small numbers as words", () => {
+    // Each of these printed a digit of ten or under until Nov 13, 2026. A
+    // retyped digit, or a count interpolated raw into the sentence, fails.
+    const banned = [
+      [/at least 8 characters/i, "the password helper: “at least eight characters”"],
+      [/for 7 days/, "the teaser gate: “for seven days”"],
+      [/\}\s*more wines to explore/, "the teaser's tail: moreOf(n, \"wine\")"],
+      [/Show \{[^}]*\} more/, "the quiz's Show more: moreOf(n, …)"],
+      [/\$\{[^}()]*\} countries wide/, "the signature line: numberWord(breadth)"],
+      [/\+ \{building\.more\}/, "Building now's tail: numberWord(more)"],
+      [/\$\{[^}]*\} wine\$\{/, "a count of wines: countOf(n, \"wine\")"],
+    ];
+    const broke = [];
+    for (const path of sourceFiles(SRC)) {
+      const source = withoutComments(readFileSync(path, "utf-8"));
+      for (const [pattern, fix] of banned) if (pattern.test(source)) broke.push(`${path.slice(SRC.length + 1)} — ${fix}`);
+    }
+    assertEq(broke, [], "write zero through ten as words (CLAUDE.md, Voice & Tone)");
+    // …and the files that say them reach for the one helper
+    for (const [path, helper] of [
+      ["components/Quiz.js", "moreOf"], ["components/WineRecList.js", "moreOf"],
+      ["components/PalateView.js", "numberWord"], ["lib/palateSignature.js", "numberWord"],
+    ]) {
+      if (!new RegExp(`\\b${helper}\\(`).test(withoutComments(readFileSync(join(SRC, path), "utf-8")))) throw new Error(`${path} doesn't call ${helper}()`);
+    }
+  });
+
+  await test("figures are not sentences: tallies, labels and prices keep their digits", () => {
+    assertEq(copy.bottleCount(3), "3 bottles", "a DNA row's count");
+    assertEq(copy.journalStats({ tried: 9, loved: 5, want: 3 }), "9 tried · 5 loved · 3 to try", "the journal's tally");
+    assertEq(copy.journalLinkLabel(9), "Journal · 9", "a link's count");
+    assertEq(copy.journalGroupLabel(4), "In your journal · 4", "a group head");
+    assertEq(copy.termsLine({ color: "all", min: "5", max: "10", steer: "" }), "All wines · $5–$10 · No steer", "prices");
   });
 
   // ─── Journal + the wine page (Phase 4) ───

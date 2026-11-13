@@ -5,6 +5,7 @@
 // so the signature stays true as DNA evolution edits the profile.
 
 import wineUnified from "./wineUnified.json";
+import { numberWord } from "./houseCopy.js";
 
 const { countries: COUNTRIES, regions: REGIONS } = wineUnified;
 
@@ -132,7 +133,7 @@ export function signatureLine(profile, accumulation) {
   }
 
   if (sig.anchor) parts.push(`${sig.anchor.name}-anchored`);
-  else if (sig.breadth > 0) parts.push(sig.breadth === 1 ? "one country deep" : `${sig.breadth} countries wide`);
+  else if (sig.breadth > 0) parts.push(sig.breadth === 1 ? "one country deep" : `${numberWord(sig.breadth)} countries wide`);
 
   if (sig.redCount + sig.whiteCount > 0) {
     if (sig.whiteShare <= 0.35) parts.push("mostly red");

@@ -5,10 +5,13 @@
 // matchEngine's JSON imports. Its one import is matchTerms.js — itself
 // dependency-free — for the terms rule it shares with the engine's picks.
 
-import { fitsColor, budgetFit, budgetLimits, isPickable } from "./matchTerms.js";
+import { fitsColor, budgetFit, budgetLimits, isPickable, isSparkling, rankAdventures } from "./matchTerms.js";
 
 export const SOMM_ROLES = ["top", "value", "adventure", "splurge", "wildcard"];
 const CANDIDATE_CAP = 25;
+// The lone Adventure's slate (below) is wider: its candidates carry no
+// scores or reasons, and "nearest in spirit" is a choice worth more room
+export const ADVENTURE_CANDIDATE_CAP = 40;
 const REASON_CAP = 3;
 const NOTE_MAX_CHARS = 500;
 const STEER_MAX_CHARS = 200;
@@ -170,6 +173,38 @@ export function feasiblePickCount(candidates, pickCount, budget) {
   return Math.min(pickCount, supply);
 }
 
+// The palate as the Somm reads it — one copy for the ordinary ask and the
+// lone Adventure's (display names, never ids)
+function dnaBlock(profile, d) {
+  return {
+    archetype: profile?.archetype || null,
+    narrative: profile?.narrative || null,
+    countries: (profile?.countries || []).slice(0, 8).map(d.country),
+    varietals: (profile?.varietals || []).slice(0, 8).map(d.varietal),
+    topEstates: Object.values(profile?.estates || {})
+      .flat()
+      .slice(0, 8)
+      .map(prettifyId),
+    specificWines: (profile?.specific_wines || []).slice(0, 5),
+  };
+}
+
+// What they actually rated — the strongest signal the Somm has
+function feedbackBlock(ratedInteractions) {
+  const loved = [];
+  const notForMe = [];
+  for (const r of ratedInteractions || []) {
+    const item = {
+      name: r.wine_name,
+      varietal: r.resolved_varietal || null,
+      region: r.resolved_region || null,
+    };
+    if (r.rating === "loved" && loved.length < 10) loved.push(item);
+    if (r.rating === "not_for_me" && notForMe.length < 10) notForMe.push(item);
+  }
+  return { loved, notForMe };
+}
+
 /**
  * Build the compact request payload for /api/somm-picks from state the
  * recommend page already holds after runAnalysis.
@@ -274,36 +309,14 @@ export function buildSommPayload({
   const scoredPositive = (scoredEntries || []).filter((e) => e.score > 0);
   const distinct = (arr) => Array.from(new Set(arr)).length;
 
-  const loved = [];
-  const notForMe = [];
-  for (const r of ratedInteractions || []) {
-    const item = {
-      name: r.wine_name,
-      varietal: r.resolved_varietal || null,
-      region: r.resolved_region || null,
-    };
-    if (r.rating === "loved" && loved.length < 10) loved.push(item);
-    if (r.rating === "not_for_me" && notForMe.length < 10) notForMe.push(item);
-  }
-
   return {
     candidates,
     algorithmicPicks: algorithmicIndices,
     // Never more than the slate can supply (the route clamps again — it
     // can't assume its caller)
     pickCount: feasiblePickCount(candidates, pickCount, limits),
-    dna: {
-      archetype: profile?.archetype || null,
-      narrative: profile?.narrative || null,
-      countries: (profile?.countries || []).slice(0, 8).map(d.country),
-      varietals: (profile?.varietals || []).slice(0, 8).map(d.varietal),
-      topEstates: Object.values(profile?.estates || {})
-        .flat()
-        .slice(0, 8)
-        .map(prettifyId),
-      specificWines: (profile?.specific_wines || []).slice(0, 5),
-    },
-    feedback: { loved, notForMe },
+    dna: dnaBlock(profile, d),
+    feedback: feedbackBlock(ratedInteractions),
     menu: {
       totalWines: totalParsed || scoredEntries?.length || 0,
       distinctCountries: distinct(scoredPositive.map((e) => e.detectedCountry).filter(Boolean)),
@@ -312,6 +325,118 @@ export function buildSommPayload({
     budget: { min: limits.min, max: limits.max },
     color: color || null,
     steer: steerText || null,
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+// THE LONE ADVENTURE'S ASK (Nov 2026)
+// ═══════════════════════════════════════════════════════
+//
+// A list that matched nothing has no scored wine, so buildSommPayload — whose
+// slate is the wines the palate scored — has nothing to offer the Somm. The
+// lone Adventure has its own slate and its own ask: the priced wines that
+// fit tonight's terms (matchTerms' rankAdventures — the same wines, in the
+// same order, the page's own pick comes from), and exactly ONE pick, the
+// wine nearest in spirit to what this diner loves. `mode: "adventure"` is
+// what tells the route which question this is.
+
+/**
+ * The lone Adventure's payload. Same inputs as buildSommPayload, less the
+ * engine's picks and pick count (there is one pick, and it is candidate 0),
+ * plus `lean` — the palate's color lean, which orders the slate.
+ *
+ * Nothing to offer → candidates [] and pickCount 0: the page makes no call.
+ */
+export function buildAdventurePayload({
+  scoredEntries, profile, ratedInteractions, totalParsed, budget, color, lean, steer, display,
+} = {}) {
+  const d = {
+    varietal: display?.varietal || identity,
+    region: display?.region || identity,
+    country: display?.country || identity,
+  };
+  const steerText = steer ? String(steer).trim().slice(0, STEER_MAX_CHARS) : "";
+  const steerTerms = steerText ? extractSteerTerms(steerText) : [];
+  const matchesSteer = makeSteerMatcher(steerTerms, d);
+  const limits = budgetLimits(budget?.min, budget?.max);
+
+  // The engine's order; its first is the pick already on the page
+  const ranked = rankAdventures(scoredEntries, { color, min: limits.min, max: limits.max, lean });
+  let slate = ranked.slice(0, ADVENTURE_CANDIDATE_CAP);
+  // A wine the steer names is never cut off by the cap: it takes the place
+  // of the last wines that the steer does not name (the pick keeps its lead)
+  if (steerTerms.length > 0 && ranked.length > ADVENTURE_CANDIDATE_CAP) {
+    const cutOff = ranked.slice(ADVENTURE_CANDIDATE_CAP).filter(matchesSteer).slice(0, STEER_EXTRA_CAP);
+    for (let k = slate.length - 1, room = cutOff.length; k >= 1 && room > 0; k--) {
+      if (!matchesSteer(slate[k])) { slate.splice(k, 1); room--; }
+    }
+    slate = slate.concat(cutOff).slice(0, ADVENTURE_CANDIDATE_CAP);
+  }
+
+  const candidates = slate.map((e, i) => ({
+    i,
+    name: e.name,
+    price: e.price,
+    vintage: e.vintage || null,
+    section: e.section || null,
+    varietal: e.detectedVarietalId ? d.varietal(e.detectedVarietalId) : null,
+    region: e.detectedRegionIds?.length ? d.region(e.detectedRegionIds[0], e.detectedCountry) : null,
+    country: e.detectedCountry ? d.country(e.detectedCountry) : null,
+    color: isSparkling(e) ? "sparkling" : e.detectedColor || e.visionData?.color || null,
+    ...(steerTerms.length > 0 && matchesSteer(e) ? { steerMatch: true } : {}),
+  }));
+
+  return {
+    mode: "adventure",
+    candidates,
+    // The engine's own pick: the first of its ranking, chosen with no
+    // knowledge of taste (the color they lean to, the middle of the prices)
+    algorithmicPicks: candidates.length > 0 ? [0] : [],
+    pickCount: feasibleAdventureCount(candidates, limits),
+    dna: dnaBlock(profile, d),
+    feedback: feedbackBlock(ratedInteractions),
+    menu: { totalWines: totalParsed || scoredEntries?.length || 0 },
+    budget: { min: limits.min, max: limits.max },
+    color: color && color !== "all" ? color : null,
+    lean: lean || null,
+    steer: steerText || null,
+  };
+}
+
+/**
+ * How many picks the Adventure's slate can supply: one, when at least one
+ * candidate is a wine validateAdventureResponse can accept — not over the
+ * max, in the validator's own comparison — else none. The builder and the
+ * route both read it; loneAdventure.test.js holds it to the validator.
+ */
+export function feasibleAdventureCount(candidates, budget) {
+  if (!Array.isArray(candidates)) return 0;
+  const max = budgetLimits(null, budget?.max).max;
+  return candidates.some((c) => max == null || !(c?.price > max)) ? 1 : 0;
+}
+
+/**
+ * Validate the Somm's Adventure against the request that asked for it.
+ * The ordinary validator checks the shape, the index and the note (and
+ * salvages what it can: extra picks trimmed, an overlong note clipped); on
+ * top of it, an Adventure is never over the max — there is no Splurge here,
+ * a wine that is a stretch for the palate is not one for the wallet too —
+ * its role is "adventure" whatever the model called it, and no summary is
+ * passed on (the page says its own line above the pick).
+ */
+export function validateAdventureResponse(parsed, { candidates, budget } = {}) {
+  const list = Array.isArray(candidates) ? candidates : [];
+  const shape = validateSommResponse(parsed, { candidates: list, pickCount: 1, budget: null });
+  if (!shape.valid) return shape;
+  const pick = shape.picks[0];
+  const max = budgetLimits(null, budget?.max).max;
+  const price = list[pick.i]?.price;
+  if (max != null && price > max) return { valid: false, reason: `adventure ${price} > budget max` };
+  return {
+    valid: true,
+    picks: [{ i: pick.i, role: "adventure", note: pick.note }],
+    sommSummary: "",
+    salvaged: shape.salvaged,
   };
 }
 
