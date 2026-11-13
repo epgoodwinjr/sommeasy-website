@@ -15,8 +15,8 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  *     made the scan say (Ed: bottles only, but say so)
  *   - wines poured by the glass ONLY are left out — and the page says so
  *   - no picks never reads "No matches found" unless nothing matched: each
- *     cause (by-the-glass only, no prices, the terms, a true no-match) has
- *     its own heading
+ *     cause (by-the-glass only, no prices, the terms) has its own heading —
+ *     and since Nov 13, 2026 a true no-match shows the lone Adventure
  *   - menu_analyzed says what the list held, and keeps a sample of a list
  *     that matched nothing
  *
@@ -127,7 +127,7 @@ test.describe("Scans tell the truth", () => {
     const shown = await shownWines(page);
     expect(shown.sort()).toEqual(BOTTLES.map((w) => w.name as string).sort());
     await expect(page.getByTestId("glass-note"))
-      .toHaveText("3 wines here are poured by the glass only. We pick bottles, so we left them out.");
+      .toHaveText("Three wines here are poured by the glass only. We pick bottles, so we left them out.");
     expect(payload).toMatchObject({ wines_parsed: 6, wines_priced: 3, wines_btg: 3, wines_scored: 3, picks_shown: 3, match_count: 3 });
   });
 
@@ -135,7 +135,7 @@ test.describe("Scans tell the truth", () => {
     const { rec, payload } = await scan(page, GLASSES);
     await expect(rec.resultsHeading).toHaveText("Only by-the-glass pours here");
     await expect(page.getByText(
-      "We read 3 wines, and each is poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there."
+      "We read three wines, and each is poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there."
     )).toBeVisible();
     await expect(rec.pickCards).toHaveCount(0);
     await expect(page.getByText("none of them matches your palate")).toHaveCount(0);
@@ -151,7 +151,7 @@ test.describe("Scans tell the truth", () => {
     ]);
   });
 
-  test("a true no-match says so, with its own next step, and tonight's terms ride the ledger", async ({ page }) => {
+  test("a true no-match is no dead end: one Adventure inside tonight's terms, and the terms and the sample ride the ledger", async ({ page }) => {
     const { supabase, userId } = await testDb();
     const before = await countEvents(supabase, userId, "menu_analyzed");
     await blockSomm(page);
@@ -164,20 +164,28 @@ test.describe("Scans tell the truth", () => {
     await rec.pasteAndAnalyze(`Tenuta Immaginaria Valpolicella Superiore, Veneto 2020...$48
 Bodegas Inventadas Tempranillo Reserva, Rioja 2016...$74
 Fattoria Fittizia Nero d'Avola, Sicily 2021...$42`);
-    await expect(rec.resultsHeading).toHaveText("No matches found", { timeout: 10_000 });
-    await expect(page.getByText(
-      "We read 3 wines and none of them matches your palate yet. If something here is your kind of wine, add its grape or region to your palate and we’ll know it next time."
-    )).toBeVisible();
-    // Adjusting the terms would not help, and the page no longer says to
+    // Until Nov 13, 2026 this read "No matches found". Nothing matched — and
+    // the page now shows the one wine worth the adventure (lone-adventure.spec
+    // is its guard): inside $90, and a wine the page KNOWS is red before one
+    // it can only suppose is — a pasted "Valpolicella" names no grape, so of
+    // the two known reds ($42, $74) it is the lower middle
+    await expect(rec.resultsHeading).toHaveText("Your picks", { timeout: 10_000 });
+    await expect(rec.pickCards).toHaveCount(1);
+    expect(await shownWines(page)).toEqual(["Fattoria Fittizia Nero d'Avola, Sicily 2021"]);
+    await expect(page.getByTestId("lone-adventure-line")).toHaveText(
+      "Nothing on this list is a clear match for your palate, so here’s the adventure we’d take."
+    );
+    // It never claims a match it didn't find, and never says to adjust the terms
+    await expect(page.getByText(/found matches/)).toHaveCount(0);
     await expect(page.getByText("Try adjusting tonight’s terms")).toHaveCount(0);
 
     await expect.poll(() => countEvents(supabase, userId, "menu_analyzed"), { timeout: 15_000 }).toBe(before + 1);
     const payload = (await latestEvent(supabase, userId, "menu_analyzed"))!.payload as Record<string, any>;
     expect(payload).toMatchObject({
-      source: "paste", wines_parsed: 3, wines_priced: 3, wines_btg: 0, wines_scored: 3, match_count: 0, picks_shown: 0,
-      terms: { min: null, max: 90, color: "red" },
+      source: "paste", wines_parsed: 3, wines_priced: 3, wines_btg: 0, wines_scored: 3, match_count: 0, picks_shown: 1,
+      lone_adventure: true, terms: { min: null, max: 90, color: "red" },
     });
-    // A pasted line has only its name
+    // A pasted line has only its name — and a list that matched nothing keeps its sample
     expect(payload.sample).toHaveLength(3);
     expect(payload.sample[0]).toEqual({ name: "Tenuta Immaginaria Valpolicella Superiore, Veneto 2020", region: null, country: null, variety: null, is_btg: false, has_price: true });
   });

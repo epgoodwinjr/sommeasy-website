@@ -288,6 +288,11 @@ test("the slate is capped, the engine's pick kept, and a steer's wines are never
   const hit = steered.candidates.find((c) => c.name.includes("Assyrtiko"));
   assert(hit && hit.steerMatch === true, "the wine the steer names is a candidate, and flagged");
   assertEq(steered.candidates[0].name, p.candidates[0].name, "the engine's pick still leads");
+  // Every wine but the engine's pick is one the steer names: the pick still leads
+  const pickName = terms.loneAdventure(many, { lean: "white" }).name;
+  const allGreek = many.map((e) => (e.name === pickName ? e : { ...e, name: `${e.name} Assyrtiko` }));
+  const crowded = somm.buildAdventurePayload({ scoredEntries: allGreek, profile, ratedInteractions: [], totalParsed: 70, budget: {}, color: null, lean: "white", steer: "Assyrtiko", display });
+  assertEq([crowded.candidates.length, crowded.candidates[0].name, crowded.algorithmicPicks], [somm.ADVENTURE_CANDIDATE_CAP, pickName, [0]], "a steer can't push the engine's pick off the slate");
   assertEq(somm.buildAdventurePayload({ scoredEntries: many, profile, budget: {}, steer: "x".repeat(500), display }).steer.length, 200, "the steer is capped");
 });
 

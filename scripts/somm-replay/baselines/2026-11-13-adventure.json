@@ -1,0 +1,752 @@
+[
+ {
+  "label": "adventure nomatch11",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4051,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2074,
+   "out": 115
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4084,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2074,
+   "out": 130
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4164,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2074,
+   "out": 126
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4202,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2074,
+   "out": 118
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 red",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 6,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Barbera d'Alba 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4273,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1775,
+   "out": 118
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4663,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2074,
+   "out": 130
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 red",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 6,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Barbera d'Alba 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3513,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1775,
+   "out": 125
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 red",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 6,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Barbera d'Alba 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3725,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1775,
+   "out": 118
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 red",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 6,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Barbera d'Alba 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3937,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1775,
+   "out": 125
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 max$45",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 4,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Quinta Inventada Vinho Verde 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4181,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1647,
+   "out": 132
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 max$45",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 4,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Quinta Inventada Vinho Verde 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3799,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1647,
+   "out": 117
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 red",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 6,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Barbera d'Alba 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5148,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1775,
+   "out": 127
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 max$45",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 4,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Quinta Inventada Vinho Verde 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3501,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1647,
+   "out": 112
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 max$45",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 4,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Quinta Inventada Vinho Verde 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3399,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1647,
+   "out": 107
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 max$45",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 4,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Quinta Inventada Vinho Verde 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4154,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 1647,
+   "out": 133
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 steer steak",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3675,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2079,
+   "out": 119
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 steer steak",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4349,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2079,
+   "out": 136
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 steer steak",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4188,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2079,
+   "out": 129
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 steer steak",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3398,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2079,
+   "out": 122
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure nomatch11 steer steak",
+  "shape": {
+   "parsed": 11,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 11,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Tenuta Immaginaria Soave Classico, Veneto 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3540,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2079,
+   "out": 125
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure mitteleuropa12/broad",
+  "shape": {
+   "parsed": 12,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 12,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Weingut Ausgedacht Blaufränkisch, Burgenland 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3502,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2119,
+   "out": 115
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure trattoria30",
+  "shape": {
+   "parsed": 33,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 30,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Pinot Grigio, Alto Adige 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7132,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3226,
+   "out": 116
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure trattoria30",
+  "shape": {
+   "parsed": 33,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 30,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Pinot Grigio, Alto Adige 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7392,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3226,
+   "out": 124
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure trattoria30",
+  "shape": {
+   "parsed": 33,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 30,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Pinot Grigio, Alto Adige 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5208,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3226,
+   "out": 126
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure trattoria30",
+  "shape": {
+   "parsed": 33,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 30,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Pinot Grigio, Alto Adige 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6384,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3226,
+   "out": 125
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure trattoria30",
+  "shape": {
+   "parsed": 33,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 30,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Cantina Finta Pinot Grigio, Alto Adige 2022"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7847,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3226,
+   "out": 141
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure mitteleuropa12/broad",
+  "shape": {
+   "parsed": 12,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 12,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Weingut Ausgedacht Blaufränkisch, Burgenland 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4458,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2119,
+   "out": 123
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure mitteleuropa12/broad",
+  "shape": {
+   "parsed": 12,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 12,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Weingut Ausgedacht Blaufränkisch, Burgenland 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 3926,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2119,
+   "out": 115
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure mitteleuropa12/broad",
+  "shape": {
+   "parsed": 12,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 12,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Weingut Ausgedacht Blaufränkisch, Burgenland 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4280,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2119,
+   "out": 123
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "adventure mitteleuropa12/broad",
+  "shape": {
+   "parsed": 12,
+   "matched": 0,
+   "enginePicks": 1,
+   "candidates": 12,
+   "asked": 1,
+   "pickCount": 1,
+   "enginePick": "Weingut Ausgedacht Blaufränkisch, Burgenland 2020"
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 4401,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2119,
+   "out": 125
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ }
+]

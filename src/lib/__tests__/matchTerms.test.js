@@ -270,6 +270,7 @@ async function main() {
     assertEq(pickOf(list, { max: 20 }), null, "nothing inside the budget: no Adventure — never a stretch");
     assertEq(pickOf(list, { max: "80", min: "", lean: "red" }), "R1", "limits as the amount fields hold them");
     assertEq(pickOf([blank("U", 50), red("R", 60)], { color: "red" }), "R", "a known red before an unknown, when red is asked for");
+    assertEq(pickOf([blank("U", 50), red("R", 60)], { color: "red", lean: "white" }), "R", "…and the lean has no say in it once a color is chosen");
     assertEq(pickOf([red("R", 60, { visionData: { color: "red" } }), white("W", 50, { visionData: { color: "white" } })], { color: "white" }), "W", "a photographed wine's color");
   });
 
