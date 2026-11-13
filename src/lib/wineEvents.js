@@ -173,6 +173,46 @@ export function sommBypassedPayload({ session, steer, picksShown, hadChosen } = 
   };
 }
 
+const finiteOrNull = (n) => (typeof n === "number" && Number.isFinite(n) ? n : null);
+
+/**
+ * somm_curation payload: the durable cost record for one Somm request —
+ * and, since Nov 2026, WHY it went the way it did. `meta` is what
+ * /api/somm-picks returned; `sent` is the shape of the payload this client
+ * sent ({ candidates, pickCount }), the fallback while an older deploy of
+ * the route still answers without them.
+ *
+ *   reasons     one line per rejected attempt, in order (kept on a retried
+ *               success), plus a rejected output format or an upstream
+ *               error's kind — numbers and indices, never wine names
+ *   candidates  how many wines the Somm could choose from
+ *   pick_count  how many it was asked for (after the clamp)
+ *   model       the model the API says answered
+ *
+ * With these, "why did it fall back?" is a query; without them the ledger
+ * could only count.
+ */
+export function sommCurationPayload(meta, sent) {
+  const m = meta && typeof meta === "object" ? meta : {};
+  const usage = m.usage && typeof m.usage === "object" ? m.usage : {};
+  const reasons = Array.isArray(m.reasons)
+    ? m.reasons.filter((r) => typeof r === "string" && r).slice(0, 6).map((r) => r.slice(0, 160))
+    : [];
+  return {
+    outcome: typeof m.outcome === "string" ? m.outcome : null,
+    attempts: finiteOrNull(m.attempts),
+    salvaged_count: finiteOrNull(m.salvagedCount) ?? 0,
+    duration_ms: finiteOrNull(m.durationMs),
+    input_tokens: finiteOrNull(usage.inputTokens),
+    output_tokens: finiteOrNull(usage.outputTokens),
+    est_cost_usd: finiteOrNull(usage.estCostUSD),
+    reasons,
+    candidates: finiteOrNull(m.candidates) ?? finiteOrNull(sent?.candidates),
+    pick_count: finiteOrNull(m.pickCount) ?? finiteOrNull(sent?.pickCount),
+    model: typeof m.model === "string" && m.model ? m.model.slice(0, 80) : null,
+  };
+}
+
 /**
  * Write one event. Never throws, never rejects — resolves false on ANY
  * failure (bad input, RLS refusal, network, a client that throws). Callers

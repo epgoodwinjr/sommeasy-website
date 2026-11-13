@@ -142,6 +142,39 @@ function passesBudget(entry, budget) {
 }
 
 /**
+ * How many picks this slate can legally supply — the most the validator
+ * below will ever accept, capped at what was asked.
+ *
+ * The page's pick count never goes below 5 (matchEngine's getPickCount, which
+ * the algorithmic picks keep), but the slate can: a short list, a narrow
+ * palate, a color filter. And under a budget, wines up to 2× max stay in the
+ * slate as splurge candidates while only ONE pick may be over max. Asked for
+ * more than this, the Somm can only fail: it returns the picks that exist
+ * ("pick count 1 < 5"), says so in prose, or pads with a duplicate — and the
+ * diner waits for a fallback (Nov 2026: 35 of 35 replayed fallbacks).
+ *
+ * This changes only what the Somm is asked for. The slate, the algorithmic
+ * picks and the scoring are untouched.
+ */
+export function feasiblePickCount(candidates, pickCount, budget) {
+  if (!Array.isArray(candidates) || !Number.isInteger(pickCount) || pickCount < 1) return 0;
+  const max = budget?.max;
+  let supply = candidates.length;
+  if (max != null) {
+    let inBudget = 0;
+    let splurge = 0;
+    for (const c of candidates) {
+      const price = c?.price;
+      if (typeof price !== "number" || !Number.isFinite(price)) continue;
+      if (price <= max) inBudget++;
+      else if (price <= max * 2) splurge = 1; // legal, but the rule allows one
+    }
+    supply = inBudget + splurge;
+  }
+  return Math.min(pickCount, supply);
+}
+
+/**
  * Build the compact request payload for /api/somm-picks from state the
  * recommend page already holds after runAnalysis.
  *
@@ -233,7 +266,9 @@ export function buildSommPayload({
   return {
     candidates,
     algorithmicPicks: algorithmicIndices,
-    pickCount,
+    // Never more than the slate can supply (the route clamps again — it
+    // can't assume its caller)
+    pickCount: feasiblePickCount(candidates, pickCount, budget),
     dna: {
       archetype: profile?.archetype || null,
       narrative: profile?.narrative || null,
@@ -257,9 +292,62 @@ export function buildSommPayload({
   };
 }
 
-/** Strip markdown fences an LLM may wrap around JSON. */
+const parsesAsJson = (text) => {
+  try { JSON.parse(text); return true; } catch { return false; }
+};
+
+// Bounded: a reply is a few KB with a dozen braces; this only stops a
+// pathological one from being parsed thousands of times
+const MAX_OBJECT_TRIES = 400;
+
+/** The last JSON object in the text, or null. Closing braces are tried from
+ *  the end, each against every opening brace before it; at most one pairing
+ *  parses (an object nested in another can't share its closing brace), so
+ *  the first hit is the last complete object — the final answer, not a draft
+ *  earlier in the text, and not the answer's own last pick. */
+function lastJsonObject(text) {
+  const opens = [];
+  const closes = [];
+  for (let k = 0; k < text.length; k++) {
+    if (text[k] === "{") opens.push(k);
+    else if (text[k] === "}") closes.push(k);
+  }
+  let tries = 0;
+  for (let c = closes.length - 1; c >= 0; c--) {
+    const end = closes[c];
+    for (const start of opens) {
+      if (start > end) break;
+      if (++tries > MAX_OBJECT_TRIES) return null;
+      const slice = text.slice(start, end + 1);
+      try {
+        const value = JSON.parse(slice);
+        if (value && typeof value === "object") return slice;
+      } catch { /* not this pair */ }
+    }
+  }
+  return null;
+}
+
+/**
+ * Read the JSON out of a model reply. A clean reply (bare, or in markdown
+ * fences) comes back exactly as before. A reply that thinks out loud first —
+ * the model reasons in prose, then gives its answer — yields the LAST JSON
+ * object in the text, with `recovered: true` so the route can count it as a
+ * salvage rather than throw a good answer away and ask again.
+ *
+ * The second line of defense: the route asks for JSON-only output, so this
+ * matters only if that constraint is ever unavailable.
+ */
+export function readSommJson(text) {
+  const stripped = (typeof text === "string" ? text : "").replace(/```json\n?|```\n?/g, "").trim();
+  if (parsesAsJson(stripped)) return { json: stripped, recovered: false };
+  const found = lastJsonObject(stripped);
+  return found ? { json: found, recovered: true } : { json: stripped, recovered: false };
+}
+
+/** The JSON text of a model reply (see readSommJson). */
 export function extractJson(text) {
-  return (text || "").replace(/```json\n?|```\n?/g, "").trim();
+  return readSommJson(text).json;
 }
 
 /**

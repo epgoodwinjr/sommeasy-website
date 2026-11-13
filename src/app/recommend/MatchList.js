@@ -38,7 +38,7 @@ import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, bui
 import { buildSommPayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
-import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload } from "@/lib/wineEvents";
+import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload, sommCurationPayload } from "@/lib/wineEvents";
 import { evolutionToastMessages } from "@/components/WineRecList";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
@@ -494,7 +494,9 @@ export default function MatchList({ isMobile = false }) {
         somm,
       });
     };
-    if (payload.candidates.length === 0 || !pickCount) { recordMenuAnalyzed(null); return; }
+    // payload.pickCount is the ask after the clamp (never more than the
+    // slate can supply); nothing to ask for means no call at all
+    if (payload.candidates.length === 0 || !payload.pickCount) { recordMenuAnalyzed(null); return; }
 
     setSommState("pending");
     const clientStart = Date.now();
@@ -514,15 +516,10 @@ export default function MatchList({ isMobile = false }) {
       // actually called, success or fallback, superseded or not: the tokens
       // were spent either way
       if (data?.meta?.usage) {
-        recordEvent(supabase, user.id, "somm_curation", {
-          outcome: data.meta.outcome,
-          attempts: data.meta.attempts,
-          salvaged_count: data.meta.salvagedCount ?? 0,
-          duration_ms: data.meta.durationMs,
-          input_tokens: data.meta.usage.inputTokens,
-          output_tokens: data.meta.usage.outputTokens,
-          est_cost_usd: data.meta.usage.estCostUSD,
-        });
+        recordEvent(supabase, user.id, "somm_curation", sommCurationPayload(data.meta, {
+          candidates: payload.candidates.length,
+          pickCount: payload.pickCount,
+        }));
       }
       const sommMs = data?.meta?.durationMs ?? clientMs;
 

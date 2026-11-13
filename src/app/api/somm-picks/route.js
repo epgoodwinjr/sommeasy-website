@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit, getClientIp, logClaudeUsage, estimateClaudeCostUSD, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
-import { extractJson, validateSommResponse } from "@/lib/sommPicks";
+import { readSommJson, validateSommResponse, feasiblePickCount, SOMM_ROLES } from "@/lib/sommPicks";
 
 export const maxDuration = 300;
 
@@ -11,13 +11,63 @@ export const maxDuration = 300;
 // { fallback: true } and the client silently keeps the algorithmic picks.
 // The app must never be worse than Phase 1 because of this feature.
 //
-// `meta` (The Long Memory): whenever Claude was actually called, the
-// response — success OR fallback — carries { outcome, attempts, durationMs,
-// usage } so the AUTHENTICATED client can write the durable somm_curation /
-// menu_analyzed events. This route deliberately has no session (it never
-// needed one), so the event write happens client-side under RLS; meta is
-// only ever the user's own usage numbers.
+// `meta` (The Long Memory): whenever Claude was asked, the response — success
+// OR fallback — carries { outcome, attempts, durationMs, usage } so the
+// AUTHENTICATED client can write the durable somm_curation / menu_analyzed
+// events. This route deliberately has no session (it never needed one), so
+// the event write happens client-side under RLS; meta is only ever the
+// user's own usage numbers.
+//
+// Since Nov 2026 meta also says WHY: `reasons` (one per rejected attempt, in
+// order — kept on a retried success too — plus a rejected output format and
+// an upstream error's kind), `candidates` and `pickCount` (the slate and the
+// ask) and `model` (what the API says answered). Without them the ledger
+// could count fallbacks but not explain one.
 const fallback = (meta) => NextResponse.json(meta ? { fallback: true, meta } : { fallback: true });
+
+// JSON-only output. Called without a thinking setting, the model reasons in
+// its visible reply when the choice is tight — a page of prose, then the
+// answer — and that reply used to be rejected whole and asked for again
+// (25–62s instead of ~15s). Constraining the format leaves nowhere for the
+// prose to go.
+const SOMM_OUTPUT_FORMAT = {
+  type: "json_schema",
+  schema: {
+    type: "object",
+    properties: {
+      picks: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            i: { type: "integer" },
+            role: { type: "string", enum: SOMM_ROLES },
+            note: { type: "string" },
+          },
+          required: ["i", "role", "note"],
+          additionalProperties: false,
+        },
+      },
+      sommSummary: { type: "string" },
+    },
+    required: ["picks", "sommSummary"],
+    additionalProperties: false,
+  },
+};
+
+const FORMAT_REJECTED = "output format rejected by the API — called without it";
+// A reason can quote what the model wrote ("index <anything> not in
+// candidates"): capped so the ledger holds a line, not a reply
+const REASON_MAX_CHARS = 160;
+
+// What went wrong upstream, as a kind — never the message, which is the
+// API's own text and belongs in the server log only
+function errorKind(err) {
+  if (Number.isInteger(err?.status)) return `api ${err.status}`;
+  if (err instanceof Anthropic.APIConnectionTimeoutError) return "timeout";
+  if (err instanceof Anthropic.APIConnectionError) return "connection";
+  return "unexpected";
+}
 
 const SYSTEM_PROMPT = `You are The Somm — Sommeasy's sommelier voice. You are the knowledgeable friend who knows wine, never the stuffy sommelier. Confident but not pretentious. Warm and conversational. Zero gatekeeping jargon — no wine-speak unless it genuinely helps, and if you use a term, it should explain itself in context.
 
@@ -57,7 +107,11 @@ export async function POST(request) {
   // Telemetry across attempts — a retry is two real calls, and the cost
   // record must say so (totals, not the winning attempt's numbers). Hoisted
   // above the try so even the catch path can report what was spent.
-  const telemetry = { attempts: 0, durationMs: 0, inputTokens: 0, outputTokens: 0 };
+  const telemetry = {
+    attempts: 0, durationMs: 0, inputTokens: 0, outputTokens: 0,
+    asked: false, reasons: [], candidates: 0, pickCount: 0, model: null,
+  };
+  const note = (reason) => telemetry.reasons.push(reason);
   const buildMeta = (outcome, salvagedCount = 0) => ({
     outcome,
     attempts: telemetry.attempts,
@@ -68,6 +122,10 @@ export async function POST(request) {
       outputTokens: telemetry.outputTokens,
       estCostUSD: estimateClaudeCostUSD(telemetry.inputTokens, telemetry.outputTokens),
     },
+    reasons: telemetry.reasons.slice(),
+    candidates: telemetry.candidates,
+    pickCount: telemetry.pickCount,
+    model: telemetry.model || CLAUDE_MODEL,
   });
 
   try {
@@ -92,7 +150,38 @@ export async function POST(request) {
     delete payload.occasion;
     payload.steer = rawSteer.trim().slice(0, 200) || null;
 
+    // Ask only for what the slate can supply (sommPicks.js). The builder
+    // clamps too, but this route can't assume its caller — and an ask the
+    // validator can never accept is a guaranteed fallback the diner waits for.
+    payload.pickCount = feasiblePickCount(payload.candidates, payload.pickCount, payload.budget);
+    if (payload.pickCount < 1) return fallback();
+    telemetry.candidates = payload.candidates.length;
+    telemetry.pickCount = payload.pickCount;
+
     const client = new Anthropic({ apiKey, timeout: 60000 });
+
+    // One call to Claude. If the API refuses the output format (a 400 — a
+    // future model that drops the parameter, say), the same call goes once
+    // more without it and the rest of this request stays without it: the
+    // prompt still asks for JSON only and readSommJson reads past prose.
+    // The refusal is a reason in the ledger, so it can never become a silent
+    // all-fallback.
+    let useFormat = true;
+    const ask = async (messages) => {
+      const request = { model: CLAUDE_MODEL, max_tokens: 3000, system: SYSTEM_PROMPT, messages };
+      telemetry.asked = true;
+      if (useFormat) {
+        try {
+          return await client.messages.create({ ...request, output_config: { format: SOMM_OUTPUT_FORMAT } });
+        } catch (err) {
+          if (!(err instanceof Anthropic.BadRequestError)) throw err;
+          useFormat = false;
+          note(FORMAT_REJECTED);
+          console.error(`[somm-picks] output format rejected: ${String(err?.message || err).slice(0, 300)}`);
+        }
+      }
+      return client.messages.create(request);
+    };
 
     // One shot + one corrective retry. Validation salvages what it can
     // (sommPicks.js); when it still hard-fails, we hand the model its own
@@ -103,15 +192,11 @@ export async function POST(request) {
 
     for (let attempt = 0; attempt < 2; attempt++) {
       const start = Date.now();
-      const response = await client.messages.create({
-        model: CLAUDE_MODEL,
-        max_tokens: 3000,
-        system: SYSTEM_PROMPT,
-        messages,
-      });
+      const response = await ask(messages);
       const ms = Date.now() - start;
 
       telemetry.attempts++;
+      if (response.model) telemetry.model = response.model;
       telemetry.durationMs += ms;
       telemetry.inputTokens += response.usage?.input_tokens || 0;
       telemetry.outputTokens += response.usage?.output_tokens || 0;
@@ -128,8 +213,11 @@ export async function POST(request) {
         reason = "response truncated at max_tokens — be more concise";
       } else {
         let parsed = null;
+        let readPastProse = false;
         try {
-          parsed = JSON.parse(extractJson(rawText));
+          const read = readSommJson(rawText);
+          parsed = JSON.parse(read.json);
+          readPastProse = read.recovered;
         } catch {
           reason = "output was not parseable JSON";
         }
@@ -140,25 +228,31 @@ export async function POST(request) {
             budget: payload.budget,
           });
           if (result.valid) {
+            // An answer found after prose is a salvage like the validator's
+            // own: kept, and counted
+            const salvaged = readPastProse ? ["read JSON after prose", ...result.salvaged] : result.salvaged;
             if (attempt > 0) console.log("[somm-picks] retry recovered");
-            if (result.salvaged.length > 0) {
-              console.log(`[somm-picks] salvaged: ${result.salvaged.join(", ")}`);
+            if (salvaged.length > 0) {
+              console.log(`[somm-picks] salvaged: ${salvaged.join(", ")}`);
             }
             // Outcome precedence: a retry that also salvaged reports
             // "retried" — the retry is the stronger contract signal
             const outcome = attempt > 0 ? "retried"
-              : result.salvaged.length > 0 ? "salvaged"
+              : salvaged.length > 0 ? "salvaged"
               : "first_attempt";
             return NextResponse.json({
               picks: result.picks,
               sommSummary: result.sommSummary,
-              meta: buildMeta(outcome, result.salvaged.length),
+              meta: buildMeta(outcome, salvaged.length),
             });
           }
           reason = result.reason;
         }
       }
 
+      // Capped once, here: for the ledger and for the corrective retry alike
+      reason = String(reason).slice(0, REASON_MAX_CHARS);
+      note(reason);
       lastReason = reason;
       if (attempt === 0) {
         console.log(`[somm-picks] retrying after: ${reason}`);
@@ -182,8 +276,13 @@ export async function POST(request) {
     return fallback(buildMeta("fallback"));
   } catch (err) {
     console.error("[somm-picks] error:", err?.message || err);
-    // Tokens spent before the error (e.g. a timeout on the retry) still
-    // deserve a cost record; a pre-Claude failure sends no meta at all
-    return fallback(telemetry.attempts > 0 ? buildMeta("fallback") : undefined);
+    // Once Claude has been asked, the ledger hears about it: tokens spent
+    // before the error (a timeout on the retry) deserve a cost record, and
+    // an upstream failure on the very first call (zero attempts, zero spend)
+    // is exactly the one that used to be invisible. A failure before Claude
+    // was asked — a malformed body — sends no meta at all
+    if (!telemetry.asked) return fallback();
+    note(`error: ${errorKind(err)}`);
+    return fallback(buildMeta("fallback"));
   }
 }

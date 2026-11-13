@@ -50,6 +50,7 @@ async function main() {
     quizEventPayload,
     pickChosenPayload,
     sommBypassedPayload,
+    sommCurationPayload,
     recordEvent,
   } = await import("../wineEvents.js");
   const { CONFIDENCE_GATE, PARTIAL_CONFIDENCE_GATE } = await import("../dnaThresholds.js");
@@ -186,6 +187,39 @@ async function main() {
     const p = sommBypassedPayload({ picksShown: "many" });
     assert(p.session === null && p.steer === null, "nulls");
     assert(p.picks_shown === null && p.had_chosen === null, "junk count → null");
+  });
+
+  await test("sommCurationPayload carries the cost record AND why: reasons, slate size, the ask, the model", () => {
+    const p = sommCurationPayload({
+      outcome: "retried", attempts: 2, salvagedCount: 1, durationMs: 31961,
+      usage: { inputTokens: 4932, outputTokens: 1774, estCostUSD: 0.041406 },
+      reasons: ["output was not parseable JSON"], candidates: 6, pickCount: 5, model: "claude-sonnet-4-6",
+    });
+    assert(p.outcome === "retried" && p.attempts === 2 && p.salvaged_count === 1 && p.duration_ms === 31961, "outcome block");
+    assert(p.input_tokens === 4932 && p.output_tokens === 1774 && p.est_cost_usd === 0.041406, "cost block");
+    assert(JSON.stringify(p.reasons) === JSON.stringify(["output was not parseable JSON"]), "reasons");
+    assert(p.candidates === 6 && p.pick_count === 5 && p.model === "claude-sonnet-4-6", "slate, ask, model");
+  });
+
+  await test("sommCurationPayload through a deploy overlap: an older route's meta falls back to what was sent", () => {
+    const p = sommCurationPayload(
+      { outcome: "first_attempt", attempts: 1, durationMs: 14000, usage: { inputTokens: 1814, outputTokens: 605, estCostUSD: 0.014517 } },
+      { candidates: 7, pickCount: 5 }
+    );
+    assert(p.candidates === 7 && p.pick_count === 5, "the sent payload's shape");
+    assert(Array.isArray(p.reasons) && p.reasons.length === 0 && p.model === null && p.salvaged_count === 0, "absent → empty, null, 0");
+  });
+
+  await test("sommCurationPayload tolerates junk: reasons are short strings, counts are numbers or null", () => {
+    const p = sommCurationPayload({
+      outcome: "fallback", attempts: 2, usage: {},
+      reasons: ["x".repeat(900), 42, null, "a", "b", "c", "d", "e", "f"], candidates: "many", pickCount: NaN, model: { evil: 1 },
+    });
+    assert(p.reasons.every((r) => typeof r === "string" && r.length <= 160), "each reason capped at 160");
+    assert(p.reasons.length <= 6, `at most six reasons (${p.reasons.length})`);
+    assert(p.candidates === null && p.pick_count === null && p.model === null, "junk → null");
+    assert(sommCurationPayload({ reasons: "not an array" }).reasons.length === 0, "non-array reasons → []");
+    assert(sommCurationPayload().outcome === null, "no meta at all never throws");
   });
 
   await test("buildEventRow accepts the two new types", () => {
