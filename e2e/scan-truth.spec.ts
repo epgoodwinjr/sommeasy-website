@@ -42,8 +42,9 @@ const GLASS_AND_BOTTLE: Wine[] = [
   wine("Mullineux Syrah, Swartland", { price: 72, glass_price: 18, is_btg: true, variety: "Syrah", region: "Swartland", country: "South Africa", producer: "Mullineux" }),
   wine("Qupe Syrah, Central Coast", { price: 50, glass_price: 13, is_btg: true, variety: "Syrah", region: "Central Coast", country: "USA", producer: "Qupe" }),
   wine("Joseph Drouhin Chorey-les-Beaune", { price: 74, glass_price: 19, is_btg: true, variety: "Pinot Noir", region: "Burgundy", country: "France", producer: "Joseph Drouhin" }),
-  // No country: only "Western Cape" says this is South African
-  wine("Raats Original Chenin Blanc", { price: 44, glass_price: 11, is_btg: true, color: "white", section: "White", variety: "Chenin Blanc", region: "Western Cape", producer: "Raats" }),
+  // An invented producer, a grape outside the palate, no country: ONLY
+  // "Western Cape" in the region field says this is South African
+  wine("Fynbos Kloof Cinsault", { price: 44, glass_price: 11, is_btg: true, variety: "Cinsault", region: "Western Cape", producer: "Fynbos Kloof" }),
   wine("Louis Michel Chablis", { price: 66, glass_price: 17, is_btg: true, color: "white", section: "White", variety: "Chardonnay", region: "Burgundy", country: "France", producer: "Louis Michel" }),
 ];
 
@@ -98,9 +99,12 @@ test.describe("Scans tell the truth", () => {
     await expect(rec.resultsHeading).toHaveText("Your picks");
     await expect(rec.pickCards).toHaveCount(5);
     const shown = await shownWines(page);
-    // Read through its fields: "Western Cape" is South Africa, with no country stated
-    expect(shown).toContain("Raats Original Chenin Blanc");
     expect(shown).toContain("Kanonkop Pinotage, Stellenbosch");
+    // The American Syrah is no match for this palate, so it is never a pick
+    expect(shown).not.toContain("Qupe Syrah, Central Coast");
+    // …which leaves five matches for five picks, and one of them is matched
+    // ONLY by its region field: "Western Cape" is South Africa
+    expect(shown).toContain("Fynbos Kloof Cinsault");
     // Every pick wears its BOTTLE price
     const prices = await rec.pickCards.evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.price)));
     expect(Math.min(...prices)).toBeGreaterThanOrEqual(44);
@@ -112,7 +116,7 @@ test.describe("Scans tell the truth", () => {
       source: "scan", wines_parsed: 6, wines_priced: 6, wines_btg: 0, wines_scored: 6, picks_shown: 5,
       terms: { min: null, max: null, color: null },
     });
-    expect(payload.match_count).toBeGreaterThanOrEqual(5);
+    expect(payload.match_count).toBe(5);
     expect(payload).not.toHaveProperty("sample");
   });
 
