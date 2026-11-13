@@ -40,7 +40,7 @@ function assertEq(actual, expected, msg) {
 
 const engine = await import("../matchEngine.js");
 const terms = await import("../matchTerms.js");
-const { buildSommPayload, buildAdventurePayload } = await import("../sommPicks.js");
+const { buildSommPayload, buildAdventurePayload, STRETCH_CANDIDATE_CAP } = await import("../sommPicks.js");
 const fx = JSON.parse(readFileSync(new URL("./fixtures/curatePicksLock.json", import.meta.url), "utf8"));
 
 const INITIAL = { top: "t", splurge: "s", value: "v", adventure: "a", wildcard: "w" };
@@ -299,13 +299,49 @@ test("what the Somm is asked for is the engine's count — every combination", (
   }
 });
 
-test("the same wines are eligible: every candidate obeys the terms, and nothing eligible is left out", () => {
+test("the same wines are eligible: every candidate obeys the terms, and no wine inside the budget is left out", () => {
   for (const c of combos) {
     const { scored, payload } = payloadFor(c);
     const s = supply(scored, c.color, c.min, c.max);
     const eligible = new Set([...s.inBudget, ...s.splurges]);
     for (const cand of payload.candidates) assert(eligible.has(entryOf(scored, cand)), `${c.key}: candidate $${cand.price} ${cand.name} is not eligible under the terms`);
-    assert(payload.candidates.length === Math.min(25, eligible.size), `${c.key}: ${payload.candidates.length} candidates of ${eligible.size} eligible`);
+    // Every wine inside the budget, and the few stretch wines the slate carries
+    const stretch = Math.min(STRETCH_CANDIDATE_CAP, s.splurges.length);
+    assert(payload.candidates.length === Math.min(25, s.inBudget.length + stretch), `${c.key}: ${payload.candidates.length} candidates of ${s.inBudget.length} in budget + ${stretch} stretch`);
+  }
+});
+
+test("only one wine over the max can ever be picked, so the slate carries few: the page's own Splurge, then the best-scored", () => {
+  let trimmed = 0, withSplurge = 0;
+  for (const c of combos) {
+    const { scored, picks, payload } = payloadFor(c);
+    const s = supply(scored, c.color, c.min, c.max);
+    const over = payload.candidates.map((cand) => entryOf(scored, cand)).filter((e) => terms.budgetFit(e.price, c.min, c.max) === "splurge");
+    assert(over.length <= STRETCH_CANDIDATE_CAP, `${c.key}: ${over.length} candidates over the max`);
+    if (s.splurges.length > STRETCH_CANDIDATE_CAP) trimmed++;
+    // The page's Splurge is one of them
+    const shown = picks.find((x) => terms.budgetFit(x.price, c.min, c.max) === "splurge");
+    if (shown) {
+      withSplurge++;
+      assert(over.some((e) => e.name === shown.name && e.price === shown.price), `${c.key}: the page's $${shown.price} Splurge is not in the slate`);
+    }
+    // …and the rest are the best-scored stretch wines, not just any
+    const left = s.splurges.filter((e) => !over.includes(e));
+    const kept = over.filter((e) => !shown || e.name !== shown.name || e.price !== shown.price);
+    for (const k of kept) for (const l of left) assert(k.score >= l.score, `${c.key}: kept $${k.price} (${k.score}) over $${l.price} (${l.score})`);
+    // A stretch wine is still there whenever one exists: the ask counts on it
+    assert(over.length === Math.min(STRETCH_CANDIDATE_CAP, s.splurges.length) || payload.candidates.length === 25, `${c.key}: ${over.length} of ${s.splurges.length} stretch wines`);
+  }
+  assert(trimmed > 50 && withSplurge > 200, `a real sample: ${trimmed} combinations trimmed, ${withSplurge} with a Splurge on the page`);
+});
+
+test("no maximum, no stretch: a slate without a max is every eligible wine, as it was", () => {
+  for (const c of combos) {
+    if (c.max != null) continue;
+    const { scored, payload } = payloadFor(c);
+    const s = supply(scored, c.color, c.min, c.max);
+    assert(s.splurges.length === 0, `${c.key}: a minimum alone has no stretch band`);
+    assert(payload.candidates.length === Math.min(25, s.inBudget.length), `${c.key}: ${payload.candidates.length} of ${s.inBudget.length}`);
   }
 });
 
@@ -325,7 +361,11 @@ test("a crowded slate can't lose the in-budget wines: thirty high-scoring splurg
   const picks = engine.curatePicks(scored, { minPrice: null, maxPrice: 80, colorPreference: "all", maxPicks: 5, menuContext: null, userDNA: null });
   assertEq(show(picks).split(" | ").length, 4, `three that fit and one splurge: ${show(picks)}`);
   const payload = buildSommPayload({ scoredEntries: scored, algorithmicPicks: picks, pickCount: 5, profile: {}, ratedInteractions: [], totalParsed: scored.length, budget: { min: null, max: 80 }, color: null, steer: null });
-  assert(payload.candidates.length === 25, `capped at 25 (${payload.candidates.length})`);
+  // Thirty stretch wines used to fill the slate to its cap of 25, twenty-two of
+  // them wines that could never be picked together
+  assert(payload.candidates.length === 3 + STRETCH_CANDIDATE_CAP, `the three that fit and ${STRETCH_CANDIDATE_CAP} stretch (${payload.candidates.length})`);
+  const splurgePick = picks.find((x) => x.price > 80);
+  assert(payload.candidates.some((cand) => cand.name === splurgePick.name), "the page's own Splurge is the stretch that stays");
   assert(payload.pickCount === 4, `asked for ${payload.pickCount}, the page shows 4`);
   assert(["Fits A", "Fits B", "Fits C"].every((n) => payload.candidates.some((cand) => cand.name === n)), "the wines that fit are in the slate");
   assert(payload.candidates.every((cand, i) => cand.i === i) && payload.candidates.every((cand, i, all) => i === 0 || all[i - 1].score >= cand.score), "still numbered in order, best first");

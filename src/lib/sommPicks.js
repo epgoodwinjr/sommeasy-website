@@ -18,6 +18,11 @@ const STEER_MAX_CHARS = 200;
 // Steer-matched wines the DNA filter would hide get appended to the slate —
 // at most this many, so a broad steer ("french") can't flood the payload
 const STEER_EXTRA_CAP = 6;
+// Wines over the max (up to twice it) the slate carries. One can be picked —
+// the Splurge — so the slate holds the page's own and a little choice.
+export const STRETCH_CANDIDATE_CAP = 3;
+// …and the one more a steer may add
+const STEER_STRETCH_CAP = 1;
 
 const identity = (x) => x;
 
@@ -246,7 +251,22 @@ export function buildSommPayload({
   const pickKey = (e) => `${e.name}::${e.price}`;
   const byScore = (a, b) => b.score - a.score;
 
-  const everyEligible = (scoredEntries || []).filter(isPickable).filter(fitsTerms).sort(byScore);
+  // Few wines over the max. Only ONE of them can ever be picked, yet every
+  // stretch wine used to ride along — on an "up to $60" list 19 of the 25
+  // candidates, the best-scored wines on the page, and the model kept taking
+  // a second one. The slate now carries STRETCH_CANDIDATE_CAP of them: the
+  // page's own Splurge first (the Somm can always keep it), then the
+  // best-scored. The room they leave goes to wines that fit the budget.
+  const isStretch = (e) => budgetFit(e.price, limits.min, limits.max) === "splurge";
+  const shownKeys = new Set((algorithmicPicks || []).map(pickKey));
+  const allEligible = (scoredEntries || []).filter(isPickable).filter(fitsTerms).sort(byScore);
+  const stretch = allEligible.filter(isStretch);
+  const keptStretch = new Set(
+    stretch.filter((e) => shownKeys.has(pickKey(e)))
+      .concat(stretch.filter((e) => !shownKeys.has(pickKey(e))))
+      .slice(0, STRETCH_CANDIDATE_CAP)
+  );
+  const everyEligible = allEligible.filter((e) => !isStretch(e) || keptStretch.has(e));
   let eligible = everyEligible.slice(0, CANDIDATE_CAP);
 
   // The page's own picks are always candidates. On a long list the cap can
@@ -274,14 +294,18 @@ export function buildSommPayload({
   // steer can therefore raise what the Somm is asked for above what the
   // page shows (that is its job: wines the palate never met); it can never
   // put a wine outside tonight's terms in front of the Somm.
+  // The steer may bring back ONE stretch wine of its own (its best-scored
+  // match over the max) — the same reasoning: one can be picked.
   let slate = eligible;
   if (steerTerms.length > 0) {
     const inSlate = new Set(eligible);
+    let stretchExtras = 0;
     const extras = (scoredEntries || [])
       .filter((e) => e.price != null && !inSlate.has(e))
       .filter(fitsTerms)
       .filter((e) => matchesSteer(e))
       .sort(byScore)
+      .filter((e) => !isStretch(e) || ++stretchExtras <= STEER_STRETCH_CAP)
       .slice(0, STEER_EXTRA_CAP);
     if (extras.length > 0) slate = eligible.concat(extras);
   }
@@ -326,6 +350,68 @@ export function buildSommPayload({
     color: color || null,
     steer: steerText || null,
   };
+}
+
+/**
+ * The candidates as the Somm reads them under a budget: every wine priced
+ * above budget.max carries `overMax: true` (the brief: at most ONE marked
+ * pick, and it is the splurge); no other candidate has the key. No max, no
+ * marks. Returns a new list; a mark a caller sent is never trusted.
+ *
+ * "Over" is the validator's own comparison (price > max), so the marks, the
+ * ask (feasiblePickCount) and the verdict (validateSommResponse) can't
+ * disagree about which wines are a stretch.
+ *
+ * Why (Nov 2026, 180 replayed runs a side): unmarked, the model took a
+ * second stretch wine in 39 of 180 first replies even with only three in the
+ * slate; marked, in none of 180.
+ */
+export function markOverMax(candidates, budget) {
+  if (!Array.isArray(candidates)) return [];
+  const max = budget?.max;
+  return candidates.map((c) => {
+    if (!c || typeof c !== "object") return c;
+    const rest = { ...c };
+    delete rest.overMax;
+    if (max != null && rest.price > max) rest.overMax = true;
+    return rest;
+  });
+}
+
+// How many in-budget replacements the corrective retry lists by name
+const CORRECTION_REPLACEMENT_CAP = 12;
+
+/**
+ * What the corrective retry says after a budget rejection: every pick over
+ * the max by index and price (with the role the model gave it), the one
+ * stretch the rule allows, and the candidates that may replace the others.
+ * "" when the rejection wasn't about the budget.
+ *
+ * Why (Nov 2026, 180 replayed runs): told only "non-splurge 88 > budget
+ * max", the model swapped the $88 for another over-max wine; told
+ * "non-splurge 68" while its Splurge was also $68, it sent the same picks
+ * back. On an "up to $60" list that was a fallback in 9 runs of 30.
+ */
+export function budgetCorrection(result, { candidates, budget } = {}) {
+  const over = Array.isArray(result?.overBudget) ? result.overBudget : [];
+  const max = budget?.max;
+  if (over.length === 0 || !(max > 0) || !Array.isArray(candidates)) return "";
+  const picked = new Set(Array.isArray(result.picked) ? result.picked : over.map((o) => o.i));
+  const named = over.map((o) => `i=${o.i} ($${o.price}${o.role ? `, your "${o.role}"` : ""})`).join(", ");
+  const tooFar = over.some((o) => o.price > max * 2);
+  // In budget as the validator reads it: a wine it can't show to be over max
+  const open = candidates
+    .map((c, i) => ({ i, price: c?.price }))
+    .filter((c) => !picked.has(c.i) && !(c.price > max));
+  const listed = open.slice(0, CORRECTION_REPLACEMENT_CAP)
+    .map((c) => `i=${c.i} (${c.price == null ? "no price" : `$${c.price}`})`).join(", ");
+  const more = open.length > CORRECTION_REPLACEMENT_CAP ? `, and ${open.length - CORRECTION_REPLACEMENT_CAP} more` : "";
+  return (
+    `These picks are priced above budget.max ($${max}): ${named}. ` +
+    `At most ONE pick may be above $${max}, and it must be the "splurge"${tooFar ? ` — never one priced above $${max * 2}` : ""}: ` +
+    `keep one of them as the splurge and replace every other with a candidate priced at or under $${max}.` +
+    (open.length > 0 ? ` Candidates at or under $${max} that you did not pick: ${listed}${more}.` : "")
+  );
 }
 
 // ═══════════════════════════════════════════════════════
@@ -546,6 +632,23 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
   const coreUsed = new Set();
   const picks = [];
 
+  // A budget rejection names EVERY pick over the max, by index — not only
+  // the first one the loop below trips on, and never by price alone (two
+  // candidates can share one). `overBudget` and `picked` are what the
+  // corrective retry is written from (budgetCorrection).
+  const overMax = (reason) => {
+    const inRange = (raw) => Number.isInteger(raw?.i) && raw.i >= 0 && raw.i < candidates.length;
+    const overBudget = rawPicks
+      .filter((raw) => inRange(raw) && candidates[raw.i].price > budget.max)
+      .map((raw) => ({ i: raw.i, price: candidates[raw.i].price, role: SOMM_ROLES.includes(raw.role) ? raw.role : null }));
+    return {
+      valid: false,
+      reason: `${reason} (over max: ${overBudget.map((o) => `i=${o.i} $${o.price}`).join(", ")})`,
+      overBudget,
+      picked: rawPicks.filter(inRange).map((raw) => raw.i),
+    };
+  };
+
   for (const raw of rawPicks) {
     const i = raw?.i;
     if (!Number.isInteger(i) || i < 0 || i >= candidates.length) {
@@ -572,7 +675,7 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
     const price = candidates[i].price;
     if (budget?.max != null) {
       if (role === "splurge") {
-        if (price > budget.max * 2) return { valid: false, reason: `splurge ${price} > 2x max` };
+        if (price > budget.max * 2) return overMax(`splurge ${price} > 2x max`);
       } else if (price > budget.max) {
         // Over-budget wine without the splurge label. If it's a legal splurge
         // and the slot is free, that's clearly what the model meant.
@@ -581,7 +684,7 @@ export function validateSommResponse(parsed, { candidates, pickCount, budget }) 
           coreUsed.add("splurge");
           salvaged.push(`promoted splurge i=${i}`);
         } else {
-          return { valid: false, reason: `non-splurge ${price} > budget max` };
+          return overMax(`non-splurge ${price} > budget max`);
         }
       }
     }

@@ -1,0 +1,1189 @@
+{
+ "cases": {
+  "realistic40 max$60": {
+   "payload": {
+    "candidates": [
+     {
+      "i": 0,
+      "name": "Kanonkop Pinotage, Stellenbosch 2019",
+      "price": 68,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinotage",
+      "region": "Stellenbosch",
+      "country": "South Africa",
+      "score": 9.4,
+      "reasons": [
+       "kanonkop",
+       "stellenbosch",
+       "89.8 pts (24 reviews)"
+      ]
+     },
+     {
+      "i": 1,
+      "name": "Raats Original Chenin Blanc, Stellenbosch 2022",
+      "price": 44,
+      "vintage": null,
+      "section": null,
+      "varietal": "Chenin Blanc",
+      "region": "Stellenbosch",
+      "country": "South Africa",
+      "score": 5,
+      "reasons": [
+       "stellenbosch",
+       "Chenin Blanc"
+      ]
+     },
+     {
+      "i": 2,
+      "name": "Joseph Drouhin Chorey-l\u00e8s-Beaune 2020, Ros\u00e9",
+      "price": 74,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Burgundy",
+      "country": "France",
+      "score": 4.5,
+      "reasons": [
+       "chorey-l\u00e8s-beaune",
+       "You liked a wine from this region",
+       "89.9 pts (94 reviews)"
+      ]
+     },
+     {
+      "i": 3,
+      "name": "Louis Michel Chablis 2021",
+      "price": 66,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Burgundy",
+      "country": "France",
+      "score": 4,
+      "reasons": [
+       "chablis",
+       "You liked a wine from this region"
+      ]
+     },
+     {
+      "i": 4,
+      "name": "Domaine Roulot Bourgogne Blanc 2020",
+      "price": 120,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Burgundy",
+      "country": "France",
+      "score": 4,
+      "reasons": [
+       "bourgogne",
+       "You liked a wine from this region"
+      ]
+     },
+     {
+      "i": 5,
+      "name": "Hamilton Russell Chardonnay, Hemel-en-Aarde 2021",
+      "price": 88,
+      "vintage": null,
+      "section": null,
+      "varietal": "Chardonnay",
+      "region": "Hemel-en-Aarde / Walker Bay",
+      "country": "South Africa",
+      "score": 3.6,
+      "reasons": [
+       "Chardonnay",
+       "hemel-en-aarde (you like South Africa)",
+       "90.6 pts (10 reviews)"
+      ]
+     },
+     {
+      "i": 6,
+      "name": "Hamilton Russell Pinot Noir, Hemel-en-Aarde 2021",
+      "price": 92,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Hemel-en-Aarde / Walker Bay",
+      "country": "South Africa",
+      "score": 3.6,
+      "reasons": [
+       "Pinot Noir",
+       "hemel-en-aarde (you like South Africa)",
+       "90.6 pts (10 reviews)"
+      ]
+     },
+     {
+      "i": 7,
+      "name": "Meerlust Rubicon, Stellenbosch 2018, Ros\u00e9",
+      "price": 92,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Stellenbosch",
+      "country": "South Africa",
+      "score": 3.3,
+      "reasons": [
+       "stellenbosch",
+       "88.6 pts (7 reviews)"
+      ]
+     },
+     {
+      "i": 8,
+      "name": "Domaine Vacheron Sancerre 2022",
+      "price": 72,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Loire Valley",
+      "country": "France",
+      "score": 2.8,
+      "reasons": [
+       "sancerre (you like France)",
+       "You liked a wine from this region",
+       "91.6 pts (25 reviews)"
+      ]
+     },
+     {
+      "i": 9,
+      "name": "Cristom Mt. Jefferson Cuv\u00e9e Pinot Noir, Willamette Valley 2021",
+      "price": 78,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Willamette Valley",
+      "country": "US",
+      "score": 2.8,
+      "reasons": [
+       "Pinot Noir",
+       "90.9 pts (30 reviews)"
+      ]
+     },
+     {
+      "i": 10,
+      "name": "Felton Road Bannockburn Pinot Noir, Central Otago 2021",
+      "price": 98,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Central Otago",
+      "country": "New Zealand",
+      "score": 2.6,
+      "reasons": [
+       "Pinot Noir",
+       "90.7 pts (17 reviews)"
+      ]
+     },
+     {
+      "i": 11,
+      "name": "Domaine Huet Le Mont Sec, Vouvray 2021",
+      "price": 68,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Loire Valley",
+      "country": "France",
+      "score": 2,
+      "reasons": [
+       "vouvray (you like France)",
+       "You liked a wine from this region"
+      ]
+     },
+     {
+      "i": 12,
+      "name": "E. Guigal C\u00f4tes du Rh\u00f4ne 2020, Ros\u00e9",
+      "price": 42,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Rh\u00f4ne Valley",
+      "country": "France",
+      "score": 1.8,
+      "reasons": [
+       "c\u00f4tes du rh\u00f4ne (you like France)",
+       "91.2 pts (42 reviews)"
+      ]
+     },
+     {
+      "i": 13,
+      "name": "Mullineux Old Vines White, Swartland 2021",
+      "price": 58,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Swartland",
+      "country": "South Africa",
+      "score": 1.6,
+      "reasons": [
+       "swartland (you like South Africa)",
+       "90 pts (15 reviews)"
+      ]
+     },
+     {
+      "i": 14,
+      "name": "Ch\u00e2teau d'Esclans Whispering Angel, Provence 2022, Ros\u00e9",
+      "price": 54,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Provence",
+      "country": "France",
+      "score": 1.4,
+      "reasons": [
+       "provence (you like France)",
+       "89.8 pts (38 reviews)"
+      ]
+     },
+     {
+      "i": 15,
+      "name": "Graham Beck Brut Ros\u00e9, Western Cape NV",
+      "price": 54,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": null,
+      "country": "South Africa",
+      "score": 1.3,
+      "reasons": [
+       "South Africa",
+       "87.9 pts (12 reviews)"
+      ]
+     },
+     {
+      "i": 16,
+      "name": "Boekenhoutskloof Syrah, Swartland 2020",
+      "price": 84,
+      "vintage": null,
+      "section": null,
+      "varietal": "Syrah / Shiraz",
+      "region": "Swartland",
+      "country": "South Africa",
+      "score": 1.3,
+      "reasons": [
+       "swartland (you like South Africa)",
+       "89.4 pts (8 reviews)"
+      ]
+     },
+     {
+      "i": 17,
+      "name": "Pierre Gimonnet Blanc de Blancs 1er Cru, Champagne NV",
+      "price": 110,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Champagne",
+      "country": "France",
+      "score": 1,
+      "reasons": [
+       "champagne (you like France)"
+      ]
+     },
+     {
+      "i": 18,
+      "name": "Zind-Humbrecht Gewurztraminer, Alsace 2020",
+      "price": 64,
+      "vintage": null,
+      "section": null,
+      "varietal": "Gewurztraminer",
+      "region": "Alsace",
+      "country": "France",
+      "score": 1,
+      "reasons": [
+       "alsace (you like France)"
+      ]
+     },
+     {
+      "i": 19,
+      "name": "Domaine Tempier Bandol Ros\u00e9 2022",
+      "price": 85,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Provence",
+      "country": "France",
+      "score": 1,
+      "reasons": [
+       "bandol (you like France)"
+      ]
+     },
+     {
+      "i": 20,
+      "name": "Jean-Louis Chave S\u00e9lection Offerus, Saint-Joseph 2020, Ros\u00e9",
+      "price": 76,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Rh\u00f4ne Valley",
+      "country": "France",
+      "score": 1,
+      "reasons": [
+       "saint-joseph (you like France)"
+      ]
+     },
+     {
+      "i": 21,
+      "name": "Ch\u00e2teau Gloria, Saint-Julien 2018, Ros\u00e9",
+      "price": 115,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Bordeaux",
+      "country": "France",
+      "score": 1,
+      "reasons": [
+       "saint-julien (you like France)"
+      ]
+     },
+     {
+      "i": 22,
+      "name": "Pieropan Soave Classico 2022",
+      "price": 40,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Veneto",
+      "country": "Italy",
+      "score": 0.8,
+      "reasons": [
+       "90.8 pts (24 reviews)"
+      ]
+     },
+     {
+      "i": 23,
+      "name": "Marqu\u00e9s de Murrieta Rioja Reserva 2018, Ros\u00e9",
+      "price": 64,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Rioja",
+      "country": "Spain",
+      "score": 0.8,
+      "reasons": [
+       "90.3 pts (23 reviews)"
+      ]
+     },
+     {
+      "i": 24,
+      "name": "Produttori del Barbaresco, Barbaresco 2019, Ros\u00e9",
+      "price": 96,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Piedmont",
+      "country": "Italy",
+      "score": 0.8,
+      "reasons": [
+       "91.7 pts (26 reviews)"
+      ]
+     }
+    ],
+    "algorithmicPicks": [
+     1,
+     0,
+     12,
+     13,
+     14
+    ],
+    "pickCount": 5,
+    "dna": {
+     "archetype": "The South African Curator",
+     "narrative": "Your palate leads with South Africa. From Stellenbosch and Burgundy, you've marked out territory, not just taste. You keep a short list and you keep it honest \u2014 every name on it earned its place. The Somm reads all of this before picking your glass \u2014 that's the point of it.",
+     "countries": [
+      "South Africa",
+      "France"
+     ],
+     "varietals": [
+      "Pinot Noir",
+      "Chardonnay",
+      "Chenin Blanc"
+     ],
+     "topEstates": [
+      "Kanonkop"
+     ],
+     "specificWines": []
+    },
+    "feedback": {
+     "loved": [
+      {
+       "name": "Kumeu River, Mat\u00e9's Vineyard, New Zealand",
+       "varietal": null,
+       "region": null
+      }
+     ],
+     "notForMe": []
+    },
+    "menu": {
+     "totalWines": 40,
+     "distinctCountries": 8,
+     "distinctRegions": 20
+    },
+    "budget": {
+     "min": null,
+     "max": 60
+    },
+    "color": null,
+    "steer": null
+   },
+   "shape": {
+    "parsed": 40,
+    "matched": 35,
+    "enginePicks": 5,
+    "candidates": 25,
+    "asked": 5,
+    "pickCount": 5
+   }
+  },
+  "realistic40 max$50": {
+   "payload": {
+    "candidates": [
+     {
+      "i": 0,
+      "name": "Kanonkop Pinotage, Stellenbosch 2019",
+      "price": 68,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinotage",
+      "region": "Stellenbosch",
+      "country": "South Africa",
+      "score": 9.4,
+      "reasons": [
+       "kanonkop",
+       "stellenbosch",
+       "89.8 pts (24 reviews)"
+      ]
+     },
+     {
+      "i": 1,
+      "name": "Raats Original Chenin Blanc, Stellenbosch 2022",
+      "price": 44,
+      "vintage": null,
+      "section": null,
+      "varietal": "Chenin Blanc",
+      "region": "Stellenbosch",
+      "country": "South Africa",
+      "score": 5,
+      "reasons": [
+       "stellenbosch",
+       "Chenin Blanc"
+      ]
+     },
+     {
+      "i": 2,
+      "name": "Joseph Drouhin Chorey-l\u00e8s-Beaune 2020, Ros\u00e9",
+      "price": 74,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Burgundy",
+      "country": "France",
+      "score": 4.5,
+      "reasons": [
+       "chorey-l\u00e8s-beaune",
+       "You liked a wine from this region",
+       "89.9 pts (94 reviews)"
+      ]
+     },
+     {
+      "i": 3,
+      "name": "Louis Michel Chablis 2021",
+      "price": 66,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Burgundy",
+      "country": "France",
+      "score": 4,
+      "reasons": [
+       "chablis",
+       "You liked a wine from this region"
+      ]
+     },
+     {
+      "i": 4,
+      "name": "Hamilton Russell Chardonnay, Hemel-en-Aarde 2021",
+      "price": 88,
+      "vintage": null,
+      "section": null,
+      "varietal": "Chardonnay",
+      "region": "Hemel-en-Aarde / Walker Bay",
+      "country": "South Africa",
+      "score": 3.6,
+      "reasons": [
+       "Chardonnay",
+       "hemel-en-aarde (you like South Africa)",
+       "90.6 pts (10 reviews)"
+      ]
+     },
+     {
+      "i": 5,
+      "name": "Hamilton Russell Pinot Noir, Hemel-en-Aarde 2021",
+      "price": 92,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Hemel-en-Aarde / Walker Bay",
+      "country": "South Africa",
+      "score": 3.6,
+      "reasons": [
+       "Pinot Noir",
+       "hemel-en-aarde (you like South Africa)",
+       "90.6 pts (10 reviews)"
+      ]
+     },
+     {
+      "i": 6,
+      "name": "Meerlust Rubicon, Stellenbosch 2018, Ros\u00e9",
+      "price": 92,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Stellenbosch",
+      "country": "South Africa",
+      "score": 3.3,
+      "reasons": [
+       "stellenbosch",
+       "88.6 pts (7 reviews)"
+      ]
+     },
+     {
+      "i": 7,
+      "name": "Domaine Vacheron Sancerre 2022",
+      "price": 72,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Loire Valley",
+      "country": "France",
+      "score": 2.8,
+      "reasons": [
+       "sancerre (you like France)",
+       "You liked a wine from this region",
+       "91.6 pts (25 reviews)"
+      ]
+     },
+     {
+      "i": 8,
+      "name": "Cristom Mt. Jefferson Cuv\u00e9e Pinot Noir, Willamette Valley 2021",
+      "price": 78,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Willamette Valley",
+      "country": "US",
+      "score": 2.8,
+      "reasons": [
+       "Pinot Noir",
+       "90.9 pts (30 reviews)"
+      ]
+     },
+     {
+      "i": 9,
+      "name": "Felton Road Bannockburn Pinot Noir, Central Otago 2021",
+      "price": 98,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Central Otago",
+      "country": "New Zealand",
+      "score": 2.6,
+      "reasons": [
+       "Pinot Noir",
+       "90.7 pts (17 reviews)"
+      ]
+     },
+     {
+      "i": 10,
+      "name": "Domaine Huet Le Mont Sec, Vouvray 2021",
+      "price": 68,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Loire Valley",
+      "country": "France",
+      "score": 2,
+      "reasons": [
+       "vouvray (you like France)",
+       "You liked a wine from this region"
+      ]
+     },
+     {
+      "i": 11,
+      "name": "E. Guigal C\u00f4tes du Rh\u00f4ne 2020, Ros\u00e9",
+      "price": 42,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Rh\u00f4ne Valley",
+      "country": "France",
+      "score": 1.8,
+      "reasons": [
+       "c\u00f4tes du rh\u00f4ne (you like France)",
+       "91.2 pts (42 reviews)"
+      ]
+     },
+     {
+      "i": 12,
+      "name": "Mullineux Old Vines White, Swartland 2021",
+      "price": 58,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Swartland",
+      "country": "South Africa",
+      "score": 1.6,
+      "reasons": [
+       "swartland (you like South Africa)",
+       "90 pts (15 reviews)"
+      ]
+     },
+     {
+      "i": 13,
+      "name": "Ch\u00e2teau d'Esclans Whispering Angel, Provence 2022, Ros\u00e9",
+      "price": 54,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Provence",
+      "country": "France",
+      "score": 1.4,
+      "reasons": [
+       "provence (you like France)",
+       "89.8 pts (38 reviews)"
+      ]
+     },
+     {
+      "i": 14,
+      "name": "Graham Beck Brut Ros\u00e9, Western Cape NV",
+      "price": 54,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": null,
+      "country": "South Africa",
+      "score": 1.3,
+      "reasons": [
+       "South Africa",
+       "87.9 pts (12 reviews)"
+      ]
+     },
+     {
+      "i": 15,
+      "name": "Boekenhoutskloof Syrah, Swartland 2020",
+      "price": 84,
+      "vintage": null,
+      "section": null,
+      "varietal": "Syrah / Shiraz",
+      "region": "Swartland",
+      "country": "South Africa",
+      "score": 1.3,
+      "reasons": [
+       "swartland (you like South Africa)",
+       "89.4 pts (8 reviews)"
+      ]
+     },
+     {
+      "i": 16,
+      "name": "Zind-Humbrecht Gewurztraminer, Alsace 2020",
+      "price": 64,
+      "vintage": null,
+      "section": null,
+      "varietal": "Gewurztraminer",
+      "region": "Alsace",
+      "country": "France",
+      "score": 1,
+      "reasons": [
+       "alsace (you like France)"
+      ]
+     },
+     {
+      "i": 17,
+      "name": "Domaine Tempier Bandol Ros\u00e9 2022",
+      "price": 85,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Provence",
+      "country": "France",
+      "score": 1,
+      "reasons": [
+       "bandol (you like France)"
+      ]
+     },
+     {
+      "i": 18,
+      "name": "Jean-Louis Chave S\u00e9lection Offerus, Saint-Joseph 2020, Ros\u00e9",
+      "price": 76,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Rh\u00f4ne Valley",
+      "country": "France",
+      "score": 1,
+      "reasons": [
+       "saint-joseph (you like France)"
+      ]
+     },
+     {
+      "i": 19,
+      "name": "Pieropan Soave Classico 2022",
+      "price": 40,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Veneto",
+      "country": "Italy",
+      "score": 0.8,
+      "reasons": [
+       "90.8 pts (24 reviews)"
+      ]
+     },
+     {
+      "i": 20,
+      "name": "Marqu\u00e9s de Murrieta Rioja Reserva 2018, Ros\u00e9",
+      "price": 64,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Rioja",
+      "country": "Spain",
+      "score": 0.8,
+      "reasons": [
+       "90.3 pts (23 reviews)"
+      ]
+     },
+     {
+      "i": 21,
+      "name": "Produttori del Barbaresco, Barbaresco 2019, Ros\u00e9",
+      "price": 96,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Piedmont",
+      "country": "Italy",
+      "score": 0.8,
+      "reasons": [
+       "91.7 pts (26 reviews)"
+      ]
+     },
+     {
+      "i": 22,
+      "name": "Roederer Estate Brut, Anderson Valley NV",
+      "price": 62,
+      "vintage": null,
+      "section": null,
+      "varietal": null,
+      "region": "Mendocino",
+      "country": "US",
+      "score": 0.6,
+      "reasons": [
+       "91.9 pts (17 reviews)"
+      ]
+     },
+     {
+      "i": 23,
+      "name": "Fontodi Chianti Classico 2020, Ros\u00e9",
+      "price": 70,
+      "vintage": null,
+      "section": null,
+      "varietal": "Ros\u00e9",
+      "region": "Tuscany",
+      "country": "Italy",
+      "score": 0.6,
+      "reasons": [
+       "92.5 pts (13 reviews)"
+      ]
+     },
+     {
+      "i": 24,
+      "name": "Dog Point Sauvignon Blanc, Marlborough 2022",
+      "price": 48,
+      "vintage": null,
+      "section": null,
+      "varietal": "Sauvignon Blanc",
+      "region": "Marlborough",
+      "country": "New Zealand",
+      "score": 0.3,
+      "reasons": [
+       "89.7 pts (11 reviews)"
+      ]
+     }
+    ],
+    "algorithmicPicks": [
+     1,
+     0,
+     11,
+     19,
+     24
+    ],
+    "pickCount": 5,
+    "dna": {
+     "archetype": "The South African Curator",
+     "narrative": "Your palate leads with South Africa. From Stellenbosch and Burgundy, you've marked out territory, not just taste. You keep a short list and you keep it honest \u2014 every name on it earned its place. The Somm reads all of this before picking your glass \u2014 that's the point of it.",
+     "countries": [
+      "South Africa",
+      "France"
+     ],
+     "varietals": [
+      "Pinot Noir",
+      "Chardonnay",
+      "Chenin Blanc"
+     ],
+     "topEstates": [
+      "Kanonkop"
+     ],
+     "specificWines": []
+    },
+    "feedback": {
+     "loved": [
+      {
+       "name": "Kumeu River, Mat\u00e9's Vineyard, New Zealand",
+       "varietal": null,
+       "region": null
+      }
+     ],
+     "notForMe": []
+    },
+    "menu": {
+     "totalWines": 40,
+     "distinctCountries": 8,
+     "distinctRegions": 20
+    },
+    "budget": {
+     "min": null,
+     "max": 50
+    },
+    "color": null,
+    "steer": null
+   },
+   "shape": {
+    "parsed": 40,
+    "matched": 35,
+    "enginePicks": 5,
+    "candidates": 25,
+    "asked": 5,
+    "pickCount": 5
+   }
+  },
+  "realistic40/broad red max$80": {
+   "payload": {
+    "candidates": [
+     {
+      "i": 0,
+      "name": "Caymus Cabernet Sauvignon, Napa Valley 2021",
+      "price": 160,
+      "vintage": null,
+      "section": null,
+      "varietal": "Cabernet Sauvignon",
+      "region": "Napa Valley",
+      "country": "US",
+      "score": 3,
+      "reasons": [
+       "Cabernet Sauvignon",
+       "napa valley (you like US)"
+      ]
+     },
+     {
+      "i": 1,
+      "name": "Boekenhoutskloof Syrah, Swartland 2020",
+      "price": 84,
+      "vintage": null,
+      "section": null,
+      "varietal": "Syrah / Shiraz",
+      "region": "Swartland",
+      "country": "South Africa",
+      "score": 2.3,
+      "reasons": [
+       "Syrah / Shiraz",
+       "89.4 pts (8 reviews)"
+      ]
+     },
+     {
+      "i": 2,
+      "name": "Penfolds Bin 389 Cabernet Shiraz, South Australia 2020",
+      "price": 118,
+      "vintage": null,
+      "section": null,
+      "varietal": "Syrah / Shiraz",
+      "region": null,
+      "country": "Australia",
+      "score": 2.3,
+      "reasons": [
+       "Syrah / Shiraz",
+       "89.9 pts (17 reviews)"
+      ]
+     },
+     {
+      "i": 3,
+      "name": "Cristom Mt. Jefferson Cuv\u00e9e Pinot Noir, Willamette Valley 2021",
+      "price": 78,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Willamette Valley",
+      "country": "US",
+      "score": 1.8,
+      "reasons": [
+       "willamette valley (you like US)",
+       "90.9 pts (30 reviews)"
+      ]
+     },
+     {
+      "i": 4,
+      "name": "Ridge Geyserville Zinfandel, Alexander Valley 2021",
+      "price": 82,
+      "vintage": null,
+      "section": null,
+      "varietal": "Zinfandel",
+      "region": "Sonoma",
+      "country": "US",
+      "score": 1,
+      "reasons": [
+       "alexander valley (you like US)"
+      ]
+     },
+     {
+      "i": 5,
+      "name": "Catena Zapata Malbec Argentino, Mendoza 2019",
+      "price": 130,
+      "vintage": null,
+      "section": null,
+      "varietal": "Malbec",
+      "region": "Mendoza",
+      "country": "Argentina",
+      "score": 1,
+      "reasons": [
+       "90.9 pts (50 reviews)"
+      ]
+     },
+     {
+      "i": 6,
+      "name": "Felton Road Bannockburn Pinot Noir, Central Otago 2021",
+      "price": 98,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Central Otago",
+      "country": "New Zealand",
+      "score": 0.6,
+      "reasons": [
+       "90.7 pts (17 reviews)"
+      ]
+     },
+     {
+      "i": 7,
+      "name": "Hamilton Russell Pinot Noir, Hemel-en-Aarde 2021",
+      "price": 92,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinot Noir",
+      "region": "Hemel-en-Aarde / Walker Bay",
+      "country": "South Africa",
+      "score": 0.6,
+      "reasons": [
+       "90.6 pts (10 reviews)"
+      ]
+     },
+     {
+      "i": 8,
+      "name": "Kanonkop Pinotage, Stellenbosch 2019",
+      "price": 68,
+      "vintage": null,
+      "section": null,
+      "varietal": "Pinotage",
+      "region": "Stellenbosch",
+      "country": "South Africa",
+      "score": 0.4,
+      "reasons": [
+       "89.8 pts (24 reviews)"
+      ]
+     }
+    ],
+    "algorithmicPicks": [
+     3,
+     0,
+     8
+    ],
+    "pickCount": 3,
+    "dna": {
+     "archetype": "The Rh\u00f4ne Wanderer",
+     "narrative": "You follow Syrah and Grenache wherever they lead, with a soft spot for Italian reds and a crisp white to start.",
+     "countries": [
+      "France",
+      "Italy",
+      "US",
+      "Spain"
+     ],
+     "varietals": [
+      "Syrah / Shiraz",
+      "Grenache / Garnacha",
+      "Sangiovese",
+      "Nebbiolo",
+      "Sauvignon Blanc",
+      "Cabernet Sauvignon"
+     ],
+     "topEstates": [],
+     "specificWines": []
+    },
+    "feedback": {
+     "loved": [],
+     "notForMe": []
+    },
+    "menu": {
+     "totalWines": 40,
+     "distinctCountries": 8,
+     "distinctRegions": 23
+    },
+    "budget": {
+     "min": null,
+     "max": 80
+    },
+    "color": "red",
+    "steer": null
+   },
+   "shape": {
+    "parsed": 40,
+    "matched": 38,
+    "enginePicks": 3,
+    "candidates": 9,
+    "asked": 5,
+    "pickCount": 3
+   }
+  }
+ },
+ "rejected": [
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is the benchmark Stellenbosch Chenin Blanc \u2014 textbook for your archetype. It sits right at your budget ceiling at $44 and punches way above it. If Chenin Blanc is in your DNA, this is the one to open with tonight.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your top estates \u2014 this is your producer, your region, your style. The 2019 Pinotage is a serious expression from one of Stellenbosch's most storied farms. At $68 it's the one justifiable stretch on this list for a South African Curator.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is a blend \u2014 mostly Chenin with Clairette and Viognier from century-old vines. It's South Africa through a different lens than Stellenbosch, with real texture and depth. At $58 it stays in budget and rewards the curious side of your palate.\"},{\"i\":12,\"role\":\"value\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is quietly one of the best-value bottles on this list \u2014 91 points and France ticks your second country. Light enough to bridge courses but with enough character to stand on its own. Easy yes at this price.\"},{\"i\":3,\"role\":\"wildcard\",\"note\":\"You've shown love for Burgundy alongside South Africa, and Louis Michel is the purist's Chablis \u2014 no oak, all mineral tension. At $66 it's just over budget but well under splurge territory, and it fills the crisp white space beautifully if Raats is spoken for.\"}],\"sommSummary\":\"Tonight's list leans hard into your South African Curator identity \u2014 Kanonkop, Raats, and Mullineux cover Stellenbosch and Swartland with real authority. The French additions are honest picks, not filler, filling out the France side of your palate without drifting far from what you know you love.\"}",
+   "firstReason": "non-splurge 66 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats Chenin Blanc is your anchor tonight \u2014 Stellenbosch, your home turf, and a grape you clearly gravitate toward. It's textured and bright, the kind of wine that earns its place the way you like. At $44 it's well under budget and punches well above its price.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's the only producer you've named outright. This 2019 Pinotage is the definitive version of what that estate does: deep, smoky, structured Stellenbosch red. One splurge is allowed, and this is the one that actually means something to your palate.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is South Africa through a different lens \u2014 a field blend of old-vine whites, nothing like your usual Chenin or Chardonnay. Your love of Kumeu River shows you appreciate serious, place-driven white winemaking, and this delivers exactly that for $58.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 is the easy pour at $42 \u2014 well-scored, honest, and from a France-rooted region you have history with. If you want something lighter and sessionable alongside the main event bottles, this earns its spot without asking much.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is as close as South Africa gets to Burgundy \u2014 cool-climate, restrained, mineral. You loved Kumeu River's Mat\u00e9's Vineyard, which is cut from the same cloth, so this is familiar territory with a Cape address. Worth the step up if Chardonnay is in the mood.\"}],\"sommSummary\":\"Tonight's list leans hard into what you do best \u2014 South Africa across multiple styles, anchored by names you already trust. The range goes from a crisp sub-budget Chenin to the Kanonkop splurge, so there's a bottle for every moment across the meal.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's benchmark Chenin Blancs \u2014 right in your South African wheelhouse and well under budget. It's got the textural richness and bright fruit that tends to click with Chardonnay lovers like you, but with a distinctly Cape character. Start here.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's your top estate. The 2019 Pinotage is a serious expression from one of Stellenbosch's most iconic producers, and at $68 it's only just above your cap. If you're going one over budget tonight, this is the right one to do it on.\"},{\"i\":13,\"role\":\"value\",\"note\":\"Mullineux Old Vines White from Swartland is a hidden gem at $58 \u2014 a field blend of Chenin Blanc, Viognier, and Clairette from some of South Africa's oldest vines. Given how much you're drawn to Cape whites and textured, characterful wines, this one deserves a spot on your radar.\"},{\"i\":5,\"role\":\"adventure\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is the Cape's answer to Burgundy \u2014 cool-climate, restrained, and beautifully precise. You loved the Kumeu River Mat\u00e9's Vineyard, which plays in a similar lane, so this South African take on world-class Chardonnay is a natural next step for you.\"},{\"i\":12,\"role\":\"wildcard\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 is the lightest lift on the list at $42 \u2014 great if you want something easy and versatile alongside food. It won't challenge you, but it won't disappoint either, and it keeps plenty of budget room for a second bottle.\"}],\"sommSummary\":\"Tonight's list plays to your strengths as a South African Curator \u2014 there's real depth in the Cape whites and reds here, and the two Hamilton Russell picks give you a Burgundy comparison point without leaving South Africa. The Raats and Mullineux together make a compelling case for why Stellenbosch and Swartland are producing some of the world's most exciting white wines right now.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's benchmark Chenin Blancs \u2014 right in your South African wheelhouse and well under budget. It's textural and driven, the kind of wine that earns its place on a short, honest list. If you loved the richness of Kumeu River's Mat\u00e9, this is its SA counterpart.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is on your top estates list for a reason \u2014 this is one of South Africa's most iconic Pinotage, from one of its greatest vintages in Stellenbosch. At $68 it's only just over your cap, and it's the one splurge worth making tonight. Think of it as the headliner your list was built around.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 is the best-value pour on this list at $42 \u2014 91 points from 42 reviews means it's earned that score consistently, not just once. It's light, food-friendly, and leaves room in your pocket for a second glass of the Kanonkop.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is the wild card in your South African chapter \u2014 a field blend of old-vine whites that most people haven't heard of but sommeliers obsess over. It's textured and savory in the same way Kumeu River Mat\u00e9 is, just warmer and wilder. Worth the detour.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is as close as South Africa gets to Burgundy, made by people who've studied the region deeply. Given your love of Kumeu River's single-vineyard Chardonnay style, this is a natural fit \u2014 cooler-climate, precise, and proudly South African.\"}],\"sommSummary\":\"Tonight's list leans hard into your South African identity \u2014 a Chenin and a Pinotage from Stellenbosch anchor it, with Swartland and Hemel-en-Aarde filling out the map. The one French ros\u00e9 is here for value and flexibility, everything else is chosen because it fits the way you actually drink.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is the definitive Stellenbosch Chenin \u2014 and as a South African Curator with Chenin in your DNA, this is your ground-zero bottle. Crisp, textured, and honest in exactly the way Kumeu River Mat\u00e9's Vineyard taught you to love: fruit that earns its place. At $44 it's the easiest yes on this list.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is in your top estates for a reason \u2014 this is the benchmark Pinotage from Stellenbosch, full stop. The 2019 is drinking beautifully right now: dark fruit, earthy depth, nothing over-worked. At $68 it's just $8 over your ceiling, and it's the one bottle on this list with your name already on it.\"},{\"i\":13,\"role\":\"value\",\"note\":\"Mullineux Old Vines White from Swartland is one of South Africa's most exciting whites \u2014 a field blend of Chenin-led old vines with real grip and minerality. It sits in the same serious-but-unshowy lane as Kumeu River Mat\u00e9's, just from the Cape instead of Auckland. At $58 it's exceptional value for what's in the glass.\"},{\"i\":12,\"role\":\"adventure\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the low-commitment door into tonight's list \u2014 91 points, Rh\u00f4ne bones, and your France affinity backs it up. It's the wildcard color choice if you want something lighter and food-friendly without drifting outside your comfort zone.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is the South African answer to your Burgundy appreciation \u2014 cool-climate, restrained, nothing like a California bomb. If Kumeu River Mat\u00e9's is your benchmark, this is its Cape counterpart: same precision, different latitude. Worth every bit of the $88 if you're in a white wine mood.\"}],\"sommSummary\":\"Tonight's list plays directly into your South African Curator identity \u2014 the top picks are anchored in Stellenbosch and Swartland, with Kanonkop as the crown jewel you already trust. The Mullineux and Raats fill in the white side of your palate beautifully, so you've got depth in every direction.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's benchmark Chenin Blancs \u2014 right in your South African wheelhouse and well under budget. It has the same textural generosity you'd expect from someone who loved Kumeu River's single-vineyard Chardonnay. Start here.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's the one estate you've called out by name. The 2019 Pinotage is the real thing: structured, earthy, serious. At $68 it's only $8 over your cap, and no other wine on this list earns a one-time exception more than this one.\"},{\"i\":13,\"role\":\"value\",\"note\":\"Mullineux Old Vines White from Swartland is a quietly brilliant pick for a South African Curator \u2014 it's a Chenin-driven field blend from one of the Cape's most exciting appellations. Under $60, punching well above its weight, and a great window into a part of South Africa beyond Stellenbosch.\"},{\"i\":12,\"role\":\"adventure\",\"note\":\"A Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is a fun left-field move for a palate that runs between South Africa and France. It's not a Provence pool-party ros\u00e9 \u2014 Guigal leans savory and structured. Different enough to be interesting, safe enough not to disappoint.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is the South African answer to your love of Kumeu River's Mat\u00e9's Vineyard \u2014 both are cool-climate, serious Chardonnays that chase Burgundy without pretending to be it. At $88 it's over budget so only go here if you want to treat yourself twice tonight.\"}],\"sommSummary\":\"Tonight's list plays squarely to your South African Curator identity \u2014 the top four stays inside budget and covers the Cape's best whites and a Rh\u00f4ne wildcard. The Kanonkop and Hamilton Russell are your two over-budget moments; one or both are worth it if the evening calls for it.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's sharpest Chenin Blancs and it's tailor-made for a South African Curator. It's got the texture and energy of your Kumeu River love translated into SA's signature white grape \u2014 crisp, alive, and honest. At $44 it's also the easiest yes on this list.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's your top estate \u2014 so if there's one bottle worth stepping over budget for tonight, this is it. The 2019 Pinotage is a benchmark expression from one of the Cape's most serious producers, earthy and structured in the best way. One deliberate splurge, fully earned.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 punches well above its price \u2014 91 points from 42 reviews is real consensus. It's a lively, food-friendly pour that won't demand anything from you, the kind of bottle you open without thinking and finish without noticing. Great utility wine for the table.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is where South Africa gets interesting \u2014 a field-blend style from ancient bush vines, complex and a little wild in the best way. You love the Cape, you know Stellenbosch; Swartland is the next conversation worth having. At $58 it's within budget and genuinely exciting.\"},{\"i\":11,\"role\":\"wildcard\",\"note\":\"Huet's Vouvray Sec is one of the Loire's greats \u2014 Chenin Blanc in its French spiritual home, structured and mineral with serious aging potential. You already love Chenin and you have France in your DNA, so this isn't a leap, it's a natural extension. Worth exploring alongside the Raats to see the same grape through two lenses.\"}],\"sommSummary\":\"Tonight's list leans hard into what you do best \u2014 South Africa anchors the selection, with Kanonkop and Raats as the tent poles. The supporting cast fills in texture and value without wandering too far from your territory.\"}",
+   "firstReason": "non-splurge 68 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's benchmark Chenin Blancs \u2014 right in your wheelhouse as a South African Curator. It's textured and lively without being heavy, and at $44 it's the easiest yes on this list. If you loved Kumeu River's weight and precision, this hits a similar nerve from a different continent.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's the estate you named. The 2019 Pinotage is one of their finest recent vintages: earthy, dark-fruited, and unmistakably Stellenbosch. At $68 it's $8 over your ceiling, but if there's one wine on this list worth the stretch, it's the one you already know and love.\"},{\"i\":13,\"role\":\"value\",\"note\":\"Mullineux Old Vines White from Swartland is a quiet gem at $58 \u2014 a blend built on Chenin Blanc with layers that reward attention. It sits right at your Chenin instinct but pushes into wilder, more mineral territory than Raats. Great value for a wine this serious about where it's from.\"},{\"i\":12,\"role\":\"adventure\",\"note\":\"You favor France as your second country, and Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is a confident, well-made pour at a price that leaves room for another glass. It's not the direction your palate usually goes, but it's a smart low-risk detour \u2014 fresh, food-friendly, and highly rated for the price.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is South African precision winemaking at its peak \u2014 cool-climate, restrained, nothing like oaky California Chardonnay. Your love of Kumeu River Mat\u00e9's Vineyard makes this an almost obvious call: same philosophy, same cool-site seriousness, different coast.\"}],\"sommSummary\":\"Tonight's list skews hard toward your home turf \u2014 South Africa leads with four picks that span Stellenbosch, Swartland, and the Hemel-en-Aarde coast. The one French detour is low-stakes and high-value, keeping the rest of the budget free for the Kanonkop splurge.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is the benchmark Stellenbosch Chenin \u2014 exactly the kind of focused, estate-driven South African white your palate gravitates toward. Expect a lively, textured pour with stone fruit and a bright backbone, very much in the spirit of what you love about the Cape. At $44 it's also the easiest yes on the list.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is on your radar for good reason \u2014 this is the Pinotage that defines the category, from the estate you already know and trust. The 2019 is structured and serious without being heavy, all dark plum and earthy depth. At $68 it's the one wine here that feels like a no-brainer exception to the budget ceiling.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is where South Africa gets genuinely exciting \u2014 a field blend of Chenin-led old vines with real complexity and a savory edge you won't find in Stellenbosch. If Kumeu River's texture won you over, this carries that same grip but with a distinctly Cape personality. Well worth the $58.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 checks in at $42 and punches well above it \u2014 this is a producer who gets value-to-quality right every vintage. It's fresh without being thin, with the kind of Southern French charm that works across a table. Drinks beautifully as an opener before moving to the South African heavyweights.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is the Burgundian-soul South African white \u2014 cool-climate, precise, the kind of thing Kumeu River lovers tend to find immediately compelling. It's the Cape through a Burgundy lens, which fits your dual-country palate perfectly. Worth every bit of the $88 if you want something more serious with dinner.\"}],\"sommSummary\":\"Tonight's list plays squarely into your South African Curator identity \u2014 there's real depth in the Cape picks, from a Kanonkop Pinotage you already trust to a Mullineux that shows the country's adventurous side. The budget core lands between $42 and $58, with two deliberate upgrades for when the moment calls for it.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's benchmark Chenin Blancs \u2014 right in your South African wheelhouse and well under budget. It's got that textured, orchard-fruit richness that tends to appeal to Chardonnay lovers, so your Kumeu River side will recognise it immediately. The go-to tonight.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's your top estate \u2014 so if there's one bottle worth going over budget for, it's this one. The 2019 Pinotage is one of the Cape's most serious expressions of the grape: dark, structured, and complex in ways that reward the extra spend. Worth every rand.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is a blend of Chenin, Clairette, and old-vine whites you don't see everywhere \u2014 South Africa at its most interesting. At $58 it stays in budget and pulls you slightly outside the Stellenbosch comfort zone without leaving the country. A smart detour for a Curator like you.\"},{\"i\":12,\"role\":\"value\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the best price-to-pleasure ratio on this list tonight. It's not South African, but France is your other home country, and at 91 points it punches well above its weight. Easy, refreshing, and a great glass to start the evening with.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is the South African answer to Burgundy \u2014 coastal, restrained, and mineral in a way your Kumeu River love suggests you'll respond to. It's $88 but that's your one splurge slot already spent on Kanonkop, so treat this as the stretch white if the table wants something serious with food.\"}],\"sommSummary\":\"Tonight's list plays squarely to your South African Curator identity \u2014 four of five picks stay on home turf, with Guigal as a French footnote that fits your palate without overstepping. The range runs from an easy weeknight Chenin to a Kanonkop splurge that's been on your radar from the start.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's most honest Chenin Blancs \u2014 right in your South African wheelhouse and well under budget. It's got the kind of focused, orchard-fruit freshness that suits a palate drawn to Chardonnay and Chenin. Start here.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is on your short list of top estates for a reason \u2014 this is one of South Africa's benchmark Pinotages, structured and serious. At $68 it's just over your cap but it's the one bottle worth the stretch tonight. This is your home turf at its best.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 comes in at $42 and punches well above it \u2014 91 points from 42 reviews is a crowd-tested score. If you're looking for a food-friendly, easy-drinking pour to round out the evening, this is the one to reach for without a second thought.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is South Africa through and through \u2014 a field-blend style that's become a modern benchmark for the region. You're clearly a South African Curator, so this is the logical next territory to explore: Swartland's wild, textured whites are a natural extension of your Stellenbosch roots.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is the South African answer to Burgundy \u2014 cool-climate, restrained, and built for people who loved Kumeu River's Mat\u00e9's Vineyard. Same southern-hemisphere precision, different coast. Worth every bit of the $88 if Chardonnay is your mood tonight.\"}],\"sommSummary\":\"Tonight's list leans hard into your South African identity \u2014 four of five picks are from the Cape, anchored by an estate you already trust and branching into Swartland territory worth knowing. The Hamilton Russell wildcard ties your Kumeu River love back to home soil.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's benchmark Chenin Blancs \u2014 textured, fresh, and honest in exactly the way your South African Curator palate responds to. It's your home turf at $44, and it'll remind you why Chenin is worth keeping on that short list.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 you named the estate. The 2019 Pinotage from Stellenbosch is as close to a sure thing as a wine list offers you, and at $68 it's only modestly over budget for something this personal. Worth every cent above the line.\"},{\"i\":12,\"role\":\"value\",\"note\":\"At $42 \u2014 under budget with room to spare \u2014 this Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 is the smart glass when you want something easy and crowd-pleasing. It's French, it's well-rated, and it doesn't ask anything of you. Sometimes that's exactly right.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux's Old Vines White from Swartland is a blend of old-vine whites \u2014 Chenin-led, but with Viognier, Clairette and more in the mix. South Africa, serious winemaking, and $58 puts it comfortably in budget. Your Curator side will find a lot to think about here.\"},{\"i\":2,\"role\":\"wildcard\",\"note\":\"You've shown love for Burgundy alongside South Africa, and this Chorey-l\u00e8s-Beaune Ros\u00e9 from Drouhin is a genuine Burgundy \u2014 Pinot Noir-based, light and precise. At $74 it's just over budget but earns wildcard status as the most left-field option on the slate tonight.\"}],\"sommSummary\":\"Tonight's list leans hard into your South African heartland \u2014 Stellenbosch, Swartland, Kanonkop \u2014 with a Burgundy thread woven in for the France side of your palate. Five wines, two countries, all of them chosen with your short-and-honest approach in mind.\"}",
+   "firstReason": "non-splurge 74 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats Chenin Blanc is the natural anchor for a South African Curator \u2014 it's Stellenbosch-grown, your home turf, and Chenin is right in your varietal DNA. Fresh, textured, and honest at $44, it's well inside budget and built to please a palate that valued the precision of Kumeu River Mat\u00e9's Vineyard.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is on your top estates list, so this needs no hard sell \u2014 it's the definitive Stellenbosch Pinotage from the producer you already trust. At $68 it's just above your $60 ceiling, but if any bottle earns that one-exception rule tonight, it's this one. Treat it as the headliner.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the easiest yes on the list budget-wise. For a palate rooted in South Africa and France, a southern Rh\u00f4ne ros\u00e9 from a producer this reliable is a low-risk, high-return pour \u2014 bright, food-friendly, and 91 points from 42 reviewers backs that up.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is where South African wine gets interesting in a different way \u2014 a field blend of old-vine Chenin, Clairette, and Viognier from one of the Cape's most exciting producers. At $58 it fits the budget and rewards a Curator willing to venture just beyond Stellenbosch.\"},{\"i\":3,\"role\":\"wildcard\",\"note\":\"You've shown love for Burgundy alongside South Africa, and Louis Michel is one of Chablis's most precise, mineral-driven producers \u2014 the kind of honest winemaking your palate clearly gravitates toward. At $66 it's just over budget, but with the splurge slot already taken by Kanonkop, skip this if you want to stay strict \u2014 it earns its place on quality alone.\"}],\"sommSummary\":\"Tonight's list plays squarely to a South African Curator who also keeps one foot in France \u2014 you've got your home-ground Stellenbosch whites and reds covered, with a Swartland wild card and a Burgundy option for when the mood shifts. The Kanonkop is the sentimental and qualitative headline; everything else keeps you comfortably in budget.\"}",
+   "firstReason": "non-splurge 66 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats Chenin Blanc is your home court \u2014 Stellenbosch Chenin from one of the Cape's best, and it clocks in well under budget. Your DNA is built on South Africa and Chenin Blanc, so this is the obvious anchor for tonight. Bright and textured, it'll remind you why you keep that short honest list.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your top estates \u2014 this is the one you splurge on tonight if you're going to push past budget at all. The 2019 Pinotage from Stellenbosch is as serious as the Cape gets, and 24 reviewers averaging nearly 90 points back that up. Worth every rand over the ceiling.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is the under-the-radar South African pick \u2014 a field blend of Chenin-led old vine whites that drinks way above its $58 price. You love South Africa but Swartland is different terrain from Stellenbosch, more rugged and wild. If Raats is your home court, Mullineux is the road game worth taking.\"},{\"i\":12,\"role\":\"value\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the best value on this list tonight \u2014 42 ratings averaging 91 points is serious consensus for a wine under budget. France is your second country, and Guigal is about as reliable as it gets in the Rh\u00f4ne. Easy yes if the table wants something lighter and refreshing.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is the bridge between your two worlds \u2014 South Africa and Chardonnay, the same grape that made you love Kumeu River's Mat\u00e9's Vineyard. Hemel-en-Aarde is cool and coastal, so expect that same taut, mineral-driven style you responded to in Kumeu, just with a Cape accent.\"}],\"sommSummary\":\"Tonight's list leans hard into what your palate is actually built on \u2014 South Africa front and center, with France as the reliable sidekick. You've got a Stellenbosch anchor, a Swartland adventure, and a Chardonnay that connects your South Africa love to the Kumeu River you already know you love.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's most honest producers, and this Chenin Blanc is exactly the style your South African Curator palate is built for \u2014 textured, dry, and alive with energy. At $44 it's well inside budget and punches well above its price. If you loved Kumeu River's precision, this will feel like a natural sibling from the southern hemisphere.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is on your short list for a reason \u2014 this is one of Stellenbosch's benchmark estates, and the 2019 Pinotage is as good as this grape gets: earthy, serious, and nothing like the cheap smoky versions that give Pinotage a bad name. At $68 it's just over your $60 ceiling, but if there's one wine here worth bending the budget for, it's this one.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux's Old Vines White from Swartland is a blend of old-vine Chenin, Clairette, and Viognier \u2014 a Cape white that plays by its own rules. It's got the same textural richness you'd recognize from Kumeu River but with a wilder, sun-drenched character that's distinctly South African. Well-rated and right at $58, it earns its place as the curious bottle on the table.\"},{\"i\":12,\"role\":\"value\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the easy-drinking anchor for the table \u2014 91 points from a producer who over-delivers at every price point. It's dry and bright, works across a whole menu, and leaves room to spend more on the bottles that matter. When you just need something everyone can pour freely, this is the call.\"},{\"i\":11,\"role\":\"wildcard\",\"note\":\"Huet's Le Mont Sec Vouvray is Chenin Blanc from its spiritual home in the Loire \u2014 if Raats showed you what the Cape does with the grape, Huet shows you where it comes from. Bone-dry, with a nervy mineral edge and serious aging potential, it's a fascinating compare-and-contrast for a Chenin-loving palate. Loire is in your DNA, and this is the valley's finest voice.\"}],\"sommSummary\":\"Tonight's list leans into your South African Curator strengths \u2014 two Stellenbosch whites, a Swartland wild card, and a Cape red cornerstone \u2014 with a Loire Chenin to show the grape's French roots. It's a coherent, well-priced slate with one smart splurge and no filler.\"}",
+   "firstReason": "non-splurge 68 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's sharpest Chenin Blancs and it fits your South African Curator DNA perfectly. Think textured stone fruit with a bright backbone \u2014 closer to the Kumeu River richness you loved than a lean, austere white. At $44 it's the easiest yes on the list.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your top estates \u2014 this is as close as tonight's list gets to a home game. The 2019 Pinotage is bold and structured but polished, nothing like the rustic versions that give the grape a bad name. Worth the $68 step-up if you're only splurging once tonight.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is a blend \u2014 mostly Chenin with Clairette and Viognier \u2014 that drinks with more weight and intrigue than the grape name alone suggests. It's South Africa but a different postcode from your Stellenbosch comfort zone, and at $58 it's a low-risk detour with serious upside.\"},{\"i\":12,\"role\":\"value\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the lightest lift on this list \u2014 fresh, dry, and crowd-proof. It won't challenge you, but if you want something to pour while you're deciding on food, this is the glass that earns its place without demanding attention.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is your Kumeu River instinct expressed in South African terms \u2014 cool-climate, restrained oak, real tension. It's $88 so it nudges past budget, but if the Kanonkop is already the splurge, consider this the one to split with the table.\"}],\"sommSummary\":\"Tonight's slate leans into your South African Curator identity \u2014 four of five bottles come from the Cape, anchored by names you already trust. The fifth (Guigal) is a simple, budget-friendly bridge in case the table needs a crowd-pleaser.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's most honest Chenin Blancs \u2014 right in your South African wheelhouse and well under budget. It has the same textural generosity you loved in Kumeu River's Mat\u00e9's Vineyard, just with a bit more citrus snap. This is the easy call tonight.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's the top estate on your profile and this is their flagship Pinotage at a genuinely fair price for what's in the glass. At $68 it's just over your cap, but if there's one wine on this list worth the extra few dollars, it's the one you already know and love. The definitive South African red tonight.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the best bang-for-buck on this list. Fresh, food-friendly, and critically reviewed \u2014 91 points from 42 reviews means consistency you can trust. A perfect low-stakes pour if you want something lighter alongside the main event.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is where South Africa gets interesting \u2014 a field-blend white from some of the Cape's oldest vines, structured and savoury in a way that'll surprise you. At $58 it stays in budget and pushes your South African Curator palate somewhere genuinely new.\"},{\"i\":2,\"role\":\"wildcard\",\"note\":\"You have Burgundy in your DNA and this Chorey-l\u00e8s-Beaune ros\u00e9 from Drouhin is one of the more elegant pours on the list. It's a stretch outside your usual reds and whites but the region is familiar ground. Worth trying if the table wants something pink with some real Burgundian finesse behind it.\"}],\"sommSummary\":\"Tonight's list plays squarely to your South African Curator identity \u2014 the top picks are anchored in Stellenbosch with a Swartland wild card to push the edges. The value tier keeps things honest well inside your budget while the splurge earns its place with a name you already trust.\"}",
+   "firstReason": "non-splurge 74 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"You're a South African Curator and this is Raats' benchmark Chenin Blanc from Stellenbosch \u2014 your home turf. It's textured and focused, the kind of white that earns its place the same way Kumeu River's Mat\u00e9's Vineyard did for you. At $44 it's the easiest yes on the list.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's your top estate \u2014 and the 2019 Pinotage is the wine that put the farm on the map. At $68 it's $8 over budget but it's the one splurge worth making tonight. Smoky, structured, deeply South African; this one will remind you why you keep a short list.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is a blend of Chenin, Clairette, and Viognier off ancient bush vines \u2014 a different lens on South Africa than Stellenbosch but just as serious. At $58 it fits your budget and pairs your love of Chenin with something a little wilder. Think of it as the Mat\u00e9's Vineyard energy applied to the Cape.\"},{\"i\":12,\"role\":\"value\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the casual pour that punches above its price \u2014 91 points, France on your radar, and it won't compete with anything you order. Clean, dry, and food-friendly in the way that makes it disappear fast.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is as close as South Africa gets to Burgundy \u2014 cool-climate, restrained, mineral. You loved Kumeu River's single-vineyard Chardonnay, and this is that same sensibility from the Cape. At $88 it's over budget so only go here if the Kanonkop doesn't call you, not alongside it.\"}],\"sommSummary\":\"Tonight's list plays squarely to your South African Curator identity \u2014 four of five picks are from the Cape, anchored by your top estate and a Chenin-led white flight that covers both precision and adventure. The Guigal ros\u00e9 is the easy wildcard; everything else is chosen with your short, honest list in mind.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of the benchmark names for South African Chenin \u2014 right in your Stellenbosch wheelhouse and well under budget. It's got that textured, orchard-fruit richness that tends to appeal to Chardonnay lovers, so your Kumeu River side will recognise it immediately. The go-to tonight.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 you named the estate. The 2019 Pinotage is a serious, structured red from one of Stellenbosch's greatest producers, and at $68 it's only just over your cap, making it the one justifiable splurge. If you're ordering red tonight, this is the one.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is a blend of Chenin, Clairette, and other old-vine whites \u2014 a wilder, more textured expression than the Raats but still firmly South African in spirit. At $58 it's within budget and worth the small step sideways for a Curator who likes knowing every corner of the Cape.\"},{\"i\":12,\"role\":\"value\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the best-value glass on tonight's list, and with 91 points from 42 reviews it earns that spot on merit. It's dry and food-friendly in a way Whispering Angel can't match \u2014 a solid house pour if you just want something easy and honest.\"},{\"i\":5,\"role\":\"wildcard\",\"note\":\"Hamilton Russell Chardonnay from Hemel-en-Aarde is the bridge between your love of Kumeu River and your South African home turf \u2014 same cool-climate, restrained Chardonnay ethos, different ocean. At $88 it's over budget but worth flagging if the table is sharing and the moment calls for it.\"}],\"sommSummary\":\"Tonight's list plays well for a South African Curator \u2014 the Raats and Mullineux give you two compelling angles on the Cape without leaving your comfort zone, and Kanonkop is here when you're ready to commit to red. The Hamilton Russell is the one splurge worth knowing about if Chardonnay is on the table.\"}",
+   "firstReason": "non-splurge 88 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's sharpest Chenin Blancs and it's tailor-made for a South African Curator. It has that same textural, honest quality you get from Kumeu River \u2014 not flashy, just precise and real. At $44 it's well inside budget and the most natural place to start tonight.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's the one estate your profile called out by name, and their Pinotage is the benchmark for the variety. At $68 it's the one place I'd push just past your $60 ceiling tonight; it earns that exception completely.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the easiest yes on the list \u2014 a producer that consistently punches above its price, 91 points from critics who don't hand those out for Rh\u00f4ne ros\u00e9 lightly. If you want something lighter and refreshing to open the evening, this is it.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is the most interesting white South Africa makes right now \u2014 a field blend of old Chenin, Clairette, and Viognier that you won't find many places. It's outside your usual varietal lane but squarely inside the South African territory you trust, at $58.\"},{\"i\":11,\"role\":\"wildcard\",\"note\":\"Huet's Vouvray Sec is Loire Valley Chenin at its most serious \u2014 given how much you love Chenin Blanc and that you have France firmly in your wheelhouse, this is the one French wine on the list that speaks directly to your palate. Dry, stony, alive with acidity \u2014 think of it as Raats with a French accent.\"}],\"sommSummary\":\"Tonight's list plays to your strengths: South Africa anchors four of the five picks, with Kanonkop as the one meaningful splurge. The fifth stretches you just far enough \u2014 same grape you love, different continent \u2014 without leaving your palate behind.\"}",
+   "firstReason": "non-splurge 68 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of Stellenbosch's most honest Chenin Blancs \u2014 textured, fresh, and exactly the kind of South African producer that earns its place on a short list like yours. At $44 it's well under budget and over-delivers for the price. This is the glass to start with tonight.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's the one estate you've called out by name, and the 2019 Pinotage is one of their strongest recent vintages. At $68 it's just over your $60 ceiling, so it's the one splurge on this list, but it's the most justified one imaginable for a South African Curator.\"},{\"i\":12,\"role\":\"value\",\"note\":\"The Guigal C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the easiest yes on the list tonight \u2014 91 points, France (a country you trust), and priced like they forgot a digit. You loved the Kumeu River for its balance and freshness, and this Rh\u00f4ne ros\u00e9 plays in that same clean, confident lane.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is a blend \u2014 mostly Chenin with Clairette and Viognier from bush vines that predate most wineries on this list. It's South Africa at its most textured and interesting, and at $58 it fits the budget. If Raats is the entry point, this is where the rabbit hole goes.\"},{\"i\":3,\"role\":\"wildcard\",\"note\":\"Louis Michel is the purist's Chablis \u2014 no oak, all chalk and lemon, the kind of white that pairs brilliantly with anything from the sea. You've shown love for Burgundy alongside South Africa, and at $66 it's just within budget. A palate-cleanser wildcard that earns its spot.\"}],\"sommSummary\":\"Tonight's list leads with South Africa \u2014 your home turf \u2014 from a Kanonkop you know to a Swartland rabbit hole worth exploring. The value end is genuinely strong here, so you don't have to reach far to drink well.\"}",
+   "firstReason": "non-splurge 66 > budget max"
+  },
+  {
+   "label": "realistic40 max$60",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is one of the benchmark names for South African Chenin \u2014 right in your Stellenbosch wheelhouse and well under budget. It tends to run textural and slightly waxy with good citrus drive, which tracks well with the Chardonnay side of your palate that loved Kumeu River. This is the easy yes tonight.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's the one estate you've called out by name. The 2019 Pinotage is in a great place right now, full and structured but not over the top. At $68 it's just over your cap but this is the one splurge worth making; you're not going to find Kanonkop on many lists.\"},{\"i\":12,\"role\":\"value\",\"note\":\"At $42 this is the best-value glass on the list by some distance \u2014 Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 is serious juice, not a filler. It's dry and saline with enough weight to hold its own if you're eating something substantial. Scores 91 pts across 42 reviews, which tells you this isn't a fluke.\"},{\"i\":13,\"role\":\"adventure\",\"note\":\"Mullineux Swartland White is a blend of old-vine Chenin, Clairette, and Viognier from one of South Africa's most exciting regions \u2014 different animal from Stellenbosch but very much in your South African Curator territory. It's richer and more textured than the Raats, closer in feel to what you loved about Kumeu River. Worth the detour.\"},{\"i\":11,\"role\":\"wildcard\",\"note\":\"Huet's Le Mont Sec from Vouvray is 100% Chenin Blanc, just the Loire expression \u2014 bone dry, with serious mineral tension and a long finish. If you're leaning into Chenin tonight through the Raats, this shows you exactly where the grape goes in France. France is your other home country, and Huet is the definitive name here.\"}],\"sommSummary\":\"Tonight's list plays directly to your South African Curator identity \u2014 Stellenbosch, Swartland, and two takes on Chenin anchor it. The Burgundy and Loire options are there when you want to see what your favourite grapes sound like in a French accent.\"}",
+   "firstReason": "non-splurge 68 > budget max"
+  },
+  {
+   "label": "realistic40 max$50",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is the definitive Stellenbosch Chenin \u2014 textured, alive, and right in your South African wheelhouse. At $44 it's under budget and punches well above it. If you loved the Kumeu River Chardonnay for its vineyard-driven precision, this has that same sense of place, just with Chenin's extra zip.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 you named the estate. The 2019 Pinotage is one of the benchmark bottles from Stellenbosch, earthy and structured with real depth. At $68 it's the one place I'd say go over budget tonight; this is the wine you came here to drink.\"},{\"i\":11,\"role\":\"value\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is the smartest spend on this list \u2014 91 points and genuinely fresh. It bridges your France interest without asking you to stray far, and it's the kind of porch-pour versatility that earns repeat orders throughout the meal.\"},{\"i\":12,\"role\":\"adventure\",\"note\":\"Mullineux Old Vines White from Swartland is a blend of Chenin, Clairette, and old-vine whites that you won't find anywhere else \u2014 it's South Africa doing something ancient and wild. Given how much you're drawn to the Cape, this is the bottle that shows you a different side of the country you clearly love.\"},{\"i\":19,\"role\":\"wildcard\",\"note\":\"Pieropan Soave Classico at $40 is the one curveball worth considering \u2014 Garganega done right is mineral and clean in a way that actually echoes what you loved about Kumeu River's precision. Farthest from your usual map, but sometimes the value pick from left field is the one you talk about after.\"}],\"sommSummary\":\"Tonight's list leans hard into what you love \u2014 South Africa anchors four of the five picks, with Kanonkop as the headliner you've already endorsed with your DNA. The Guigal and Pieropan keep things honest on price while the Mullineux gives your South African passion somewhere new to go.\"}",
+   "firstReason": "non-splurge 58 > budget max"
+  },
+  {
+   "label": "realistic40 max$50",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Raats is the Stellenbosch Chenin Blanc benchmark \u2014 textbook for your South African Curator palate. Crisp, mineral, with enough fruit to satisfy without going flabby. At $44 it's the easiest yes on the list tonight.\"},{\"i\":19,\"role\":\"value\",\"note\":\"At $40 this is the only wine under budget with serious pedigree \u2014 Pieropan is the gold standard for Soave, and if you loved the precision of Kumeu River's Chardonnay, this Garganega will feel familiar: clean, stony, quietly impressive. Best bang for the night.\"},{\"i\":11,\"role\":\"adventure\",\"note\":\"Guigal's C\u00f4tes du Rh\u00f4ne Ros\u00e9 at $42 is a French detour worth taking \u2014 your palate covers both South Africa and France, and this Grenache-driven ros\u00e9 has the structure Provence versions often lack. At 91+ points under budget, it punches well above its price.\"},{\"i\":0,\"role\":\"splurge\",\"note\":\"Kanonkop is literally in your DNA \u2014 it's the top estate on your profile. This 2019 Pinotage from Stellenbosch is the one bottle tonight that was made for you specifically. At $68 it's the only pick over budget, but if one wine earns the splurge role, it's the one with your name on it.\"},{\"i\":12,\"role\":\"wildcard\",\"note\":\"Mullineux Old Vines White from Swartland is the South African wildcard worth knowing \u2014 a Chenin-led blend from one of the Cape's most exciting producers. If Raats showed you what Chenin does clean, Mullineux shows you what it does deep. Same country, completely different story.\"}],\"sommSummary\":\"Tonight's list plays right into your South African Curator identity \u2014 two Stellenbosch anchors, a Swartland outlier, and enough French coverage to keep things interesting. The budget ceiling is tight at $50, so the Kanonkop is the one place worth breaking it.\"}",
+   "firstReason": "non-splurge 58 > budget max"
+  },
+  {
+   "label": "realistic40/broad red max$80",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Your archetype is built around Syrah, and Boekenhoutskloof from Swartland is one of the grape's most exciting addresses outside the Rh\u00f4ne \u2014 think dark fruit, cracked pepper, and real grip. At $84 it's just over your cap, but this is the one exception worth making. Actually, wait \u2014 let me stay honest on budget.\"},{\"i\":3,\"role\":\"value\",\"note\":\"Cristom Mt. Jefferson is a Willamette Valley Pinot Noir that punches well above its $78 price \u2014 silky, earthy, and food-friendly in all the right ways. It won't scratch your Syrah itch directly, but as a Rh\u00f4ne Wanderer you'll appreciate the terroir-driven restraint here. Great all-table wine if you're sharing plates.\"},{\"i\":4,\"role\":\"adventure\",\"note\":\"Ridge Geyserville is Zinfandel at its most serious \u2014 it's blended with Petite Sirah and Carignan, so it carries some of that spicy, savory backbone you love in Syrah. At $82 it's just over budget, so flag your max to your server. A genuinely fun detour for someone who follows bold, characterful reds.\"},{\"i\":8,\"role\":\"wildcard\",\"note\":\"Kanonkop Pinotage at $68 is the budget-friendly wildcard \u2014 Pinotage is a South African original, somewhere between Pinot Noir and Cinsault, and Kanonkop is the benchmark producer. Earthy, smoky, and distinctive. If you want to stay firmly under $80 with something you likely haven't tried, this is the pick.\"}],\"sommSummary\":\"Your budget tops out at $80 and your palate lives in Syrah country, so tonight's list is a bit of a stretch \u2014 the best Syrah match (Boekenhoutskloof) sits just above your max. The Cristom Pinot and Kanonkop Pinotage keep you in budget while delivering the earthy, serious red energy you're after.\"}",
+   "firstReason": "non-splurge 82 > budget max"
+  },
+  {
+   "label": "realistic40/broad red max$80",
+   "firstReply": "{\"picks\":[{\"i\":3,\"role\":\"top\",\"note\":\"Your Rh\u00f4ne Wanderer DNA loves earthy, texture-driven reds \u2014 Cristom's Willamette Pinot has that same cool-climate restraint and savory pull that draws people to Northern Rh\u00f4ne Syrah. At $78 it's right in your sweet spot, and with 30 reviews backing it up, this is a safe and genuinely exciting call for the night.\"},{\"i\":1,\"role\":\"adventure\",\"note\":\"Boekenhoutskloof is one of the great Syrah producers on the planet, full stop \u2014 and Swartland Syrah is the Southern Hemisphere's closest answer to a serious Crozes-Hermitage. This is your grape, different continent, and $84 is a steal for a producer this good. If Syrah is your north star, this is worth the four extra dollars over budget.\"},{\"i\":4,\"role\":\"value\",\"note\":\"Ridge Geyserville is the kind of American red that earns respect without trying too hard \u2014 big, spiced, and generous in a way that slots right alongside your taste for bold Syrah and Cabernet. At $82 it's right at the edge of your range and offers more character per dollar than almost anything else on this list.\"}],\"sommSummary\":\"Your Rh\u00f4ne Wanderer palate is well-served tonight \u2014 there's a cool-climate Pinot to anchor things, a world-class Swartland Syrah that's basically your archetype in a glass, and a bold American red for good measure. The list skews toward structured, serious reds which is exactly where you live.\"}",
+   "firstReason": "non-splurge 82 > budget max"
+  },
+  {
+   "label": "realistic40/broad red max$80",
+   "firstReply": "{\"picks\":[{\"i\":1,\"role\":\"top\",\"note\":\"Your Rh\u00f4ne Wanderer DNA is built around Syrah, and Boekenhoutskloof from Swartland is one of the Southern Hemisphere's most serious takes on it \u2014 think dark fruit, cracked pepper, and that savory backbone Syrah lovers chase. At $84 it's just over your cap, but this is the one exception worth making tonight.\"},{\"i\":3,\"role\":\"value\",\"note\":\"Willamette Valley Pinot Noir is a natural sidebar for someone who loves the earthy, savory side of French reds \u2014 Cristom Mt. Jefferson consistently delivers that cool-climate elegance without the Burgundy price tag. At $78 it's your best value pick tonight and a smart counterpoint to a heavier Syrah.\"},{\"i\":4,\"role\":\"adventure\",\"note\":\"Ridge Geyserville is Zinfandel at its most serious \u2014 less jammy than you'd fear, more spice-and-structure than you'd expect, and squarely within the bold-red territory a Rh\u00f4ne Wanderer tends to love. At $82 it pushes the budget slightly, but it's a genuinely different grape worth exploring.\"}],\"sommSummary\":\"Tonight's list skews toward bold, structured reds \u2014 good news for a Rh\u00f4ne Wanderer. The slate covers three different countries and three different grapes, so you get real range without straying from the savory, full-bodied style that's clearly your lane.\"}",
+   "firstReason": "non-splurge 82 > budget max"
+  }
+ ]
+}

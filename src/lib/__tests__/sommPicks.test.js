@@ -31,7 +31,7 @@ function makeEntry(name, price, score, extra = {}) {
 }
 
 async function main() {
-  const { buildSommPayload, validateSommResponse, extractJson, readSommJson, feasiblePickCount } = await import("../sommPicks.js");
+  const { buildSommPayload, validateSommResponse, extractJson, readSommJson, feasiblePickCount, budgetCorrection, markOverMax, STRETCH_CANDIDATE_CAP } = await import("../sommPicks.js");
 
   console.log("\n═══ buildSommPayload ═══");
 
@@ -84,6 +84,64 @@ async function main() {
     });
     const names = p.candidates.map(c => c.name);
     assert(!names.includes("Cheap") && names.includes("In") && names.includes("Splurgey") && !names.includes("TooRich"), JSON.stringify(names));
+  });
+
+  // ── Few wines over the max (Nov 2026) ──
+  // Only ONE pick may be over the max, yet the slate carried every stretch
+  // wine up to twice it: on an "up to $60" list, 19 of 25 candidates — and
+  // the model kept taking a second one (22 of 30 replayed first replies).
+
+  const tight = { ...baseArgs, budget: { min: null, max: 60 } };
+  // manyEntries: Wine k costs $50 + k and scores 40 - k → k ≤ 10 is in budget, 11…39 a stretch
+  const overMax = (p) => p.candidates.filter((c) => c.price > 60);
+
+  test("under a max the slate carries at most STRETCH_CANDIDATE_CAP wines over it — and every wine inside it", () => {
+    const p = buildSommPayload(tight);
+    assert(overMax(p).length === STRETCH_CANDIDATE_CAP, `${overMax(p).length} over the max`);
+    assert(p.candidates.filter((c) => c.price <= 60).length === 11, "all eleven in-budget wines");
+    assert(p.candidates.every((c, idx) => c.i === idx) && p.candidates.every((c, k, all) => k === 0 || all[k - 1].score >= c.score), "numbered in order, best first");
+  });
+
+  test("the stretch wines that stay: the page's own Splurge first, then the best-scored", () => {
+    const splurge = manyEntries[30]; // $80, score 10 — far from the best-scored stretch
+    const p = buildSommPayload({ ...tight, algorithmicPicks: [manyEntries[0], manyEntries[3], splurge] });
+    assert(overMax(p).some((c) => c.name === splurge.name), `the page's Splurge stays: ${overMax(p).map((c) => c.name)}`);
+    assert(p.algorithmicPicks.length === 3, "and the Somm can keep every pick on the page");
+    const others = overMax(p).filter((c) => c.name !== splurge.name).map((c) => c.name);
+    const best = manyEntries.slice(11, 11 + STRETCH_CANDIDATE_CAP - 1).map((e) => e.name);
+    assert(JSON.stringify(others) === JSON.stringify(best), `then the best-scored: ${others} vs ${best}`);
+    // No Splurge on the page: the best-scored stretch wines
+    const none = buildSommPayload({ ...tight, algorithmicPicks: [manyEntries[0]] });
+    assert(JSON.stringify(overMax(none).map((c) => c.name)) === JSON.stringify(manyEntries.slice(11, 11 + STRETCH_CANDIDATE_CAP).map((e) => e.name)), "best-scored when the page shows none");
+  });
+
+  test("the ask is unchanged — a stretch still counts once — and wines the stretch crowded out are back", () => {
+    const p = buildSommPayload(tight);
+    assert(p.pickCount === 5, `asked for ${p.pickCount}`);
+    // 30 in budget with low scores behind 30 stretch wines with high ones: the cap of 25 used to hold 25 stretch wines
+    const crowded = [
+      ...Array.from({ length: 30 }, (_, k) => makeEntry(`Stretch ${k}`, 70 + k, 90 - k)),
+      ...Array.from({ length: 30 }, (_, k) => makeEntry(`Fits ${k}`, 20 + k, 30 - k)),
+    ];
+    const c = buildSommPayload({ ...tight, scoredEntries: crowded, algorithmicPicks: [] });
+    assert(c.candidates.length === 25 && overMax(c).length === STRETCH_CANDIDATE_CAP, `${c.candidates.length} candidates, ${overMax(c).length} over`);
+    assert(c.candidates.filter((x) => x.price <= 60).length === 25 - STRETCH_CANDIDATE_CAP, "the rest of the slate is wines that fit");
+  });
+
+  test("no max — or a minimum alone — trims nothing", () => {
+    assert(buildSommPayload(baseArgs).candidates.length === 25, "no budget");
+    const floor = buildSommPayload({ ...baseArgs, budget: { min: 60, max: null } });
+    assert(floor.candidates.length === 25 && floor.candidates.every((c) => c.price >= 60), "a minimum has no stretch band");
+  });
+
+  test("a steer may bring back ONE stretch wine of its own, never the crowd", () => {
+    const syrahs = Array.from({ length: 8 }, (_, k) => makeEntry(`Estate Syrah ${k}`, 90 + k, 0, { varietalId: "syrah_shiraz", color: "red" }));
+    const inBudgetSyrah = makeEntry("House Syrah", 45, 0, { varietalId: "syrah_shiraz", color: "red" });
+    const p = buildSommPayload({ ...tight, scoredEntries: [...manyEntries, ...syrahs, inBudgetSyrah], steer: "a Syrah tonight" });
+    const extras = p.candidates.filter((c) => c.steerMatch);
+    assert(extras.some((c) => c.name === "House Syrah"), "the steer's in-budget wine is added");
+    assert(extras.filter((c) => c.price > 60).length === 1, `one stretch for the steer: ${extras.filter((c) => c.price > 60).map((c) => c.name)}`);
+    assert(overMax(p).length === STRETCH_CANDIDATE_CAP + 1, `the palate's few and the steer's one: ${overMax(p).length}`);
   });
 
   test("color filter excludes explicit mismatch, keeps unknown color", () => {
@@ -212,7 +270,8 @@ async function main() {
       steer: "focus on Chenin",
     });
     const extras = capped.candidates.slice(-6);
-    assert(capped.candidates.length === 25 + 6, `cap: got ${capped.candidates.length}`);
+    // Up to $60: Barossa Shiraz 0…20 fit; of the nine over it the slate keeps a few (STRETCH_CANDIDATE_CAP)
+    assert(capped.candidates.length === 21 + STRETCH_CANDIDATE_CAP + 6, `cap: got ${capped.candidates.length}`);
     assert(!capped.candidates.some((c) => c.name === "Unicorn Chenin Blanc"), "budget must still gate extras");
 
     const colorGated = buildSommPayload({
@@ -333,6 +392,116 @@ async function main() {
     );
     assert(r.valid, r.reason);
     assert(r.picks[0].role === "wildcard" && r.picks[1].role === "top" && r.picks[2].role === "wildcard", JSON.stringify(r.picks.map(p => p.role)));
+  });
+
+  // ── A budget rejection names every pick over the max (Nov 2026) ──
+  // The reason used to name the first offender by its price alone. Replayed
+  // 180 times, the up-to-$60 list fell back 9 times in 30: told "non-splurge
+  // 88 > budget max", the model swapped the $88 for a $68 — or, told
+  // "non-splurge 68", sent the same picks again, reading the $68 as its Splurge.
+
+  const wide = [
+    { i: 0, name: "A", price: 40 }, { i: 1, name: "B", price: 60 }, { i: 2, name: "C", price: 90 },
+    { i: 3, name: "D", price: 30 }, { i: 4, name: "E", price: 70 }, { i: 5, name: "F", price: 55 },
+    { i: 6, name: "G", price: 45 }, { i: 7, name: "H" },
+  ];
+  const n = (i, role) => ({ i, role, note: "A note about this wine. It earns its place." });
+  const threeOver = { picks: [n(4, "top"), n(0, "value"), n(2, "splurge"), n(1, "wildcard")], sommSummary: "s" };
+  const wideCtx = { candidates: wide, pickCount: 4, budget: { min: null, max: 50 } };
+
+  test("a budget rejection names EVERY pick over the max — index, price and the role the model gave it, in its order", () => {
+    const r = validateSommResponse(threeOver, wideCtx);
+    assert(!r.valid, "three picks over a $50 max can't be valid");
+    assert(JSON.stringify(r.overBudget) === JSON.stringify([{ i: 4, price: 70, role: "top" }, { i: 2, price: 90, role: "splurge" }, { i: 1, price: 60, role: "wildcard" }]), JSON.stringify(r.overBudget));
+    assert(JSON.stringify(r.picked) === JSON.stringify([4, 0, 2, 1]), `picked: ${JSON.stringify(r.picked)}`);
+  });
+
+  test("the reason says which picks, by index — a price alone can be two wines", () => {
+    const r = validateSommResponse(threeOver, wideCtx);
+    assert(/^non-splurge \d+ > budget max/.test(r.reason), `the reason keeps its opening: ${r.reason}`);
+    assert(r.reason.includes("i=4 $70, i=2 $90, i=1 $60"), r.reason);
+    assert(r.reason.length <= 160, `inside the ledger's cap: ${r.reason.length}`);
+  });
+
+  test("a splurge past twice the max is named too; other rejections name no budget picks", () => {
+    const far = validateSommResponse({ picks: [n(2, "splurge"), n(0, "top"), n(3, "value")] }, { candidates: wide, pickCount: 3, budget: { min: null, max: 40 } });
+    assert(!far.valid && /splurge 90 > 2x max/.test(far.reason), far.reason);
+    assert(JSON.stringify(far.overBudget) === JSON.stringify([{ i: 2, price: 90, role: "splurge" }]), JSON.stringify(far.overBudget));
+    const dup = validateSommResponse({ picks: [n(0, "top"), n(0, "value"), n(3, "wildcard")] }, { candidates: wide, pickCount: 3, budget: { min: null, max: 50 } });
+    assert(!dup.valid && !dup.overBudget, `a duplicate index is no budget matter: ${JSON.stringify(dup)}`);
+    const few = validateSommResponse({ picks: [n(2, "top")] }, { candidates: wide, pickCount: 3, budget: { min: null, max: 50 } });
+    assert(!few.valid && !few.overBudget, "nor is a short answer");
+  });
+
+  test("a valid answer names none: one stretch, labeled or promoted, is the rule working", () => {
+    const labeled = validateSommResponse({ picks: [n(4, "splurge"), n(0, "top"), n(3, "value")] }, { candidates: wide, pickCount: 3, budget: { min: null, max: 50 } });
+    const promoted = validateSommResponse({ picks: [n(4, "top"), n(0, "value"), n(3, "wildcard")] }, { candidates: wide, pickCount: 3, budget: { min: null, max: 50 } });
+    assert(labeled.valid && promoted.valid, `${labeled.reason} / ${promoted.reason}`);
+    assert(!("overBudget" in labeled) && !("overBudget" in promoted), "nothing to correct");
+  });
+
+  test("budgetCorrection: every pick over the max by index and price, the one that may stay, and the legal replacements", () => {
+    const r = validateSommResponse(threeOver, wideCtx);
+    const text = budgetCorrection(r, { candidates: wide, budget: { min: null, max: 50 } });
+    for (const named of ['i=4 ($70, your "top")', 'i=2 ($90, your "splurge")', 'i=1 ($60, your "wildcard")']) {
+      assert(text.includes(named), `must name ${named}: ${text}`);
+    }
+    assert(/at most ONE/i.test(text) && /"splurge"/.test(text), `the rule, in a line: ${text}`);
+    assert(/at or under \$50/.test(text), `the limit as a price: ${text}`);
+    // In budget and not picked: D $30, G $45, and H, which shows no price (the validator can't call it over)
+    assert(text.includes("i=3 ($30)") && text.includes("i=6 ($45)") && text.includes("i=7 (no price)"), `the replacements: ${text}`);
+    assert(!text.includes("i=0 ($40)"), "a wine already picked is no replacement");
+    assert(!text.includes("i=5 ($55)"), "nor is a wine that is itself over the max");
+  });
+
+  test("budgetCorrection: a pick past twice the max can never stay; nothing over → nothing said; junk → nothing said", () => {
+    const far = validateSommResponse({ picks: [n(2, "splurge"), n(4, "top"), n(3, "value")] }, { candidates: wide, pickCount: 3, budget: { min: null, max: 40 } });
+    const text = budgetCorrection(far, { candidates: wide, budget: { max: 40 } });
+    assert(/i=2 \(\$90/.test(text) && /never .*above \$80/i.test(text), `twice the max, as a price: ${text}`);
+    const ok = validateSommResponse({ picks: [n(0, "top"), n(3, "value"), n(6, "wildcard")] }, { candidates: wide, pickCount: 3, budget: { max: 50 } });
+    assert(budgetCorrection(ok, { candidates: wide, budget: { max: 50 } }) === "", "a valid answer");
+    for (const junk of [null, undefined, {}, { overBudget: [] }, { overBudget: "x" }]) {
+      assert(budgetCorrection(junk, { candidates: wide, budget: { max: 50 } }) === "", JSON.stringify(junk));
+    }
+    assert(budgetCorrection(far, {}) === "" && budgetCorrection(far, { candidates: wide, budget: { max: null } }) === "", "no max, nothing to say");
+  });
+
+  test("budgetCorrection: a long slate lists the first twelve replacements and says there are more", () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ i, name: `W${i}`, price: i < 2 ? 90 : 20 + i }));
+    const r = validateSommResponse({ picks: [n(0, "top"), n(1, "splurge"), n(2, "value")] }, { candidates: many, pickCount: 3, budget: { max: 60 } });
+    const text = budgetCorrection(r, { candidates: many, budget: { max: 60 } });
+    assert(text.includes("i=3 ($23)") && text.includes("i=14 ($34)") && !text.includes("i=15 ($35)"), text);
+    assert(/and 15 more/.test(text), `28 in budget, one picked, twelve listed: ${text}`);
+  });
+
+  test("markOverMax: every candidate the validator would call over the max is marked, and no other", () => {
+    const marked = markOverMax(wide, { min: null, max: 50 });
+    assert(JSON.stringify(marked.filter((c) => c.overMax).map((c) => c.i)) === JSON.stringify([1, 2, 4, 5]), JSON.stringify(marked.map((c) => [c.i, c.overMax])));
+    assert(marked.every((c) => c.overMax === true || !("overMax" in c)), "true, or absent — never false");
+    assert(!("overMax" in marked[7]), "a wine with no price can't be shown to be over");
+    assert(marked.find((c) => c.i === 0).price === 40 && marked.length === wide.length, "nothing else about a candidate changes");
+    assert(wide.every((c) => !("overMax" in c)), "the caller's own array is left alone");
+    // Exactly AT the max is inside it
+    assert(!("overMax" in markOverMax([{ i: 0, price: 50 }], { max: 50 })[0]) && markOverMax([{ i: 0, price: 51 }], { max: 50 })[0].overMax === true, "the boundary");
+  });
+
+  test("markOverMax: no max removes every mark — a caller's stale one too; junk passes through", () => {
+    const stale = [{ i: 0, price: 40, overMax: true }, { i: 1, price: 90, overMax: true }];
+    for (const budget of [null, undefined, {}, { max: null }]) {
+      assert(markOverMax(stale, budget).every((c) => !("overMax" in c)), `no max (${JSON.stringify(budget)})`);
+    }
+    assert(JSON.stringify(markOverMax(stale, { max: 50 }).map((c) => c.overMax === true)) === JSON.stringify([false, true]), "a stale mark on a wine that fits is removed");
+    assert(JSON.stringify(markOverMax([null, 7, { i: 2, price: 90 }], { max: 50 })) === JSON.stringify([null, 7, { i: 2, price: 90, overMax: true }]), "junk entries pass through");
+    assert(Array.isArray(markOverMax(null, { max: 50 })) && markOverMax("x", { max: 50 }).length === 0, "not a list → an empty one");
+  });
+
+  test("the marks and the ask agree: the candidates left unmarked, plus one, is the most the validator accepts", () => {
+    for (const max of [20, 35, 50, 60, 100]) {
+      const marked = markOverMax(wide, { max });
+      const unmarked = marked.filter((c) => !c.overMax).length;
+      const legalStretch = marked.some((c) => c.overMax && c.price <= max * 2) ? 1 : 0;
+      assert(feasiblePickCount(wide, 99, { max }) === unmarked + legalStretch, `max ${max}: ${unmarked} unmarked + ${legalStretch}`);
+    }
   });
 
   test("rejects non-object and missing picks", () => {
@@ -457,7 +626,8 @@ async function main() {
   test("a budget that leaves two in-budget wines and a splurge asks for three", () => {
     const entries = [68, 92, 78, 98, 84, 130, 118].map((price, k) => makeEntry(`Red ${k}`, price, 20 - k));
     const p = buildSommPayload({ ...baseArgs, scoredEntries: entries, algorithmicPicks: entries.slice(0, 5), pickCount: 5, budget: { min: null, max: 80 } });
-    assert(p.candidates.length === 7, `the slate keeps its splurge candidates (${p.candidates.length})`);
+    // Two fit; of the five over the max the slate keeps a few (one can be picked)
+    assert(p.candidates.length === 2 + Math.min(STRETCH_CANDIDATE_CAP, 5), `the two that fit and a few stretch wines (${p.candidates.length})`);
     assert(p.pickCount === 3, `asked ${p.pickCount}`);
   });
 
