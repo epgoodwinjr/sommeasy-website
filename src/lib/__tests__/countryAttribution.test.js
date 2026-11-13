@@ -97,11 +97,18 @@ function termMatchesInText(term, text, wholePhrase) {
   return re.test(text);
 }
 
+// Nov 2026 (scan-truth): regions, grapes and countries match in one folded
+// spelling; broad areas are countries; two short region names
+const foldText = text => String(text).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const BROAD_AREAS = { "western cape": "south_africa", "central coast": "us" };
+const SHORT_REGION_NAMES = { "loire": "loire valley", "rhône": "rhône valley" };
+const ACCENT_ONLY_IN_NAMES = new Set(["rose"]);
+
 function buildSearchIndex() {
   const idx = { regionTerms: [], producerTerms: [], varietyTerms: [], countryTerms: [] };
 
   for (const [term, data] of Object.entries(REGION_LOOKUP)) {
-    if (term.length < 4 || ["other", "america", "europe"].includes(term)) continue;
+    if (term.length < 4 || ["other", "america", "europe"].includes(term) || BROAD_AREAS[term]) continue;
     idx.regionTerms.push({ term, dnaRegionId: data.regionId, dnaCountryId: data.country });
   }
   for (const [countryId, regions] of Object.entries(REGIONS)) {
@@ -122,6 +129,10 @@ function buildSearchIndex() {
       if (term.length < 4 || idx.regionTerms.some(r => r.term === term)) continue;
       idx.regionTerms.push({ ...combined, term });
     }
+  }
+  for (const [short, long] of Object.entries(SHORT_REGION_NAMES)) {
+    const full = idx.regionTerms.find(r => r.term === long);
+    if (full && !idx.regionTerms.some(r => r.term === short)) idx.regionTerms.push({ ...full, term: short });
   }
   idx.regionTerms.sort((a, b) => b.term.length - a.term.length);
 
@@ -164,6 +175,7 @@ function buildSearchIndex() {
   }
   idx.countryTerms.push({ term: "united states", name: "United States", dnaCountryId: "us" });
   idx.countryTerms.push({ term: "u.s.a.", name: "United States", dnaCountryId: "us" });
+  idx.countryTerms.push({ term: "usa", name: "United States", dnaCountryId: "us" });
   const stateToUSA = ["california", "oregon", "washington", "new york", "virginia", "texas",
     "colorado", "arizona", "new mexico", "idaho", "michigan", "pennsylvania",
     "north carolina", "ohio", "missouri"];
@@ -171,6 +183,16 @@ function buildSearchIndex() {
     if (!idx.regionTerms.some(r => r.term === s)) {
       idx.countryTerms.push({ term: s, name: "United States", dnaCountryId: "us" });
     }
+  }
+  for (const [area, countryId] of Object.entries(BROAD_AREAS)) {
+    const country = COUNTRIES.find(c => c.id === countryId);
+    idx.countryTerms.push({ term: area, name: countryId === "us" ? "United States" : country.name, dnaCountryId: countryId });
+  }
+  for (const r of idx.regionTerms) r.fold = foldText(r.term);
+  for (const c of idx.countryTerms) c.fold = foldText(c.term);
+  for (const v of idx.varietyTerms) {
+    v.fold = foldText(v.term);
+    if (v.fold !== v.term && ACCENT_ONLY_IN_NAMES.has(v.fold)) v.accentOnlyInNames = true;
   }
   for (const [core, name] of aliasMirror.buildCoreNameAliases(wineUnified)) {
     idx.producerTerms.push({ term: core, name, dnaCountryId: PRODUCER_LOOKUP[name].country || null, alias: true });
@@ -181,9 +203,12 @@ function buildSearchIndex() {
 
 const SEARCH_INDEX = buildSearchIndex();
 
-// Mirror of detectWineAttributes (matchEngine.js)
+// Mirror of detectWineAttributes (matchEngine.js): producers are scanned in
+// the raw lowercase line (their keys keep their accents); regions, grapes
+// and countries in the folded one
 function detectWineAttributes(wineName) {
-  const text = " " + wineName.toLowerCase() + " ";
+  const raw = " " + wineName.toLowerCase() + " ";
+  const folded = " " + foldText(wineName) + " ";
   const regionIds = new Set();
   const countryIds = new Set();
   const varietalIds = new Set();
@@ -194,43 +219,42 @@ function detectWineAttributes(wineName) {
   let producer = null;
   for (const prod of SEARCH_INDEX.producerTerms) {
     if (prod.term.length < 4) continue;
-    if (termMatchesInText(prod.term, text, prod.alias)) {
+    if (termMatchesInText(prod.term, raw, prod.alias)) {
       producer = prod;
-      claimed.add(prod.term);
+      claimed.add(foldText(prod.term));
       break;
     }
   }
   let region = null;
   for (const reg of SEARCH_INDEX.regionTerms) {
-    if (claimed.has(reg.term)) continue;
-    if (termMatchesInText(reg.term, text)) {
+    if (claimed.has(reg.fold)) continue;
+    if (termMatchesInText(reg.fold, folded)) {
       region = reg;
       if (reg.dnaRegionId) regionIds.add(reg.dnaRegionId);
-      claimed.add(reg.term);
       break;
     }
   }
   for (const v of SEARCH_INDEX.varietyTerms) {
-    if (termMatchesInText(v.term, text)) {
+    if (v.accentOnlyInNames ? termMatchesInText(v.term, raw) : termMatchesInText(v.fold, folded)) {
       if (v.dnaVarietalId) varietalIds.add(v.dnaVarietalId);
       if (v.color && !color) color = v.color;
-      claimed.add(v.term);
       break;
     }
   }
   let statedCountry = null;
   for (const c of SEARCH_INDEX.countryTerms) {
-    if (c.term.length < 4) continue;
-    if (termMatchesInText(c.term, text)) {
+    if (c.term.length < 3) continue;
+    if (termMatchesInText(c.fold, folded)) {
       statedCountry = c;
       break;
     }
   }
-  // Namesake guard: stated geography (not inside the producer's own name)
-  // that contradicts the producer's country discards the producer; a region
-  // name two countries share agrees with either
+  // Namesake guard: stated geography (not inside the producer's own name,
+  // compared folded) that contradicts the producer's country discards the
+  // producer; a region name two countries share agrees with either
   if (producer && producer.dnaCountryId) {
-    const stated = [region, statedCountry].filter(g => g && g.dnaCountryId && !producer.term.includes(g.term));
+    const ownName = foldText(producer.term);
+    const stated = [region, statedCountry].filter(g => g && g.dnaCountryId && !ownName.includes(g.fold));
     const agrees = g => g.dnaCountryId === producer.dnaCountryId || (g.sharedWith || []).includes(producer.dnaCountryId);
     if (stated.length > 0 && !stated.some(agrees)) producer = null;
   }
@@ -701,6 +725,30 @@ async function realModuleTests() {
     for (const [core, name] of real) {
       assert(mirror.get(core) === name, `"${core}": real -> ${name}, mirror -> ${mirror.get(core)}`);
     }
+  });
+
+  test("Mirror lock: the mirror reads every region, grape and country spelling — accented or not — as the real engine does", () => {
+    // Nov 2026: detection matches in a folded spelling, with broad areas
+    // ("Western Cape", "Central Coast") as countries and "USA" a country.
+    // The mirror above must read each spelling exactly as production does.
+    const fold = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const lines = new Set(["Cuvee Test, USA", "Cuvee Test, Western Cape", "Cuvee Test, Central Coast", "Cuvee Test, Loire", "Cuvee Test, Rhone",
+      "Gård Riesling", "Gård Riesling, Washington", "Chateau La Rose Bellevue, Bordeaux", "Whispering Angel Rosé"]);
+    for (const key of Object.keys(REGION_LOOKUP)) { lines.add(`Cuvee Test, ${key}`); lines.add(`Cuvee Test, ${fold(key)}`); }
+    for (const regions of Object.values(REGIONS)) for (const r of regions) lines.add(`Cuvee Test, ${fold(r.name)}`);
+    for (const v of VARIETALS) for (const part of v.name.split(" / ")) { lines.add(`Cuvee Test ${part.trim()}`); lines.add(`Cuvee Test ${fold(part.trim())}`); }
+    for (const c of COUNTRIES) lines.add(`Cuvee Test, ${c.name}`);
+    const sorted = (set) => JSON.stringify(Array.from(set).sort());
+    let read = 0;
+    for (const line of lines) {
+      const mirror = detectWineAttributes(line);
+      const real = scoreLine(line);
+      assert(sorted(mirror.regionIds) === sorted(real.detectedRegionIds), `"${line}" regions: mirror ${sorted(mirror.regionIds)}, real ${sorted(real.detectedRegionIds)}`);
+      assert(sorted(mirror.countryIds) === sorted(real.detectedCountryIds), `"${line}" countries: mirror ${sorted(mirror.countryIds)}, real ${sorted(real.detectedCountryIds)}`);
+      assert(sorted(mirror.varietalIds) === sorted(real.detectedVarietalIds), `"${line}" grapes: mirror ${sorted(mirror.varietalIds)}, real ${sorted(real.detectedVarietalIds)}`);
+      if (real.detectedRegionIds.length + real.detectedCountryIds.length + real.detectedVarietalIds.length > 0) read++;
+    }
+    assert(lines.size > 1400 && read > lines.size * 0.9, `a real corpus: ${read} of ${lines.size} lines read`);
   });
 
   test("Mirror lock: the CJS mirror's short-name guard rules on every producer as the real one does", () => {

@@ -33,9 +33,10 @@ const EXTRACTION_PROMPT = `You are analyzing a restaurant wine list. Extract eve
 For each wine, extract:
 - name: The full wine name as it appears (producer + wine name + any designation + vintage if shown)
 - vintage: The year if shown (null if not)
-- price: The price as a number (null if not visible)
+- price: The BOTTLE price as a number (null if no bottle price is visible — a wine that shows only a glass price has price: null)
+- glass_price: The by-the-glass price as a number, if one is shown (null if not)
 - section: The section header this wine falls under (e.g., "Red Wine", "White Wine", "Sparkling", "By the Glass", "France", "Pinot Noir")
-- is_btg: true if this wine is in a "by the glass" section, false otherwise
+- is_btg: true ONLY if the wine is poured by the glass and NOT sold by the bottle — it shows a glass price and no bottle price. A wine that shows a bottle price is never is_btg, whatever its section or the page heading says
 - color: "red", "white", "rosé", "sparkling", or null if unclear
 - variety: Primary grape variety if identifiable (e.g., "Pinot Noir", "Chardonnay"). For blends, state "blend" or list components if known (e.g., "Cabernet Sauvignon-Merlot blend"). null if unknown.
 - region: Specific wine region if identifiable (e.g., "Bordeaux", "Napa Valley", "Stellenbosch"). null if unknown.
@@ -46,7 +47,8 @@ Important instructions:
 - Preserve the original language and spelling of wine names (French accents, German umlauts, etc.)
 - Include ALL wines, even if partially obscured or hard to read
 - Section headers are not wines — don't include them as entries
-- If a wine has both glass and bottle prices, create one entry with is_btg: false and use the bottle price
+- If a wine has both glass and bottle prices ("13 / 52", or two price columns), create one entry with price: the bottle price, glass_price: the glass price, and is_btg: false — also on a page headed "Wines by the Glass & Bottle"
+- In a by-the-glass section where each wine shows one price, that price is the glass price: glass_price: that price, price: null, is_btg: true
 - Bin numbers (e.g., "101", "#42") are not prices — ignore them
 - If you cannot read a wine name clearly, include your best guess
 - Always extract the vintage year when visible, even if it appears in a separate column, in small print, or after the wine name
@@ -59,6 +61,7 @@ Respond ONLY with a JSON object in this exact format, no other text:
       "name": "Château Margaux, Margaux 2015",
       "vintage": "2015",
       "price": 450,
+      "glass_price": null,
       "section": "Bordeaux",
       "is_btg": false,
       "color": "red",

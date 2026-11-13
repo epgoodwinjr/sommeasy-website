@@ -1,0 +1,413 @@
+{
+  "note": "Wine lists modeled on real scans that matched nothing (wine_events, 2026). The ledger kept only counts, so the lists are reconstructions: realistic pages on which every wine shows a glass and a bottle price, written the way such lists are written (Syrah, Pinot Grigio, Western Cape, California, Cotes de Provence without its accent). Each is drawn twice — under a plain heading and under one that says 'by the glass' — because that heading is what made the scan flag every wine. 'mixed' is the control: a real by-the-glass section (one price each) beside a bottle list. The palates are modeled on the accounts that drew the blanks.",
+  "lists": {
+    "sept19": {
+      "about": "Sept 19, 2026: a 14-wine bottle page that matched nothing for two palates",
+      "priceStyle": "columns",
+      "sections": [
+        {
+          "name": "WHITE",
+          "wines": [
+            {
+              "name": "Ken Forrester Old Vine Reserve Chenin Blanc, Stellenbosch 2022",
+              "glass": 13,
+              "bottle": 52
+            },
+            {
+              "name": "Mulderbosch Sauvignon Blanc, Western Cape 2023",
+              "glass": 12,
+              "bottle": 46
+            },
+            {
+              "name": "Hamilton Russell Chardonnay, Hemel-en-Aarde 2022",
+              "glass": 22,
+              "bottle": 88
+            },
+            {
+              "name": "Domaine Vacheron Sancerre, Loire 2022",
+              "glass": 19,
+              "bottle": 76
+            },
+            {
+              "name": "Santa Margherita Pinot Grigio, Alto Adige 2023",
+              "glass": 14,
+              "bottle": 54
+            },
+            {
+              "name": "Louis Jadot Macon-Villages Chardonnay, Burgundy 2022",
+              "glass": 13,
+              "bottle": 50
+            }
+          ]
+        },
+        {
+          "name": "ROSE",
+          "wines": [
+            {
+              "name": "Chateau d'Esclans Whispering Angel, Cotes de Provence 2023",
+              "glass": 15,
+              "bottle": 60
+            }
+          ]
+        },
+        {
+          "name": "RED",
+          "wines": [
+            {
+              "name": "Kanonkop Kadette Cape Blend, Stellenbosch 2021",
+              "glass": 12,
+              "bottle": 48
+            },
+            {
+              "name": "Meerlust Rubicon, Stellenbosch 2019",
+              "glass": 24,
+              "bottle": 95
+            },
+            {
+              "name": "Mullineux Syrah, Swartland 2020",
+              "glass": 18,
+              "bottle": 72
+            },
+            {
+              "name": "Catena Malbec, Mendoza 2021",
+              "glass": 14,
+              "bottle": 56
+            },
+            {
+              "name": "E. Guigal Cotes du Rhone 2020",
+              "glass": 12,
+              "bottle": 46
+            },
+            {
+              "name": "Marques de Riscal Reserva, Rioja 2018",
+              "glass": 16,
+              "bottle": 62
+            },
+            {
+              "name": "Antinori Peppoli Chianti Classico 2021",
+              "glass": 15,
+              "bottle": 58
+            }
+          ]
+        }
+      ]
+    },
+    "aug8": {
+      "about": "Aug 8, 2026: a 25-wine scan that matched nothing for a South Africa + Australia palate",
+      "priceStyle": "slash",
+      "sections": [
+        {
+          "name": "SPARKLING",
+          "wines": [
+            {
+              "name": "La Marca Prosecco, Veneto NV",
+              "glass": 11,
+              "bottle": 42
+            },
+            {
+              "name": "Graham Beck Brut, Western Cape NV",
+              "glass": 13,
+              "bottle": 50
+            }
+          ]
+        },
+        {
+          "name": "WHITE",
+          "wines": [
+            {
+              "name": "Santa Margherita Pinot Grigio, Alto Adige",
+              "glass": 14,
+              "bottle": 54
+            },
+            {
+              "name": "King Estate Pinot Gris, Oregon",
+              "glass": 13,
+              "bottle": 50
+            },
+            {
+              "name": "Kim Crawford Sauvignon Blanc, Marlborough",
+              "glass": 12,
+              "bottle": 46
+            },
+            {
+              "name": "Rombauer Chardonnay, Carneros",
+              "glass": 19,
+              "bottle": 74
+            },
+            {
+              "name": "Sonoma-Cutrer Chardonnay, Russian River Valley",
+              "glass": 14,
+              "bottle": 54
+            },
+            {
+              "name": "Leeuwin Estate Prelude Chardonnay, Margaret River",
+              "glass": 17,
+              "bottle": 66
+            },
+            {
+              "name": "Chateau Ste. Michelle Riesling, Washington",
+              "glass": 10,
+              "bottle": 38
+            },
+            {
+              "name": "Ken Forrester Chenin Blanc, Western Cape",
+              "glass": 11,
+              "bottle": 42
+            }
+          ]
+        },
+        {
+          "name": "ROSE",
+          "wines": [
+            {
+              "name": "Whispering Angel, Cotes de Provence",
+              "glass": 15,
+              "bottle": 58
+            }
+          ]
+        },
+        {
+          "name": "RED",
+          "wines": [
+            {
+              "name": "Meiomi Pinot Noir, California",
+              "glass": 13,
+              "bottle": 50
+            },
+            {
+              "name": "La Crema Pinot Noir, Sonoma Coast",
+              "glass": 15,
+              "bottle": 58
+            },
+            {
+              "name": "Cloudy Bay Pinot Noir, Marlborough",
+              "glass": 19,
+              "bottle": 74
+            },
+            {
+              "name": "Erath Pinot Noir, Oregon",
+              "glass": 14,
+              "bottle": 54
+            },
+            {
+              "name": "Penfolds Bin 28 Shiraz, South Australia",
+              "glass": 16,
+              "bottle": 62
+            },
+            {
+              "name": "d'Arenberg The Footbolt Shiraz, McLaren Vale",
+              "glass": 13,
+              "bottle": 50
+            },
+            {
+              "name": "Qupe Syrah, Central Coast",
+              "glass": 13,
+              "bottle": 50
+            },
+            {
+              "name": "Mullineux Syrah, Swartland",
+              "glass": 18,
+              "bottle": 70
+            },
+            {
+              "name": "Josh Cellars Cabernet Sauvignon, California",
+              "glass": 12,
+              "bottle": 46
+            },
+            {
+              "name": "Justin Cabernet Sauvignon, Paso Robles",
+              "glass": 16,
+              "bottle": 62
+            },
+            {
+              "name": "Rust en Vrede Estate Cabernet Sauvignon, Stellenbosch",
+              "glass": 20,
+              "bottle": 78
+            },
+            {
+              "name": "Wynns Coonawarra Estate Cabernet Sauvignon, Coonawarra",
+              "glass": 17,
+              "bottle": 66
+            },
+            {
+              "name": "Catena Malbec, Mendoza",
+              "glass": 13,
+              "bottle": 50
+            },
+            {
+              "name": "Duckhorn Merlot, Napa Valley",
+              "glass": 22,
+              "bottle": 86
+            }
+          ]
+        }
+      ]
+    },
+    "mixed": {
+      "about": "Control: six wines poured by the glass only (one price each), then eight bottles",
+      "title": "WINE LIST",
+      "priceStyle": "single",
+      "sections": [
+        {
+          "name": "BY THE GLASS",
+          "wines": [
+            {
+              "name": "La Marca Prosecco, Veneto NV",
+              "price": 11
+            },
+            {
+              "name": "Ken Forrester Chenin Blanc, Stellenbosch 2023",
+              "price": 12
+            },
+            {
+              "name": "Kim Crawford Sauvignon Blanc, Marlborough 2023",
+              "price": 13
+            },
+            {
+              "name": "Whispering Angel Rose, Cotes de Provence 2023",
+              "price": 15
+            },
+            {
+              "name": "Meiomi Pinot Noir, California 2022",
+              "price": 13
+            },
+            {
+              "name": "Catena Malbec, Mendoza 2021",
+              "price": 14
+            }
+          ]
+        },
+        {
+          "name": "WHITE BY THE BOTTLE",
+          "wines": [
+            {
+              "name": "Hamilton Russell Chardonnay, Hemel-en-Aarde 2022",
+              "price": 88
+            },
+            {
+              "name": "Domaine Vacheron Sancerre, Loire 2022",
+              "price": 76
+            },
+            {
+              "name": "Mullineux Old Vines White, Swartland 2022",
+              "price": 64
+            }
+          ]
+        },
+        {
+          "name": "RED BY THE BOTTLE",
+          "wines": [
+            {
+              "name": "Kanonkop Pinotage, Stellenbosch 2020",
+              "price": 78
+            },
+            {
+              "name": "Meerlust Rubicon, Stellenbosch 2019",
+              "price": 95
+            },
+            {
+              "name": "Penfolds Bin 28 Shiraz, South Australia 2020",
+              "price": 62
+            },
+            {
+              "name": "Justin Cabernet Sauvignon, Paso Robles 2020",
+              "price": 62
+            },
+            {
+              "name": "E. Guigal Cotes du Rhone 2020",
+              "price": 46
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "palates": {
+    "sept19_a": {
+      "about": "Stellenbosch-led: South Africa and France; Cabernet, Syrah, Chenin, Sauvignon Blanc",
+      "list": "sept19",
+      "profile": {
+        "countries": [
+          "south_africa",
+          "france"
+        ],
+        "regions": {
+          "south_africa": [
+            "stellenbosch"
+          ],
+          "france": [
+            "bordeaux"
+          ]
+        },
+        "estates": {},
+        "varietals": [
+          "cabernet_sauvignon",
+          "syrah",
+          "chenin_blanc",
+          "sauvignon_blanc"
+        ],
+        "specific_wines": []
+      }
+    },
+    "sept19_b": {
+      "about": "Stellenbosch-led: South Africa, Italy and Spain; Cabernet, Malbec, Chardonnay",
+      "list": "sept19",
+      "profile": {
+        "countries": [
+          "south_africa",
+          "italy",
+          "spain"
+        ],
+        "regions": {
+          "south_africa": [
+            "stellenbosch"
+          ],
+          "italy": [
+            "tuscany"
+          ],
+          "spain": [
+            "rioja"
+          ]
+        },
+        "estates": {},
+        "varietals": [
+          "cabernet_sauvignon",
+          "malbec",
+          "chardonnay"
+        ],
+        "specific_wines": []
+      }
+    },
+    "aug8": {
+      "about": "South Africa + Australia; Cabernet, Syrah, Pinot Noir, Chardonnay, Pinot Grigio",
+      "list": "aug8",
+      "profile": {
+        "countries": [
+          "south_africa",
+          "australia"
+        ],
+        "regions": {
+          "south_africa": [
+            "stellenbosch"
+          ],
+          "australia": [
+            "barossa"
+          ]
+        },
+        "estates": {},
+        "varietals": [
+          "cabernet_sauvignon",
+          "syrah",
+          "pinot_noir",
+          "chardonnay",
+          "pinot_grigio"
+        ],
+        "specific_wines": []
+      }
+    }
+  },
+  "headings": {
+    "plain": "WINE",
+    "glass": "WINES BY THE GLASS & BOTTLE"
+  }
+}

@@ -18,12 +18,32 @@ const VARIETAL_LOOKUP = wineUnified.varietalLookup;
 // BUILD SEARCH INDEX
 // ═══════════════════════════════════════════════════════
 
+// One spelling for matching: lowercase, accents folded. A list prints "Cotes
+// du Rhone" as often as "Côtes du Rhône", and a photo reads what is printed.
+export function foldText(text) {
+  return String(text).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+// Areas wider than any one region here: they name a country and nothing
+// finer. regionLookup files "central coast" under Livermore Valley (one of
+// the dozen regions it spans), which made every Central Coast wine a
+// Livermore wine; the Western Cape is most of South Africa's vineyard.
+const BROAD_AREAS = { "western cape": "south_africa", "central coast": "us" };
+
+// Regions the trade calls by a shorter name than the data's
+const SHORT_REGION_NAMES = { "loire": "loire valley", "rhône": "rhône valley" };
+
+// A grape name that, without its accent, is also a plain word ("Rosé" /
+// "Château La Rose"): in a wine's NAME only the accented spelling counts.
+// A variety field is a statement about the grape, so there either does.
+const ACCENT_ONLY_IN_NAMES = new Set(["rose"]);
+
 function buildSearchIndex() {
   const idx = { regionTerms: [], producerTerms: [], varietyTerms: [], countryTerms: [] };
 
   // Regions from unified regionLookup (992 entries)
   for (const [term, data] of Object.entries(REGION_LOOKUP)) {
-    if (term.length < 4 || ["other", "america", "europe"].includes(term)) continue;
+    if (term.length < 4 || ["other", "america", "europe"].includes(term) || BROAD_AREAS[term]) continue;
     idx.regionTerms.push({
       term, dnaRegionId: data.regionId, dnaCountryId: data.country, count: 0,
     });
@@ -52,6 +72,10 @@ function buildSearchIndex() {
       if (term.length < 4 || idx.regionTerms.some(r => r.term === term)) continue;
       idx.regionTerms.push({ ...combined, term });
     }
+  }
+  for (const [short, long] of Object.entries(SHORT_REGION_NAMES)) {
+    const full = idx.regionTerms.find(r => r.term === long);
+    if (full && !idx.regionTerms.some(r => r.term === short)) idx.regionTerms.push({ ...full, term: short });
   }
   idx.regionTerms.sort((a, b) => b.term.length - a.term.length);
 
@@ -116,6 +140,7 @@ function buildSearchIndex() {
   const usCount = usCountry ? usCountry.reviewCount : 54504;
   idx.countryTerms.push({ term: "united states", name: "United States", dnaCountryId: "us", count: usCount });
   idx.countryTerms.push({ term: "u.s.a.", name: "United States", dnaCountryId: "us", count: usCount });
+  idx.countryTerms.push({ term: "usa", name: "United States", dnaCountryId: "us", count: usCount });
 
   // Add US state full names as country-level signals
   var stateToUSA = ["california", "oregon", "washington", "new york", "virginia", "texas",
@@ -125,6 +150,30 @@ function buildSearchIndex() {
     if (!idx.regionTerms.some(function(r) { return r.term === stateToUSA[si]; })) {
       idx.countryTerms.push({ term: stateToUSA[si], name: "United States", dnaCountryId: "us", count: 1000 });
     }
+  }
+
+  // Broad areas: a country-level signal, like the states
+  for (const [area, countryId] of Object.entries(BROAD_AREAS)) {
+    const country = COUNTRIES.find(c => c.id === countryId);
+    idx.countryTerms.push({ term: area, name: countryId === "us" ? "United States" : country.name, dnaCountryId: countryId, count: 1000 });
+  }
+
+  // Regions, grapes and countries are matched in one folded spelling
+  for (const r of idx.regionTerms) r.fold = foldText(r.term);
+  for (const c of idx.countryTerms) c.fold = foldText(c.term);
+  for (const v of idx.varietyTerms) {
+    v.fold = foldText(v.term);
+    if (v.fold !== v.term && ACCENT_ONLY_IN_NAMES.has(v.fold)) v.accentOnlyInNames = true;
+  }
+
+  // A region FIELD may hold a name too short to scan a line for ("Dão"):
+  // every region spelling, by its folded form, for whole-field matches
+  idx.regionByFold = new Map();
+  for (const r of idx.regionTerms) if (!idx.regionByFold.has(r.fold)) idx.regionByFold.set(r.fold, r);
+  for (const [term, data] of Object.entries(REGION_LOOKUP)) {
+    const key = foldText(term);
+    if (idx.regionByFold.has(key) || ["other", "america", "europe"].includes(term) || BROAD_AREAS[term]) continue;
+    idx.regionByFold.set(key, { term, fold: key, dnaRegionId: data.regionId, dnaCountryId: data.country, count: 0 });
   }
 
   // Core-name aliases: menus write "Newton Johnson", WineMag keys "Newton
@@ -345,6 +394,13 @@ export function parseWineList(text) {
     var stripped = line.replace(/[^a-zA-Z\u00C0-\u00FF\s]/g, "").trim();
     var strippedLower = stripped.toLowerCase();
 
+    // "Wines by the Glass & Bottle", the "GLASS  BOTTLE" over two price
+    // columns: a heading, and what follows is offered both ways
+    if (/^(wines?\s+)?(by\s+the\s+)?glass\s+(and\s+|or\s+)?(by\s+the\s+)?bottle$/i.test(stripped.replace(/\s+/g, " "))) {
+      inBTGSection = false;
+      continue;
+    }
+
     // Check if this line is a section header
     if (skipPatterns.test(stripped)) {
       // Track by-the-glass vs bottle section state
@@ -403,14 +459,22 @@ export function parseWineList(text) {
     // "$95", "95", "25.", "10/40" (glass/bottle), "$10/$40"
     var price = null;
     var name = line;
-    var isGlassBottlePrice = false;
+    var glassPrice = null;
 
-    // Format: "10/40" or "$10/$40" (glass/bottle) — take bottle price, flag as BTG
+    // A glass price and a bottle price — "10/40", "$10 / $40", or two price
+    // columns set apart by a gap ("…   18    72"): the wine is a BOTTLE at
+    // the bottle price. (Until Nov 2026 a pair flagged the wine by-the-glass
+    // and the engine dropped it — every wine on a glass-and-bottle list.)
+    // One space is not a column: "Penfolds Bin 28 62" keeps its bin number.
     var glassBottle = line.match(/\$?\s*(\d{1,3})\s*\/\s*\$?\s*(\d{1,4})\s*\.?\s*$/);
+    if (!glassBottle) {
+      var columns = line.match(/(?:\s{2,}|\t+)\$?(\d{1,3})(?:\s{2,}|\t+)\$?(\d{1,4})\s*\.?\s*$/);
+      if (columns && parseFloat(columns[1]) < parseFloat(columns[2])) glassBottle = columns;
+    }
     if (glassBottle) {
       price = parseFloat(glassBottle[2]);
+      glassPrice = parseFloat(glassBottle[1]);
       name = line.slice(0, glassBottle.index).trim();
-      isGlassBottlePrice = true;
     } else {
       // Standard: "$95" or "95" or "95." at end
       var priceMatch = line.match(/\$?\s*(\d{1,4}(?:\.\d{2})?)\s*\.?\s*$/);
@@ -484,7 +548,9 @@ export function parseWineList(text) {
       originalLine: line,
       sectionVarietal: currentVarietal || null,
       sectionColor: currentColor || null,
-      isByTheGlass: inBTGSection || isGlassBottlePrice,
+      glassPrice: glassPrice,
+      // By the glass ONLY: under a by-the-glass heading, with no bottle price
+      isByTheGlass: inBTGSection && glassPrice == null,
     });
   }
   return entries;
@@ -494,84 +560,108 @@ export function parseWineList(text) {
 // ═══════════════════════════════════════════════════════
 // ATTRIBUTE DETECTION (shared by scoring + feedback)
 // ═══════════════════════════════════════════════════════
+//
+// One set of lookups reads a pasted line and a photographed wine. A line is
+// read whole; a photo's fields are each read for what they are (a region
+// field for a region, a variety field for grapes) through the SAME terms
+// and the same matcher, and whatever a field doesn't settle falls back to
+// the wine's own name. Texts arrive padded with a space at each end;
+// "folded" texts are lowercase with accents removed (foldText), "raw" ones
+// lowercase only — producer names keep their accents, as their keys do.
+
+const pad = function(text) { return " " + text + " "; };
+
+// Producers — word-boundary matching, NOT raw substring: producers named
+// "Cass"/"Pier"/"Rozès" must not hit inside "Cassis"/"Pierre"/
+// "Crozes-Hermitage" (the country-misattribution bugs)
+function findProducer(raw) {
+  for (var pi = 0; pi < SEARCH_INDEX.producerTerms.length; pi++) {
+    const prod = SEARCH_INDEX.producerTerms[pi];
+    if (prod.term.length < 4) continue;
+    if (termMatchesInText(prod.term, raw, prod.alias)) return prod;
+  }
+  return null;
+}
+
+// The longest region term the text states. A term that IS the producer's
+// name is passed over (`claimed` holds that name, folded — "Gård" the
+// Washington producer is not the Gard)
+function findRegion(folded, claimed) {
+  for (var ri = 0; ri < SEARCH_INDEX.regionTerms.length; ri++) {
+    const reg = SEARCH_INDEX.regionTerms[ri];
+    if (claimed && claimed.has(reg.fold)) continue;
+    if (termMatchesInText(reg.fold, folded)) return reg;
+  }
+  return null;
+}
+
+// The longest grape term the text states — word-boundary matching ("Port"
+// must not hit inside "Portugal"/"Porto" and force a wrong color)
+function findVarietal(folded, raw) {
+  for (var vi = 0; vi < SEARCH_INDEX.varietyTerms.length; vi++) {
+    const v = SEARCH_INDEX.varietyTerms[vi];
+    if (v.accentOnlyInNames ? termMatchesInText(v.term, raw) : termMatchesInText(v.fold, folded)) return v;
+  }
+  return null;
+}
+
+function findCountry(folded) {
+  for (var ci = 0; ci < SEARCH_INDEX.countryTerms.length; ci++) {
+    const c = SEARCH_INDEX.countryTerms[ci];
+    if (c.term.length < 3) continue;
+    if (termMatchesInText(c.fold, folded)) return c;
+  }
+  return null;
+}
+
+// A producer hit is a guess; the region or country a wine names outright
+// is not. A producer whose home contradicts it is a namesake — Sonoma's
+// Jordan on a Stellenbosch line, Israel's Alexander inside "Alexander
+// Valley" — and contributes nothing (the engine's half of wineResolver's
+// Step 3.5 guard). Geography inside the producer's own name ("Concha y
+// Toro", "Vega Sicilia") says nothing about the bottle, and a region name
+// two countries share ("Central Valley") agrees with either.
+function isNamesake(producer, region, statedCountry) {
+  if (!producer || !producer.dnaCountryId) return false;
+  const ownName = foldText(producer.term);
+  const stated = [region, statedCountry].filter(function(g) {
+    return g && g.dnaCountryId && ownName.indexOf(g.fold) < 0;
+  });
+  const agrees = function(g) {
+    return g.dnaCountryId === producer.dnaCountryId || (g.sharedWith || []).indexOf(producer.dnaCountryId) >= 0;
+  };
+  return stated.length > 0 && !stated.some(agrees);
+}
 
 function detectWineAttributes(wineName) {
-  const text = " " + wineName.toLowerCase() + " ";
+  const raw = pad(wineName.toLowerCase());
+  const folded = pad(foldText(wineName));
   const regionIds = new Set();
   const countryIds = new Set();
   const varietalIds = new Set();
   const producerTerms = new Set();
+  const regionLabels = new Map();
   var color = null;
   const claimed = new Set();
 
-  // Producer detection — word-boundary matching, NOT raw substring:
-  // producers named "Cass"/"Pier"/"Rozès" must not hit inside
-  // "Cassis"/"Pierre"/"Crozes-Hermitage" (the country-misattribution bugs)
-  var producer = null;
-  for (var pi = 0; pi < SEARCH_INDEX.producerTerms.length; pi++) {
-    const prod = SEARCH_INDEX.producerTerms[pi];
-    if (prod.term.length < 4) continue;
-    if (termMatchesInText(prod.term, text, prod.alias)) {
-      producer = prod;
-      claimed.add(prod.term);
-      break;
-    }
+  var producer = findProducer(raw);
+  if (producer) claimed.add(foldText(producer.term));
+
+  const region = findRegion(folded, claimed);
+  if (region && region.dnaRegionId) {
+    regionIds.add(region.dnaRegionId);
+    regionLabels.set(region.dnaRegionId, region.term);
   }
 
-  // Region detection
-  var region = null;
-  for (var ri = 0; ri < SEARCH_INDEX.regionTerms.length; ri++) {
-    const reg = SEARCH_INDEX.regionTerms[ri];
-    if (claimed.has(reg.term)) continue;
-    if (termMatchesInText(reg.term, text)) {
-      region = reg;
-      if (reg.dnaRegionId) regionIds.add(reg.dnaRegionId);
-      claimed.add(reg.term);
-      break;
-    }
+  const varietal = findVarietal(folded, raw);
+  if (varietal) {
+    if (varietal.dnaVarietalId) varietalIds.add(varietal.dnaVarietalId);
+    if (varietal.color) color = varietal.color;
   }
 
-  // Varietal detection — word-boundary matching ("Port" must not hit
-  // inside "Portugal"/"Porto" and force a wrong color)
-  for (var vi = 0; vi < SEARCH_INDEX.varietyTerms.length; vi++) {
-    const v = SEARCH_INDEX.varietyTerms[vi];
-    if (termMatchesInText(v.term, text)) {
-      if (v.dnaVarietalId) varietalIds.add(v.dnaVarietalId);
-      if (v.color && !color) color = v.color;
-      claimed.add(v.term);
-      break;
-    }
-  }
+  const statedCountry = findCountry(folded);
 
-  // Country detection
-  var statedCountry = null;
-  for (var ci = 0; ci < SEARCH_INDEX.countryTerms.length; ci++) {
-    const c = SEARCH_INDEX.countryTerms[ci];
-    if (c.term.length < 4) continue;
-    if (termMatchesInText(c.term, text)) {
-      statedCountry = c;
-      break;
-    }
-  }
-
-  // A producer hit is a guess; the region or country a line names outright
-  // is not. A producer whose home contradicts it is a namesake — Sonoma's
-  // Jordan on a Stellenbosch line, Israel's Alexander inside "Alexander
-  // Valley" — and contributes nothing (the engine's half of wineResolver's
-  // Step 3.5 guard). Geography inside the producer's own name ("Concha y
-  // Toro", "Vega Sicilia") says nothing about the bottle, and a region name
-  // two countries share ("Central Valley") agrees with either.
-  if (producer && producer.dnaCountryId) {
-    const stated = [region, statedCountry].filter(function(g) {
-      return g && g.dnaCountryId && producer.term.indexOf(g.term) < 0;
-    });
-    const agrees = function(g) {
-      return g.dnaCountryId === producer.dnaCountryId || (g.sharedWith || []).indexOf(producer.dnaCountryId) >= 0;
-    };
-    if (stated.length > 0 && !stated.some(agrees)) {
-      producer = null;
-    }
-  }
+  if (isNamesake(producer, region, statedCountry)) producer = null;
 
   // Canonical name, whichever form matched ("& Fils", a core-name alias), so
   // estate, feedback and producer-id lookups see one producer
@@ -582,7 +672,136 @@ function detectWineAttributes(wineName) {
   if (region && region.dnaCountryId) countryIds.add(region.dnaCountryId);
   if (statedCountry && statedCountry.dnaCountryId) countryIds.add(statedCountry.dnaCountryId);
 
-  return { regionIds, countryIds, varietalIds, producerTerms, color };
+  return { regionIds, countryIds, varietalIds, producerTerms, color, regionLabels };
+}
+
+// ─── A photographed wine: its fields, then its name ───
+
+// What a field holds, or "" — Vision writes null, and sometimes "null"
+function fieldText(value) {
+  if (typeof value !== "string") return "";
+  const text = value.trim();
+  return text && text.toLowerCase() !== "null" ? text : "";
+}
+
+// A producer field: the whole field as a producer's own key first — which
+// reaches names a line is never scanned for ("COS", "KWV": under four
+// letters) — then the longest producer inside it ("Justin Vineyards & Winery")
+function findProducerInField(field) {
+  if (!field) return null;
+  const exact = PRODUCER_LOOKUP[field];
+  if (exact) return { term: field, name: field, dnaCountryId: exact.country || null };
+  return findProducer(pad(field));
+}
+
+// A region field: the whole field as one name first (which reaches names
+// too short to scan a line for, and "Crozes Hermitage" without its hyphen),
+// then the longest region inside it ("Sonoma Coast, California"), then the
+// valley it can only mean ("Willamette")
+function findRegionInField(field) {
+  if (!field) return null;
+  const spellings = [field, field.replace(/\s+/g, "-"), field.replace(/-/g, " ")];
+  for (var i = 0; i < spellings.length; i++) {
+    const exact = SEARCH_INDEX.regionByFold.get(spellings[i]);
+    if (exact) return exact;
+  }
+  for (var j = 0; j < spellings.length; j++) {
+    const inside = findRegion(pad(spellings[j]), null);
+    if (inside) return inside;
+  }
+  return SEARCH_INDEX.regionByFold.get(field + " valley") || null;
+}
+
+// A variety field: EVERY grape it names, in the order it names them —
+// "Cabernet Sauvignon, Merlot", "Grenache-Syrah blend". Each term found is
+// blanked out before the next, so "Cabernet Sauvignon" never also reads as
+// "Sauvignon", and a grape under two names ("Syrah / Shiraz") is one grape.
+function findVarietalsInField(field) {
+  if (!field) return [];
+  var work = pad(field);
+  const found = [];
+  for (var vi = 0; vi < SEARCH_INDEX.varietyTerms.length; vi++) {
+    const v = SEARCH_INDEX.varietyTerms[vi];
+    if (!termMatchesInText(v.fold, work)) continue;
+    const at = work.indexOf(v.fold);
+    if (!found.some(function(f) { return f.term.dnaVarietalId === v.dnaVarietalId; })) found.push({ term: v, at: at });
+    work = work.split(v.fold).join(",".repeat(v.fold.length));
+  }
+  return found.sort(function(a, b) { return a.at - b.at; }).map(function(f) { return f.term; });
+}
+
+// The United States as a country FIELD holds it. "US" is no word to scan a
+// line for; alone in a country field it can be nothing else.
+const US_FIELD_NAMES = new Set(["us", "usa", "u.s", "u.s.", "u.s.a", "u.s.a.", "united states", "united states of america", "america"]);
+
+function findCountryInField(field) {
+  if (!field) return null;
+  if (US_FIELD_NAMES.has(field)) return SEARCH_INDEX.countryTerms.find(function(c) { return c.term === "united states"; });
+  return findCountry(pad(field));
+}
+
+function detectVisionAttributes(entry) {
+  const vd = entry.visionData || {};
+  const name = typeof entry.name === "string" ? entry.name : "";
+  const nameRaw = pad(name.toLowerCase());
+  const nameFolded = pad(foldText(name));
+  const regionIds = new Set();
+  const countryIds = new Set();
+  const varietalIds = new Set();
+  const producerTerms = new Set();
+  const regionLabels = new Map();
+  const claimed = new Set();
+
+  // Producer: the photo's producer field, else the name
+  const producerField = fieldText(vd.producer);
+  var producer = findProducerInField(producerField.toLowerCase()) || findProducer(nameRaw);
+  if (producer) claimed.add(foldText(producer.term));
+
+  // Region: the field's own words, else the name's
+  const regionField = foldText(fieldText(vd.region));
+  const region = findRegionInField(regionField) || findRegion(nameFolded, claimed);
+  if (region && region.dnaRegionId) {
+    regionIds.add(region.dnaRegionId);
+    regionLabels.set(region.dnaRegionId, region.term);
+  }
+
+  // Grapes: every one the field names, else the first the name does
+  var varietals = findVarietalsInField(foldText(fieldText(vd.variety)));
+  if (varietals.length === 0) {
+    const fromName = findVarietal(nameFolded, nameRaw);
+    if (fromName) varietals = [fromName];
+  }
+  var varietalColor = null;
+  for (var vi = 0; vi < varietals.length; vi++) {
+    if (varietals[vi].dnaVarietalId) varietalIds.add(varietals[vi].dnaVarietalId);
+    if (varietals[vi].color && !varietalColor) varietalColor = varietals[vi].color;
+  }
+
+  // Country: the field; else a state or a broad area in the region field
+  // ("California", "Western Cape"); else the name
+  const statedCountry = findCountryInField(foldText(fieldText(vd.country)))
+    || (regionField ? findCountry(pad(regionField)) : null)
+    || findCountry(nameFolded);
+
+  if (isNamesake(producer, region, statedCountry)) producer = null;
+
+  // The country the photo states leads (it is the surest reading on the page)
+  if (statedCountry && statedCountry.dnaCountryId) countryIds.add(statedCountry.dnaCountryId);
+  if (producer) {
+    producerTerms.add(producer.name);
+    if (producer.dnaCountryId) countryIds.add(producer.dnaCountryId);
+  }
+  if (region && region.dnaCountryId) countryIds.add(region.dnaCountryId);
+
+  return {
+    regionIds, countryIds, varietalIds, producerTerms, regionLabels,
+    // The photo's color stands; without one, the grape's
+    color: fieldText(vd.color) || varietalColor,
+    // The producer as the photo read it — the estate reason's words, and
+    // the producer a wine keeps (for variety among the picks) when the data
+    // doesn't know it
+    producerReading: producerField || null,
+  };
 }
 
 
@@ -693,17 +912,23 @@ function getQualityBonus(producerName) {
 // SCORING
 // ═══════════════════════════════════════════════════════
 
-function scoreEntryFromText(entry, userDNA, feedbackSignals) {
+// ONE scorer for a pasted line and a photographed wine: what differs between
+// them is only how their attributes were read (detectWineAttributes for a
+// line, detectVisionAttributes for a photo's fields). Until Nov 2026 the
+// photo had a scorer of its own with exact-match lookups, and the same wine
+// could score 5 pasted and 0 photographed.
+function scoreWithAttributes(entry, attrs, userDNA, feedbackSignals) {
   const text = " " + entry.name.toLowerCase() + " ";
   var score = 0;
   const matchReasons = [];
-  const attrs = detectWineAttributes(entry.name);
   const detectedRegionIds = attrs.regionIds;
   const detectedCountryIds = attrs.countryIds;
   var detectedColor = attrs.color;
+  // A region reason says the place the wine itself states
+  const regionLabel = function(regId) { return attrs.regionLabels.get(regId) || regId; };
 
   // Extract producer name and ID for diversity checks and quality bonus
-  var detectedProducerName = null;
+  var detectedProducerName = attrs.producerReading || null;
   var detectedProducerId = null;
   if (attrs.producerTerms.size > 0) {
     var firstProdTerm = Array.from(attrs.producerTerms)[0];
@@ -718,23 +943,21 @@ function scoreEntryFromText(entry, userDNA, feedbackSignals) {
     if (userDNA.estateNames.has(prodTerm)) {
       var prodEntry = SEARCH_INDEX.producerTerms.find(function(p) { return p.term === prodTerm; });
       score += 5;
-      matchReasons.push({ type: "estate", label: prodEntry ? prodEntry.name : prodTerm, weight: 5 });
+      matchReasons.push({ type: "estate", label: attrs.producerReading || (prodEntry ? prodEntry.name : prodTerm), weight: 5 });
     }
   }
 
   // REGION (weight: 3 direct, 1 adjacent)
   for (const regId of detectedRegionIds) {
     if (userDNA.regions.has(regId)) {
-      var regEntry = SEARCH_INDEX.regionTerms.find(function(r) { return r.dnaRegionId === regId; });
       score += 3;
-      matchReasons.push({ type: "region", label: regEntry ? regEntry.term : regId, weight: 3 });
+      matchReasons.push({ type: "region", label: regionLabel(regId), weight: 3 });
     } else {
       // Check country-level match for this region
       for (const cId of detectedCountryIds) {
         if (userDNA.countries.has(cId)) {
           var cName = COUNTRIES.find(function(c) { return c.id === cId; });
-          var regEntry2 = SEARCH_INDEX.regionTerms.find(function(r) { return r.dnaRegionId === regId; });
-          var regLabel = regEntry2 ? regEntry2.term : regId;
+          var regLabel = regionLabel(regId);
           score += 1;
           matchReasons.push({ type: "country_region", label: regLabel + " (you like " + (cName ? cName.name : cId) + ")", weight: 1 });
           break;
@@ -868,209 +1091,57 @@ function scoreEntryFromText(entry, userDNA, feedbackSignals) {
     detectedVarietalIds: Array.from(attrs.varietalIds),
     detectedProducer: detectedProducerName,
     detectedProducerId: detectedProducerId,
-    vintage: entry.vintage || null,
+    vintage: (entry.visionData && entry.visionData.vintage) || entry.vintage || null,
     visionData: entry.visionData || null,
   };
 }
 
-function scoreEntryFromVision(entry, userDNA, feedbackSignals) {
-  var score = 0;
-  var matchReasons = [];
-  var vd = entry.visionData;
-
-  // PRODUCER (weight: 5) — use visionData.producer against estateNames
-  var detectedProducerName = vd.producer || null;
-  var detectedProducerId = null;
-  if (detectedProducerName) {
-    var prodNorm = detectedProducerName.toLowerCase().trim();
-    var prodLookup = PRODUCER_LOOKUP[prodNorm];
-    if (prodLookup) {
-      detectedProducerId = prodLookup.producerId;
-    }
-    // userDNA.estateNames is a Set of lowercase name strings (e.g., "kanonkop")
-    if (userDNA.estateNames.has(prodNorm)) {
-      score += 5;
-      matchReasons.push({ type: "estate", label: detectedProducerName, weight: 5 });
-    }
-  }
-
-  // COUNTRY first — Vision's country is most reliable source, must be detectedCountryIds[0]
-  var detectedRegionIds = [];
-  var detectedCountryIds = [];
-  var visionCountryId = null;
-  if (vd.country) {
-    var countryNorm = vd.country.toLowerCase().trim();
-    var countryObj = COUNTRIES.find(function(c) { return c.name.toLowerCase() === countryNorm || c.id === countryNorm; });
-    visionCountryId = countryObj ? countryObj.id : null;
-    if (visionCountryId) detectedCountryIds.push(visionCountryId);
-  }
-
-  // REGION (weight: 3 direct, 1 adjacent)
-  if (vd.region) {
-    var regionNorm = vd.region.toLowerCase().trim();
-    // Try direct REGION_LOOKUP first
-    var regionEntry = REGION_LOOKUP[regionNorm];
-    // Fallback: try without hyphens (Vision may return "Crozes Hermitage" vs "crozes-hermitage")
-    if (!regionEntry) {
-      var withHyphens = regionNorm.replace(/\s+/g, "-");
-      regionEntry = REGION_LOOKUP[withHyphens];
-    }
-    if (!regionEntry) {
-      var withSpaces = regionNorm.replace(/-/g, " ");
-      regionEntry = REGION_LOOKUP[withSpaces];
-    }
-    // Fallback: search SEARCH_INDEX.regionTerms for substring match
-    if (!regionEntry) {
-      var searchHit = SEARCH_INDEX.regionTerms.find(function(r) { return r.term === regionNorm || r.term === regionNorm.replace(/\s+/g, "-") || r.term === regionNorm.replace(/-/g, " "); });
-      if (searchHit) {
-        regionEntry = { regionId: searchHit.dnaRegionId, country: searchHit.dnaCountryId };
-      }
-    }
-    if (regionEntry) {
-      detectedRegionIds.push(regionEntry.regionId);
-      // Only add region's country if we don't already have a Vision country
-      if (regionEntry.country && detectedCountryIds.indexOf(regionEntry.country) < 0) {
-        detectedCountryIds.push(regionEntry.country);
-      }
-      if (userDNA.regions.has(regionEntry.regionId)) {
-        score += 3;
-        matchReasons.push({ type: "region", label: regionEntry.regionId, weight: 3 });
-      } else {
-        // Check country-level match (use Vision country or region country)
-        var effectiveCountry = visionCountryId || regionEntry.country;
-        if (effectiveCountry && userDNA.countries.has(effectiveCountry)) {
-          score += 1;
-          var cName = COUNTRIES.find(function(c) { return c.id === effectiveCountry; });
-          matchReasons.push({ type: "country_region", label: regionNorm + " (you like " + (cName ? cName.name : effectiveCountry) + ")", weight: 1 });
-        }
-      }
-    }
-  }
-
-  // COUNTRY scoring (weight: 1, only if no region already scored)
-  if (visionCountryId && !matchReasons.some(function(r) { return r.type === "region" || r.type === "country_region"; })) {
-    if (userDNA.countries.has(visionCountryId)) {
-      var countryObj2 = COUNTRIES.find(function(c) { return c.id === visionCountryId; });
-      score += 1;
-      matchReasons.push({ type: "country", label: countryObj2 ? countryObj2.name : visionCountryId, weight: 1 });
-    }
-  }
-
-  // VARIETAL (weight: 2) — handle blends by splitting
-  var detectedVarietalIds = [];
-  if (vd.variety) {
-    var varietyLower = vd.variety.toLowerCase().trim();
-    var varietyTerms = [varietyLower];
-    if (varietyLower.indexOf("blend") >= 0) {
-      var parts = varietyLower.replace(/\s*blend\s*/g, "").split(/[-,\/]/);
-      for (var vi = 0; vi < parts.length; vi++) {
-        var pt = parts[vi].trim();
-        if (pt.length >= 3) varietyTerms.push(pt);
-      }
-    }
-    for (var vi = 0; vi < varietyTerms.length; vi++) {
-      var vTerm = varietyTerms[vi];
-      var varLookup = VARIETAL_LOOKUP[vTerm];
-      var varId = varLookup || null;
-      if (!varId) {
-        var foundVar = VARIETALS.find(function(v) { return v.name.toLowerCase() === vTerm; });
-        if (foundVar) varId = foundVar.id;
-      }
-      if (varId && detectedVarietalIds.indexOf(varId) < 0) {
-        detectedVarietalIds.push(varId);
-        if (userDNA.varietals.has(varId)) {
-          score += 2;
-          var varEntry = VARIETALS.find(function(v) { return v.id === varId; });
-          matchReasons.push({ type: "varietal", label: varEntry ? varEntry.name : varId, weight: 2 });
-        }
-      }
-    }
-  }
-
-  // FAVORITE WINE (weight: 10) — scan name
-  var text = " " + entry.name.toLowerCase() + " ";
-  for (var fi = 0; fi < userDNA.specificWines.length; fi++) {
-    var fav = userDNA.specificWines[fi];
-    if (fav.length >= 4 && text.indexOf(fav.toLowerCase()) >= 0) {
-      score += 10;
-      matchReasons.push({ type: "favorite", label: fav, weight: 10 });
-    }
-  }
-
-  // FEEDBACK SIGNALS
-  if (feedbackSignals) {
-    for (var si = 0; si < feedbackSignals.suppressedWineNames.length; si++) {
-      var suppressed = feedbackSignals.suppressedWineNames[si];
-      if (suppressed.length >= 4 && text.indexOf(suppressed.toLowerCase()) >= 0) {
-        var favIdx = matchReasons.findIndex(function(r) { return r.type === "favorite"; });
-        if (favIdx >= 0) { score -= matchReasons[favIdx].weight; matchReasons.splice(favIdx, 1); }
-        score -= 5;
-        matchReasons.push({ type: "feedback_suppress", label: "You didn't enjoy this wine", weight: -5 });
-      }
-    }
-    for (var ri = 0; ri < detectedRegionIds.length; ri++) {
-      var regId = detectedRegionIds[ri];
-      var rBoost = feedbackSignals.boostedRegions.get(regId);
-      if (rBoost) { score += rBoost.weight; matchReasons.push({ type: "feedback_boost", label: "You " + (rBoost.weight >= 2 ? "loved" : "liked") + " wines from this region", weight: rBoost.weight }); }
-      if (feedbackSignals.suppressedRegions.has(regId)) { score -= 2; matchReasons.push({ type: "feedback_suppress", label: "Similar region to a wine you didn't enjoy", weight: -2 }); }
-    }
-    for (var vsi = 0; vsi < detectedVarietalIds.length; vsi++) {
-      var varIdFb = detectedVarietalIds[vsi];
-      var vBoost = feedbackSignals.boostedVarietals.get(varIdFb);
-      if (vBoost) { score += vBoost.weight; matchReasons.push({ type: "feedback_boost", label: "You " + (vBoost.weight >= 2 ? "loved" : "liked") + " wines with this grape", weight: vBoost.weight }); }
-      if (feedbackSignals.suppressedVarietals.has(varIdFb)) { score -= 2; matchReasons.push({ type: "feedback_suppress", label: "Similar grape to a wine you didn't enjoy", weight: -2 }); }
-    }
-    if (detectedProducerName) {
-      var pTerm = detectedProducerName.toLowerCase().trim();
-      var pBoost = feedbackSignals.boostedProducers.get(pTerm);
-      if (pBoost) { score += pBoost.weight; matchReasons.push({ type: "feedback_boost", label: "You've enjoyed this producer before", weight: pBoost.weight }); }
-      if (feedbackSignals.suppressedProducers.has(pTerm)) { score -= 3; matchReasons.push({ type: "feedback_suppress", label: "You didn't enjoy this producer", weight: -3 }); }
-    }
-  }
-
-  // QUALITY BONUS
-  if (detectedProducerName) {
-    var quality = getQualityBonus(detectedProducerName);
-    if (quality.bonus > 0) {
-      score += quality.bonus;
-      matchReasons.push({ type: "quality", label: quality.avgRating + " pts (" + quality.reviewCount + " reviews)", weight: quality.bonus });
-    }
-  }
-
-  // ESTATE + REGION COMBO
-  var hasEstate = matchReasons.some(function(r) { return r.type === "estate"; });
-  var hasRegion = matchReasons.some(function(r) { return r.type === "region"; });
-  if (hasEstate && hasRegion) score += 1;
-
-  var detectedColor = vd.color || entry.sectionColor || null;
-  // Rosé-only appellation override (e.g., Tavel is always rosé)
-  if (isRoseOnlyAppellation(entry)) detectedColor = "rosé";
-
-  return {
-    name: entry.name,
-    price: entry.price,
-    originalLine: entry.originalLine,
-    section: entry.section || null,
-    score: score,
-    matchReasons: matchReasons.sort(function(a, b) { return (b.weight || 0) - (a.weight || 0); }),
-    detectedColor: detectedColor,
-    detectedRegionIds: detectedRegionIds,
-    detectedCountryIds: detectedCountryIds,
-    detectedCountry: detectedCountryIds.length > 0 ? detectedCountryIds[0] : null,
-    detectedVarietalId: detectedVarietalIds.length > 0 ? detectedVarietalIds[0] : null,
-    detectedVarietalIds: detectedVarietalIds,
-    detectedProducer: detectedProducerName,
-    detectedProducerId: detectedProducerId,
-    vintage: (vd.vintage || entry.vintage || null),
-    visionData: entry.visionData,
-  };
+function scoreEntry(entry, userDNA, feedbackSignals) {
+  const attrs = entry.visionData ? detectVisionAttributes(entry) : detectWineAttributes(entry.name);
+  return scoreWithAttributes(entry, attrs, userDNA, feedbackSignals);
 }
 
-function scoreEntry(entry, userDNA, feedbackSignals) {
-  if (entry.visionData && entry.visionData.region) {
-    return scoreEntryFromVision(entry, userDNA, feedbackSignals);
-  }
-  return scoreEntryFromText(entry, userDNA, feedbackSignals);
+/**
+ * The wines /api/parse-wine-list read from a photo or PDF, as the entries
+ * the engine scores — one shape with parseWineList's.
+ *
+ * By the glass (Ed, Nov 2026: bottles only): a wine with a bottle price is a
+ * bottle. `price` is the bottle price and `glass_price` the glass price; a
+ * wine is by the glass ONLY when it shows a glass price and no bottle price.
+ * The route's `is_btg` alone is not trusted to say so — under a heading like
+ * "Wines by the Glass & Bottle" it came back true for every wine on the
+ * page, bottle price and all — except where it is all there is to go on: a
+ * flagged wine with one price and no glass price is taken for a glass.
+ */
+export function entriesFromVision(wines) {
+  if (!Array.isArray(wines)) return [];
+  const num = function(v) { return typeof v === "number" && Number.isFinite(v) ? v : null; };
+  return wines.map(function(wine) {
+    const w = wine && typeof wine === "object" ? wine : {};
+    const name = typeof w.name === "string" ? w.name : "";
+    const price = num(w.price);
+    const glassPrice = num(w.glass_price);
+    const glassOnly = price == null ? glassPrice != null : (w.is_btg === true && glassPrice == null);
+    return {
+      name: name,
+      price: price,
+      glassPrice: glassPrice,
+      originalLine: name,
+      section: w.section || null,
+      isByTheGlass: glassOnly,
+      sectionColor: w.color || null,
+      sectionVarietal: null,
+      vintage: w.vintage || null,
+      visionData: {
+        color: w.color || null,
+        variety: w.variety || null,
+        region: w.region || null,
+        country: w.country || null,
+        producer: w.producer || null,
+        vintage: w.vintage || null,
+      },
+    };
+  });
 }
 
 
