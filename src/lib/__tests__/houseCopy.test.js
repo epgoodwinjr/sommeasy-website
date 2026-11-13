@@ -423,7 +423,7 @@ async function main() {
     assertEq(copy.picksSubline({ wines: 60, pages: 1, picks: 7 }), "60 wines — here are your top 7", "a long slate");
     assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 1 }), "1 wine — here’s where to start", "one wine");
     assertEq(copy.picksSubline({ wines: 12, pages: 1, picks: 0 }),
-      "We read 12 wines but couldn’t find matches for your DNA. Try adjusting tonight’s terms or updating your profile.",
+      "We read 12 wines and none of them matches your palate yet. If something here is your kind of wine, add its grape or region to your palate and we’ll know it next time.",
       "no matches");
   });
 
@@ -434,10 +434,10 @@ async function main() {
       "We read 40 wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.", "sub, terms");
     assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 0, pickable: 1 }),
       "We read 1 wine and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.", "one wine");
-    // A true no-match keeps the copy it had — adjusting the terms would not help
+    // A true no-match — adjusting the terms would not help, so the line no longer says to
     assertEq(copy.picksHeading({ picks: 0, pickable: 0 }), "No matches found", "heading, no match");
     assertEq(copy.picksSubline({ wines: 12, pages: 1, picks: 0, pickable: 0 }),
-      "We read 12 wines but couldn’t find matches for your DNA. Try adjusting tonight’s terms or updating your profile.", "sub, no match");
+      "We read 12 wines and none of them matches your palate yet. If something here is your kind of wine, add its grape or region to your palate and we’ll know it next time.", "sub, no match");
     assertEq(copy.picksHeading({ picks: 0 }), "No matches found", "unknown → never claims matches exist");
     assertEq(copy.picksHeading({ picks: 0, pickable: "many" }), "No matches found", "junk");
     // And with picks, the heading it always had
@@ -445,8 +445,53 @@ async function main() {
     assertEq(copy.picksSubline({ wines: 40, pages: 1, picks: 2, pickable: 9 }), "40 wines — here’s where to start", "a short slate is still a slate");
   });
 
-  await test("a lone Splurge says the budget fit nothing — only when that is what happened", () => {
-    const LINE = "Nothing on this list fits your budget. This is the nearest one worth the stretch.";
+  await test("zero picks, each cause its own honest line: the terms, by-the-glass only, no prices, no match", () => {
+    // What the page knows: wines read, wines scored (the rest were left out
+    // as by-the-glass), wines the palate matched, matches with a price
+    const cause = (x) => copy.emptyCause(x);
+    assertEq(cause({ pickable: 3, matched: 3, scored: 9, leftOut: 0 }), "terms", "matches with prices exist → the terms excluded them");
+    assertEq(cause({ pickable: 0, matched: 0, scored: 0, leftOut: 6 }), "glass", "every wine read was by the glass");
+    assertEq(cause({ pickable: 0, matched: 4, scored: 9, leftOut: 0 }), "prices", "matches exist, none has a price");
+    assertEq(cause({ pickable: 0, matched: 0, scored: 9, leftOut: 0 }), "none", "nothing matched");
+    // Precedence: what would bring picks back comes first
+    assertEq(cause({ pickable: 2, matched: 5, scored: 9, leftOut: 3 }), "terms", "terms before everything");
+    assertEq(cause({ pickable: 0, matched: 0, scored: 9, leftOut: 3 }), "none", "some bottles were scored and none matched: not a glass-only list");
+    assertEq(cause({ pickable: 0, matched: 2, scored: 9, leftOut: 3 }), "prices", "unpriced matches beside glass pours");
+    assertEq(cause(), "none", "unknown never claims a cause");
+    assertEq(cause({ matched: "many", scored: null, leftOut: NaN }), "none", "junk");
+
+    // By the glass only
+    const glass = { picks: 0, pickable: 0, matched: 0, scored: 0, leftOut: 6 };
+    assertEq(copy.picksHeading(glass), "Only by-the-glass pours here", "heading, glass");
+    assertEq(copy.picksSubline({ wines: 6, pages: 1, ...glass }),
+      "We read 6 wines, and each is poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there.", "sub, glass");
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, ...glass, leftOut: 1 }),
+      "We read 1 wine, and it is poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there.", "sub, one glass");
+
+    // No prices
+    const prices = { picks: 0, pickable: 0, matched: 4, scored: 9, leftOut: 0 };
+    assertEq(copy.picksHeading(prices), "No prices to pick by", "heading, prices");
+    assertEq(copy.picksSubline({ wines: 9, pages: 1, ...prices }),
+      "We read 9 wines and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices.", "sub, prices");
+
+    // The terms and the true no-match are untouched by the new counts
+    assertEq(copy.picksHeading({ picks: 0, pickable: 3, matched: 3, scored: 9, leftOut: 2 }), "Nothing fits tonight’s terms", "heading, terms");
+    assertEq(copy.picksHeading({ picks: 0, pickable: 0, matched: 0, scored: 9, leftOut: 2 }), "No matches found", "heading, none");
+    // And with picks, none of it shows
+    assertEq(copy.picksHeading({ ...prices, picks: 2 }), "Your picks", "picks");
+  });
+
+  await test("wines left out for being by the glass are said so — only when some were", () => {
+    assertEq(copy.glassNote({ leftOut: 6 }), "6 wines here are poured by the glass only. We pick bottles, so we left them out.", "several");
+    assertEq(copy.glassNote({ leftOut: 1 }), "1 wine here is poured by the glass only. We pick bottles, so we left it out.", "one");
+    assertEq(copy.glassNote({ leftOut: 0 }), null, "none left out → silence");
+    assertEq(copy.glassNote({ leftOut: 6, cause: "glass" }), null, "the sub line already said it");
+    assertEq(copy.glassNote(), null, "unknown");
+    assertEq(copy.glassNote({ leftOut: "some" }), null, "junk");
+  });
+
+  await test("a lone Splurge says none of the matches fit the terms — only when that is what happened", () => {
+    const LINE = "None of your matches fit tonight’s terms. This one is worth the stretch.";
     assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }], max: 39 }), LINE, "one pick, over the max");
     assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }], max: "39" }), LINE, "the max as the amount field holds it");
     assertEq(copy.loneSplurgeLine({ picks: [{ price: 30 }], max: 39 }), null, "one pick that fits is just a pick");

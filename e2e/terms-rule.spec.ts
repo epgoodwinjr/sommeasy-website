@@ -116,7 +116,7 @@ test.describe("Tonight's terms hold — budget, color, and what is left (hard-fa
     expectWithinBudget(shown, 40);
     expect(shown[0].role).toBe("splurge");
     await expect(page.getByTestId("lone-splurge-line"))
-      .toHaveText("Nothing on this list fits your budget. This is the nearest one worth the stretch.");
+      .toHaveText("None of your matches fit tonight’s terms. This one is worth the stretch.");
     await expect(rec.resultsHeading).toHaveText("Your picks");
 
     // Up to $20: nothing fits and nothing is within twice it. No picks —
@@ -127,7 +127,7 @@ test.describe("Tonight's terms hold — budget, color, and what is left (hard-fa
     await expect(page.getByText(
       "We read 8 wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches."
     )).toBeVisible();
-    await expect(page.getByText("couldn’t find matches for your DNA")).toHaveCount(0);
+    await expect(page.getByText("none of them matches your palate")).toHaveCount(0);
 
     // The way back: clear the max and the picks return
     await page.getByPlaceholder("max").fill("");
@@ -196,15 +196,20 @@ test.describe("Tonight's terms hold — budget, color, and what is left (hard-fa
     await expect(rec.pickCards).toHaveCount(5);
   });
 
-  test("a true no-match keeps the copy it had: a list with no prices is not the terms' doing", async ({ page }) => {
+  test("a list with no prices is not the terms' doing — and says what is: no prices to pick by", async ({ page }) => {
     const rec = new RecommendPage(page);
     await rec.goto();
     await page.getByPlaceholder("max").fill("80");
     await rec.pasteAndAnalyze(`Kanonkop Pinotage, Stellenbosch 2019
 Meerlust Rubicon, Stellenbosch 2018
 Raats Original Chenin Blanc, Stellenbosch 2022`);
-    await expect(rec.resultsHeading).toHaveText("No matches found", { timeout: 10_000 });
-    await expect(page.getByText("couldn’t find matches for your DNA")).toBeVisible();
+    // The palate matched all three; none shows a price (scan-truth, Nov 2026:
+    // until then this read "No matches found")
+    await expect(rec.resultsHeading).toHaveText("No prices to pick by", { timeout: 10_000 });
+    await expect(page.getByText(
+      "We read 3 wines and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices."
+    )).toBeVisible();
     await expect(page.getByText("none that fit tonight’s terms")).toHaveCount(0);
+    await expect(page.getByText("none of them matches your palate")).toHaveCount(0);
   });
 });
