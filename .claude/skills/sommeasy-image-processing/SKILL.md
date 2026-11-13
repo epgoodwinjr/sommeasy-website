@@ -134,9 +134,23 @@ interface WineExtraction {
 ```
 
 **Wine-list parses** produce entries shaped by `EXTRACTION_PROMPT`: `name`,
-`vintage`, `price`, `section`, `is_btg`, `color`, `variety`, `region`,
-`country`, `producer`. This shape feeds `matchWinesAgainstDNA` — if you
-change it, check the match engine and the somm payload builder.
+`vintage`, `price`, `glass_price`, `section`, `is_btg`, `color`, `variety`,
+`region`, `country`, `producer`. The page maps them with
+`entriesFromVision` (`src/lib/matchEngine.js`) into the entries
+`matchWinesAgainstDNA` scores — if you change the shape, change that
+function and its tests (`scanTruth.test.js`), and check the somm payload
+builder.
+
+**Prices and by-the-glass (Nov 2026).** `price` is the BOTTLE price (null
+when a wine shows only a glass price); `glass_price` is the glass price. A
+wine with a bottle price is a bottle — `entriesFromVision` decides
+by-the-glass from the two prices, never from `is_btg` alone. That flag is
+not trustworthy on its own: under a page heading like "Wines by the Glass &
+Bottle" the old prompt returned `is_btg: true` for every wine on the page,
+bottle price and all, and the engine dropped the whole list. If you touch
+this part of the prompt, re-measure with `scripts/scan-truth/` (render the
+lists, scan them through the real route, read the tallies) — do not reason
+from the prompt's wording.
 
 Never pass raw model text to matching. Fields the model can't read are
 `null` — the prompts enforce "null is better than an incorrect value."

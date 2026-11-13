@@ -96,8 +96,11 @@ paste flow parses client-side too. The textContent path is kept as a
 server capability for when text needs Vision-grade structured extraction.
 
 **Model call:** `EXTRACTION_PROMPT` (defined in the route — canonical, edit
-in place) asks for every wine as `{ name, vintage, price, section, is_btg,
-color, variety, region, country, producer }` plus a `metadata` object.
+in place) asks for every wine as `{ name, vintage, price, glass_price,
+section, is_btg, color, variety, region, country, producer }` plus a
+`metadata` object. `price` is the BOTTLE price (null when only a glass
+price shows) and `glass_price` the glass price; `is_btg` means poured by
+the glass and NOT sold by the bottle.
 `max_tokens: 8192`, `maxDuration = 300`, Anthropic client timeout 120s; the
 recommend page aborts its fetch at 180s client-side.
 
@@ -105,7 +108,8 @@ recommend page aborts its fetch at 180s client-side.
 
 - **Path A (structured):** model returned parseable JSON with a `wines`
   array → `{ wines, metadata, rawText, source: "vision" }`. The recommend
-  page's `runAnalysis()` feeds this straight to the match engine.
+  page (`MatchList.js`) maps the wines with `entriesFromVision`
+  (`src/lib/matchEngine.js`) and feeds them to the match engine.
 - **Path B (raw text fallback):** JSON parsing failed but the reply reads
   as a wine list → `{ rawText, source: "vision_text" }`. The client shows
   it for review as "Extracted from your photo", then runs its text parser
