@@ -51,6 +51,7 @@ async function main() {
     pickChosenPayload,
     sommBypassedPayload,
     sommCurationPayload,
+    menuAnalyzedPayload,
     recordEvent,
   } = await import("../wineEvents.js");
   const { CONFIDENCE_GATE, PARTIAL_CONFIDENCE_GATE } = await import("../dnaThresholds.js");
@@ -220,6 +221,77 @@ async function main() {
     assert(p.candidates === null && p.pick_count === null && p.model === null, "junk → null");
     assert(sommCurationPayload({ reasons: "not an array" }).reasons.length === 0, "non-array reasons → []");
     assert(sommCurationPayload().outcome === null, "no meta at all never throws");
+  });
+
+  // ─── menu_analyzed (Nov 2026): enough to explain an empty scan ───
+  const photo = (name, f = {}, extra = {}) => ({
+    name, price: 52, isByTheGlass: false,
+    visionData: { color: "red", variety: null, region: null, country: null, producer: null, ...f }, ...extra,
+  });
+
+  await test("menuAnalyzedPayload keeps the keys it always had, and says what the list held", () => {
+    const entries = [
+      photo("Kanonkop Kadette, Stellenbosch 2021"),
+      photo("House Red", {}, { price: 12, isByTheGlass: true }),
+      photo("Meerlust Rubicon, Stellenbosch 2019", {}, { price: null }),
+      { name: "Pasted Line, Swartland", price: 60 },
+    ];
+    const p = menuAnalyzedPayload({
+      source: "scan", entries, scored: 3, matchCount: 2, picksShown: 2,
+      terms: { min: null, max: 80, color: "red" }, steer: "  big reds  ", session: "ab12cd34",
+      somm: { outcome: "first_attempt", duration_ms: 9000 },
+    });
+    assert(p.source === "scan" && p.wines_parsed === 4 && p.match_count === 2, "source, wines_parsed, match_count");
+    assert(p.steer === "big reds" && p.session === "ab12cd34" && p.somm.outcome === "first_attempt", "steer, session, somm");
+    assert(p.wines_priced === 3, `wines_priced counts a number, not a null (${p.wines_priced})`);
+    assert(p.wines_btg === 1, `wines_btg counts the glass-only wines (${p.wines_btg})`);
+    assert(p.wines_scored === 3 && p.picks_shown === 2, "wines_scored, picks_shown");
+    assert(JSON.stringify(p.terms) === JSON.stringify({ min: null, max: 80, color: "red" }), `terms (${JSON.stringify(p.terms)})`);
+    assert(!("sample" in p), "a scan that matched keeps no sample");
+  });
+
+  await test("menuAnalyzedPayload: terms are positive numbers or null; All wines is no color", () => {
+    const terms = (t) => menuAnalyzedPayload({ entries: [], terms: t }).terms;
+    assert(JSON.stringify(terms({ min: "40", max: "90", color: "white" })) === JSON.stringify({ min: 40, max: 90, color: "white" }), "digit strings");
+    assert(JSON.stringify(terms({ min: 0, max: "", color: "all" })) === JSON.stringify({ min: null, max: null, color: null }), "0, empty, all");
+    assert(JSON.stringify(terms({ min: -5, max: NaN, color: "plaid" })) === JSON.stringify({ min: null, max: null, color: null }), "junk");
+    assert(JSON.stringify(terms(undefined)) === JSON.stringify({ min: null, max: null, color: null }), "no terms at all");
+  });
+
+  await test("menuAnalyzedPayload: a scan that matched nothing keeps a sample of what was read", () => {
+    const entries = [
+      photo("Qupe Syrah, Central Coast", { variety: "Syrah", region: "Central Coast", country: "USA" }, { isByTheGlass: true }),
+      photo("x".repeat(200), { region: "r".repeat(200) }, { price: null }),
+      { name: "Pasted Line, Swartland", price: 60 },
+    ];
+    const p = menuAnalyzedPayload({ source: "scan", entries, scored: 2, matchCount: 0, picksShown: 0 });
+    assert(Array.isArray(p.sample) && p.sample.length === 3, "one row per wine read");
+    assert(JSON.stringify(p.sample[0]) === JSON.stringify({
+      name: "Qupe Syrah, Central Coast", region: "Central Coast", country: "USA", variety: "Syrah", is_btg: true, has_price: true,
+    }), `the photo's own reading (${JSON.stringify(p.sample[0])})`);
+    assert(p.sample[1].name.length === 80 && p.sample[1].region.length === 40, "names cut to 80, fields to 40");
+    assert(p.sample[1].has_price === false && p.sample[1].is_btg === false, "no price, not by the glass");
+    assert(JSON.stringify(p.sample[2]) === JSON.stringify({
+      name: "Pasted Line, Swartland", region: null, country: null, variety: null, is_btg: false, has_price: true,
+    }), "a pasted line has only its name");
+  });
+
+  await test("menuAnalyzedPayload: the sample holds fifteen wines at most, and never rides a scan that matched", () => {
+    const many = Array.from({ length: 40 }, (_, i) => photo(`Wine ${i}`));
+    assert(menuAnalyzedPayload({ entries: many, scored: 40, matchCount: 0 }).sample.length === 15, "capped at 15");
+    assert(menuAnalyzedPayload({ entries: many, scored: 40, matchCount: 0 }).sample[14].name === "Wine 14", "the first fifteen, in list order");
+    assert(!("sample" in menuAnalyzedPayload({ entries: many, scored: 40, matchCount: 1 })), "one match → no sample");
+    assert(!("sample" in menuAnalyzedPayload({ entries: many, scored: 40 })), "an unknown match count is not zero");
+  });
+
+  await test("menuAnalyzedPayload tolerates junk: counts are numbers or null, never a throw", () => {
+    const p = menuAnalyzedPayload({ entries: [null, 7, { name: 42, price: "12" }], scored: "many", matchCount: 0, picksShown: NaN });
+    assert(p.wines_parsed === 3 && p.wines_priced === 0 && p.wines_btg === 0, "junk rows count as read, not as priced");
+    assert(p.wines_scored === null && p.picks_shown === null, "junk counts → null");
+    assert(p.sample.length === 3 && p.sample[0].name === null && p.sample[2].name === null, "junk names → null");
+    const bare = menuAnalyzedPayload();
+    assert(bare.wines_parsed === 0 && bare.source === null && bare.somm === null && bare.match_count === null, "nothing at all");
+    buildEventRow(USER, "menu_analyzed", p); // serializable
   });
 
   await test("buildEventRow accepts the two new types", () => {

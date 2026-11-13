@@ -445,8 +445,8 @@ async function main() {
     assertEq(copy.picksSubline({ wines: 40, pages: 1, picks: 2, pickable: 9 }), "40 wines — here’s where to start", "a short slate is still a slate");
   });
 
-  await test("a lone Splurge says the budget fit nothing — only when that is what happened", () => {
-    const LINE = "Nothing on this list fits your budget. This is the nearest one worth the stretch.";
+  await test("a lone Splurge says none of the matches fit the terms — only when that is what happened", () => {
+    const LINE = "None of your matches fit tonight’s terms. This one is worth the stretch.";
     assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }], max: 39 }), LINE, "one pick, over the max");
     assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }], max: "39" }), LINE, "the max as the amount field holds it");
     assertEq(copy.loneSplurgeLine({ picks: [{ price: 30 }], max: 39 }), null, "one pick that fits is just a pick");

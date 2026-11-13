@@ -23,7 +23,10 @@
 // owns both columns.
 //
 // No PII in payloads beyond what the wine tables already hold (wine names,
-// ratings, counts, ids). No IP, no user agent, no location.
+// ratings, counts, ids). No IP, no user agent, no location. Wine-list lines
+// are not personal data — they are a restaurant's printed page — so the
+// sample menu_analyzed keeps from a scan that matched nothing (wine names
+// and the region / country / variety read for them) stays inside this rule.
 //
 // Dependency-light on purpose (dnaThresholds only) so the unit suite runs
 // the real module in plain node — the sommPicks/pendingPalate pattern.
@@ -34,7 +37,7 @@ import { CONFIDENCE_GATE, PARTIAL_CONFIDENCE_GATE } from "./dnaThresholds.js";
  *  (migration 009 v1 set + migration 011's Table Verdict pair). */
 export const WINE_EVENT_TYPES = [
   "quiz_completed",        // mode fresh/refine/restore, dimension counts, composed title
-  "menu_analyzed",         // source scan/url/paste/pdf, wines parsed, match count, somm outcome
+  "menu_analyzed",         // source scan/url/paste/pdf, wines parsed/priced/by-the-glass/scored, match count, picks, terms, somm outcome
   "pick_rated",            // Somm-pick rating (surface recommend/verdict_prompt): wine, old→new, confidence band
   "bottle_logged",         // label-scan logging: wine, old→new, confidence band
   "rec_rated",             // WineRecList (home/reveal) rating: wine, old→new, confidence band
@@ -211,6 +214,81 @@ export function sommCurationPayload(meta, sent) {
     pick_count: finiteOrNull(m.pickCount) ?? finiteOrNull(sent?.pickCount),
     model: typeof m.model === "string" && m.model ? m.model.slice(0, 80) : null,
   };
+}
+
+// How much of an empty scan the ledger keeps: enough wines to see the
+// pattern, each cut short enough that a payload stays a few kilobytes
+const SAMPLE_MAX = 15;
+const SAMPLE_NAME_MAX = 80;
+const SAMPLE_FIELD_MAX = 40;
+
+const textOrNull = (value, max) => {
+  if (typeof value !== "string") return null;
+  const text = value.trim().slice(0, max);
+  return text || null;
+};
+// A limit as tonight's terms hold it: a positive number (or its digits), else none
+const limitOrNull = (value) => {
+  const n = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
+};
+const TERM_COLORS = ["red", "white", "sparkling"];
+
+/**
+ * menu_analyzed payload: one analysis of one list. The keys it always had
+ * (source, wines_parsed, match_count, steer, session, somm) are unchanged;
+ * since Nov 2026 it also says what the list held and what was asked of it,
+ * because "25 read, 0 matched" could not be explained from counts alone:
+ *
+ *   wines_priced  wines read with a price
+ *   wines_btg     wines left out because they are poured by the glass only
+ *   wines_scored  wines that reached the scorer (the rest were left out)
+ *   picks_shown   picks on the page when the analysis landed
+ *   terms         tonight's terms: { min, max, color } — numbers or null
+ *   sample        ONLY when match_count is 0: up to 15 of the wines read —
+ *                 name (80 chars) and the region / country / variety the
+ *                 photo read for it, whether it was by the glass, whether
+ *                 it had a price. A pasted line has only its name.
+ *
+ * `entries` are the wines as read (parseWineList / entriesFromVision);
+ * `scored`, `matchCount` and `picksShown` are counts from the analysis.
+ */
+export function menuAnalyzedPayload({ source, entries, scored, matchCount, picksShown, terms, steer, session, somm } = {}) {
+  const read = Array.isArray(entries) ? entries : [];
+  const row = (e) => (e && typeof e === "object" ? e : {});
+  const hasPrice = (e) => typeof row(e).price === "number" && Number.isFinite(row(e).price);
+  const t = terms && typeof terms === "object" ? terms : {};
+  const payload = {
+    source: source ?? null,
+    wines_parsed: read.length,
+    match_count: finiteOrNull(matchCount),
+    steer: eventSteer(steer),
+    session: session ?? null,
+    somm: somm ?? null,
+    wines_priced: read.filter(hasPrice).length,
+    wines_btg: read.filter((e) => row(e).isByTheGlass === true).length,
+    wines_scored: finiteOrNull(scored),
+    picks_shown: finiteOrNull(picksShown),
+    terms: {
+      min: limitOrNull(t.min),
+      max: limitOrNull(t.max),
+      color: TERM_COLORS.includes(t.color) ? t.color : null,
+    },
+  };
+  if (payload.match_count === 0) {
+    payload.sample = read.slice(0, SAMPLE_MAX).map((e) => {
+      const vd = row(row(e).visionData);
+      return {
+        name: textOrNull(row(e).name, SAMPLE_NAME_MAX),
+        region: textOrNull(vd.region, SAMPLE_FIELD_MAX),
+        country: textOrNull(vd.country, SAMPLE_FIELD_MAX),
+        variety: textOrNull(vd.variety, SAMPLE_FIELD_MAX),
+        is_btg: row(e).isByTheGlass === true,
+        has_price: hasPrice(e),
+      };
+    });
+  }
+  return payload;
 }
 
 /**

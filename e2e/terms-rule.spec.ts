@@ -116,7 +116,7 @@ test.describe("Tonight's terms hold — budget, color, and what is left (hard-fa
     expectWithinBudget(shown, 40);
     expect(shown[0].role).toBe("splurge");
     await expect(page.getByTestId("lone-splurge-line"))
-      .toHaveText("Nothing on this list fits your budget. This is the nearest one worth the stretch.");
+      .toHaveText("None of your matches fit tonight’s terms. This one is worth the stretch.");
     await expect(rec.resultsHeading).toHaveText("Your picks");
 
     // Up to $20: nothing fits and nothing is within twice it. No picks —

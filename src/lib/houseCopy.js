@@ -328,7 +328,7 @@ export function picksSubline({ wines, pages, picks, pickable } = {}) {
   return `${count}${across} — ${picks > 5 ? `here are your top ${picks}` : "here’s where to start"}`;
 }
 
-/** The line above a lone Splurge: nothing on the list fits the budget, and
+/** The line above a lone Splurge: none of the matches fits the budget, and
  *  the one pick is the wine a stretch over it (the terms rule allows one, up
  *  to twice the max). Null whenever that isn't exactly what happened — a
  *  single pick that fits is just a pick. `max` as the page holds it. */
@@ -336,7 +336,7 @@ export function loneSplurgeLine({ picks, max } = {}) {
   const limit = budgetLimits(null, max).max;
   if (limit == null || !Array.isArray(picks) || picks.length !== 1) return null;
   if (!(picks[0]?.price > limit)) return null;
-  return "Nothing on this list fits your budget. This is the nearest one worth the stretch.";
+  return "None of your matches fit tonight’s terms. This one is worth the stretch.";
 }
 
 // ─── The journal + a wine's page (Phase 4) ───
