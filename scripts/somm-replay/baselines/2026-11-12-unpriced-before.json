@@ -1,0 +1,112 @@
+[
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "silent",
+  "attempts": 0,
+  "reasons": [],
+  "wallMs": 5,
+  "model": null,
+  "tokens": {
+   "in": 0,
+   "out": 0
+  },
+  "calls": 0,
+  "replyStarts": []
+ },
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "silent",
+  "attempts": 0,
+  "reasons": [],
+  "wallMs": 2,
+  "model": null,
+  "tokens": {
+   "in": 0,
+   "out": 0
+  },
+  "calls": 0,
+  "replyStarts": []
+ },
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "silent",
+  "attempts": 0,
+  "reasons": [],
+  "wallMs": 2,
+  "model": null,
+  "tokens": {
+   "in": 0,
+   "out": 0
+  },
+  "calls": 0,
+  "replyStarts": []
+ },
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "silent",
+  "attempts": 0,
+  "reasons": [],
+  "wallMs": 2,
+  "model": null,
+  "tokens": {
+   "in": 0,
+   "out": 0
+  },
+  "calls": 0,
+  "replyStarts": []
+ },
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "silent",
+  "attempts": 0,
+  "reasons": [],
+  "wallMs": 2,
+  "model": null,
+  "tokens": {
+   "in": 0,
+   "out": 0
+  },
+  "calls": 0,
+  "replyStarts": []
+ }
+]
