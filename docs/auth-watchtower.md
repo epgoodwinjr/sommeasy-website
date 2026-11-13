@@ -94,7 +94,8 @@ Run these over the last 7 days of Vercel logs (Logs tab → filter, or
   ```
 
 - **Healthy:** in line with the CLAUDE.md per-call measurements (scan ~$0.009,
-  somm $0.021–0.025, narrative ~$0.006).
+  somm $0.013–0.021 at first attempt — ~$0.007 for a one-wine list, up to
+  $0.026 when the corrective retry runs — narrative ~$0.006).
 - **Escalate when:** per-call cost or call volume jumps unexpectedly — a
   retry storm, a prompt regression inflating tokens, or abuse. (Scan/label
   calls stay grep-only — their durable trace is `menu_analyzed`, which
@@ -144,7 +145,46 @@ Run these over the last 7 days of Vercel logs (Logs tab → filter, or
   44.9s case was a retry that *recovered by design*. Prod rate was
   unmeasurable (1h retention, pre-launch traffic ≈ 0) — this grep is how the
   real rate accumulates once traffic exists.
-- **Healthy:** retries a minority of calls, each near a `retry recovered`.
+- **Why, since Nov 12, 2026** — `somm_curation` carries `reasons` (one line
+  per rejected attempt, in order, kept on a retried success; a rejected
+  output format; an upstream error's kind), `candidates`, `pick_count` and
+  `model`. The question that took a 157-payload replay to answer is now a
+  query:
+
+  ```sql
+  -- What is rejected, and how it ends
+  SELECT payload->>'outcome' AS outcome, reason, count(*)
+  FROM wine_events e
+  LEFT JOIN LATERAL jsonb_array_elements_text(
+    coalesce(e.payload->'reasons', '[]'::jsonb)) AS reason ON true
+  WHERE e.event_type = 'somm_curation'
+    AND e.occurred_at > now() - interval '7 days'
+  GROUP BY 1, 2 ORDER BY 3 DESC;
+
+  -- The ask against the slate, per outcome (pick_count is the ask AFTER the
+  -- clamp: under 5 means the list or the budget couldn't supply five)
+  SELECT (payload->>'candidates')::int AS candidates,
+         (payload->>'pick_count')::int AS asked,
+         payload->>'outcome' AS outcome, payload->>'model' AS model, count(*),
+         round(avg((payload->>'duration_ms')::numeric) / 1000, 1) AS avg_s
+  FROM wine_events
+  WHERE event_type = 'somm_curation'
+    AND occurred_at > now() - interval '7 days'
+  GROUP BY 1, 2, 3, 4 ORDER BY 1, 2;
+  ```
+- **Baseline (Nov 12, 2026, 90 replayed runs on the fixed route):** 0
+  fallbacks (35 before), 78 first attempt, 2 salvaged, 10 retried — every
+  retry `non-splurge N > budget max` on a tight budget, recovered at 16–20s.
+  Rows written before that date have no `reasons`; a test-account
+  `menu_analyzed` fallback under ~100ms is a spec that aborts the route on
+  purpose and never reached Claude.
+- **Healthy:** retries a minority of calls, each near a `retry recovered`;
+  `reasons` empty on most rows; fallbacks rare and explained.
+- **Escalate at once when:** any row's reasons include `output format
+  rejected` — the API refused the JSON-schema parameter (a model change?).
+  The route still answers without it, but it is running on its second line
+  of defense. Or `error: api …` / `timeout` on rows with zero attempts — an
+  upstream outage or a dead key, which before Nov 12 left no trace at all.
 - **Escalate when:** `retrying after:` on most calls (the prompt contract is
   drifting — collect the logged reasons first; a fix should target the
   dominant reason, not guess), or `validation failed` lines with no
