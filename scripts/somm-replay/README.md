@@ -17,7 +17,7 @@ fires.
 
 | | Runs | Calls | Cost (Nov 12, 2026, `claude-sonnet-4-6`) |
 |---|---|---|---|
-| The full replay, 19 cases × 5 | 95 | ~105 | **about $1.50**, 4–6 minutes |
+| The full replay, 21 cases × 5 | 105 | ~115 | **about $1.65**, 4–6 minutes |
 | One case × 5 | 5 | 5–10 | $0.04–$0.13 |
 | One one-wine case, one run | 1 | 1 | ~$0.007 |
 | `--dry` | 0 | 0 | free |
@@ -87,8 +87,9 @@ A long replay started as a background task may crawl; run it in a terminal.
 `buildSommPayload`, the way `MatchList.js` does: the e2e lists, the app's
 example list, a realistic 40-bottle list with and without Tonight's terms,
 the sample PDF as Vision delivers it, the 7-wine list as the pre-Oct-30
-engine scored it, and six unpriced candidates under a budget (a payload the
-page can't build — it is there because the route can't assume its caller).
+engine scored it, two budgets that leave one wine and none (the terms rule),
+and six unpriced candidates under a budget (a payload the page can't build —
+it is there because the route can't assume its caller).
 
 To add a case, add a list and a line in `CASES`. To probe a change before
 touching the route — a request parameter, say — amend the outgoing body in
@@ -100,6 +101,12 @@ touching the route — a request parameter, say — amend the outgoing body in
   route as it shipped: 35 fallbacks, slowest 62s.
 - `baselines/2026-11-12-after.json` — the same 90 on the fixed route: 0
   fallbacks, slowest 20s.
+- `baselines/2026-11-12-terms-rule.json` — the six budget cases (five runs
+  each) once the engine's picks obeyed Tonight's terms: the page and the
+  Somm now count the same picks. "Red, up to $80" went from retried 9 of 10
+  to none of 10 retried on the narrow palate and 2 of 5 on the broad one
+  (the engine's hint no longer lists over-budget picks); one "up to $50"
+  run fell back — the model kept two over-budget wines through the retry.
 - `baselines/2026-11-12-unpriced-before.json` / `-after.json` — six unpriced
   candidates under a budget, five runs each: `silent` five times while the
   clamp counted only priced wines, `first_attempt` five times once it agreed

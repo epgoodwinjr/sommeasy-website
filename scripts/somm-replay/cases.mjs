@@ -302,6 +302,9 @@ export const CASES = [
   ["realistic40/broad red max$80", text("realistic40", { color: "red", max: 80, palate: BROAD_PALATE })],
   ["e2e_7wine (pre-Oct-30 engine)", oldEngine7],
   ["e2e_pdf_sample (Vision path)", () => payloadFor(VISION_PDF)],
+  // The terms rule (Nov 12, 2026): a budget one wine fits, and one none do
+  ["realistic40 max$41", text("realistic40", { max: 41 })],
+  ["realistic40 max$39 (lone splurge)", text("realistic40", { max: 39 })],
   ["unpriced x6 max$60 (direct caller)", unpricedUnderBudget],  // labels carry no commas: --only splits on them
 ];
 
