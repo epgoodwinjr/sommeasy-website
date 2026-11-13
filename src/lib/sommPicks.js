@@ -155,18 +155,26 @@ function passesBudget(entry, budget) {
  *
  * This changes only what the Somm is asked for. The slate, the algorithmic
  * picks and the scoring are untouched.
+ *
+ * It must agree with validateSommResponse exactly — sommPicks.test.js holds
+ * the two together over every subset of small slates, priced or not. A new
+ * validator rule needs this to learn it in the same change.
  */
 export function feasiblePickCount(candidates, pickCount, budget) {
   if (!Array.isArray(candidates) || !Number.isInteger(pickCount) || pickCount < 1) return 0;
   const max = budget?.max;
   let supply = candidates.length;
   if (max != null) {
+    // The validator's own two comparisons, in its own words — so the two
+    // can't drift. A wine it cannot show to be OVER max is in budget, and
+    // that includes a wine with no price at all (`undefined > max` is false):
+    // counting only priced wines once asked a slate of six unpriced
+    // candidates for zero picks, and the route answered with no call.
     let inBudget = 0;
     let splurge = 0;
     for (const c of candidates) {
       const price = c?.price;
-      if (typeof price !== "number" || !Number.isFinite(price)) continue;
-      if (price <= max) inBudget++;
+      if (!(price > max)) inBudget++;
       else if (price <= max * 2) splurge = 1; // legal, but the rule allows one
     }
     supply = inBudget + splurge;

@@ -188,6 +188,20 @@ async function main() {
     assert(!data.fallback && data.picks.length === 2, JSON.stringify(data));
   });
 
+  await test("unpriced candidates under a budget are supply: Claude is asked, and the answer is accepted", async () => {
+    // A caller whose prices didn't parse. The validator accepts an unpriced
+    // pick under any budget, so the clamp must not answer this slate with silence
+    const unpriced = Array.from({ length: 6 }, (_, i) => ({ i, name: `Unpriced ${i}`, country: "France" }));
+    const { data, sentPayload, calls } = await callRoute(
+      routePayload({ candidates: unpriced, algorithmicPicks: [0, 1, 2, 3, 4], pickCount: 5, budget: { min: null, max: 60 } }),
+      [modelReply({ picks: [noteFor(0, "top"), noteFor(1, "value"), noteFor(2, "adventure"), noteFor(3), noteFor(4)], sommSummary: "Five, prices or not." })]
+    );
+    assert(calls.length === 1, `Claude must be asked (${calls.length} calls)`);
+    assert(sentPayload.pickCount === 5, `asked for ${sentPayload.pickCount}`);
+    assert(!data.fallback && data.picks.length === 5, JSON.stringify(data).slice(0, 200));
+    assert(data.meta.candidates === 6 && data.meta.pickCount === 5 && data.meta.reasons.length === 0, JSON.stringify(data.meta));
+  });
+
   await test("a slate that can supply nothing legal never reaches Claude", async () => {
     // max $10: nothing in budget, nothing within 2× — there is no legal pick
     const { data, calls } = await callRoute(routePayload({ pickCount: 5, budget: { min: null, max: 10 } }));

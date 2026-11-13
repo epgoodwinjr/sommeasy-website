@@ -378,6 +378,24 @@ async function main() {
     assert(feasiblePickCount(priced(161), 5, { max: 80 }) === 0, "a dollar past 2× is not");
   });
 
+  test("no candidate priced, under a budget: every one counts as supply", () => {
+    // The validator accepts an unpriced pick under any budget (undefined > max
+    // is false), so a clamp that counted only priced wines asked for ZERO —
+    // and the route answered a slate of six with no call at all
+    const unpriced = Array.from({ length: 6 }, (_, i) => ({ i, name: `W${i}` }));
+    assert(feasiblePickCount(unpriced, 5, { min: null, max: 60 }) === 5, `six unpriced, five asked: ${feasiblePickCount(unpriced, 5, { max: 60 })}`);
+    assert(feasiblePickCount(unpriced.slice(0, 3), 5, { max: 60 }) === 3, "three unpriced → three");
+    assert(feasiblePickCount(unpriced.map((c) => ({ ...c, price: null })), 5, { max: 60 }) === 5, "price: null is unpriced too");
+  });
+
+  test("some priced, some not, under a budget: unpriced + in budget + ONE legal splurge", () => {
+    // two unpriced, $40 in budget, $90 and $100 legal splurges (one counts), $200 never legal
+    const slate = [{ i: 0 }, { i: 1, price: null }, { i: 2, price: 40 }, { i: 3, price: 90 }, { i: 4, price: 100 }, { i: 5, price: 200 }];
+    assert(feasiblePickCount(slate, 9, { max: 60 }) === 4, `got ${feasiblePickCount(slate, 9, { max: 60 })}`);
+    // and with nothing over max, just the four that can't be shown to break it
+    assert(feasiblePickCount(slate.slice(0, 3), 9, { max: 60 }) === 3, "two unpriced + one in budget");
+  });
+
   test("nothing in budget but a legal splurge: one pick", () => {
     assert(feasiblePickCount(priced(70, 75, 90), 5, { max: 50 }) === 1, "one splurge, nothing else");
   });
@@ -387,7 +405,9 @@ async function main() {
     assert(feasiblePickCount(null, 5, null) === 0, "no slate");
     assert(feasiblePickCount(priced(10, 20), 0, null) === 0, "zero asked");
     assert(feasiblePickCount(priced(10, 20), "many", null) === 0, "junk ask");
-    assert(feasiblePickCount([{ i: 0 }, { i: 1, price: "x" }, { i: 2, price: 30 }], 5, { max: 50 }) === 1, "an unpriced wine can't be shown to fit a budget");
+    // A price that isn't one is no reason to refuse the ask: the validator
+    // can't show such a wine to be over budget, so it accepts it
+    assert(feasiblePickCount([{ i: 0 }, { i: 1, price: "x" }, { i: 2, price: 30 }], 5, { max: 50 }) === 3, "unpriced and junk-priced wines count as supply");
     assert(feasiblePickCount([{ i: 0 }, { i: 1 }], 5, { max: null }) === 2, "no budget → price doesn't matter");
   });
 
@@ -400,6 +420,15 @@ async function main() {
     for (let round = 0; round < 60; round++) {
       const n = 1 + Math.floor(rand() * 6);
       const slate = priced(...Array.from({ length: n }, () => 20 + Math.floor(rand() * 200)));
+      // Every other round, some wines have no price at all (absent, or null) —
+      // the first wine keeps its price so the budget below can sit on it
+      if (round % 2 === 1) {
+        for (let k = 1; k < n; k++) {
+          const r = rand();
+          if (r < 0.2) delete slate[k].price;
+          else if (r < 0.4) slate[k].price = null;
+        }
+      }
       // Every third budget sits exactly on a wine's price, or on half of one —
       // the two boundaries (≤ max, ≤ 2× max) where an off-by-one would hide
       const max = round % 5 === 0 ? null
@@ -413,7 +442,7 @@ async function main() {
         if (r.valid && picks.length > best) best = picks.length;
       }
       const got = feasiblePickCount(slate, 99, { max });
-      assert(got === best, `slate ${JSON.stringify(slate.map((c) => c.price))} max ${max}: clamp says ${got}, validator accepts ${best}`);
+      assert(got === best, `slate ${JSON.stringify(slate.map((c) => c.price ?? null))} max ${max}: clamp says ${got}, validator accepts ${best}`);
     }
   });
 
