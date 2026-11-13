@@ -17,10 +17,18 @@ fires.
 
 | | Runs | Calls | Cost (Nov 12, 2026, `claude-sonnet-4-6`) |
 |---|---|---|---|
-| The full replay, 21 cases × 5 | 105 | ~115 | **about $1.65**, 4–6 minutes |
+| The full replay, 27 cases × 5 | 135 | ~145 | **about $1.90**, 5–7 minutes |
+| The six lone-Adventure cases × 5 | 30 | 30 | $0.25, about a minute (Nov 13, 2026) |
 | One case × 5 | 5 | 5–10 | $0.04–$0.13 |
 | One one-wine case, one run | 1 | 1 | ~$0.007 |
 | `--dry` | 0 | 0 | free |
+
+The lone Adventure's cases (`adventure …`, Nov 13, 2026) replay the page's
+OTHER question: a list that matched nothing, the Somm asked for exactly one
+wine (`mode: "adventure"`, built by `buildAdventurePayload` as MatchList.js
+builds it). They cost about $0.008 a run. Read their replies in
+`results/<tag>.full.json` — the outcome says the answer was valid, only the
+note says whether it was honest about the stretch.
 
 A run costs $0.007 (one wine) to $0.026 (a 40-bottle list with a retry);
 $0.016 on average. `replay.mjs` prints its estimate before it starts and what

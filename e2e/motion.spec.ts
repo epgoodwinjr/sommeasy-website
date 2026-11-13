@@ -1587,7 +1587,7 @@ test.describe("The waits — motion on", () => {
     await expect(rec.resultsHeading).toHaveText("Your picks", { timeout: 20_000 });
     const reading = await readingSeen(page);
     expect(reading.lines).toEqual([
-      "Reading 10 wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
+      "Reading ten wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
     ]);
     expect(reading.breathing, "the bloom never breathed").toBe(true);
     // Breathing is ONE loop, on the wrapper: the bloom inside it is the
@@ -1963,7 +1963,7 @@ test.describe("The waits — reduced motion", () => {
     const reading = await readingSeen(page);
     // The same three lines are said — only the motion is gone
     expect(reading.lines).toEqual([
-      "Reading 10 wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
+      "Reading ten wines…", "Weighing them against your DNA…", "Five bottles, five kinds of yes.",
     ]);
     expect(reading.ticker).toEqual([]);
     expect(reading.breathing).toBe(false);
