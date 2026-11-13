@@ -167,10 +167,12 @@ export class RecommendPage {
     // Check for error first
     if (await this.errorMessage.isVisible()) return "error";
     // Check for results heading
+    // "Your picks" is the only heading with picks under it; every other one
+    // ("No matches found", "Nothing fits tonight’s terms", "No prices to
+    // pick by", "Only by-the-glass pours here") is a list that gave none
     if (await this.resultsHeading.isVisible()) {
       const text = await this.resultsHeading.textContent();
-      if (text?.includes("No matches")) return "no-matches";
-      return "results";
+      return text?.trim() === "Your picks" ? "results" : "no-matches";
     }
     return "unknown";
   }

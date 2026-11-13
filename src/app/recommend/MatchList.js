@@ -34,15 +34,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryName, getRegionDisplayName, getVarietalDisplayName, getProducerDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
+import { parseWineList, entriesFromVision, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryName, getRegionDisplayName, getVarietalDisplayName, getProducerDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 import { buildSommPayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
-import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload, sommCurationPayload } from "@/lib/wineEvents";
+import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload, sommCurationPayload, menuAnalyzedPayload } from "@/lib/wineEvents";
 import { evolutionToastMessages } from "@/components/WineRecList";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
-import { loneSplurgeLine, metaLine, pickFlag, pickNote, picksHeading, picksSubline, readingLine, termsLine } from "@/lib/houseCopy";
+import { emptyCause, glassNote, loneSplurgeLine, metaLine, pickFlag, pickNote, picksHeading, picksSubline, readingLine, termsLine } from "@/lib/houseCopy";
 import { findJournalRow, isPickable, termsFromPreferences } from "@/lib/matchTerms";
 import ReadingView from "@/components/ReadingView";
 import RunningHead from "@/components/house/RunningHead";
@@ -376,22 +376,23 @@ export default function MatchList({ isMobile = false }) {
     setSommState("idle");
     // menu_analyzed (The Long Memory) fires ONCE per analysis — from
     // askTheSomm when The Somm runs (so the outcome + duration ride along),
-    // or right here when it never will (somm: null)
-    const analysisMeta = { source: source || null, winesParsed: a.entries.length, matchCount: a.matched.length };
+    // or right here when it never will (somm: null). It says what the list
+    // held (priced, by the glass, scored), what was asked of it (tonight's
+    // terms) and what came back — and, for a list that matched nothing, a
+    // sample of what was read (menuAnalyzedPayload)
+    const analysisMeta = {
+      source: source || null, entries: a.entries, scored: a.scored.length, matchCount: a.matched.length,
+      picksShown: a.curated.length, terms: { min: a.minP, max: a.maxP, color: a.colorP },
+    };
     if (a.curated.length > 0) {
       askTheSomm({
         scored: a.scored, curated: a.curated, pickCount: a.pickCount, totalWines: a.entries.length,
         minP: a.minP, maxP: a.maxP, colorP: a.colorP, analysisMeta,
       });
     } else {
-      recordEvent(supabase, user.id, "menu_analyzed", {
-        source: analysisMeta.source,
-        wines_parsed: analysisMeta.winesParsed,
-        match_count: analysisMeta.matchCount,
-        steer: steer.trim() || null,
-        session: verdictSessionRef.current,
-        somm: null,
-      });
+      recordEvent(supabase, user.id, "menu_analyzed", menuAnalyzedPayload({
+        ...analysisMeta, steer, session: verdictSessionRef.current, somm: null,
+      }));
     }
   };
 
@@ -483,16 +484,14 @@ export default function MatchList({ isMobile = false }) {
     const recordMenuAnalyzed = (somm) => {
       if (!analysisMeta || menuAnalyzedFired) return;
       menuAnalyzedFired = true;
-      recordEvent(supabase, user.id, "menu_analyzed", {
-        source: analysisMeta.source,
-        wines_parsed: analysisMeta.winesParsed,
-        match_count: analysisMeta.matchCount,
+      recordEvent(supabase, user.id, "menu_analyzed", menuAnalyzedPayload({
+        ...analysisMeta,
         // What was actually SENT (trimmed/capped), not live input state —
         // the steer box may have been edited while the request was in flight
         steer: payload.steer,
         session: verdictSessionRef.current,
         somm,
-      });
+      }));
     };
     // payload.pickCount is the ask after the clamp (never more than the
     // slate can supply); nothing to ask for means no call at all
@@ -676,24 +675,8 @@ export default function MatchList({ isMobile = false }) {
 
       // Path A: structured wines from Vision → direct to match engine
       if (data.wines && Array.isArray(data.wines) && data.wines.length > 0) {
-        const newEntries = data.wines.map(w => ({
-          name: w.name || "",
-          price: typeof w.price === "number" ? w.price : null,
-          originalLine: w.name || "",
-          section: w.section || null,
-          isByTheGlass: w.is_btg || false,
-          sectionColor: w.color || null,
-          sectionVarietal: null,
-          vintage: w.vintage || null,
-          visionData: {
-            color: w.color || null,
-            variety: w.variety || null,
-            region: w.region || null,
-            country: w.country || null,
-            producer: w.producer || null,
-            vintage: w.vintage || null,
-          },
-        }));
+        // (a wine with a bottle price is a bottle — matchEngine decides)
+        const newEntries = entriesFromVision(data.wines);
 
         // Entries accumulate across pages — once the picks land
         const entries = [...accumulatedEntriesRef.current, ...newEntries];
@@ -1185,9 +1168,18 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // ═══════════════════════════════════════════════════
   const renderPicks = () => {
     const hasPicks = picks.length > 0;
-    // With no picks the page says why (houseCopy): wines that could be picks
-    // under no terms at all mean tonight's terms excluded every one of them
-    const pickable = hasPicks || !scoredEntries ? 0 : scoredEntries.filter(isPickable).length;
+    // With no picks the page says why (houseCopy's emptyCause): tonight's
+    // terms excluded every match, every wine read was by the glass, the
+    // matches show no price, or nothing matched
+    const leftOut = scoredEntries ? Math.max(0, totalParsed - scoredEntries.length) : 0;
+    const counts = hasPicks || !scoredEntries ? {} : {
+      pickable: scoredEntries.filter(isPickable).length,
+      matched: scoredEntries.filter((e) => e.score > 0).length,
+      scored: scoredEntries.length,
+      leftOut,
+    };
+    // Wines poured by the glass only are left out of the picks — and said so
+    const glassLine = glassNote({ leftOut, cause: hasPicks ? null : emptyCause(counts) });
     // One pick, over the max: the budget fit nothing and this is the stretch
     const loneSplurge = loneSplurgeLine({ picks, max: maxPrice });
     // Quiet the others only while the chosen pick is on screen — a refilter
@@ -1205,11 +1197,16 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     return (
       <div key="picks">
         <Enter as="h1" play={arriving} delay={PICKS.title} data-testid="results-heading" style={TYPE.h1}>
-          {picksHeading({ picks: picks.length, pickable })}
+          {picksHeading({ picks: picks.length, ...counts })}
         </Enter>
         <Enter as="p" play={arriving} delay={PICKS.sub} style={{ ...TYPE.sub, marginTop: 8 }}>
-          {picksSubline({ wines: totalParsed, pages: pageCount, picks: picks.length, pickable })}
+          {picksSubline({ wines: totalParsed, pages: pageCount, picks: picks.length, ...counts })}
         </Enter>
+        {glassLine && (
+          <Enter as="p" kind="fade" play={arriving} delay={PICKS.sub} data-testid="glass-note" style={{
+            fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: ink(0.6), marginTop: 6,
+          }}>{glassLine}</Enter>
+        )}
 
         {/* The terms bar — Adjust opens Tonight's terms in place */}
         <div style={{

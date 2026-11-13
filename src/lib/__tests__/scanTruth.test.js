@@ -119,6 +119,18 @@ test("under a by-the-glass heading, one price is a glass — a pair is still a b
   ], "by section");
 });
 
+test("a page's headings are headings: WINE, Wines by the Glass & Bottle, GLASS  BOTTLE over the columns", () => {
+  for (const heading of ["WINE", "Wines", "WINES BY THE GLASS & BOTTLE", "By the Glass and Bottle", "GLASS    BOTTLE", "Glass / Bottle"]) {
+    const entries = parse(`${heading}\nMullineux Syrah, Swartland 15/60\nMeerlust Rubicon, Stellenbosch 2019 95`);
+    assertEq(entries.map((e) => [e.name, e.isByTheGlass]), [["Mullineux Syrah, Swartland", false], ["Meerlust Rubicon, Stellenbosch 2019", false]], heading);
+  }
+  // …and a heading that names both ends a by-the-glass section before it
+  const after = parse("BY THE GLASS\nHouse Red 12\nGLASS & BOTTLE\nMeerlust Rubicon, Stellenbosch 2019 95");
+  assertEq(after.map((e) => [e.name, e.isByTheGlass]), [["House Red", true], ["Meerlust Rubicon, Stellenbosch 2019", false]], "section ends");
+  // A wine whose name merely starts with the word is still a wine
+  assertEq(parse("Wine Spectator Cuvee, Napa Valley 2019 60").length, 1, "not a heading");
+});
+
 test("the engine scores every bottle and leaves out only the glass-only wines", () => {
   const entries = parse([
     "BY THE GLASS",
@@ -191,6 +203,9 @@ test("two grapes are two grapes, with or without the word blend — and never a 
     assertEq(s.score, 4, `${variety} scores both`);
   }
   assertEq(score(photo({ variety: "Syrah / Shiraz" })).detectedVarietalIds, ["syrah"], "one grape under two names is one grape");
+  // The grape the field names first leads (it is the one a pick's line shows)
+  assertEq(score(photo({ variety: "Merlot, Cabernet Sauvignon" })).detectedVarietalId, "merlot", "field order, not term length");
+  assertEq(score(photo({ variety: "Cabernet Sauvignon, Merlot" })).detectedVarietalId, "cabernet_sauvignon", "…either way round");
   assertEq(score(photo({ variety: "Grenache, Syrah, Mourvèdre" })).detectedVarietalIds.slice().sort(), ["grenache", "mourvedre", "syrah"], "three");
 });
 
@@ -213,7 +228,8 @@ test("a state or a broad area in the region field is a country, not a miss — a
 test("a region resolves by its short name, without its accents, or without its hyphen", () => {
   for (const [region, id] of [["Loire", "loire_valley"], ["Loire Valley", "loire_valley"], ["Rhône", "rhone_valley"], ["Rhone", "rhone_valley"],
     ["Rhone Valley", "rhone_valley"], ["Cotes de Provence", "provence"], ["Côtes de Provence", "provence"], ["Cotes du Rhone", "rhone_valley"],
-    ["Côtes du Rhône", "rhone_valley"], ["Willamette", "willamette_valley"], ["Hemel en Aarde", "hemel_en_aarde_walker_bay"], ["Napa", "napa_valley"]]) {
+    ["Côtes du Rhône", "rhone_valley"], ["Willamette", "willamette_valley"], ["Hemel en Aarde", "hemel_en_aarde_walker_bay"], ["Napa", "napa_valley"],
+    ["Crozes Hermitage", "rhone_valley"], ["Saint Emilion", "bordeaux"], ["Cotes-du-Rhone", "rhone_valley"]]) {
     const s = score(photo({ region }));
     assertEq(s.detectedRegionIds, [id], region);
     assertEq(s.score, 3, `${region} scores as a region in the DNA`);
@@ -227,6 +243,19 @@ test("when the photo's region resolves to nothing, the wine's own name is read",
   // …and a field the photo left empty is filled from the name the same way
   const noRegion = score(photo({ region: null, variety: null }, "Mullineux Syrah, Swartland 2020"));
   assertEq([noRegion.detectedRegionIds, noRegion.detectedVarietalIds], [["swartland"], ["syrah"]], "no fields at all");
+});
+
+test("a country stated only in the wine's name is read from the name", () => {
+  const s = score(photo({ region: null, country: null }, "Cuvee Test Riesling, Australia"));
+  assertEq(s.detectedCountryIds, ["australia"], "no fields, the name says Australia");
+});
+
+test("a producer is found inside its field when the name does not carry it", () => {
+  // "Rubicon 2019" names no producer; the field does, in a longer form than the data's key
+  const dna = { ...WIDE, estates: { stellenbosch: ["meerlust"] } };
+  const s = score(photo({ producer: "Meerlust Wine Estate", region: "Stellenbosch", country: "South Africa" }, "Rubicon 2019"), dna);
+  assertEq(s.detectedProducerId, "meerlust", "Meerlust, from the field");
+  assert(s.matchReasons.some((r) => r.type === "estate"), "…and it is the estate in the DNA");
 });
 
 test("the photo's fields count even when it read no region", () => {

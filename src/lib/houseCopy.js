@@ -303,29 +303,67 @@ export function pickNote({ reasons, producer, region, grape, country } = {}) {
   return null;
 }
 
-/** Under "Your picks": the list's size (and pages), then where to start —
- *  or, with no picks, what to try next. */
-/** The picks view's heading. With no picks it says WHY: `pickable` is how
- *  many wines on the list could be picks under no terms at all (the palate
- *  scored them and they have a price). Any → tonight's terms excluded every
- *  one of them, and adjusting the terms brings them back. None (or unknown)
- *  → a true no-match, which adjusting would not fix. */
-export function picksHeading({ picks, pickable } = {}) {
-  if (picks > 0) return "Your picks";
-  return pickable > 0 ? "Nothing fits tonight’s terms" : "No matches found";
+/** Why there are no picks — each cause is a different thing to tell the
+ *  diner, and a different thing to do next. What the page knows:
+ *    pickable  wines the palate scored that have a price (under no terms)
+ *    matched   wines the palate scored at all
+ *    scored    wines that reached the scorer
+ *    leftOut   wines left out because they are poured by the glass only
+ *  In the order of what would bring picks back:
+ *    "terms"   matches with prices exist — tonight's terms excluded them
+ *    "glass"   every wine read was by the glass; nothing reached the scorer
+ *    "prices"  the palate matched wines, and none of them shows a price
+ *    "none"    a true no-match (also whenever the counts are unknown —
+ *              the page never claims a cause it can't see) */
+export function emptyCause({ pickable, matched, scored, leftOut } = {}) {
+  if (pickable > 0) return "terms";
+  if (scored === 0 && leftOut > 0) return "glass";
+  if (matched > 0) return "prices";
+  return "none";
 }
 
-export function picksSubline({ wines, pages, picks, pickable } = {}) {
+const EMPTY_HEADING = {
+  terms: "Nothing fits tonight’s terms",
+  glass: "Only by-the-glass pours here",
+  prices: "No prices to pick by",
+  none: "No matches found",
+};
+
+/** The picks view's heading. With no picks it says WHY (emptyCause). */
+export function picksHeading({ picks, ...counts } = {}) {
+  if (picks > 0) return "Your picks";
+  return EMPTY_HEADING[emptyCause(counts)];
+}
+
+/** Under the heading: the list's size (and pages), then where to start —
+ *  or, with no picks, what happened and what to do about it. */
+export function picksSubline({ wines, pages, picks, ...counts } = {}) {
   const n = Number.isInteger(wines) && wines > 0 ? wines : 0;
   const count = `${n} wine${n === 1 ? "" : "s"}`;
   if (!(picks > 0)) {
-    if (pickable > 0) {
-      return `We read ${count} and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.`;
+    switch (emptyCause(counts)) {
+      case "terms":
+        return `We read ${count} and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.`;
+      case "glass":
+        return `We read ${count}, and ${n === 1 ? "it is" : "each is"} poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there.`;
+      case "prices":
+        return `We read ${count} and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices.`;
+      default:
+        return `We read ${count} and none of them matches your palate yet. If something here is your kind of wine, add its grape or region to your palate and we’ll know it next time.`;
     }
-    return `We read ${count} but couldn’t find matches for your DNA. Try adjusting tonight’s terms or updating your profile.`;
   }
   const across = pages > 1 ? ` across ${pages} pages` : "";
   return `${count}${across} — ${picks > 5 ? `here are your top ${picks}` : "here’s where to start"}`;
+}
+
+/** Said under the sub line whenever wines were left out for being poured by
+ *  the glass only (Ed, Nov 2026: bottles only, but say so). Null when none
+ *  were — and when the sub line has already said it (cause "glass"). */
+export function glassNote({ leftOut, cause } = {}) {
+  if (!Number.isInteger(leftOut) || leftOut < 1 || cause === "glass") return null;
+  return leftOut === 1
+    ? "1 wine here is poured by the glass only. We pick bottles, so we left it out."
+    : `${leftOut} wines here are poured by the glass only. We pick bottles, so we left them out.`;
 }
 
 /** The line above a lone Splurge: none of the matches fits the budget, and
