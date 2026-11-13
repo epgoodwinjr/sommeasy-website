@@ -40,7 +40,7 @@ function assertEq(actual, expected, msg) {
 
 const engine = await import("../matchEngine.js");
 const terms = await import("../matchTerms.js");
-const { buildSommPayload } = await import("../sommPicks.js");
+const { buildSommPayload, buildAdventurePayload } = await import("../sommPicks.js");
 const fx = JSON.parse(readFileSync(new URL("./fixtures/curatePicksLock.json", import.meta.url), "utf8"));
 
 const INITIAL = { top: "t", splurge: "s", value: "v", adventure: "a", wildcard: "w" };
@@ -347,6 +347,83 @@ test("a steer adds candidates under the same terms — it can raise the ask, nev
     }
   }
   assert(raised > 0, "premise: at least one steer surfaces a wine the palate didn't score");
+});
+
+console.log("\n═══ A red whose name hides a sparkling word is a red (Nov 2026) ═══");
+
+// "asti" in Castillo, "cava" in Cavallotto, "mcc" in McCrea, "brut" in
+// Brutocao: until isSparkling read words, these reds were left out under
+// Reds and offered under Sparkling — by the picks, the Somm's slate and the
+// lone Adventure alike. Its own list: the lock fixture is never touched.
+const HIDDEN = [
+  "Marqués de Murrieta Castillo Ygay Rioja Gran Reserva 2011...$120",
+  "Cavallotto Barolo Bricco Boschis 2018...$95",
+  "Vietti Barbera d'Asti Tre Vigne 2021...$48",
+  "McCrea Syrah, Washington 2019...$60",
+  "Brutocao Zinfandel, Mendocino 2020...$44",
+  "Segura Viudas Cava Brut Reserva NV...$36",
+  "Saracco Moscato d'Asti 2023...$40",
+].join("\n");
+const STILL_REDS = [120, 95, 48, 60, 44], FIZZ = [36, 40];
+const sorted = (prices) => prices.slice().sort((a, b) => a - b);
+function hidden(dna) {
+  const entries = engine.parseWineList(HIDDEN);
+  const { scoredEntries: scored, userDNA } = engine.matchWinesAgainstDNA(entries, dna, null);
+  return { entries, scored, userDNA, menuContext: engine.buildMenuContext(scored.filter((e) => e.score > 0)) };
+}
+const LOVES_THEM = {
+  countries: ["spain", "italy", "us"], regions: { spain: ["rioja"], italy: ["piedmont"] }, estates: {},
+  varietals: ["tempranillo", "nebbiolo", "barbera", "syrah", "zinfandel", "moscato"], specificWines: [],
+};
+
+test("the picks: Reds offers the five reds and neither sparkler; Sparkling offers the two and no red", () => {
+  const s = hidden(LOVES_THEM);
+  assertEq(s.scored.length, 7, "fixture premise: seven wines read");
+  assert(s.scored.every((e) => e.score > 0), "fixture premise: the palate scores every wine — " + s.scored.filter((e) => !(e.score > 0)).map((e) => e.name).join(", "));
+  const pick = (color) => engine.curatePicks(s.scored, { minPrice: null, maxPrice: null, colorPreference: color, maxPicks: 7, menuContext: s.menuContext, userDNA: s.userDNA });
+  assertEq(sorted(s.scored.filter((e) => terms.fitsColor(e, "red")).map((e) => e.price)), sorted(STILL_REDS), "what fits Reds");
+  assertEq(sorted(s.scored.filter((e) => terms.fitsColor(e, "sparkling")).map((e) => e.price)), sorted(FIZZ), "what fits Sparkling");
+  const reds = pick("red").map((x) => x.price), fizz = pick("sparkling").map((x) => x.price);
+  assert(reds.length >= 3 && reds.every((p) => STILL_REDS.includes(p)), `Reds: ${reds}`);
+  assertEq(sorted(fizz), sorted(FIZZ), "Sparkling");
+});
+
+test("the Somm's slate: the same wines, under the same color", () => {
+  const s = hidden(LOVES_THEM);
+  const slate = (color) => buildSommPayload({
+    scoredEntries: s.scored, algorithmicPicks: [], pickCount: 5, profile: { ...LOVES_THEM, specific_wines: [] }, ratedInteractions: [],
+    totalParsed: 7, budget: { min: null, max: null }, color, steer: null,
+  }).candidates;
+  assertEq(sorted(slate("red").map((c) => c.price)), sorted(STILL_REDS), "Reds");
+  assertEq(sorted(slate("sparkling").map((c) => c.price)), sorted(FIZZ), "Sparkling");
+});
+
+// The same trap words on producers the data has never met (a producer it
+// knows scores on its rating alone, and a list with any match has no Adventure)
+const HIDDEN_STRANGERS = [
+  "Castillo de Nadie Tempranillo Reserva 2016...$120",
+  "Cavallina Rossa Nebbiolo 2018...$95",
+  "Azienda Nessuno Barbera d'Asti 2021...$48",
+  "McCorkle Hollow Syrah 2019...$60",
+  "Brutovski Zinfandel 2020...$44",
+  "Casa Nadie Cava Brut Reserva NV...$36",
+  "Azienda Nessuno Moscato d'Asti 2023...$40",
+].join("\n");
+
+test("the lone Adventure: on a list the palate knows nothing on, Reds ranks the reds and Sparkling the sparklers — and the Somm is told which is which", () => {
+  const dna = { countries: ["new_zealand"], regions: {}, estates: {}, varietals: ["sauvignon_blanc"], specificWines: [] };
+  const { scoredEntries: scored } = engine.matchWinesAgainstDNA(engine.parseWineList(HIDDEN_STRANGERS), dna, null);
+  assertEq(scored.length, 7, "fixture premise: seven wines read");
+  assert(scored.every((e) => !(e.score > 0)), "fixture premise: nothing matches — " + scored.filter((e) => e.score > 0).map((e) => e.name).join(", "));
+  assertEq(sorted(terms.rankAdventures(scored, { color: "red" }).map((e) => e.price)), sorted(STILL_REDS), "Reds");
+  assertEq(sorted(terms.rankAdventures(scored, { color: "sparkling" }).map((e) => e.price)), sorted(FIZZ), "Sparkling");
+  const payload = buildAdventurePayload({
+    scoredEntries: scored, profile: { ...dna, specific_wines: [] }, ratedInteractions: [], totalParsed: 7,
+    budget: { min: null, max: null }, color: null, lean: null, steer: null,
+  });
+  const told = Object.fromEntries(payload.candidates.map((c) => [c.price, c.color]));
+  assertEq(STILL_REDS.map((p) => told[p]), STILL_REDS.map(() => "red"), "the reds, as the Somm is told");
+  assertEq(FIZZ.map((p) => told[p]), FIZZ.map(() => "sparkling"), "the sparklers");
 });
 
 console.log(`\nTotal: ${passed}/${passed + failed} passed, ${failed} failed\n`);
