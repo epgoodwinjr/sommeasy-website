@@ -517,6 +517,12 @@ async function main() {
     assertEq(copy.picksSubline({ wines: 9, pages: 1, ...noRoom }),
       "We read nine wines. None is a clear match for your palate, and tonight’s terms leave no room for an adventure. Adjust them and we’ll find one worth taking.", "sub, no room");
 
+    // One wine read: the lines agree with it ("none of them" would not)
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 0, read: 1, pickable: 0, matched: 0, scored: 1, leftOut: 0, open: 0 }),
+      "We read one wine and it doesn’t match your palate yet.", "sub, none, one wine");
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 0, read: 1, pickable: 0, matched: 0, scored: 1, leftOut: 0, open: 1 }),
+      "We read one wine. It isn’t a clear match for your palate, and tonight’s terms leave no room for an adventure. Adjust them and we’ll take another look.", "sub, no room, one wine");
+
     // The terms and the true no-match are untouched by the new counts
     assertEq(copy.picksHeading({ picks: 0, pickable: 3, matched: 3, scored: 9, leftOut: 2 }), "Nothing fits tonight’s terms", "heading, terms");
     assertEq(copy.picksHeading({ picks: 0, pickable: 0, matched: 0, scored: 9, leftOut: 2 }), "No matches found", "heading, none");

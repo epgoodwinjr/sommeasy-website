@@ -393,9 +393,13 @@ export function picksSubline({ wines, pages, picks, ...counts } = {}) {
       case "prices":
         return `We read ${count} and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices.`;
       case "no_room":
-        return `We read ${count}. None is a clear match for your palate, and tonight’s terms leave no room for an adventure. Adjust them and we’ll find one worth taking.`;
+        return n === 1
+          ? `We read ${count}. It isn’t a clear match for your palate, and tonight’s terms leave no room for an adventure. Adjust them and we’ll take another look.`
+          : `We read ${count}. None is a clear match for your palate, and tonight’s terms leave no room for an adventure. Adjust them and we’ll find one worth taking.`;
       default:
-        return `We read ${count} and none of them matches your palate yet.`;
+        return n === 1
+          ? `We read ${count} and it doesn’t match your palate yet.`
+          : `We read ${count} and none of them matches your palate yet.`;
     }
   }
   const across = pages > 1 ? ` across ${countOf(pages, "page")}` : "";
