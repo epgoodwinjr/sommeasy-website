@@ -125,7 +125,7 @@ test.describe("Tonight's terms hold — budget, color, and what is left (hard-fa
     await expect(rec.pickCards).toHaveCount(0);
     await expect(rec.resultsHeading).toHaveText("Nothing fits tonight’s terms");
     await expect(page.getByText(
-      "We read 8 wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches."
+      "We read eight wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches."
     )).toBeVisible();
     await expect(page.getByText("none of them matches your palate")).toHaveCount(0);
 
@@ -185,7 +185,7 @@ test.describe("Tonight's terms hold — budget, color, and what is left (hard-fa
     await rec.pasteAndAnalyze(LIST);
     await expect(rec.resultsHeading).toHaveText("Nothing fits tonight’s terms", { timeout: 10_000 });
     await expect(page.getByText(
-      "We read 8 wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches."
+      "We read eight wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches."
     )).toBeVisible();
     await expect(rec.pickCards).toHaveCount(0);
     await expect(page.getByTestId("somm-thinking")).toHaveCount(0);
@@ -207,7 +207,7 @@ Raats Original Chenin Blanc, Stellenbosch 2022`);
     // until then this read "No matches found")
     await expect(rec.resultsHeading).toHaveText("No prices to pick by", { timeout: 10_000 });
     await expect(page.getByText(
-      "We read 3 wines and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices."
+      "We read three wines and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices."
     )).toBeVisible();
     await expect(page.getByText("none that fit tonight’s terms")).toHaveCount(0);
     await expect(page.getByText("none of them matches your palate")).toHaveCount(0);

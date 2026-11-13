@@ -1936,7 +1936,7 @@ test.describe("The waits, another page — motion on", () => {
     await expect(rec.processingSpinner).toBeVisible({ timeout: 15_000 });
     await expect.poll(() => gates.length, { timeout: 15_000 }).toBe(3);
     gates[2]();
-    await expect(page.getByText(/11 wines across 2 pages/)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/11 wines across two pages/)).toBeVisible({ timeout: 20_000 });
     await expect.poll(async () => (await entrances(page)).length, { timeout: 15_000 }).toBeGreaterThan(5);
     await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
     // Only pages that read reach the ledger: the first, and this one

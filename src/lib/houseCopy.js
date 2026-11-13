@@ -21,12 +21,30 @@ import { budgetLimits } from "./matchTerms.js";
  *  preview image (opengraph-image.js) all say it, so it lives once. */
 export const TAGLINE = "Never guess at a wine list again.";
 
-const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+// ─── Numbers as words (the house rule — Ed, Nov 2026) ───
+//
+// In sentence copy, zero through ten are written as words; anything above
+// ten stays digits, and so do prices, vintages and ratings. A sentence that
+// opens with its number capitalizes it ("Three wines here are poured by the
+// glass only."). Every sentence this module writes goes through numberWord /
+// countOf; houseCopy.test.js sweeps them all for a stray small digit.
+//
+// Figures are not sentences: a tally ("9 tried · 5 loved · 3 to try"), a
+// row's count ("3 bottles"), a label ("Journal · 9") and the terms bar's
+// prices keep their digits.
+const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
 
-/** 1–9 as words ("two"), digits past that. `capitalize` for a sentence start. */
+/** Zero through ten as words ("two"), digits past that — and for anything
+ *  that isn't a whole count. `capitalize` for a sentence start. */
 export function numberWord(n, { capitalize = false } = {}) {
-  const word = WORDS[n] && n > 0 ? WORDS[n] : String(n);
+  const word = Number.isInteger(n) && WORDS[n] ? WORDS[n] : String(n);
   return capitalize ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+}
+
+/** A count with its noun, the noun agreeing: "one wine", "eight wines",
+ *  "11 wines" — "Three wines" when it opens the sentence. */
+export function countOf(n, noun, { capitalize = false } = {}) {
+  return `${numberWord(n, { capitalize })} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /** Loved bottles a dimension needs to join the DNA from nothing — "Two
@@ -45,6 +63,12 @@ export function lovedBottlesAway(dimension, points) {
 
 export function bottlesPhrase(n) {
   return `${numberWord(n)} loved bottle${n === 1 ? "" : "s"}`;
+}
+
+/** "three more regions" — what a Show-more control or a list's tail still
+ *  holds: the count as a word (to ten), the noun agreeing with it. */
+export function moreOf(n, noun, { capitalize = false } = {}) {
+  return `${numberWord(n, { capitalize })} more ${noun}${n === 1 ? "" : "s"}`;
 }
 
 // More specific dimensions win a tie: an estate is a sharper fact than a
@@ -305,27 +329,42 @@ export function pickNote({ reasons, producer, region, grape, country } = {}) {
 
 /** Why there are no picks — each cause is a different thing to tell the
  *  diner, and a different thing to do next. What the page knows:
+ *    read      wines read from the list
  *    pickable  wines the palate scored that have a price (under no terms)
  *    matched   wines the palate scored at all
  *    scored    wines that reached the scorer
  *    leftOut   wines left out because they are poured by the glass only
+ *    open      on a list that matched NOTHING: the wines that could be the
+ *              lone Adventure under no terms at all (matchTerms' canAdventure)
  *  In the order of what would bring picks back:
- *    "terms"   matches with prices exist — tonight's terms excluded them
- *    "glass"   every wine read was by the glass; nothing reached the scorer
- *    "prices"  the palate matched wines, and none of them shows a price
- *    "none"    a true no-match (also whenever the counts are unknown —
- *              the page never claims a cause it can't see) */
-export function emptyCause({ pickable, matched, scored, leftOut } = {}) {
+ *    "unread"   nothing was read at all
+ *    "terms"    matches with prices exist — tonight's terms excluded them
+ *    "glass"    every wine read was by the glass; nothing reached the scorer
+ *    "prices"   the palate matched wines, and none of them shows a price
+ *    "no_room"  nothing matched, and tonight's terms shut out every wine the
+ *               lone Adventure could have been (with room for one, the page
+ *               shows it instead — this is never reached)
+ *    "none"     a true no-match with nothing to offer (also whenever the
+ *               counts are unknown — the page never claims a cause it can't
+ *               see)
+ *  Since the lone Adventure (Nov 2026) a list that matched nothing usually
+ *  HAS a pick, so "none" is rare: no wine on the list shows a price, or the
+ *  only priced ones are wines the diner has rated against. */
+export function emptyCause({ read, pickable, matched, scored, leftOut, open } = {}) {
+  if (read === 0) return "unread";
   if (pickable > 0) return "terms";
   if (scored === 0 && leftOut > 0) return "glass";
   if (matched > 0) return "prices";
+  if (matched === 0 && open > 0) return "no_room";
   return "none";
 }
 
 const EMPTY_HEADING = {
+  unread: "No wines found",
   terms: "Nothing fits tonight’s terms",
   glass: "Only by-the-glass pours here",
   prices: "No prices to pick by",
+  no_room: "Nothing fits tonight’s terms",
   none: "No matches found",
 };
 
@@ -336,24 +375,32 @@ export function picksHeading({ picks, ...counts } = {}) {
 }
 
 /** Under the heading: the list's size (and pages), then where to start —
- *  or, with no picks, what happened and what to do about it. */
+ *  or, with no picks, what happened and what to do about it. It never says
+ *  matches were found on a list where none were: only "terms" and "prices"
+ *  say so, and both need a match to be reached. Under "none" the page adds
+ *  the palate nudge (PALATE_NUDGE) on its own line. */
 export function picksSubline({ wines, pages, picks, ...counts } = {}) {
   const n = Number.isInteger(wines) && wines > 0 ? wines : 0;
-  const count = `${n} wine${n === 1 ? "" : "s"}`;
   if (!(picks > 0)) {
+    const count = countOf(n, "wine");
     switch (emptyCause(counts)) {
+      case "unread":
+        return "We couldn’t find a wine in what you shared. Try a clearer photo, or paste the list as text.";
       case "terms":
         return `We read ${count} and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.`;
       case "glass":
         return `We read ${count}, and ${n === 1 ? "it is" : "each is"} poured by the glass only. Our picks are bottles — add the bottle list and we’ll take it from there.`;
       case "prices":
         return `We read ${count} and found matches for your palate, but none of them shows a price — and a pick needs one. Try a photo or a page that shows the prices.`;
+      case "no_room":
+        return `We read ${count}. None is a clear match for your palate, and tonight’s terms leave no room for an adventure. Adjust them and we’ll find one worth taking.`;
       default:
-        return `We read ${count} and none of them matches your palate yet. If something here is your kind of wine, add its grape or region to your palate and we’ll know it next time.`;
+        return `We read ${count} and none of them matches your palate yet.`;
     }
   }
-  const across = pages > 1 ? ` across ${pages} pages` : "";
-  return `${count}${across} — ${picks > 5 ? `here are your top ${picks}` : "here’s where to start"}`;
+  const across = pages > 1 ? ` across ${countOf(pages, "page")}` : "";
+  const start = picks > 5 ? `here are your top ${numberWord(picks)}` : "here’s where to start";
+  return `${countOf(n, "wine", { capitalize: true })}${across} — ${start}`;
 }
 
 /** Said under the sub line whenever wines were left out for being poured by
@@ -361,9 +408,10 @@ export function picksSubline({ wines, pages, picks, ...counts } = {}) {
  *  were — and when the sub line has already said it (cause "glass"). */
 export function glassNote({ leftOut, cause } = {}) {
   if (!Number.isInteger(leftOut) || leftOut < 1 || cause === "glass") return null;
+  const count = countOf(leftOut, "wine", { capitalize: true });
   return leftOut === 1
-    ? "1 wine here is poured by the glass only. We pick bottles, so we left it out."
-    : `${leftOut} wines here are poured by the glass only. We pick bottles, so we left them out.`;
+    ? `${count} here is poured by the glass only. We pick bottles, so we left it out.`
+    : `${count} here are poured by the glass only. We pick bottles, so we left them out.`;
 }
 
 /** The line above a lone Splurge: none of the matches fits the budget, and
@@ -375,6 +423,35 @@ export function loneSplurgeLine({ picks, max } = {}) {
   if (limit == null || !Array.isArray(picks) || picks.length !== 1) return null;
   if (!(picks[0]?.price > limit)) return null;
   return "None of your matches fit tonight’s terms. This one is worth the stretch.";
+}
+
+/** The line above a lone Adventure (Ed, Nov 2026): the list was read, wines
+ *  reached the scorer, none of them scored — and the page shows ONE wine
+ *  anyway, the adventure worth taking, on the lone Splurge's principle. Null
+ *  whenever that isn't exactly what happened: an Adventure among real
+ *  matches is just a role, and an unknown match count never claims it. */
+export function loneAdventureLine({ picks, matched } = {}) {
+  if (matched !== 0 || !Array.isArray(picks) || picks.length !== 1) return null;
+  if (picks[0]?.pickType !== "adventure") return null;
+  return "Nothing on this list is a clear match for your palate, so here’s the adventure we’d take.";
+}
+
+/** The way back to the quiz, said wherever the palate found nothing it
+ *  knows: under a lone Adventure, and under "No matches found". Ed's line —
+ *  "Know there’s more you love? Add it to your palate and we’ll spot it next
+ *  time." — in the parts the page sets, `link` being the link. */
+export const PALATE_NUDGE = Object.freeze({
+  lead: "Know there’s more you love?",
+  link: "Add it to your palate",
+  tail: "and we’ll spot it next time.",
+  href: "/?quiz=refine",
+});
+
+/** Where the nudge shows: under the lone Adventure, and under a no-match
+ *  with nothing to offer. Every other zero state has its own next step. */
+export function showsPalateNudge({ loneAdventure = false, picks, cause } = {}) {
+  if (loneAdventure === true) return true;
+  return picks === 0 && cause === "none";
 }
 
 // ─── The journal + a wine's page (Phase 4) ───

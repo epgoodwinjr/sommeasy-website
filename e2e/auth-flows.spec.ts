@@ -254,7 +254,7 @@ test.describe("Auth — signed-out flows", () => {
     await page.locator("input#email").fill(FAKE_EMAIL);
     await page.locator("input#password").fill("short77");
     await submit.click();
-    await expect(error).toContainText(/at least 8 characters/);
+    await expect(error).toContainText(/at least eight characters/);
     expect(signupCalls, "nothing may reach Supabase until the form is complete").toBe(0);
 
     // Complete: it goes — a padded address trimmed, the inbox naming that one
@@ -339,7 +339,7 @@ test.describe("Auth — polish (Session 3)", () => {
     await expect(page.locator("input#name")).toHaveAttribute("autocomplete", "name");
     await expect(page.locator("input#name")).toHaveAttribute("maxlength", "60");
     // The quiet requirements helper
-    await expect(page.getByText("At least 8 characters.")).toBeVisible();
+    await expect(page.getByText("At least eight characters.")).toBeVisible();
 
     // Show/Hide toggle
     const password = page.locator("input#password");

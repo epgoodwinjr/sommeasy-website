@@ -294,6 +294,31 @@ async function main() {
     buildEventRow(USER, "menu_analyzed", p); // serializable
   });
 
+  await test("menuAnalyzedPayload says when the pick shown was the lone Adventure — and still keeps the sample", () => {
+    const entries = [photo("Tenuta Immaginaria Soave"), photo("Bodegas Inventadas Albariño")];
+    const p = menuAnalyzedPayload({
+      source: "scan", entries, scored: 2, matchCount: 0, picksShown: 1, loneAdventure: true,
+      terms: { min: null, max: 60, color: null }, somm: { outcome: "first_attempt", duration_ms: 5000 },
+    });
+    assert(p.lone_adventure === true, "the flag");
+    assert(p.match_count === 0 && p.picks_shown === 1, "nothing matched, one pick shown");
+    assert(Array.isArray(p.sample) && p.sample.length === 2, "a list that matched nothing still keeps its sample");
+    // Every other analysis says false — a key, never an absence, so a query needs no coalesce
+    assert(menuAnalyzedPayload({ entries, scored: 2, matchCount: 2, picksShown: 2 }).lone_adventure === false, "an ordinary analysis");
+    assert(menuAnalyzedPayload({ entries, scored: 2, matchCount: 0, picksShown: 0 }).lone_adventure === false, "a no-match with nothing to offer");
+    assert(menuAnalyzedPayload({ entries, loneAdventure: "yes" }).lone_adventure === false, "junk is not true");
+    assert(menuAnalyzedPayload().lone_adventure === false, "nothing at all");
+  });
+
+  await test("sommCurationPayload says which question was asked: the picks, or the lone Adventure", () => {
+    const meta = { outcome: "first_attempt", attempts: 1, usage: {}, candidates: 11, pickCount: 1 };
+    assert(sommCurationPayload({ ...meta, mode: "adventure" }).mode === "adventure", "the Adventure's ask");
+    assert(sommCurationPayload({ ...meta, mode: "picks" }).mode === "picks", "the ordinary ask");
+    assert(sommCurationPayload(meta, { candidates: 11, pickCount: 1, mode: "adventure" }).mode === "adventure", "an older route: what was sent");
+    assert(sommCurationPayload(meta).mode === "picks", "absent → the ordinary ask (every row before Nov 13, 2026)");
+    assert(sommCurationPayload({ ...meta, mode: { evil: 1 } }).mode === "picks", "junk → the ordinary ask");
+  });
+
   await test("buildEventRow accepts the two new types", () => {
     const chosen = buildEventRow(USER, "pick_chosen", pickChosenPayload({ wine: "X" }));
     assert(chosen.event_type === "pick_chosen", "pick_chosen accepted");

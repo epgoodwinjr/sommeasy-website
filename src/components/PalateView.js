@@ -21,7 +21,7 @@ import { formatWineName } from "@/lib/matchEngine";
 import { computeSignature, concentrationPhrase, signatureLine } from "@/lib/palateSignature";
 import { DNA_NAMES } from "@/lib/dnaNames";
 import { TIMELINE_HREF, buildingNow, dnaEntries, dnaGroups, evolutionRows } from "@/lib/palateView";
-import { bottlesAwayLine, dnaCount, dnaKindLabel } from "@/lib/houseCopy";
+import { bottlesAwayLine, dnaCount, dnaKindLabel, numberWord } from "@/lib/houseCopy";
 import { numeralCounter } from "@/lib/numerals";
 import PalateMark from "./PalateMark";
 import SharePalate from "./SharePalate";
@@ -140,7 +140,7 @@ function BuildingNow({ numeral, accumulation, enterDelay }) {
         <>
           {building.rows.map((r, i) => <BuildingRow key={r.key} row={r} delay={200 + i * 90} />)}
           {building.more > 0 && (
-            <p style={{ ...quietLine, marginTop: 12 }}>+ {building.more} more building quietly</p>
+            <p style={{ ...quietLine, marginTop: 12 }}>+ {numberWord(building.more)} more building quietly</p>
           )}
         </>
       )}

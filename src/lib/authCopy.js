@@ -19,7 +19,7 @@ export const AUTH_ERRORS = {
   already_registered:
     "Good news — you already have an account with us. Sign in instead, or reset your password if it's slipped your mind.",
   weak_password:
-    "That password's a touch short — give it at least 8 characters.",
+    "That password's a touch short — give it at least eight characters.",
   same_password:
     "That's the password you already have — pick something new.",
   magic_needs_email:
@@ -53,7 +53,7 @@ export const AUTH_MESSAGES = {
   // has an account.
   magic_sent: (email) =>
     `If that email has an account with us, a sign-in link is on its way to ${email}. If it's playing hard to get, check your spam folder.`,
-  password_helper: "At least 8 characters.",
+  password_helper: "At least eight characters.",
   password_updated: "Your password is updated — welcome back.",
   reset_session_missing:
     "This page needs a fresh reset link to work its magic. Request one below and click it from your inbox.",

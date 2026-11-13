@@ -331,6 +331,109 @@ async function main() {
     assert(data.meta.reasons.length === 0, "a salvage is not a rejection");
   });
 
+  console.log("\n═══ /api/somm-picks — the lone Adventure (mode: \"adventure\") ═══");
+
+  // A list that matched nothing: the priced wines that fit tonight's terms,
+  // the engine's placeholder first (sommPicks' buildAdventurePayload)
+  const adventurePayload = (extra = {}) => ({
+    mode: "adventure",
+    candidates: [
+      { i: 0, name: "Tenuta Immaginaria Soave Classico", price: 38, country: "Italy", color: "white" },
+      { i: 1, name: "Bodegas Inventadas Albariño", price: 46, country: "Spain", color: "white" },
+      { i: 2, name: "Quinta Inventada Touriga Nacional", price: 88, country: "Portugal", color: "red" },
+    ],
+    algorithmicPicks: [0],
+    pickCount: 1,
+    dna: { archetype: "The South African Curator", varietals: ["Chenin Blanc"] },
+    feedback: { loved: [], notForMe: [] },
+    menu: { totalWines: 3 },
+    budget: { min: null, max: 60 },
+    color: null,
+    lean: "white",
+    steer: null,
+    ...extra,
+  });
+  const NOTE = "Albariño isn’t one of your grapes, but it has the bright, salty snap of the Chenin you love — the nearest thing on this list.";
+  const adventureJson = (i = 1, extra = {}) => ({ picks: [{ i, role: "adventure", note: NOTE, ...extra }], sommSummary: "" });
+
+  let ordinaryPrompt = null;
+  await test("the Adventure has its own brief: one wine, nearest in spirit, honest that it is a stretch", async () => {
+    ordinaryPrompt = (await callRoute(routePayload())).sent.system;
+    const { sent, sentPayload } = await callRoute(adventurePayload(), [modelReply(adventureJson())]);
+    assert(sent.system !== ordinaryPrompt, "not the ordinary prompt");
+    for (const phrase of ["exactly ONE", "nearest in spirit", "stretch", "candidates", "\"adventure\"", "notForMe"]) {
+      assert(sent.system.includes(phrase), `the brief says "${phrase}"`);
+    }
+    assert(/never (say|claim)[^.]*match/i.test(sent.system), "it must not call the wine a match");
+    assert(/under 450 characters/.test(sent.system), "the note's length");
+    assert(!/Use each of top\/value\/adventure\/splurge/.test(sent.system), "no slate of roles to hand out");
+    assert(sentPayload.mode === "adventure" && sentPayload.candidates.length === 3, "the payload reaches Claude as sent");
+  });
+
+  await test("the ordinary ask is untouched: its prompt is the same with or without a mode it doesn't know", async () => {
+    const plain = (await callRoute(routePayload())).sent.system;
+    const odd = (await callRoute(routePayload({ mode: "banana" }))).sent.system;
+    assert(plain === ordinaryPrompt && odd === ordinaryPrompt, "one ordinary prompt");
+    const { data } = await callRoute(routePayload({ mode: "banana" }));
+    assert(!data.fallback && data.picks.length === 2 && data.meta.mode === "picks", JSON.stringify(data.meta));
+  });
+
+  await test("it asks for ONE pick whatever the caller sent, and still asks for JSON-schema output", async () => {
+    const { sent, sentPayload, data } = await callRoute(adventurePayload({ pickCount: 5 }), [modelReply(adventureJson())]);
+    assert(sentPayload.pickCount === 1, `asked for ${sentPayload.pickCount}`);
+    assert(sent.output_config?.format?.type === "json_schema", "the output format");
+    assert(data.meta.pickCount === 1 && data.meta.candidates === 3, JSON.stringify(data.meta));
+  });
+
+  await test("the answer is one Adventure with its note and no summary — whatever role and summary the model wrote", async () => {
+    const { data, calls } = await callRoute(adventurePayload(), [
+      modelReply({ picks: [{ i: 1, role: "top", note: NOTE }], sommSummary: "Nothing here is yours, but one comes close." }),
+    ]);
+    assert(calls.length === 1, "one call");
+    assert(JSON.stringify(data.picks) === JSON.stringify([{ i: 1, role: "adventure", note: NOTE }]), JSON.stringify(data.picks));
+    assert(data.sommSummary === "", `summary "${data.sommSummary}"`);
+    assert(data.meta.outcome === "first_attempt" && data.meta.mode === "adventure", JSON.stringify(data.meta));
+    assert(data.meta.reasons.length === 0, "no reasons on a clean answer");
+  });
+
+  await test("a wine over the max is rejected — an Adventure is never a stretch on price — and the retry is told so", async () => {
+    const { data, calls } = await callRoute(adventurePayload(), [
+      modelReply(adventureJson(2)),          // $88 against a $60 max
+      modelReply(adventureJson(1)),
+    ]);
+    assert(calls.length === 2, `${calls.length} calls`);
+    const correction = calls[1].messages[2].content;
+    assert(correction.includes("adventure 88 > budget max"), correction);
+    assert(/exactly one pick/i.test(correction) && /at or under budget\.max/.test(correction), correction);
+    assert(!/splurge/i.test(correction), "the Adventure's correction never offers a splurge");
+    assert(data.picks[0].i === 1 && data.meta.outcome === "retried", JSON.stringify(data.meta));
+    assert(JSON.stringify(data.meta.reasons) === JSON.stringify(["adventure 88 > budget max"]), JSON.stringify(data.meta.reasons));
+  });
+
+  await test("two bad answers → the silent fallback, with a meta that says why (the page keeps the engine's pick)", async () => {
+    const { data, calls } = await callRoute(adventurePayload(), [
+      modelReply(adventureJson(9)),
+      modelReply({ picks: [], sommSummary: "" }),
+    ]);
+    assert(calls.length === 2 && data.fallback === true && !data.picks, JSON.stringify(data));
+    assert(data.meta.outcome === "fallback" && data.meta.mode === "adventure" && data.meta.attempts === 2, JSON.stringify(data.meta));
+    assert(JSON.stringify(data.meta.reasons) === JSON.stringify(["index 9 not in candidates", "pick count 0 < 1"]), JSON.stringify(data.meta.reasons));
+  });
+
+  await test("a slate with nothing inside the max never reaches Claude", async () => {
+    const { data, calls } = await callRoute(adventurePayload({ budget: { min: null, max: 30 } }));
+    assert(calls.length === 0, "no call");
+    assert(data.fallback === true && !data.meta, JSON.stringify(data));
+  });
+
+  await test("the steer is trimmed and capped for the Adventure too, and an upstream error still falls back quietly", async () => {
+    const { sentPayload } = await callRoute(adventurePayload({ steer: `  ${"x".repeat(400)}  ` }), [modelReply(adventureJson())]);
+    assert(sentPayload.steer.length === 200, `steer ${sentPayload.steer.length}`);
+    const { data } = await callRoute(adventurePayload(), [apiError(401, "authentication_error", "invalid x-api-key")]);
+    assert(data.fallback === true && data.meta.mode === "adventure", JSON.stringify(data));
+    assert(data.meta.reasons.at(-1) === "error: api 401", JSON.stringify(data.meta.reasons));
+  });
+
   console.log(`\nTotal: ${passed}/${passed + failed} passed, ${failed} failed\n`);
   process.exit(failed > 0 ? 1 : 0);
 }

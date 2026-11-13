@@ -216,8 +216,8 @@ async function main() {
   });
 
   test("password_helper and magic_needs_email exist with the 8-char policy", () => {
-    assert(AUTH_MESSAGES.password_helper === "At least 8 characters.", "helper copy");
-    assert(/8 characters/.test(AUTH_ERRORS.weak_password), "weak_password names 8");
+    assert(AUTH_MESSAGES.password_helper === "At least eight characters.", "helper copy (the house rule: zero through ten as words)");
+    assert(/eight characters/.test(AUTH_ERRORS.weak_password), "weak_password names eight");
     assert(!/6 characters/.test(AUTH_ERRORS.weak_password), "no stale 6-char copy");
     assert(typeof AUTH_ERRORS.magic_needs_email === "string" && AUTH_ERRORS.magic_needs_email.length > 20, "magic_needs_email");
   });

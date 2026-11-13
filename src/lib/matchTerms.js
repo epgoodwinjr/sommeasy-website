@@ -162,3 +162,99 @@ export function budgetFit(price, min, max) {
 export function isPickable(entry) {
   return Boolean(entry) && entry.score > 0 && entry.price != null;
 }
+
+// ═══════════════════════════════════════════════════════
+// THE LONE ADVENTURE (Nov 2026)
+// ═══════════════════════════════════════════════════════
+//
+// A list was read, wines reached the scorer, and none of them scored: the
+// palate knows nothing on it. The diner is still at the table. So the page
+// shows ONE wine — role Adventure — on the lone Splurge's principle, rather
+// than ending in "No matches found" (Ed's decision).
+//
+//   Trigger   nothing on the list scored above zero. One match anywhere —
+//             even a wine that scores on its producer's rating alone — and
+//             the list is an ordinary one: curatePicks decides, as before.
+//   Eligible  a wine with a price that the palate has nothing AGAINST (a
+//             negative score is a wine, grape or place the diner rated "not
+//             for me"), in tonight's color, INSIDE tonight's budget. Never
+//             the Splurge band: a wine that is a stretch for the palate is
+//             not also a stretch for the wallet.
+//   The pick  the engine has no taste to go on, so its rule is plain and
+//             deterministic: the color the diner asked for — or, with no
+//             color chosen, the one their palate leans to — then the middle
+//             of the price range (the lower middle of an even count; never
+//             the cheapest bottle, never the dearest).
+//
+// The engine's pick is a placeholder with manners. The Somm, asked with the
+// palate as context, chooses the wine nearest in spirit from the same wines
+// (sommPicks' buildAdventurePayload reads rankAdventures — one rule, two
+// readers, as with the terms).
+
+/** The color the palate has more of — "red", "white", or null when it is
+ *  even or unknown. `profile` carries red_count / white_count (the same
+ *  counts Your palate's Red ↔ White rail is drawn from). */
+export function palateLean(profile) {
+  const count = (v) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  const p = profile && typeof profile === "object" ? profile : {};
+  const red = count(p.red_count), white = count(p.white_count);
+  if (red === white) return null;
+  return red > white ? "red" : "white";
+}
+
+/** A wine that could be the lone Adventure under no terms at all: it shows
+ *  a price, and the palate has nothing against it. */
+export function canAdventure(entry) {
+  return Boolean(entry) && typeof entry === "object" && entry.price != null && !(entry.score < 0);
+}
+
+/** …and under tonight's terms: the chosen color, inside the budget. */
+export function fitsAdventure(entry, { color, min, max } = {}) {
+  return canAdventure(entry) && fitsColor(entry, color) && budgetFit(entry.price, min, max) === "in";
+}
+
+// A wine's color as far as anyone can tell: sparkling however it reads as
+// one, else what the engine (or the photo) detected, else unknown
+function colorOf(entry) {
+  if (isSparkling(entry)) return "sparkling";
+  const color = entry.detectedColor || (entry.visionData && entry.visionData.color) || "";
+  return String(color).toLowerCase() || null;
+}
+
+/**
+ * Every wine the lone Adventure could be under tonight's terms, in the
+ * engine's order — its first is the pick. [] when the list matched anything
+ * at all (the trigger), or when nothing fits.
+ *
+ * Order: wines of the target color (tonight's color; else the palate's
+ * `lean`), then wines whose color is unknown, then the rest — and within
+ * each, from the middle of its price range outward, the cheaper of two
+ * equally near first. Equal prices keep the list's order.
+ */
+export function rankAdventures(scoredEntries, { color, min, max, lean } = {}) {
+  if (!Array.isArray(scoredEntries)) return [];
+  if (scoredEntries.some((e) => e && e.score > 0)) return [];
+  const terms = { color, min, max };
+  const eligible = scoredEntries.filter((e) => fitsAdventure(e, terms));
+  const target = color && color !== "all" ? color : lean || null;
+  const tiers = [[], [], []];
+  for (const entry of eligible) {
+    const c = colorOf(entry);
+    tiers[!target || c === target ? 0 : c == null ? 1 : 2].push(entry);
+  }
+  return tiers.flatMap((tier) => {
+    const byPrice = tier.slice().sort((a, b) => a.price - b.price); // stable: ties keep list order
+    const middle = Math.floor((byPrice.length - 1) / 2);
+    return byPrice
+      .map((entry, k) => ({ entry, away: Math.abs(k - middle), k }))
+      .sort((a, b) => a.away - b.away || a.k - b.k)
+      .map((x) => x.entry);
+  });
+}
+
+/** The lone Adventure: the first of rankAdventures as a pick (a copy,
+ *  pickType "adventure"), or null when there is none to offer. */
+export function loneAdventure(scoredEntries, terms) {
+  const [first] = rankAdventures(scoredEntries, terms);
+  return first ? Object.assign({}, first, { pickType: "adventure" }) : null;
+}

@@ -31,7 +31,7 @@ import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { splitVintage } from "@/lib/vintage";
 import { romanNumeral } from "@/lib/numerals";
 import { wineHref } from "@/lib/navTrail";
-import { REC_DONE, confidentMeta, matchTag, ratedDoneLine, reservedCaption } from "@/lib/houseCopy";
+import { REC_DONE, confidentMeta, matchTag, moreOf, ratedDoneLine, reservedCaption } from "@/lib/houseCopy";
 import WineRow, { ReservedRow } from "@/components/house/WineRow";
 import RatingTiles, { DoneLine, usePressHold } from "@/components/house/RatingTiles";
 import TextAction, { TextActions } from "@/components/house/TextAction";
@@ -315,8 +315,8 @@ export default function WineRecList({
               (The Velvet Rope) — signed-in lists don't carry it */}
           {readOnly && listed.length > limit && (
             enterBase.current === null
-              ? <p style={caption}>{listed.length - limit} more wines to explore</p>
-              : <Enter as="p" kind="fade" delay={enterAt(shown.length)} style={caption}>{listed.length - limit} more wines to explore</Enter>
+              ? <p style={caption}>{moreOf(listed.length - limit, "wine", { capitalize: true })} to explore</p>
+              : <Enter as="p" kind="fade" delay={enterAt(shown.length)} style={caption}>{moreOf(listed.length - limit, "wine", { capitalize: true })} to explore</Enter>
           )}
         </>
       )}

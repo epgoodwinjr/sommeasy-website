@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 import wineUnified from "@/lib/wineUnified.json";
+import { moreOf } from "@/lib/houseCopy";
 import { generateDNAProfile } from "@/lib/profileEngine";
 import { composeIdentity } from "@/lib/identityEngine";
 import { saveStash } from "@/lib/pendingPalate";
@@ -275,7 +276,7 @@ function RegionStep({ selectedCountries, regions, onToggle, earned }) {
               </Choices>
               {!isExpanded && remaining > 0 && (
                 <ShowMore onClick={() => setExpandedCountries(p => ({ ...p, [i.id]: true }))}>
-                  Show {remaining} more regions
+                  Show {moreOf(remaining, "region")}
                 </ShowMore>
               )}
             </>
@@ -340,7 +341,7 @@ function ProducerStep({ selectedRegions, estates, onToggle, earned }) {
                 <ShowMore onClick={() => setExpandedRegions(p => ({
                   ...p, [i.id]: showCount + PAGE_SIZE,
                 }))}>
-                  Show {Math.min(remaining, PAGE_SIZE)} more producers
+                  Show {moreOf(Math.min(remaining, PAGE_SIZE), "producer")}
                 </ShowMore>
               )}
             </>
@@ -796,7 +797,7 @@ function Reveal({ profile, saved, user, pending, saveFailed, onRetry, onGoHome }
             </p>
             <LeaderEntry tone="filled" mark="→" label="Save My Wine DNA" href="/signup" style={{ marginTop: 22 }} />
             <p style={gateFoot}>
-              Held on this device for 7 days. Already have an account?{" "}
+              Held on this device for seven days. Already have an account?{" "}
               {/* Inline in the sentence, its hit area padded past the line */}
               <Link href="/login" data-testid="teaser-signin" style={{ color: BURGUNDY, fontWeight: 600, padding: "10px 0", textDecoration: "none" }}>
                 Sign in — we&apos;ll fold this into your palate.

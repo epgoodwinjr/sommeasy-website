@@ -191,6 +191,10 @@ const finiteOrNull = (n) => (typeof n === "number" && Number.isFinite(n) ? n : n
  *   candidates  how many wines the Somm could choose from
  *   pick_count  how many it was asked for (after the clamp)
  *   model       the model the API says answered
+ *   mode        which question was asked: "picks" (curate the matches) or
+ *               "adventure" (nothing matched — one wine, nearest in spirit;
+ *               since Nov 13, 2026). Rows before it have no key: read an
+ *               absent mode as "picks".
  *
  * With these, "why did it fall back?" is a query; without them the ledger
  * could only count.
@@ -213,6 +217,7 @@ export function sommCurationPayload(meta, sent) {
     candidates: finiteOrNull(m.candidates) ?? finiteOrNull(sent?.candidates),
     pick_count: finiteOrNull(m.pickCount) ?? finiteOrNull(sent?.pickCount),
     model: typeof m.model === "string" && m.model ? m.model.slice(0, 80) : null,
+    mode: [m.mode, sent?.mode].includes("adventure") ? "adventure" : "picks",
   };
 }
 
@@ -245,6 +250,9 @@ const TERM_COLORS = ["red", "white", "sparkling"];
  *   wines_scored  wines that reached the scorer (the rest were left out)
  *   picks_shown   picks on the page when the analysis landed
  *   terms         tonight's terms: { min, max, color } — numbers or null
+ *   lone_adventure  true when the list matched nothing and the one pick
+ *                 shown was the lone Adventure (Nov 13, 2026) — match_count
+ *                 is 0, picks_shown is 1, and the sample is still kept
  *   sample        ONLY when match_count is 0: up to 15 of the wines read —
  *                 name (80 chars) and the region / country / variety the
  *                 photo read for it, whether it was by the glass, whether
@@ -253,7 +261,7 @@ const TERM_COLORS = ["red", "white", "sparkling"];
  * `entries` are the wines as read (parseWineList / entriesFromVision);
  * `scored`, `matchCount` and `picksShown` are counts from the analysis.
  */
-export function menuAnalyzedPayload({ source, entries, scored, matchCount, picksShown, terms, steer, session, somm } = {}) {
+export function menuAnalyzedPayload({ source, entries, scored, matchCount, picksShown, loneAdventure, terms, steer, session, somm } = {}) {
   const read = Array.isArray(entries) ? entries : [];
   const row = (e) => (e && typeof e === "object" ? e : {});
   const hasPrice = (e) => typeof row(e).price === "number" && Number.isFinite(row(e).price);
@@ -269,6 +277,7 @@ export function menuAnalyzedPayload({ source, entries, scored, matchCount, picks
     wines_btg: read.filter((e) => row(e).isByTheGlass === true).length,
     wines_scored: finiteOrNull(scored),
     picks_shown: finiteOrNull(picksShown),
+    lone_adventure: loneAdventure === true,
     terms: {
       min: limitOrNull(t.min),
       max: limitOrNull(t.max),
