@@ -1,8 +1,11 @@
 // sommPicks.js — payload builder + response validator for /api/somm-picks.
 //
-// Deliberately dependency-free: display-name helpers are injected by the
-// caller so this module is testable in plain node (dynamic import) without
-// dragging in matchEngine's JSON imports.
+// Deliberately light: display-name helpers are injected by the caller so
+// this module is testable in plain node (dynamic import) without dragging in
+// matchEngine's JSON imports. Its one import is matchTerms.js — itself
+// dependency-free — for the terms rule it shares with the engine's picks.
+
+import { fitsColor, budgetFit, budgetLimits, isPickable } from "./matchTerms.js";
 
 export const SOMM_ROLES = ["top", "value", "adventure", "splurge", "wildcard"];
 const CANDIDATE_CAP = 25;
@@ -126,21 +129,6 @@ function prettifyId(id) {
     .join(" ");
 }
 
-function passesColor(entry, color) {
-  if (!color || color === "all") return true;
-  // Mirrors the refilter semantics: explicit mismatch excludes; unknown color
-  // stays (text-path entries without Vision metadata are permissive)
-  if (!entry.detectedColor) return true;
-  return entry.detectedColor === color;
-}
-
-function passesBudget(entry, budget) {
-  if (budget?.min != null && entry.price < budget.min) return false;
-  // Keep up-to-2×max wines in the slate — they're legal splurge candidates
-  if (budget?.max != null && entry.price > budget.max * 2) return false;
-  return true;
-}
-
 /**
  * How many picks this slate can legally supply — the most the validator
  * below will ever accept, capped at what was asked.
@@ -211,26 +199,54 @@ export function buildSommPayload({
   const steerTerms = steerText ? extractSteerTerms(steerText) : [];
   const matchesSteer = makeSteerMatcher(steerTerms, d);
 
-  const eligible = (scoredEntries || [])
-    .filter((e) => e.score > 0 && e.price != null)
-    .filter((e) => passesColor(e, color))
-    .filter((e) => passesBudget(e, budget))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, CANDIDATE_CAP);
+  // ─── The slate: the same wines the engine's picks may come from ───
+  // One rule, read from matchTerms.js by both: a wine is eligible when the
+  // palate scored it, it has a price, it is the chosen color, and its price
+  // is inside the budget or one stretch over it (up to twice the max — the
+  // Somm may pick ONE of those, as the page shows one). So the page and the
+  // Somm can't disagree about what fits, and what the Somm is asked for
+  // (feasiblePickCount, below) is the number of picks the page is showing.
+  const limits = budgetLimits(budget?.min, budget?.max);
+  const fitsTerms = (e) => fitsColor(e, color) && budgetFit(e.price, limits.min, limits.max) !== "out";
+  const pickKey = (e) => `${e.name}::${e.price}`;
+  const byScore = (a, b) => b.score - a.score;
+
+  const everyEligible = (scoredEntries || []).filter(isPickable).filter(fitsTerms).sort(byScore);
+  let eligible = everyEligible.slice(0, CANDIDATE_CAP);
+
+  // The page's own picks are always candidates. On a long list the cap can
+  // cut one off — a Great Value pick is the best of the CHEAP wines, not one
+  // of the 25 best — and then the Somm could never keep it, and under a
+  // budget a slate of high-scoring stretch wines could crowd out the few
+  // that fit (asked for one pick while the page shows four). They take the
+  // place of the lowest-scored wines that aren't picks; the cap holds.
+  if (everyEligible.length > CANDIDATE_CAP) {
+    const shown = new Set((algorithmicPicks || []).map(pickKey));
+    const cutOff = everyEligible.slice(CANDIDATE_CAP).filter((e) => shown.has(pickKey(e)));
+    if (cutOff.length > 0) {
+      const kept = eligible.slice();
+      for (let k = kept.length - 1, room = cutOff.length; k >= 0 && room > 0; k--) {
+        if (!shown.has(pickKey(kept[k]))) { kept.splice(k, 1); room--; }
+      }
+      eligible = kept.concat(cutOff).sort(byScore);
+    }
+  }
 
   // Steer augmentation is strictly additive: the DNA slate above is never
   // reordered or shrunk (no-steer behavior stays byte-identical, and the
-  // silent-fallback path is untouched) — steer-matched wines that budget and
-  // color allow but the DNA filter hid are APPENDED, best-scored first.
+  // silent-fallback path is untouched) — steer-matched wines that the SAME
+  // terms allow but the DNA filter hid are APPENDED, best-scored first. A
+  // steer can therefore raise what the Somm is asked for above what the
+  // page shows (that is its job: wines the palate never met); it can never
+  // put a wine outside tonight's terms in front of the Somm.
   let slate = eligible;
   if (steerTerms.length > 0) {
     const inSlate = new Set(eligible);
     const extras = (scoredEntries || [])
       .filter((e) => e.price != null && !inSlate.has(e))
-      .filter((e) => passesColor(e, color))
-      .filter((e) => passesBudget(e, budget))
+      .filter(fitsTerms)
       .filter((e) => matchesSteer(e))
-      .sort((a, b) => b.score - a.score)
+      .sort(byScore)
       .slice(0, STEER_EXTRA_CAP);
     if (extras.length > 0) slate = eligible.concat(extras);
   }
@@ -250,7 +266,6 @@ export function buildSommPayload({
   }));
 
   // Map the algorithmic picks onto candidate indices (name+price identity)
-  const pickKey = (e) => `${e.name}::${e.price}`;
   const indexByKey = new Map(slate.map((e, i) => [pickKey(e), i]));
   const algorithmicIndices = (algorithmicPicks || [])
     .map((p) => indexByKey.get(pickKey(p)))
@@ -276,7 +291,7 @@ export function buildSommPayload({
     algorithmicPicks: algorithmicIndices,
     // Never more than the slate can supply (the route clamps again — it
     // can't assume its caller)
-    pickCount: feasiblePickCount(candidates, pickCount, budget),
+    pickCount: feasiblePickCount(candidates, pickCount, limits),
     dna: {
       archetype: profile?.archetype || null,
       narrative: profile?.narrative || null,
@@ -294,7 +309,7 @@ export function buildSommPayload({
       distinctCountries: distinct(scoredPositive.map((e) => e.detectedCountry).filter(Boolean)),
       distinctRegions: distinct(scoredPositive.flatMap((e) => e.detectedRegionIds || [])),
     },
-    budget: { min: budget?.min ?? null, max: budget?.max ?? null },
+    budget: { min: limits.min, max: limits.max },
     color: color || null,
     steer: steerText || null,
   };

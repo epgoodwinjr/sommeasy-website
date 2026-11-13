@@ -115,6 +115,78 @@ async function main() {
       { color: "all", min: "40", max: "90" }, "Match pre-fills what Account saved");
   });
 
+  // ─── The terms rule (Nov 2026): one copy of what "fits" means, read by
+  // the engine's picks AND the Somm's slate ───
+
+  const wine = (extra = {}) => ({ name: "A wine", price: 50, score: 2, detectedColor: null, ...extra });
+  const vision = (color, extra = {}) => wine({ detectedColor: color, visionData: { color }, ...extra });
+
+  await test("fitsColor: no color chosen fits everything", () => {
+    for (const color of [null, undefined, "", "all"]) {
+      assertEq(terms.fitsColor(wine({ detectedColor: "red" }), color), true, `${color}`);
+      assertEq(terms.fitsColor(wine({ name: "Veuve Clicquot Brut, Champagne" }), color), true, `${color} / sparkling`);
+    }
+  });
+
+  await test("fitsColor: red and white take their own color and a wine whose color is unknown — never the other, never a sparkling", () => {
+    assertEq(terms.fitsColor(wine({ detectedColor: "red" }), "red"), true, "red is red");
+    assertEq(terms.fitsColor(wine({ detectedColor: "white" }), "red"), false, "white is not red");
+    assertEq(terms.fitsColor(wine({ detectedColor: "red" }), "white"), false, "red is not white");
+    assertEq(terms.fitsColor(wine({ detectedColor: "rosé" }), "white"), false, "rosé is not white");
+    assertEq(terms.fitsColor(wine(), "red"), true, "unknown stays under red (a text line with no clue)");
+    assertEq(terms.fitsColor(wine(), "white"), true, "and under white");
+    assertEq(terms.fitsColor(wine({ detectedColor: "white", name: "Graham Beck Brut" }), "white"), false, "a sparkling white is sparkling");
+    assertEq(terms.fitsColor(wine({ section: "Champagne & Sparkling" }), "red"), false, "a wine under a sparkling header is sparkling");
+  });
+
+  await test("fitsColor: a wine Vision gave a color to must match it; one it gave none is of unknown color", () => {
+    assertEq(terms.fitsColor(vision("white"), "white"), true, "Vision said white");
+    assertEq(terms.fitsColor(vision("red"), "white"), false, "Vision said red");
+    // Vision named a color the engine did not carry over: it is NOT "unknown"
+    assertEq(terms.fitsColor(wine({ detectedColor: null, visionData: { color: "white" } }), "red"), false, "a colored wine with no detected color fits no other color");
+    // Vision gave a color, the engine's detectedColor says otherwise (a rosé-only appellation)
+    assertEq(terms.fitsColor(wine({ detectedColor: "rosé", visionData: { color: "red" } }), "red"), false, "the detected color decides");
+    // Vision read the wine but gave no color: handled as any wine of unknown color
+    assertEq(terms.fitsColor(wine({ visionData: { color: null } }), "red"), true, "no Vision color → unknown");
+  });
+
+  await test("fitsColor: sparkling takes only what reads as sparkling — by color, section, name or variety", () => {
+    assertEq(terms.fitsColor(wine({ detectedColor: "sparkling" }), "sparkling"), true, "detected");
+    assertEq(terms.fitsColor(vision("sparkling"), "sparkling"), true, "Vision");
+    assertEq(terms.fitsColor(wine({ section: "Bubbles" }), "sparkling"), true, "section");
+    assertEq(terms.fitsColor(wine({ name: "Pierre Gimonnet Blanc de Blancs 1er Cru, Champagne NV" }), "sparkling"), true, "name");
+    assertEq(terms.fitsColor(wine({ visionData: { variety: "Champagne Blend" } }), "sparkling"), true, "variety");
+    assertEq(terms.fitsColor(wine(), "sparkling"), false, "unknown is not sparkling");
+    assertEq(terms.fitsColor(wine({ detectedColor: "white" }), "sparkling"), false, "a still white");
+    assertEq(terms.isSparkling(wine({ name: "Cava Brut Nature" })), true, "isSparkling is the same reading");
+    assertEq(terms.isSparkling(null), false, "junk → not sparkling, never a throw");
+  });
+
+  await test("budgetFit: inside min–max is in; over max up to twice it is the one stretch; anything else is out", () => {
+    assertEq([40, 60, 80].map((p) => terms.budgetFit(p, 40, 80)), ["in", "in", "in"], "both ends are inside");
+    assertEq([39, 30].map((p) => terms.budgetFit(p, 40, 80)), ["out", "out"], "under the minimum");
+    assertEq([81, 120, 160].map((p) => terms.budgetFit(p, 40, 80)), ["splurge", "splurge", "splurge"], "over max, up to 2×");
+    assertEq([161, 500].map((p) => terms.budgetFit(p, 40, 80)), ["out", "out"], "past twice the max");
+    assertEq([10, 80, 81, 160, 161].map((p) => terms.budgetFit(p, null, 80)), ["in", "in", "splurge", "splurge", "out"], "a maximum alone");
+    assertEq([10, 249, 250, 900].map((p) => terms.budgetFit(p, 250, null)), ["out", "out", "in", "in"], "a minimum alone has no stretch");
+    assertEq([1, 50, 5000].map((p) => terms.budgetFit(p, null, null)), ["in", "in", "in"], "no budget");
+  });
+
+  await test("budgetFit: a limit that isn't a positive number is no limit", () => {
+    for (const none of [null, undefined, 0, "", NaN, -5, "abc"]) {
+      assertEq(terms.budgetFit(500, none, none), "in", `${String(none)}`);
+    }
+    assertEq(terms.budgetFit(90, "40", "80"), "splurge", "digit strings count (the amount fields hold them)");
+  });
+
+  await test("isPickable: a wine the palate scored, with a price", () => {
+    assertEq(terms.isPickable(wine()), true, "scored and priced");
+    assertEq(terms.isPickable(wine({ score: 0 })), false, "no score");
+    assertEq(terms.isPickable(wine({ price: null })), false, "no price");
+    assertEq(terms.isPickable(wine({ price: undefined })), false, "price missing");
+    assertEq(terms.isPickable(null), false, "junk");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

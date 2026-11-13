@@ -101,7 +101,7 @@ function PickNote({ engine, somm, sommDelay, enterDelay }) {
 }
 
 export default function PickEntry({
-  index, wine, role, name, vintage, price, meta, flag, note, sommNote = null, sommDelay = 0,
+  index, wine, role, name, vintage, price, amount = null, pickType = null, meta, flag, note, sommNote = null, sommDelay = 0,
   chosen = false, quiet = false, changing = false, canChoose = false, canRate = false,
   tilesOpen = false, rating = null, onChoose, onOpenRate, onRate, onChange,
   enterDelay, swapIn = false, going = false,
@@ -129,7 +129,7 @@ export default function PickEntry({
   const actionsEntering = useEntrance(actionsRef, "fade", { delay: at(PICKS.pick.actions), play });
 
   return (
-    <div ref={rootRef} data-testid="pick-card" data-wine={wine} style={withEntrance({
+    <div ref={rootRef} data-testid="pick-card" data-wine={wine} data-price={amount ?? undefined} data-role={pickType ?? undefined} style={withEntrance({
       // `going`: the Somm didn't keep this pick — it fades before the
       // Somm's own takes its place
       opacity: going ? 0 : quiet ? 0.45 : 1,

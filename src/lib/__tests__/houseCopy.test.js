@@ -427,6 +427,36 @@ async function main() {
       "no matches");
   });
 
+  await test("zero picks says WHY: the terms excluded every match, or there was no match at all", () => {
+    // The terms did it — matches exist (wines the palate scored, with a price)
+    assertEq(copy.picksHeading({ picks: 0, pickable: 7 }), "Nothing fits tonight’s terms", "heading, terms");
+    assertEq(copy.picksSubline({ wines: 40, pages: 1, picks: 0, pickable: 7 }),
+      "We read 40 wines and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.", "sub, terms");
+    assertEq(copy.picksSubline({ wines: 1, pages: 1, picks: 0, pickable: 1 }),
+      "We read 1 wine and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.", "one wine");
+    // A true no-match keeps the copy it had — adjusting the terms would not help
+    assertEq(copy.picksHeading({ picks: 0, pickable: 0 }), "No matches found", "heading, no match");
+    assertEq(copy.picksSubline({ wines: 12, pages: 1, picks: 0, pickable: 0 }),
+      "We read 12 wines but couldn’t find matches for your DNA. Try adjusting tonight’s terms or updating your profile.", "sub, no match");
+    assertEq(copy.picksHeading({ picks: 0 }), "No matches found", "unknown → never claims matches exist");
+    assertEq(copy.picksHeading({ picks: 0, pickable: "many" }), "No matches found", "junk");
+    // And with picks, the heading it always had
+    assertEq(copy.picksHeading({ picks: 3, pickable: 9 }), "Your picks", "picks");
+    assertEq(copy.picksSubline({ wines: 40, pages: 1, picks: 2, pickable: 9 }), "40 wines — here’s where to start", "a short slate is still a slate");
+  });
+
+  await test("a lone Splurge says the budget fit nothing — only when that is what happened", () => {
+    const LINE = "Nothing on this list fits your budget. This is the nearest one worth the stretch.";
+    assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }], max: 39 }), LINE, "one pick, over the max");
+    assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }], max: "39" }), LINE, "the max as the amount field holds it");
+    assertEq(copy.loneSplurgeLine({ picks: [{ price: 30 }], max: 39 }), null, "one pick that fits is just a pick");
+    assertEq(copy.loneSplurgeLine({ picks: [{ price: 30 }, { price: 68 }], max: 39 }), null, "a Splurge beside a pick that fits");
+    assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }, { price: 30 }], max: 39 }), null, "…whichever comes first");
+    assertEq(copy.loneSplurgeLine({ picks: [{ price: 68 }], max: "" }), null, "no max, no line");
+    assertEq(copy.loneSplurgeLine({ picks: [], max: 39 }), null, "no picks");
+    assertEq(copy.loneSplurgeLine(), null, "junk → silence");
+  });
+
   // ─── Journal + the wine page (Phase 4) ───
 
   await test("place names wear display case — particles stay low, capitals pass through", () => {

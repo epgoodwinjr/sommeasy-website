@@ -74,3 +74,91 @@ export function findJournalRow(name, rows) {
   }
   return found;
 }
+
+// ═══════════════════════════════════════════════════════
+// THE TERMS RULE (Nov 2026)
+// ═══════════════════════════════════════════════════════
+//
+// What "fits tonight's terms" means — the ONE copy, read by the engine's
+// picks (matchEngine's curatePicks) and by the Somm's slate (sommPicks'
+// buildSommPayload). Two readers of one rule can't disagree, which is the
+// point: the page shows what the Somm will be asked to choose from, and
+// what the Somm is asked for is what the page shows.
+//
+//   Color   a chosen color means that color. No "too few, show them all".
+//   Budget  picks come from wines inside min–max, plus at most ONE wine over
+//           max, never past twice it — the Splurge. No backfill: three, two,
+//           one or no picks is the honest answer when that is what fits.
+//
+// Until Nov 12, 2026 the engine dropped the budget whenever fewer than three
+// wines fit it, and the color whenever fewer than three wines had it — a
+// "$250 and up" search showed five bottles under $170.
+
+const SPARKLING_SECTION = /sparkling|champagne|bubbles|fizz|pétillant|spumante|mousseux/;
+const SPARKLING_NAME_TERMS = [
+  "champagne", "cava", "prosecco", "crémant", "cremant",
+  "brut", "blanc de blancs", "blanc de noirs",
+  "méthode traditionnelle", "methode cap classique", "mcc",
+  "sekt", "spumante", "franciacorta", "asti",
+  "pétillant naturel", "pet-nat", "ancestrale",
+];
+
+/** Does this entry read as a sparkling wine — by its detected color, its
+ *  Vision color, its section header, its name or its variety? */
+export function isSparkling(entry) {
+  if (!entry || typeof entry !== "object") return false;
+  const name = (entry.name || "").toLowerCase();
+  const section = (entry.section || "").toLowerCase();
+  const variety = (entry.visionData && entry.visionData.variety ? entry.visionData.variety : "").toLowerCase();
+  const visionColor = (entry.visionData && entry.visionData.color ? entry.visionData.color : "").toLowerCase();
+  const detectedColor = (entry.detectedColor || "").toLowerCase();
+
+  if (detectedColor === "sparkling") return true;
+  if (visionColor === "sparkling") return true;
+  if (SPARKLING_SECTION.test(section)) return true;
+  if (SPARKLING_NAME_TERMS.some((term) => name.indexOf(term) >= 0)) return true;
+  return /champagne blend|sparkling/.test(variety);
+}
+
+/** Does this entry fit the color the diner chose? No color (or "all") fits
+ *  everything. A wine whose color is unknown — a text line with no clue —
+ *  fits red, white or rosé as it always has; a wine Vision gave a color to
+ *  must match it; sparkling takes only what reads as sparkling, and a
+ *  sparkling wine is never a red or a white. */
+export function fitsColor(entry, color) {
+  if (!color || color === "all") return true;
+  if (!entry || typeof entry !== "object") return false;
+  if (color === "sparkling") return isSparkling(entry);
+  if ((color === "red" || color === "white") && isSparkling(entry)) return false;
+  if (entry.visionData && entry.visionData.color) return entry.detectedColor === color;
+  return !entry.detectedColor || entry.detectedColor === color;
+}
+
+// A limit as the page may hold it: a positive number, or digits. Anything
+// else — null, "", 0, junk — is no limit.
+function limit(value) {
+  const n = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** The budget as the rule reads it: { min, max }, each a positive number or null. */
+export function budgetLimits(min, max) {
+  return { min: limit(min), max: limit(max) };
+}
+
+/** Where a price stands against the budget:
+ *    "in"       inside min–max (both ends included; a missing end is open)
+ *    "splurge"  over max, up to twice it — the one stretch a slate may hold
+ *    "out"      under min, or past twice the max
+ *  A minimum alone has no stretch: there is no "over" without a max. */
+export function budgetFit(price, min, max) {
+  const b = budgetLimits(min, max);
+  if (b.min != null && price < b.min) return "out";
+  if (b.max != null && price > b.max) return price <= b.max * 2 ? "splurge" : "out";
+  return "in";
+}
+
+/** A wine that can be a pick at all: the palate scored it, and it has a price. */
+export function isPickable(entry) {
+  return Boolean(entry) && entry.score > 0 && entry.price != null;
+}

@@ -42,8 +42,8 @@ import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload
 import { evolutionToastMessages } from "@/components/WineRecList";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
-import { metaLine, pickFlag, pickNote, picksSubline, readingLine, termsLine } from "@/lib/houseCopy";
-import { findJournalRow, termsFromPreferences } from "@/lib/matchTerms";
+import { loneSplurgeLine, metaLine, pickFlag, pickNote, picksHeading, picksSubline, readingLine, termsLine } from "@/lib/houseCopy";
+import { findJournalRow, isPickable, termsFromPreferences } from "@/lib/matchTerms";
 import ReadingView from "@/components/ReadingView";
 import RunningHead from "@/components/house/RunningHead";
 import SectionHead from "@/components/house/SectionHead";
@@ -1185,6 +1185,11 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // ═══════════════════════════════════════════════════
   const renderPicks = () => {
     const hasPicks = picks.length > 0;
+    // With no picks the page says why (houseCopy): wines that could be picks
+    // under no terms at all mean tonight's terms excluded every one of them
+    const pickable = hasPicks || !scoredEntries ? 0 : scoredEntries.filter(isPickable).length;
+    // One pick, over the max: the budget fit nothing and this is the stretch
+    const loneSplurge = loneSplurgeLine({ picks, max: maxPrice });
     // Quiet the others only while the chosen pick is on screen — a refilter
     // or the Somm's re-curation may have taken it off the list
     const chosenShown = Boolean(chosenWine) && picks.some((p) => p.name === chosenWine);
@@ -1200,10 +1205,10 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     return (
       <div key="picks">
         <Enter as="h1" play={arriving} delay={PICKS.title} data-testid="results-heading" style={TYPE.h1}>
-          {hasPicks ? "Your picks" : "No matches found"}
+          {picksHeading({ picks: picks.length, pickable })}
         </Enter>
         <Enter as="p" play={arriving} delay={PICKS.sub} style={{ ...TYPE.sub, marginTop: 8 }}>
-          {picksSubline({ wines: totalParsed, pages: pageCount, picks: picks.length })}
+          {picksSubline({ wines: totalParsed, pages: pageCount, picks: picks.length, pickable })}
         </Enter>
 
         {/* The terms bar — Adjust opens Tonight's terms in place */}
@@ -1240,6 +1245,11 @@ Barolo, Giacomo Conterno 2018.........................$210`);
 
         {hasPicks && (
           <div data-testid="picks-container">
+            {loneSplurge && (
+              <Enter as="p" kind="fade" play={arriving} delay={PICKS.somm} data-testid="lone-splurge-line" style={{
+                fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5, color: ink(0.7), margin: "26px 0 -8px",
+              }}>{loneSplurge}</Enter>
+            )}
             {picks.map((pick, i) => {
               const facts = pickFacts(pick);
               const typeInfo = getPickTypeInfo(pick.pickType);
@@ -1262,6 +1272,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   name={facts.name}
                   vintage={facts.vintage}
                   price={pick.price != null ? `$${pick.price}` : null}
+                  amount={pick.price}
+                  pickType={pick.pickType}
                   meta={facts.meta}
                   flag={rating ? null : pickFlag(journalRow)}
                   note={pickNote({ reasons: (pick.matchReasons || []).map((r) => r.type), ...facts.names })}

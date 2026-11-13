@@ -3,6 +3,7 @@
 
 import wineUnified from "./wineUnified.json";
 import { buildCoreNameAliases } from "./producerAliases.js";
+import { fitsColor, budgetFit, budgetLimits, isPickable, isSparkling } from "./matchTerms.js";
 
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
@@ -1121,37 +1122,8 @@ function isRoseOnlyAppellation(entry) {
   return false;
 }
 
-export function isSparklingWine(entry) {
-  var name = (entry.name || "").toLowerCase();
-  var section = (entry.section || "").toLowerCase();
-  var variety = (entry.visionData && entry.visionData.variety ? entry.visionData.variety : "").toLowerCase();
-  var visionColor = (entry.visionData && entry.visionData.color ? entry.visionData.color : "").toLowerCase();
-  var detectedColor = (entry.detectedColor || "").toLowerCase();
-
-  // Already detected as sparkling by scorer or Vision
-  if (detectedColor === "sparkling") return true;
-  if (visionColor === "sparkling") return true;
-
-  // Section header indicates sparkling
-  if (/sparkling|champagne|bubbles|fizz|pétillant|spumante|mousseux/.test(section)) return true;
-
-  // Name contains sparkling indicators
-  var sparklingTerms = [
-    "champagne", "cava", "prosecco", "crémant", "cremant",
-    "brut", "blanc de blancs", "blanc de noirs",
-    "méthode traditionnelle", "methode cap classique", "mcc",
-    "sekt", "spumante", "franciacorta", "asti",
-    "pétillant naturel", "pet-nat", "ancestrale"
-  ];
-  for (var i = 0; i < sparklingTerms.length; i++) {
-    if (name.indexOf(sparklingTerms[i]) >= 0) return true;
-  }
-
-  // Variety indicates sparkling
-  if (/champagne blend|sparkling/.test(variety)) return true;
-
-  return false;
-}
+// One reading of "sparkling", shared with the terms rule (matchTerms.js)
+export const isSparklingWine = isSparkling;
 
 export function curatePicks(scoredEntries, options) {
   const minPrice = options.minPrice;
@@ -1161,51 +1133,25 @@ export function curatePicks(scoredEntries, options) {
   const menuContext = options.menuContext || null;
   const userDNA = options.userDNA || null;
 
-  var pool = scoredEntries;
-  if (colorPreference && colorPreference !== "all") {
-    // Helper: does this entry have Vision-provided color metadata?
-    var hasVisionColor = function(e) { return e.visionData && e.visionData.color; };
+  // ─── Tonight's terms (matchTerms.js — the rule's one copy) ───
+  // A chosen color means that color, and the budget is the budget: picks
+  // come only from wines inside min–max, plus at most one wine over max and
+  // within twice it, the Splurge. No backfill — when two wines fit, the page
+  // shows two (plus that one Splurge), and when none do, none.
+  //
+  // Until Nov 12, 2026 both terms gave way under three: a color with fewer
+  // than three wines was ignored, and a budget fewer than three wines fit
+  // was DROPPED, so "$250 and up" showed five bottles under $170 and
+  // "up to $41" a $165 Worth Trying.
+  const pool = scoredEntries.filter(function(e) { return fitsColor(e, colorPreference); });
 
-    var filtered;
-    if (colorPreference === "sparkling") {
-      filtered = pool.filter(function(e) { return isSparklingWine(e); });
-    } else if (colorPreference === "white") {
-      filtered = pool.filter(function(e) {
-        if (isSparklingWine(e)) return false;
-        // Vision entries: require explicit color match
-        if (hasVisionColor(e)) return e.detectedColor === "white";
-        // Text entries: include if color matches or is unknown
-        return !e.detectedColor || e.detectedColor === "white";
-      });
-    } else if (colorPreference === "red") {
-      filtered = pool.filter(function(e) {
-        if (isSparklingWine(e)) return false;
-        if (hasVisionColor(e)) return e.detectedColor === "red";
-        return !e.detectedColor || e.detectedColor === "red";
-      });
-    } else {
-      // rosé or other color
-      filtered = pool.filter(function(e) {
-        if (hasVisionColor(e)) return e.detectedColor === colorPreference;
-        if (!e.detectedColor) return true;
-        return e.detectedColor === colorPreference;
-      });
-    }
-    if (filtered.length >= 3) pool = filtered;
-  }
-
-  // Only consider wines with scores AND prices for the 5 picks
-  const matched = pool.filter(function(e) { return e.score > 0 && e.price !== null; }).sort(function(a, b) { return b.score - a.score; });
+  // Only wines with a score AND a price can be picks
+  const matched = pool.filter(isPickable).sort(function(a, b) { return b.score - a.score; });
   if (matched.length === 0) return [];
 
-  // Budget-aware pool: wines within the user's price range (for non-splurge picks)
-  const budgetPool = matched.filter(function(e) {
-    if (minPrice && e.price < minPrice) return false;
-    if (maxPrice && e.price > maxPrice) return false;
-    return true;
-  });
-  // Use budget pool if it has enough wines, otherwise fall back to all priced matches
-  const mainPool = budgetPool.length >= 3 ? budgetPool : matched;
+  // The wines that fit the budget — every pick but the Splurge comes from here
+  const hasMax = budgetLimits(minPrice, maxPrice).max != null;
+  const mainPool = matched.filter(function(e) { return budgetFit(e.price, minPrice, maxPrice) === "in"; });
 
   const picks = [];
   const used = new Set();
@@ -1264,21 +1210,23 @@ export function curatePicks(scoredEntries, options) {
     return false;
   }
 
-  // 1. TOP — best scoring wine within budget
+  // 1. TOP — best scoring wine within budget (none, when nothing fits it)
   pickFrom(mainPool, "top");
 
-  // 2. SPLURGE — intentionally above the budget ceiling (worth the stretch), capped at ~2x max
-  var splurgePool = matched.filter(function(e) {
-    var floor = maxPrice || null;
-    var ceiling = maxPrice ? maxPrice * 2 : null;
-    if (!floor) {
-      // No max set: use 65th percentile as floor, 95th as ceiling
-      var prices = matched.map(function(e) { return e.price; }).sort(function(a, b) { return a - b; });
-      floor = prices[Math.floor(prices.length * 0.65)];
-      ceiling = prices[Math.floor(prices.length * 0.95)];
-    }
-    return e.price > floor && (!ceiling || e.price <= ceiling);
-  }).sort(function(a, b) { return b.score - a.score; });
+  // 2. SPLURGE — with a max: the one wine over it, never past twice it (worth
+  // the stretch). With no max there is no "over": the stretch pick is a
+  // pricier bottle among the wines that fit (65th–95th percentile of the
+  // matched prices), so under a minimum alone it still honors the minimum.
+  var splurgePool;
+  if (hasMax) {
+    splurgePool = matched.filter(function(e) { return budgetFit(e.price, minPrice, maxPrice) === "splurge"; });
+  } else {
+    var prices = matched.map(function(e) { return e.price; }).sort(function(a, b) { return a - b; });
+    var floor = prices[Math.floor(prices.length * 0.65)];
+    var ceiling = prices[Math.floor(prices.length * 0.95)];
+    splurgePool = mainPool.filter(function(e) { return e.price > floor && (!ceiling || e.price <= ceiling); });
+  }
+  splurgePool.sort(function(a, b) { return b.score - a.score; });
   if (splurgePool.length > 0) {
     pickFrom(splurgePool, "splurge");
   }
@@ -1345,7 +1293,7 @@ export function curatePicks(scoredEntries, options) {
     pickFrom(adv, "adventure");
   }
 
-  // 5. WILDCARD — fill remaining slots from budget pool, respecting diversity
+  // 5. WILDCARD — fill remaining slots from the wines that fit, respecting diversity
   for (var i = 0; i < mainPool.length && picks.length < maxPicks; i++) {
     var idx = matched.indexOf(mainPool[i]);
     if (idx >= 0 && !used.has(idx) && !wouldViolateDiversity(mainPool[i], picks)) {
