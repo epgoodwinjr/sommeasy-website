@@ -15,6 +15,7 @@
 
 import { ratingFor } from "./ratings.js";
 import { CONFIDENCE_GATE, PROMOTION_THRESHOLDS, RATING_POINTS } from "./dnaThresholds.js";
+import { budgetLimits } from "./matchTerms.js";
 
 /** The brand's one line — Welcome's headline, home's sign-off and the link
  *  preview image (opengraph-image.js) all say it, so it lives once. */
@@ -304,14 +305,38 @@ export function pickNote({ reasons, producer, region, grape, country } = {}) {
 
 /** Under "Your picks": the list's size (and pages), then where to start —
  *  or, with no picks, what to try next. */
-export function picksSubline({ wines, pages, picks } = {}) {
+/** The picks view's heading. With no picks it says WHY: `pickable` is how
+ *  many wines on the list could be picks under no terms at all (the palate
+ *  scored them and they have a price). Any → tonight's terms excluded every
+ *  one of them, and adjusting the terms brings them back. None (or unknown)
+ *  → a true no-match, which adjusting would not fix. */
+export function picksHeading({ picks, pickable } = {}) {
+  if (picks > 0) return "Your picks";
+  return pickable > 0 ? "Nothing fits tonight’s terms" : "No matches found";
+}
+
+export function picksSubline({ wines, pages, picks, pickable } = {}) {
   const n = Number.isInteger(wines) && wines > 0 ? wines : 0;
   const count = `${n} wine${n === 1 ? "" : "s"}`;
   if (!(picks > 0)) {
+    if (pickable > 0) {
+      return `We read ${count} and found matches for your palate, but none that fit tonight’s terms. Adjust them to see your matches.`;
+    }
     return `We read ${count} but couldn’t find matches for your DNA. Try adjusting tonight’s terms or updating your profile.`;
   }
   const across = pages > 1 ? ` across ${pages} pages` : "";
   return `${count}${across} — ${picks > 5 ? `here are your top ${picks}` : "here’s where to start"}`;
+}
+
+/** The line above a lone Splurge: nothing on the list fits the budget, and
+ *  the one pick is the wine a stretch over it (the terms rule allows one, up
+ *  to twice the max). Null whenever that isn't exactly what happened — a
+ *  single pick that fits is just a pick. `max` as the page holds it. */
+export function loneSplurgeLine({ picks, max } = {}) {
+  const limit = budgetLimits(null, max).max;
+  if (limit == null || !Array.isArray(picks) || picks.length !== 1) return null;
+  if (!(picks[0]?.price > limit)) return null;
+  return "Nothing on this list fits your budget. This is the nearest one worth the stretch.";
 }
 
 // ─── The journal + a wine's page (Phase 4) ───

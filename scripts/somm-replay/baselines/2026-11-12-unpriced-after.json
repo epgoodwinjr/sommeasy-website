@@ -1,0 +1,122 @@
+[
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11608,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2095,
+   "out": 469
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11748,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2095,
+   "out": 452
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 12945,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2095,
+   "out": 530
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 12948,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2095,
+   "out": 501
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "unpriced x6 max$60 (direct caller)",
+  "shape": {
+   "parsed": 6,
+   "matched": 6,
+   "enginePicks": 5,
+   "candidates": 6,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13990,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2095,
+   "out": 539
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ }
+]

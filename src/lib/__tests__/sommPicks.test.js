@@ -31,7 +31,7 @@ function makeEntry(name, price, score, extra = {}) {
 }
 
 async function main() {
-  const { buildSommPayload, validateSommResponse, extractJson } = await import("../sommPicks.js");
+  const { buildSommPayload, validateSommResponse, extractJson, readSommJson, feasiblePickCount } = await import("../sommPicks.js");
 
   console.log("\n═══ buildSommPayload ═══");
 
@@ -343,6 +343,173 @@ async function main() {
   test("extractJson strips markdown fences", () => {
     const parsed = JSON.parse(extractJson('```json\n{"a":1}\n```'));
     assert(parsed.a === 1, "fence strip failed");
+  });
+
+  console.log("\n═══ feasiblePickCount — never ask for more than the slate can supply ═══");
+
+  const priced = (...prices) => prices.map((price, i) => ({ i, name: `W${i}`, price }));
+
+  test("a slate smaller than the ask is asked for exactly what it holds", () => {
+    assert(feasiblePickCount(priced(68), 5, { min: null, max: null }) === 1, "one wine → one pick");
+    assert(feasiblePickCount(priced(85, 55, 195, 240), 5, null) === 4, "four wines → four picks");
+  });
+
+  test("a slate with room is asked for the full count", () => {
+    assert(feasiblePickCount(priced(10, 20, 30, 40, 50, 60, 70), 5, { max: null }) === 5, "no budget");
+    assert(feasiblePickCount(priced(10, 20, 30, 40, 50, 60, 70), 5, { max: 100 }) === 5, "all in budget");
+  });
+
+  test("a budget with one legal splurge: the in-budget wines plus ONE over max", () => {
+    // $68 and $78 are in budget; $84…$130 are all legal splurges (≤ 2× $80),
+    // but the rule allows only one of them
+    const slate = priced(68, 92, 78, 98, 84, 130, 118);
+    assert(feasiblePickCount(slate, 5, { min: null, max: 80 }) === 3, `got ${feasiblePickCount(slate, 5, { max: 80 })}`);
+  });
+
+  test("a budget with no legal splurge: only the in-budget wines", () => {
+    assert(feasiblePickCount(priced(40, 50, 60), 5, { max: 60 }) === 3, "nothing over max");
+    // $200 is above 2× max — never a legal pick, so it adds nothing
+    assert(feasiblePickCount(priced(40, 50, 200), 5, { max: 60 }) === 2, "an illegal splurge doesn't count");
+  });
+
+  test("a wine priced exactly AT max is in budget, and exactly at 2× max is a legal splurge", () => {
+    assert(feasiblePickCount(priced(80, 80, 120), 5, { max: 80 }) === 3, "two at max + one splurge");
+    assert(feasiblePickCount(priced(160), 5, { max: 80 }) === 1, "exactly 2× is still legal");
+    assert(feasiblePickCount(priced(161), 5, { max: 80 }) === 0, "a dollar past 2× is not");
+  });
+
+  test("no candidate priced, under a budget: every one counts as supply", () => {
+    // The validator accepts an unpriced pick under any budget (undefined > max
+    // is false), so a clamp that counted only priced wines asked for ZERO —
+    // and the route answered a slate of six with no call at all
+    const unpriced = Array.from({ length: 6 }, (_, i) => ({ i, name: `W${i}` }));
+    assert(feasiblePickCount(unpriced, 5, { min: null, max: 60 }) === 5, `six unpriced, five asked: ${feasiblePickCount(unpriced, 5, { max: 60 })}`);
+    assert(feasiblePickCount(unpriced.slice(0, 3), 5, { max: 60 }) === 3, "three unpriced → three");
+    assert(feasiblePickCount(unpriced.map((c) => ({ ...c, price: null })), 5, { max: 60 }) === 5, "price: null is unpriced too");
+  });
+
+  test("some priced, some not, under a budget: unpriced + in budget + ONE legal splurge", () => {
+    // two unpriced, $40 in budget, $90 and $100 legal splurges (one counts), $200 never legal
+    const slate = [{ i: 0 }, { i: 1, price: null }, { i: 2, price: 40 }, { i: 3, price: 90 }, { i: 4, price: 100 }, { i: 5, price: 200 }];
+    assert(feasiblePickCount(slate, 9, { max: 60 }) === 4, `got ${feasiblePickCount(slate, 9, { max: 60 })}`);
+    // and with nothing over max, just the four that can't be shown to break it
+    assert(feasiblePickCount(slate.slice(0, 3), 9, { max: 60 }) === 3, "two unpriced + one in budget");
+  });
+
+  test("nothing in budget but a legal splurge: one pick", () => {
+    assert(feasiblePickCount(priced(70, 75, 90), 5, { max: 50 }) === 1, "one splurge, nothing else");
+  });
+
+  test("junk in → a count that is never negative, never above the ask, never NaN", () => {
+    assert(feasiblePickCount([], 5, { max: 50 }) === 0, "empty slate");
+    assert(feasiblePickCount(null, 5, null) === 0, "no slate");
+    assert(feasiblePickCount(priced(10, 20), 0, null) === 0, "zero asked");
+    assert(feasiblePickCount(priced(10, 20), "many", null) === 0, "junk ask");
+    // A price that isn't one is no reason to refuse the ask: the validator
+    // can't show such a wine to be over budget, so it accepts it
+    assert(feasiblePickCount([{ i: 0 }, { i: 1, price: "x" }, { i: 2, price: 30 }], 5, { max: 50 }) === 3, "unpriced and junk-priced wines count as supply");
+    assert(feasiblePickCount([{ i: 0 }, { i: 1 }], 5, { max: null }) === 2, "no budget → price doesn't matter");
+  });
+
+  test("the clamp IS the validator's rule: the largest slate it accepts, for any budget", () => {
+    // Exhaustive over every subset of small slates: the most picks
+    // validateSommResponse will accept must equal feasiblePickCount. If the
+    // two ever disagree, the Somm is asked for something it must fail.
+    let seed = 20261112;
+    const rand = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
+    for (let round = 0; round < 60; round++) {
+      const n = 1 + Math.floor(rand() * 6);
+      const slate = priced(...Array.from({ length: n }, () => 20 + Math.floor(rand() * 200)));
+      // Every other round, some wines have no price at all (absent, or null) —
+      // the first wine keeps its price so the budget below can sit on it
+      if (round % 2 === 1) {
+        for (let k = 1; k < n; k++) {
+          const r = rand();
+          if (r < 0.2) delete slate[k].price;
+          else if (r < 0.4) slate[k].price = null;
+        }
+      }
+      // Every third budget sits exactly on a wine's price, or on half of one —
+      // the two boundaries (≤ max, ≤ 2× max) where an off-by-one would hide
+      const max = round % 5 === 0 ? null
+        : round % 3 === 0 ? slate[0].price
+        : round % 3 === 1 ? slate[0].price / 2
+        : 30 + Math.floor(rand() * 120);
+      let best = 0;
+      for (let mask = 1; mask < 1 << n; mask++) {
+        const picks = slate.filter((_, k) => mask & (1 << k)).map((c) => ({ i: c.i, role: "wildcard", note: "A note." }));
+        const r = validateSommResponse({ picks }, { candidates: slate, pickCount: picks.length, budget: { max } });
+        if (r.valid && picks.length > best) best = picks.length;
+      }
+      const got = feasiblePickCount(slate, 99, { max });
+      assert(got === best, `slate ${JSON.stringify(slate.map((c) => c.price ?? null))} max ${max}: clamp says ${got}, validator accepts ${best}`);
+    }
+  });
+
+  console.log("\n═══ buildSommPayload — the ask is clamped; the slate is not ═══");
+
+  test("a one-wine list asks for one pick, not five", () => {
+    const one = [makeEntry("Kanonkop Pinotage, Stellenbosch 2019", 68, 9)];
+    const p = buildSommPayload({ ...baseArgs, scoredEntries: one, algorithmicPicks: one, pickCount: 5 });
+    assert(p.candidates.length === 1 && p.pickCount === 1, `candidates ${p.candidates.length}, asked ${p.pickCount}`);
+  });
+
+  test("a budget that leaves two in-budget wines and a splurge asks for three", () => {
+    const entries = [68, 92, 78, 98, 84, 130, 118].map((price, k) => makeEntry(`Red ${k}`, price, 20 - k));
+    const p = buildSommPayload({ ...baseArgs, scoredEntries: entries, algorithmicPicks: entries.slice(0, 5), pickCount: 5, budget: { min: null, max: 80 } });
+    assert(p.candidates.length === 7, `the slate keeps its splurge candidates (${p.candidates.length})`);
+    assert(p.pickCount === 3, `asked ${p.pickCount}`);
+  });
+
+  test("a roomy slate is untouched: same ask, same candidates, same algorithmic picks", () => {
+    const p = buildSommPayload(baseArgs);
+    assert(p.pickCount === 5, `asked ${p.pickCount}`);
+    assert(p.candidates.length === 25 && p.algorithmicPicks.length === 2, "slate and algorithmic picks unchanged");
+  });
+
+  console.log("\n═══ extractJson — the last JSON object in the text ═══");
+
+  const answer = { picks: [{ i: 0, role: "top", note: "Kanonkop is in your DNA {really}." }, { i: 2, role: "value", note: "He said \"yes\"." }], sommSummary: "Short." };
+
+  test("prose before a fenced object: the object is read", () => {
+    const text = "I need to pick 2 wines from candidates 0–2. Let me analyze:\n\n**Roles**: top = 0\n\n```json\n" + JSON.stringify(answer, null, 2) + "\n```";
+    assert(JSON.stringify(JSON.parse(extractJson(text))) === JSON.stringify(answer), "object after prose");
+  });
+
+  test("a draft, a change of mind, then the answer: the LAST object wins", () => {
+    const draft = { picks: [{ i: 1, role: "top", note: "Draft." }], sommSummary: "Draft." };
+    const text = "First pass:\n" + JSON.stringify(draft) + "\n\nWait — index 1 is over budget. Final:\n" + JSON.stringify(answer);
+    assert(JSON.parse(extractJson(text)).sommSummary === "Short.", "must be the final object, not the draft");
+  });
+
+  test("the whole object is read, never just its last pick", () => {
+    const parsed = JSON.parse(extractJson("Here you go: " + JSON.stringify(answer)));
+    assert(Array.isArray(parsed.picks) && parsed.picks.length === 2, "outermost object, not a nested one");
+  });
+
+  test("an object followed by a closing remark is still read", () => {
+    const parsed = JSON.parse(extractJson(JSON.stringify(answer) + "\n\nEnjoy the list."));
+    assert(parsed.sommSummary === "Short.", "trailing prose ignored");
+  });
+
+  test("clean replies are returned exactly as before", () => {
+    const bare = JSON.stringify(answer);
+    assert(extractJson(bare) === bare, "bare JSON byte-identical");
+    assert(extractJson("```json\n" + bare + "\n```") === bare, "fenced JSON → the same bytes");
+  });
+
+  test("no object at all, or a truncated one, still fails to parse", () => {
+    for (const text of ["The constraint cannot be satisfied: pickCount is 5 but there is only 1 candidate.", "```json\n{\"picks\": [{\"i\": 0, \"role\": \"top\", \"note\": \"cut off mid", "", null]) {
+      let threw = false;
+      try { JSON.parse(extractJson(text)); } catch { threw = true; }
+      assert(threw, `should not parse: ${JSON.stringify(String(text).slice(0, 40))}`);
+    }
+  });
+
+  test("readSommJson says when it had to read past prose", () => {
+    assert(readSommJson(JSON.stringify(answer)).recovered === false, "bare JSON is not a recovery");
+    assert(readSommJson("```json\n" + JSON.stringify(answer) + "\n```").recovered === false, "fenced JSON is not a recovery");
+    assert(readSommJson("Thinking out loud first.\n" + JSON.stringify(answer)).recovered === true, "prose-first is");
   });
 
   console.log(`\nTotal: ${passed}/${passed + failed} passed, ${failed} failed\n`);
