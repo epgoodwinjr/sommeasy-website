@@ -16,6 +16,23 @@
 //      promotion it pushed aside becomes a line under the recap, demotions
 //      are reported too; a first-ever bottle gets its own headline.
 //   4. Junk in → silence (null / "" / a quiet fallback), never a throw.
+//   5. The reading lines are said here only: the real reading view and
+//      Welcome's demo both call readingLine(); no other file retypes them
+//      (a source scan, comments aside).
+
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+function sourceFiles(dir) {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return name === "__tests__" ? [] : sourceFiles(path);
+    return /\.(js|jsx|ts|tsx)$/.test(name) ? [path] : [];
+  });
+}
+const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
 let passed = 0, failed = 0;
 async function test(name, fn) {
@@ -144,6 +161,39 @@ async function main() {
   await test("an unknown rating is silence", () => {
     assertEq(copy.verdictReply({ rating: "meh" }), null, "junk rating");
     assertEq(copy.verdictReply(), null, "no args");
+  });
+
+  // docs/motion README §15.2: the reply is said once. What is known at the
+  // tap is read when the line takes focus; what the engine adds is spoken by
+  // a status region that holds nothing else.
+  await test("the noted line is what is known at the tap — and every reply opens with it", () => {
+    assertEq(copy.verdictNoted("loved"), "❤️ Loved it — noted.", "loved");
+    assertEq(copy.verdictNoted("not_for_me"), "👎 Not for me — noted.", "not for me");
+    assertEq(copy.verdictNoted("meh"), null, "junk rating");
+    for (const rating of ["loved", "liked", "fine", "not_for_me"]) {
+      const reply = copy.verdictReply({ rating, promotions: [{ displayName: "Raats" }] });
+      assertEq(reply.startsWith(`${copy.verdictNoted(rating)} `), true, `${rating}: the reply must open with its noted line`);
+    }
+  });
+
+  await test("a reply splits into what was noted and what came after — nothing said twice, nothing lost", () => {
+    const noted = copy.verdictNoted("loved");
+    assertEq(copy.replyParts(noted, null), { noted, more: "" }, "before the engine answers");
+    assertEq(copy.replyParts(noted, undefined), { noted, more: "" }, "undefined reply");
+    const reply = copy.verdictReply({ rating: "loved", nearest: { name: "Raats", n: 1 } });
+    const parts = copy.replyParts(noted, reply);
+    assertEq(parts, { noted, more: "Raats is now one loved bottle from joining your DNA." }, "the engine's answer");
+    assertEq(`${parts.noted} ${parts.more}`, reply, "the two parts are the reply, whole");
+    assertEq(parts.more.includes("noted"), false, "what came after never repeats the noted line");
+    for (const rating of ["loved", "liked", "fine", "not_for_me"]) {
+      const whole = copy.verdictReply({ rating });
+      const split = copy.replyParts(copy.verdictNoted(rating), whole);
+      assertEq(`${split.noted} ${split.more}`, whole, `${rating}: whole`);
+    }
+    // A reply that doesn't open with the noted line is all news
+    assertEq(copy.replyParts(noted, "Something else entirely."), { noted: "", more: "Something else entirely." }, "a foreign reply");
+    assertEq(copy.replyParts(null, null), { noted: "", more: "" }, "nothing at all");
+    assertEq(copy.replyParts(noted, noted), { noted, more: "" }, "a reply that is only the noted line");
   });
 
   console.log("\n═══ Suite 4: the Log saved screen ═══");
@@ -564,6 +614,34 @@ async function main() {
     assertEq(["all", "red", "white", "sparkling"].map(copy.colorTerm), ["All wines", "Reds", "Whites", "Sparkling"],
       "the terms bar's words");
     assertEq(copy.colorTerm("rosé"), "All wines", "anything else reads as all");
+  });
+
+  await test("SOURCE SCAN: the reading lines are said in houseCopy.js and nowhere else under src/", () => {
+    // The words readingLine() returns, as only a retyped copy would hold them
+    const said = [/Reading the list…/, /against your DNA…/, /kinds of yes/];
+    const elsewhere = sourceFiles(SRC)
+      .filter((path) => !path.endsWith("houseCopy.js"))
+      .filter((path) => said.some((words) => words.test(withoutComments(readFileSync(path, "utf-8")))))
+      .map((path) => path.slice(SRC.length + 1));
+    assertEq(elsewhere, [], "call readingLine() from @/lib/houseCopy");
+    for (const [phase, count, line] of [
+      [undefined, 0, "Reading the list…"], ["count", 8, "Reading eight wines…"],
+      ["weigh", 8, "Weighing them against your DNA…"], ["done", 3, "Three bottles, three kinds of yes."],
+    ]) assertEq(copy.readingLine(phase, count), line, `the demo's ${phase ?? "first"} line`);
+  });
+
+  await test("SOURCE SCAN: the tagline lives in houseCopy.js — Welcome, home and the link preview say it from there", () => {
+    assertEq(copy.TAGLINE, "Never guess at a wine list again.", "the line");
+    const elsewhere = sourceFiles(SRC)
+      .filter((path) => !path.endsWith("houseCopy.js"))
+      .filter((path) => /Never guess at a wine list again/.test(withoutComments(readFileSync(path, "utf-8"))))
+      .map((path) => path.slice(SRC.length + 1));
+    assertEq(elsewhere, [], "import TAGLINE from @/lib/houseCopy");
+    // …and the files that say it (Welcome and home's sign-off are page.js) use it
+    for (const path of ["app/page.js", "app/opengraph-image.js"]) {
+      const source = readFileSync(join(SRC, path), "utf-8");
+      if (!/\bTAGLINE\b/.test(withoutComments(source))) throw new Error(`${path} doesn't say TAGLINE`);
+    }
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

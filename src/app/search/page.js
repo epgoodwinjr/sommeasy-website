@@ -39,6 +39,8 @@ import WineRow from "@/components/house/WineRow";
 import RuledField from "@/components/house/RuledField";
 import TextAction from "@/components/house/TextAction";
 import EmptyState from "@/components/house/EmptyState";
+import Enter from "@/components/house/Enter";
+import { PAGE_REST } from "@/components/house/motion";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, ink, leader } from "@/components/house/tokens";
 
 const URL_SYNC_MS = 300;
@@ -256,7 +258,9 @@ export default function SearchPage() {
 
   return page(
     <>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
+      {/* The field is this page's title: it rises, and what is under it
+          fades in together (docs/motion §8.6) — results never stagger */}
+      <Enter style={{ display: "flex", alignItems: "flex-end", gap: 6 }}>
         <RuledField
           ref={inputRef}
           variant="search"
@@ -294,8 +298,9 @@ export default function SearchPage() {
             opacity: query ? 0.5 : 0, pointerEvents: query ? "auto" : "none", transition: "opacity 0.15s ease",
           }}
         >×</button>
-      </div>
+      </Enter>
 
+      <Enter {...PAGE_REST}>
       {!results ? (
         <>
           {recents.length > 0 && (
@@ -407,6 +412,7 @@ export default function SearchPage() {
           )}
         </div>
       )}
+      </Enter>
     </>
   );
 }

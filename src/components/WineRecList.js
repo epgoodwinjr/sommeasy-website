@@ -18,8 +18,11 @@
 // a thumb); the next load filters them out. `holdBack` keeps the last rows
 // Reserved until the first rating (decision D6) — the parent drops it to 0
 // and they open in place. Signed out, the rows are read-only.
+//
+// Given `enterDelay` (the reveal), the rows arrive in ink, ROW_STEP apart
+// (docs/motion/README.md §8.3). Without it the list is exactly as it was.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
@@ -30,9 +33,11 @@ import { romanNumeral } from "@/lib/numerals";
 import { wineHref } from "@/lib/navTrail";
 import { REC_DONE, confidentMeta, matchTag, ratedDoneLine, reservedCaption } from "@/lib/houseCopy";
 import WineRow, { ReservedRow } from "@/components/house/WineRow";
-import RatingTiles, { DoneLine } from "@/components/house/RatingTiles";
+import RatingTiles, { DoneLine, usePressHold } from "@/components/house/RatingTiles";
 import TextAction, { TextActions } from "@/components/house/TextAction";
 import Toast, { useToast } from "@/components/house/Toast";
+import Enter from "@/components/house/Enter";
+import { ROW_STEP } from "@/components/house/motion";
 import { SERIF, ink } from "@/components/house/tokens";
 
 /** Somm-voice toast lines for promotion/demotion events — one copy, shared
@@ -53,7 +58,9 @@ export function evolutionToastMessages(items, isDemotion = false) {
  * run a rating through the evolution engine and the milestone hook, toasting
  * what moved. `ratingEvent` is the ledger row a rating writes — rec_rated
  * for a recommendation, journal_rerated for a bottle already in the journal
- * (a wine page's verdict). Returns { error, result } (result: the engine's).
+ * (a wine page's verdict). Returns { error, result, shift } — result is the
+ * engine's, shift the milestone hook's (null when no milestone fired): what
+ * growthOf() reads to decide whether the bloom has a moment.
  */
 export async function saveInteraction({
   supabase, userId, wineName, type, rating = null, previousRating = null,
@@ -69,7 +76,7 @@ export async function saveInteraction({
 
   if (error) {
     console.error("Interaction save error:", error);
-    return { error, result: null };
+    return { error, result: null, shift: null };
   }
 
   // Intent signals (The Long Memory): today these leave only a state row —
@@ -79,6 +86,7 @@ export async function saveInteraction({
 
   // A rated bottle is evidence — run the evolution engine (non-blocking)
   let result = null;
+  let shift = null;
   if (type === "had" && rating) {
     try {
       result = await resolveAndAccumulate(supabase, userId, wineName, rating, previousRating);
@@ -100,7 +108,7 @@ export async function saveInteraction({
         // Milestone hook (Act III S3): recompose the identity strand when
         // this rating earned the change — celebrated only on a real shift,
         // after the promotion toasts have had their moment
-        const shift = await maybeRecomposeIdentity(supabase, userId, { ...result, rating });
+        shift = await maybeRecomposeIdentity(supabase, userId, { ...result, rating });
         if (shift?.shifted) {
           const evoCount = (result.promotions?.length || 0) + (result.demotions?.length || 0);
           toast?.(shiftToastMessage(shift), { delay: 1500 + evoCount * 1500, duration: 5000 });
@@ -110,7 +118,7 @@ export async function saveInteraction({
       }
     }
   }
-  return { error: null, result };
+  return { error: null, result, shift };
 }
 
 const sommNote = {
@@ -123,9 +131,15 @@ const caption = {
 
 // state: undefined (not acted on), "rating" (tiles open), or the done
 // action { kind: "want" | "skip" | "rated", rating? }
-function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate }) {
+function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate, enterDelay }) {
   const { base, vintage } = splitVintage(rec.wine);
   const done = state && state !== "rating" ? state : null;
+  // The tapped tile answers before the done line takes the tiles' place
+  const [held, press] = usePressHold();
+  const rate = (rating) => {
+    press(rating);
+    onRate(rating);
+  };
   return (
     <WineRow
       testId="rec-card"
@@ -140,6 +154,7 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate }) {
       // The signed-out teaser's bottle stays put: its wine page is a
       // sign-in wall, and leaving would lose the reveal and its gate
       href={readOnly ? undefined : wineHref(rec.wine)}
+      enterDelay={enterDelay}
     >
       {rec.why && <p style={sommNote}>“{rec.why}”</p>}
       {!readOnly && !state && (
@@ -149,10 +164,10 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate }) {
           <TextAction tone="quiet" onClick={() => onAction("skip")}>👋 Pass</TextAction>
         </TextActions>
       )}
-      {state === "rating" && <RatingTiles autoFocus onRate={onRate} style={{ marginTop: 10 }} />}
+      {(state === "rating" || held) && <RatingTiles autoFocus onRate={rate} rated={held} style={{ marginTop: 10 }} />}
       {done?.kind === "want" && <DoneLine autoFocus>{REC_DONE.want}</DoneLine>}
       {done?.kind === "skip" && <DoneLine autoFocus>{REC_DONE.skip}</DoneLine>}
-      {done?.kind === "rated" && <DoneLine autoFocus>{ratedDoneLine(done.rating)}</DoneLine>}
+      {done?.kind === "rated" && !held && <DoneLine autoFocus>{ratedDoneLine(done.rating)}</DoneLine>}
     </WineRow>
   );
 }
@@ -165,13 +180,17 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate }) {
  *                   the wine_events payloads so the funnel can tell them apart
  * @param holdBack   rows kept Reserved until the first rating (new users)
  * @param onRated    ({ wine, rating }) the moment a tile is tapped
+ * @param onSaved    ({ wine, rating, result, shift }) once that rating's save
+ *                   and its engine run have landed — home's crest reads it
  * @param showToast  the page's toast queue (useToast); the list keeps its
  *                   own when none is given (the reveal)
  * @param emptyState ReactNode when every rec was acted on before this load
+ * @param enterDelay ms from the list's mount to its first row's entrance; the
+ *                   rows follow ROW_STEP apart. Left out, nothing enters.
  */
 export default function WineRecList({
   recs, user, limit = 4, surface = "home", holdBack = 0,
-  onRated, showToast: pageToast, emptyState = null,
+  onRated, onSaved, showToast: pageToast, emptyState = null, enterDelay,
 }) {
   const [interactions, setInteractions] = useState({});
   // The recs not yet acted on when this load's read settled, in rec order —
@@ -185,6 +204,11 @@ export default function WineRecList({
   const own = useToast();
   const toast = pageToast || own.showToast;
   const supabase = createClient();
+  // `enterDelay` counts from the mount, but the rows only exist once the
+  // read behind them lands: what is left of the delay by then is theirs
+  const mountedAt = useRef(null);
+  if (mountedAt.current === null && typeof performance !== "undefined") mountedAt.current = performance.now();
+  const enterBase = useRef(null);
 
   useEffect(() => {
     // Only the live effect run writes: StrictMode runs this twice in dev,
@@ -244,7 +268,9 @@ export default function WineRecList({
   const handleRate = (wineName, rating) => {
     setSession((s) => ({ ...s, [wineName]: { kind: "rated", rating } }));
     onRated?.({ wine: wineName, rating });
-    save(wineName, "had", rating);
+    save(wineName, "had", rating).then(({ error, result, shift }) => {
+      if (!error) onSaved?.({ wine: wineName, rating, result, shift });
+    });
   };
 
   if (!recs || recs.length === 0 || readFailed) return null;
@@ -253,6 +279,10 @@ export default function WineRecList({
   if (listed === null) return null;
 
   const readOnly = !user;
+  if (enterDelay != null && enterBase.current === null) {
+    enterBase.current = Math.max(0, enterDelay - (performance.now() - mountedAt.current));
+  }
+  const enterAt = (index) => (enterBase.current === null ? undefined : enterBase.current + ROW_STEP * index);
   const reserved = holdBack > 0 ? Math.min(holdBack, Math.max(0, shown.length - Math.max(0, limit - holdBack))) : 0;
   const open = shown.slice(0, shown.length - reserved);
 
@@ -270,16 +300,23 @@ export default function WineRecList({
               readOnly={readOnly}
               onAction={(kind) => handleAction(rec.wine, kind)}
               onRate={(rating) => handleRate(rec.wine, rating)}
+              enterDelay={enterAt(i)}
             />
           ))}
           {Array.from({ length: reserved }, (_, i) => (
-            <ReservedRow key={`reserved-${i}`} numeral={romanNumeral(open.length + i + 1, { lower: true })} />
+            <ReservedRow
+              key={`reserved-${i}`}
+              numeral={romanNumeral(open.length + i + 1, { lower: true })}
+              enterDelay={enterAt(open.length + i)}
+            />
           ))}
           {reserved > 0 && <p style={caption}>{reservedCaption(reserved)}</p>}
           {/* The anonymous teaser's tail sells the list behind the account
               (The Velvet Rope) — signed-in lists don't carry it */}
           {readOnly && listed.length > limit && (
-            <p style={caption}>{listed.length - limit} more wines to explore</p>
+            enterBase.current === null
+              ? <p style={caption}>{listed.length - limit} more wines to explore</p>
+              : <Enter as="p" kind="fade" delay={enterAt(shown.length)} style={caption}>{listed.length - limit} more wines to explore</Enter>
           )}
         </>
       )}

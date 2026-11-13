@@ -35,6 +35,14 @@ export default defineConfig({
     screenshot: "on",
     trace: "retain-on-failure",
     actionTimeout: 15_000,
+    // The suite runs against settled states (docs/motion/README.md §10):
+    // under reduced motion every entrance is a short fade and the palate
+    // mark renders its settled frame at once, so the DOM each spec meets is
+    // the one it met before motion existed. e2e/motion.spec.ts turns motion
+    // back on for itself. It has to ride contextOptions: Playwright Test has
+    // no top-level `reducedMotion` option and silently ignores one — the
+    // motion spec's reduced-motion tests are what prove this took.
+    contextOptions: { reducedMotion: "reduce" },
   },
   projects: [
     {

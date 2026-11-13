@@ -38,6 +38,36 @@ button:focus-visible {
   opacity: 1;
 }
 
+/* The Somm's wait: the settled palate mark breathes (docs/motion/README.md
+   §7.5). Applied by PalateMarkLive's `breathing`; the scale and period live
+   in src/components/house/motion.js (BREATHE_SCALE, BREATHE_MS). */
+@keyframes house-breathe {
+  0%, 100% { transform: none; }
+  50% { transform: scale(1.045); }
+}
+
+/* The dots after a line that is still being thought about — "The Somm is
+   reading your palate..." (docs/motion/README.md §8.3, §8.5). Applied by
+   src/components/house/Dots.js; the period, the gap between dots and the
+   resting opacity live in motion.js (DOTS). */
+@keyframes house-dot {
+  0%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+
+/* Reduced motion (§5.2): no CSS keyframe loops. Each animation runs once,
+   in an instant, and leaves the element at rest. Scripted entrances and the
+   palate mark make the same choice themselves (motion.js, PalateMarkLive). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 a {
   color: #8B2332;
   text-decoration: none;

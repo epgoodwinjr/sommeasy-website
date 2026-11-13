@@ -16,23 +16,29 @@ import { resolveFirstPourCards } from "@/lib/firstPour";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { HOME_TITLE, wineHref } from "@/lib/navTrail";
-import { crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, verdictMeta, verdictReply, whisperLine } from "@/lib/houseCopy";
+import { TAGLINE, crestInitial, homeDateLine, journalLinkLabel, nearestPromotion, replyParts, verdictMeta, verdictNoted, verdictReply, whisperLine } from "@/lib/houseCopy";
 import { welcomeNoticeCopy } from "@/lib/authCopy";
+import { growthOf, readPalate } from "@/lib/growthMoment";
 import Quiz from "@/components/Quiz";
 import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
-import PalateMark from "@/components/PalateMark";
+import WelcomeDemo from "@/components/WelcomeDemo";
+import GrowthMoment from "@/components/GrowthMoment";
 import Divider from "@/components/house/Divider";
 import SectionHead from "@/components/house/SectionHead";
 import LeaderEntry from "@/components/house/LeaderEntry";
 import WineRow from "@/components/house/WineRow";
 import RuledField from "@/components/house/RuledField";
-import RatingTiles from "@/components/house/RatingTiles";
+import RatingTiles, { usePressHold } from "@/components/house/RatingTiles";
 import TextAction from "@/components/house/TextAction";
 import EmptyState from "@/components/house/EmptyState";
+import Enter from "@/components/house/Enter";
+import SwapLine from "@/components/house/SwapLine";
+import WriteIn from "@/components/house/WriteIn";
+import useStagger from "@/components/house/useStagger";
+import { HOME, ROW_STEP, prefersReducedMotion } from "@/components/house/motion";
 import Toast, { useToast } from "@/components/house/Toast";
-import useMounted from "@/components/house/useMounted";
 import { useNavTrail } from "@/components/house/RunningHead";
-import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, SOFT_OUT, ink } from "@/components/house/tokens";
+import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, SR_ONLY, ink } from "@/components/house/tokens";
 
 // ─── Home: The House List (README §8.1) ───
 // The signed-in home reads like a wine list written for one person: a crest
@@ -42,6 +48,13 @@ import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, SOFT_OUT, ink } from "@/com
 // first rating anywhere — the new-user one (Your first entry + Reserved
 // rows). The choice is made once per load, after the reads settle, and
 // never flips mid-visit: the page doesn't rearrange under the user's thumb.
+//
+// In motion (docs/motion/README.md §8.6, §8.4): once the layout is chosen
+// the list arrives in ink — the crest rises as one, the divider draws, the
+// whisper is written, and each numbered section's head draws with its entry
+// or rows after it (HOME in motion.js). And the crest is alive: a rating
+// here that earns a promotion or a shift grows the bloom in place, and the
+// strand's title and epithet change with it (the toasts are kept).
 
 const mastCell = { width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" };
 const wordmark = {
@@ -65,6 +78,7 @@ const crestEpithet = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.4,
   color: BURGUNDY, marginTop: 8, transition: "opacity 0.3s ease",
 };
+const dateText = { minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
 const smallCaps = {
   fontFamily: SANS, fontSize: "10px", fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase",
 };
@@ -85,6 +99,26 @@ const HOME_SETTLE_MS = 6000;
 const sameWine = (a, b) =>
   typeof a === "string" && typeof b === "string" && a.trim().toLowerCase() === b.trim().toLowerCase();
 
+const VERDICT_SAVE_FAILED = "Couldn’t save — try again from your journal.";
+
+/** From last night's reply, written in: "❤️ Loved it — noted." at once, and
+ *  what the rating did written after it when the engine answers. The line's
+ *  text is the reply's, whole, at every moment.
+ *
+ *  It is SAID once (docs/motion README §15.2). The noted line is read when
+ *  the reply takes focus. What arrives after that — `more` — is hidden from
+ *  screen readers here and spoken by the section's status region instead,
+ *  which holds nothing else: a written line inside a live region is
+ *  re-announced as its words are set and again as they settle. */
+function WrittenReply({ noted, more }) {
+  return (
+    <>
+      {noted && <WriteIn text={noted} />}
+      {more && <span aria-hidden="true">{noted && " "}<WriteIn text={more} /></span>}
+    </>
+  );
+}
+
 function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   // Home has no running head, but it's the root of the back trail
   useNavTrail(HOME_TITLE);
@@ -101,6 +135,8 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   // section stays until the next load
   const [verdict, setVerdict] = useState(null);
   const [verdictLoaded, setVerdictLoaded] = useState(false);
+  // What the reply's status region says (see the effect that sets it)
+  const [verdictSaid, setVerdictSaid] = useState("");
   // The journal read: { rows, newUser } once settled (rows null = failed)
   const [journal, setJournal] = useState(null);
   // "new" | "established" — decided once both reads settle, then frozen
@@ -113,6 +149,22 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   // lands later stays out of this visit instead of rearranging the page
   const settleForced = useRef(false);
   const replyRef = useRef(null);
+  // The crest: the bloom, the strand's title and its epithet as they stand.
+  // A rating on this page that earns a promotion or a shift moves all three
+  // (`moment` says whether the growth celebrates)
+  const [crest, setCrest] = useState(() => ({
+    genome: profile.identity?.genome ?? null,
+    title: profile.archetype,
+    epithet: profile.identity?.epithet || null,
+    moment: null,
+  }));
+  // The crest rises once the layout is chosen — or after HOME.crestWait, so
+  // a slow read never leaves the page without it
+  const [crestIn, setCrestIn] = useState(false);
+  // When the layout was chosen: what enters later counts its delay from here
+  const layoutAt = useRef(null);
+  // The tapped tile answers before the reply takes the tiles' place
+  const [verdictHeld, pressVerdict] = usePressHold();
   const supabase = createClient();
 
   const recs = profile.recommendations || [];
@@ -230,11 +282,37 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
     return () => clearTimeout(timer);
   }, [layout]);
 
-  // The reply takes focus as it replaces the tiles: announced, and keyboard
-  // users keep their place
   useEffect(() => {
-    if (verdict?.rating) replyRef.current?.focus({ preventScroll: true });
-  }, [verdict?.rating]);
+    if (prefersReducedMotion()) {
+      setCrestIn(true);
+      return undefined;
+    }
+    const timer = setTimeout(() => setCrestIn(true), HOME.crestWait);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!layout) return;
+    if (layoutAt.current === null) layoutAt.current = performance.now();
+    setCrestIn(true);
+  }, [layout]);
+
+  // The reply takes focus as it replaces the tiles: that is how its noted
+  // line is announced, and keyboard users keep their place
+  useEffect(() => {
+    if (verdict?.rating && !verdictHeld) replyRef.current?.focus({ preventScroll: true });
+  }, [verdict?.rating, verdictHeld]);
+
+  // What comes after the tap — the engine's answer, or that the save failed
+  // — is handed to the status region a commit AFTER the line has the focus,
+  // so the two are never said over each other, and each is said once
+  useEffect(() => {
+    if (!verdict?.rating || verdictHeld) return;
+    const later = verdict.failed
+      ? VERDICT_SAVE_FAILED
+      : replyParts(verdictNoted(verdict.rating), verdict.reply).more;
+    if (later) setVerdictSaid(later);
+  }, [verdict?.rating, verdict?.reply, verdict?.failed, verdictHeld]);
 
   const hadCount = new Set([
     ...(journal?.rows || []).filter((r) => r.interaction_type === "had").map((r) => r.wine_name),
@@ -242,6 +320,20 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   ]).size;
 
   const markRated = (wine) => setRatedNow((prev) => new Set(prev).add(wine));
+
+  // ─── The crest grows in place (docs/motion §8.4) ───
+  // Only for a moment — a promotion or an identity shift — and only from a
+  // read that worked: the bloom, the title and the epithet move together, to
+  // what the recompose just wrote. Unknown ≠ changed.
+  const growCrest = async (result, shift) => {
+    const moment = growthOf({ promotions: result?.promotions, demotions: result?.demotions, shift });
+    if (!moment.grow) return;
+    const now = await readPalate(supabase, user.id);
+    if (!now) return;
+    setCrest((c) => ({
+      genome: now.genome, title: now.title || c.title, epithet: now.epithet || c.epithet, moment,
+    }));
+  };
 
   // The dimension this rating moved that's nearest to joining the DNA —
   // for the "{name} is now two loved bottles from joining your DNA" reply
@@ -277,6 +369,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   const handleVerdictRate = async (rating) => {
     const ask = verdict?.ask;
     if (!ask || verdict.rating) return;
+    pressVerdict(rating);
     setVerdict({ ask, rating, reply: null });
     // Belt and braces: even if the event write below is lost, the ask
     // stays gone on this device
@@ -331,6 +424,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           delay: 1500 + (promotions.length + demotions.length) * 1500, duration: 5000,
         });
       }
+      growCrest(evolutionResult, shift);
     } catch (err) {
       console.error("Verdict rating failed:", err);
       setVerdict((v) => (v ? { ...v, failed: true } : v));
@@ -343,34 +437,50 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   };
 
   const next = numeralCounter();
+  // Each numbered section's entrance: its head, then what follows it. An
+  // entrance reads its delay when it mounts, and the sections mount together
+  // as the layout is chosen
+  const section = useStagger(HOME.sections, HOME.sectionStep);
   const isNew = layout === "new";
   const epithet = isNew
     ? "Your first list — it rewrites itself as you rate"
-    : profile.identity?.epithet || signatureLine(profile);
+    : crest.epithet || signatureLine(profile);
+  // What is left of a delay counted from the layout's choice, for a line
+  // whose read lands after it (the whisper)
+  const sinceLayout = (delay) => (layoutAt.current === null
+    ? delay
+    : Math.max(0, delay - (performance.now() - layoutAt.current)));
 
   const renderVerdict = () => {
     const { ask, rating, reply, failed } = verdict;
     const { base, vintage } = splitVintage(ask.wine);
     const region = (journal?.rows || []).find((r) => sameWine(r.wine_name, ask.wine))?.resolved_region;
     const rated = ratingFor(rating);
+    const at = section();
     return (
       <section data-testid="verdict-ask">
-        <SectionHead numeral={next()} label="From last night" style={{ margin: "32px 0 16px" }} />
+        <SectionHead numeral={next()} label="From last night" enterDelay={at} style={{ margin: "32px 0 16px" }} />
         <WineRow
           name={base} vintage={vintage} meta={verdictMeta(region)}
           href={wineHref(ask.wine)}
+          enterDelay={at + HOME.follow}
           style={{ padding: 0, borderBottom: "none" }}
         />
-        {rated ? (
-          <p ref={replyRef} tabIndex={-1} role="status" style={{ ...replyLine, outline: "none" }}>
-            {failed ? "Couldn’t save — try again from your journal." : reply || `${rated.emoji} ${rated.label} — noted.`}
+        {rated && !verdictHeld ? (
+          <p ref={replyRef} tabIndex={-1} data-testid="verdict-reply" style={{ ...replyLine, outline: "none" }}>
+            {failed
+              ? <span aria-hidden="true">{VERDICT_SAVE_FAILED}</span>
+              : <WrittenReply {...replyParts(verdictNoted(rating), reply)} />}
           </p>
         ) : (
-          <>
-            <RatingTiles variant="verdict" onRate={handleVerdictRate} style={{ marginTop: 14 }} />
-            <TextAction tone="quiet" onClick={handleVerdictDismiss} testId="verdict-dismiss">Not tonight</TextAction>
-          </>
+          <Enter kind="fade" delay={at + HOME.follow + ROW_STEP}>
+            <RatingTiles variant="verdict" onRate={handleVerdictRate} rated={verdictHeld} style={{ marginTop: 14 }} />
+            <TextAction tone="quiet" onClick={handleVerdictDismiss} disabled={Boolean(verdictHeld)} testId="verdict-dismiss">Not tonight</TextAction>
+          </Enter>
         )}
+        {/* The section's one live region: in the page before it has anything
+            to say, and only ever handed plain words */}
+        <p role="status" data-testid="verdict-said" style={SR_ONLY}>{verdictSaid}</p>
       </section>
     );
   };
@@ -392,43 +502,57 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
         </Link>
       </div>
 
-      {/* The crest — the door to the palate */}
-      <Link href="/palate" data-testid="palate-strip" style={{ display: "block", textAlign: "center", textDecoration: "none", color: INK }}>
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
-          <PalateMark genome={profile.identity?.genome} size={76} />
-        </div>
-        <div style={preparedFor}>Prepared for</div>
-        <div style={crestTitle}>{profile.archetype}</div>
-        {/* Held back until the layout is known — a new user's line never
-            swaps in over the established one */}
-        {epithet && <div style={{ ...crestEpithet, opacity: layout ? 1 : 0 }}>{epithet}</div>}
-      </Link>
+      {/* The crest — the door to the palate. It rises as one, and the bloom
+          in it grows in place when a rating here earns it */}
+      {crestIn && (
+        <Enter>
+          <Link href="/palate" data-testid="palate-strip" style={{ display: "block", textAlign: "center", textDecoration: "none", color: INK }}>
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 18 }}>
+              <GrowthMoment genome={crest.genome} moment={crest.moment} size={76} />
+            </div>
+            <div style={preparedFor}>Prepared for</div>
+            <SwapLine as="div" text={crest.title} style={crestTitle} />
+            {/* Held back until the layout is known — a new user's line never
+                swaps in over the established one */}
+            {epithet && <SwapLine as="div" text={epithet} style={{ ...crestEpithet, opacity: layout ? 1 : 0 }} />}
+          </Link>
+        </Enter>
+      )}
 
-      <Divider style={{ marginTop: 22 }} />
-      <div style={{ ...smallCaps, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <span style={{
-          minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          color: whisper ? ink(0.65) : ink(0.45),
-          opacity: whisper === undefined ? 0 : 1, transition: "opacity 0.3s ease",
-        }}>{whisper || homeDateLine()}</span>
-        {/* 44px of hit area at 10px type; the margin keeps the row's spacing */}
-        <Link href="/palate" style={{
-          color: BURGUNDY, padding: "15px 0", margin: "-3px 0", whiteSpace: "nowrap", textDecoration: "none",
-        }}>
-          Your palate ›
-        </Link>
-      </div>
+      {/* The divider and the date line arrive with the layout: the whisper
+          is written in (it takes the date's place), the plain date fades */}
+      {layout && (
+        <>
+          <Divider enterDelay={HOME.divider} style={{ marginTop: 22 }} />
+          <div style={{ ...smallCaps, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            {whisper === undefined ? <span />
+              : whisper ? <WriteIn text={whisper} delay={sinceLayout(HOME.date)} style={{ ...dateText, color: ink(0.65) }} />
+              : <Enter as="span" kind="fade" delay={sinceLayout(HOME.date)} style={{ ...dateText, color: ink(0.45) }}>{homeDateLine()}</Enter>}
+            {/* 44px of hit area at 10px type; the margin keeps the row's spacing */}
+            <Enter as={Link} kind="fade" delay={HOME.date} href="/palate" style={{
+              color: BURGUNDY, padding: "15px 0", margin: "-3px 0", whiteSpace: "nowrap", textDecoration: "none",
+            }}>
+              Your palate ›
+            </Enter>
+          </div>
+        </>
+      )}
 
       {/* Welcome-back moment — the pending palate just landed (Session 2:
           Never Lose a Palate). A quiet beat, not a toast. */}
       {welcomeBack && <WelcomeBackMoment />}
 
-      {/* Sections render once the reads behind the layout settle */}
-      {layout && (
+      {/* Sections render once the reads behind the layout settle, and arrive
+          in order: each head draws, and its entry or rows follow */}
+      {layout && (() => {
+        const out = section();
+        const second = section();
+        return (
         <>
-          <SectionHead numeral={next()} label="Tonight, out" style={{ margin: "22px 0 16px" }} />
+          <SectionHead numeral={next()} label="Tonight, out" enterDelay={out} style={{ margin: "22px 0 16px" }} />
           <LeaderEntry
             tone="filled" mark="📋" label="Match the wine list" href="/recommend" subGap={8}
+            enterDelay={out + HOME.follow}
             sub={isNew
               ? "Photo, paste or link — we’ll pick a top bottle, a value and an adventure."
               : "Photo, paste or link — we’ll find your bottle."}
@@ -436,7 +560,8 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
 
           {isNew ? (
             <section data-testid="first-entry">
-              <SectionHead numeral={next()} label="Your first entry" style={{ margin: "32px 0 16px" }} />
+              <SectionHead numeral={next()} label="Your first entry" enterDelay={second} style={{ margin: "32px 0 16px" }} />
+              <Enter delay={second + HOME.follow}>
               <p style={{ fontFamily: SERIF, fontSize: "21px", fontWeight: 600, lineHeight: 1.25, color: INK }}>
                 Name a bottle you already love
               </p>
@@ -462,12 +587,14 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 }}>📸 snap tonight’s label</Link>
                 <span style={{ color: ink(0.55) }}>. One rating and the Somm rewrites this list around you.</span>
               </p>
+              </Enter>
             </section>
           ) : (
             <>
-              <SectionHead numeral={next()} label="Tonight, in" style={{ margin: "32px 0 16px" }} />
+              <SectionHead numeral={next()} label="Tonight, in" enterDelay={second} style={{ margin: "32px 0 16px" }} />
               <LeaderEntry
                 mark="📸" label="Log a bottle" href="/log" subGap={8}
+                enterDelay={second + HOME.follow}
                 sub="Snap the label and rate it — every rating sharpens your DNA."
               />
             </>
@@ -475,11 +602,14 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
 
           {!isNew && verdict && renderVerdict()}
 
-          {recs.length > 0 && (
+          {recs.length > 0 && (() => {
+            const chosen = section();
+            return (
             <>
               <SectionHead
                 numeral={next()}
                 label={isNew ? "Chosen from your quiz" : "Chosen for your palate"}
+                enterDelay={chosen}
                 style={{ margin: "34px 0 2px" }}
               />
               <WineRecList
@@ -489,6 +619,8 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 surface="home"
                 holdBack={isNew && ratedNow.size === 0 ? 2 : 0}
                 onRated={({ wine }) => markRated(wine)}
+                onSaved={({ result, shift }) => growCrest(result, shift)}
+                enterDelay={chosen + HOME.follow}
                 showToast={showToast}
                 emptyState={
                   <EmptyState
@@ -505,20 +637,31 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 }
               />
             </>
-          )}
+            );
+          })()}
 
-          <Divider style={{ marginTop: 36 }} />
-          <nav aria-label="Your Sommeasy" style={{ display: "flex", justifyContent: "center", gap: 22, marginTop: 4 }}>
-            <Link href="/palate" style={footerLink}>Your palate</Link>
-            <Link href="/journal" style={footerLink}>{journalLinkLabel(hadCount)}</Link>
-            <Link href="/account" style={footerLink}>Account</Link>
-          </nav>
-          <p style={{
-            fontFamily: SERIF, fontStyle: "italic", fontSize: "12px", color: ink(0.4),
-            textAlign: "center", marginTop: 8,
-          }}>Never guess at a wine list again.</p>
+          {(() => {
+            const foot = section() + HOME.footer;
+            return (
+              <>
+                <Divider enterDelay={foot} style={{ marginTop: 36 }} />
+                <Enter kind="fade" delay={foot}>
+                  <nav aria-label="Your Sommeasy" style={{ display: "flex", justifyContent: "center", gap: 22, marginTop: 4 }}>
+                    <Link href="/palate" style={footerLink}>Your palate</Link>
+                    <Link href="/journal" style={footerLink}>{journalLinkLabel(hadCount)}</Link>
+                    <Link href="/account" style={footerLink}>Account</Link>
+                  </nav>
+                  <p style={{
+                    fontFamily: SERIF, fontStyle: "italic", fontSize: "12px", color: ink(0.4),
+                    textAlign: "center", marginTop: 8,
+                  }}>{TAGLINE}</p>
+                </Enter>
+              </>
+            );
+          })()}
         </>
-      )}
+        );
+      })()}
 
       <Toast toasts={toasts} />
     </div>
@@ -527,89 +670,79 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
 
 // ─── Welcome-back moment ───
 function WelcomeBackMoment() {
-  const mounted = useMounted(80);
   return (
-    <p data-testid="welcome-back" style={{
+    <Enter as="p" delay={80} data-testid="welcome-back" style={{
       fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5,
       color: ink(0.75), textAlign: "center", marginTop: 18,
-      opacity: mounted ? 1 : 0,
-      transform: mounted ? "none" : "translateY(10px)",
-      transition: `opacity 0.7s ${SOFT_OUT}, transform 0.7s ${SOFT_OUT}`,
-    }}>Welcome back. Your palate was waiting.</p>
+    }}>Welcome back. Your palate was waiting.</Enter>
   );
 }
 
-// ─── Welcome Screen ───
+// ─── Welcome (docs/motion/README.md §8.1) ───
+// The front door in the House List look: the 400px column of the auth
+// pages, the headline written in, one primary entry, and below the fold the
+// demo that shows what Sommeasy does without a word of instruction. The
+// entrance follows §8.1's table; the entry's own offsets (leader, circle,
+// "Takes about two minutes.") are ENTRY_ENTER's.
+
 function WelcomeScreen({ onStart, user, onSignOut, notice }) {
-  const steps = [
-    {
-      n: "1",
-      title: "Build your Wine DNA",
-      body: "A 2-minute quiz about the wines, regions, and grapes you love.",
-    },
-    {
-      n: "2",
-      title: "Share the wine list",
-      body: "Paste it, snap a photo, or drop in a URL from the restaurant's site.",
-    },
-    {
-      n: "3",
-      title: "Get your picks",
-      body: "We match what's on the menu to your taste and surface your best options.",
-    },
-  ];
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "100vh", padding: "48px 24px 56px", textAlign: "center" }}>
-      {user && (
-        <div style={{ position: "absolute", top: 16, right: 20 }}>
-          <button onClick={onSignOut} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", background: "none", border: "1px solid rgba(27,61,47,0.15)", borderRadius: "100px", padding: "6px 16px", cursor: "pointer", opacity: 0.5 }}>Sign Out</button>
+    <div style={{
+      maxWidth: 400, margin: "0 auto", minHeight: "100vh",
+      padding: "calc(env(safe-area-inset-top) + 22px) 36px 56px",
+    }}>
+      {/* Masthead. A signed-in visitor with no palate yet can sign out here */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)", alignItems: "center", minHeight: 40 }}>
+        <span />
+        <Enter kind="fade" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <img src="/protea-icon.png" alt="" style={{ height: 24, width: "auto" }} />
+          <span style={wordmark}>Sommeasy</span>
+        </Enter>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          {user && <TextAction tone="quiet" onClick={onSignOut}>Sign out</TextAction>}
         </div>
-      )}
-
-      {/* Logo */}
-      <img src="/logo.png" alt="Sommeasy" style={{ height: 200, width: "auto", marginBottom: 32, filter: "drop-shadow(0 8px 24px rgba(139,35,50,0.12))" }} />
+      </div>
 
       {/* Where Delete account lands (/?notice=account_deleted) */}
       {notice && (
-        <p role="status" data-testid="welcome-notice" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: "16px", lineHeight: 1.5, color: "#1B3D2F", opacity: 0.8, maxWidth: 380, margin: "-8px auto 28px" }}>{notice}</p>
+        <Enter kind="fade" as="p" role="status" data-testid="welcome-notice" style={{
+          fontFamily: SERIF, fontStyle: "italic", fontSize: "16px", lineHeight: 1.5, color: ink(0.8), marginTop: 26,
+        }}>{notice}</Enter>
       )}
 
-      {/* Hero copy */}
-      <div style={{ maxWidth: 380, margin: "0 auto 40px" }}>
-        <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", color: "#1B3D2F", lineHeight: 1.35, margin: "0 0 14px 0", letterSpacing: "-0.01em" }}>
-          Never guess at a wine list again.
-        </p>
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", color: "#1B3D2F", lineHeight: 1.65, margin: 0, opacity: 0.65 }}>
-          Tell us what you like. We&apos;ll find it on the menu.
-        </p>
-      </div>
+      <WriteIn
+        as="h1" text={TAGLINE} delay={150} step={70} duration={600} awaitFonts
+        style={{
+          fontFamily: SERIF, fontSize: "36px", fontWeight: 700, lineHeight: 1.08, letterSpacing: "-0.015em",
+          color: INK, textWrap: "balance", marginTop: notice ? 22 : 34,
+        }}
+      />
+      <Enter as="p" delay={650} style={{
+        fontFamily: SANS, fontSize: "16px", lineHeight: 1.5, color: INK, opacity: 0.55, marginTop: 12,
+      }}>
+        Tell us what you like. We’ll find it on the menu.
+      </Enter>
 
-      {/* CTA */}
-      <button onClick={onStart} style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "16px", fontWeight: 600, color: "#F5F0E8", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", border: "none", borderRadius: "100px", padding: "17px 52px", cursor: "pointer", letterSpacing: "0.03em", boxShadow: "0 6px 24px rgba(139,35,50,0.3), 0 2px 6px rgba(139,35,50,0.15)" }}>Build My Profile</button>
-
+      <LeaderEntry
+        tone="filled" mark="→" label="Build your palate" onClick={onStart}
+        sub="Takes about two minutes." enterDelay={850} style={{ marginTop: 30 }}
+      />
       {!user && (
-        <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.45, marginTop: 20 }}>
-          Already have an account? <Link href="/login" style={{ color: "#8B2332", fontWeight: 600 }}>Sign in</Link>
-        </p>
+        <Enter kind="fade" as="p" delay={1450} style={{
+          fontFamily: SANS, fontSize: "14px", lineHeight: 1.5, color: ink(0.5), marginTop: 18,
+        }}>
+          Already have an account?{" "}
+          {/* Inline in the sentence, its hit area padded past the line */}
+          <Link href="/login" style={{ color: BURGUNDY, fontWeight: 600, padding: "10px 0", textDecoration: "none" }}>
+            Sign in
+          </Link>
+        </Enter>
       )}
-      <p style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "13px", color: "#1B3D2F", opacity: 0.3, marginTop: 10, marginBottom: 48 }}>Takes about 2 minutes</p>
 
-      {/* How it works */}
-      <div style={{ width: "100%", maxWidth: 420, textAlign: "left" }}>
-        <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.18em", color: "#1B3D2F", opacity: 0.35, fontWeight: 600, textAlign: "center", marginBottom: 20 }}>How it works</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {steps.map((s) => (
-            <div key={s.n} style={{ display: "flex", alignItems: "flex-start", gap: "16px", background: "rgba(255,255,255,0.5)", borderRadius: "16px", padding: "18px 20px", border: "1px solid rgba(27,61,47,0.06)" }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg, #8B2332, #7A1E2C)", display: "flex", alignItems: "center", justifyContent: "center", color: "#F5F0E8", fontFamily: "'Playfair Display', serif", fontSize: "13px", fontWeight: 700, flexShrink: 0, marginTop: 1, boxShadow: "0 2px 8px rgba(139,35,50,0.25)" }}>{s.n}</div>
-              <div>
-                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px", color: "#1B3D2F", fontWeight: 600, lineHeight: 1.3, marginBottom: 4 }}>{s.title}</div>
-                <div style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: "#1B3D2F", opacity: 0.55, lineHeight: 1.5 }}>{s.body}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <Divider enterDelay={1500} style={{ marginTop: 30 }} />
+      {/* The head's label and rule land 80ms after its delay: 1650 */}
+      <SectionHead label="Watch it work" enterDelay={1570} style={{ marginTop: 22 }} />
+      <WelcomeDemo style={{ marginTop: 18 }} />
     </div>
   );
 }
@@ -710,7 +843,7 @@ export default function Home() {
 
   // StrictMode (dev) runs the mount effect twice. init() must run exactly
   // once: its async continuation calls setView, and a late second run would
-  // clobber navigation the user made in between (click "Build My Profile" →
+  // clobber navigation the user made in between (click "Build your palate" →
   // quiz view → stale init lands → welcome view). The auth subscription
   // below stays per-mount — its cleanup handles the double-mount correctly.
   const initRan = useRef(false);

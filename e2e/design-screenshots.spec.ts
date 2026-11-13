@@ -114,7 +114,7 @@ test.describe("Design screenshots — anonymous (SCREENSHOTS=1 only)", () => {
   test("anonymous teaser (no account, stash only)", async ({ page }) => {
     await page.setViewportSize(MOBILE);
     await page.goto("/");
-    await page.getByRole("button", { name: "Build My Profile" }).click();
+    await page.getByRole("button", { name: "Build your palate" }).click();
     await expect(page.getByText("Step 1 of 5")).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: /South Africa/ }).first().click();
     await page.getByRole("button", { name: "Continue" }).click();

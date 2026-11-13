@@ -3,12 +3,18 @@
 // Log a bottle — /log (The House List §8.2), moved out of home in Phase 2.
 //
 // One client page, five steps: find → search | scanning → rate → saved.
+// The scanning step waits in ReadingView (docs/motion/README.md §8.5): the
+// bloom breathes, and when the label has been read the line changes to what
+// it said — a real beat, held long enough to read — before the rate step.
 // The logging semantics are home's, moved verbatim: compressImage → POST
 // /api/scan-label reads the label; the save runs previousRating read →
 // upsert had + rating (+ note/place) → resolveAndAccumulate →
 // maybeRecomposeIdentity → bottle_logged (fire-and-forget) →
 // specific_wines. The saved step is the celebration — no toasts here — and
-// it re-reads the genome after the recompose so the bloom shows the change.
+// it re-reads the genome after the recompose so the bloom shows the change:
+// SavedStep grows it from the shape it had before the save when the rating
+// earned a promotion or a shift (docs/motion/README.md §8.4). Once the save
+// has landed the rate step leaves (D_EXIT) and the saved step arrives.
 //
 // Which name gets saved (logEntry.js, unit-tested): a label scan saves
 // producer + name exactly as home always did (its vintage shows, but stays
@@ -25,12 +31,12 @@ import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity } from "@/lib/identityRecompose";
 import { resolveWine } from "@/lib/wineResolver";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
-import { ratingFor } from "@/lib/ratings";
 import { numeralCounter } from "@/lib/numerals";
 import { entryFromName, entryFromScan, isFirstRating, nameToSave, renamedFrom } from "@/lib/logEntry";
 import { confidentMeta, metaLine, savedCopy } from "@/lib/houseCopy";
+import { growthOf } from "@/lib/growthMoment";
 import { searchWines } from "@/lib/wineSearch";
-import PalateMark from "@/components/PalateMark";
+import SavedStep from "./SavedStep";
 import RunningHead from "@/components/house/RunningHead";
 import SectionHead from "@/components/house/SectionHead";
 import LeaderEntry from "@/components/house/LeaderEntry";
@@ -39,8 +45,10 @@ import RuledField from "@/components/house/RuledField";
 import ChoiceLine from "@/components/house/ChoiceLine";
 import RatingList from "@/components/house/RatingList";
 import TextAction, { TextActions } from "@/components/house/TextAction";
-import ProgressLine from "@/components/house/ProgressLine";
 import EmptyState from "@/components/house/EmptyState";
+import Enter from "@/components/house/Enter";
+import ReadingView from "@/components/ReadingView";
+import { D_EXIT, EASE, EXIT, PAGE_REST, prefersReducedMotion } from "@/components/house/motion";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
 const EYEBROWS = {
@@ -55,6 +63,11 @@ const PLACES = [{ id: "home", label: "At home" }, { id: "out", label: "Out" }];
 const NOTE_MAX = 500;
 
 const column = { maxWidth: COLUMN, margin: "0 auto", padding: `22px ${GUTTER}px 56px` };
+
+// The label read: what it looks for, then — once read — what it found, held
+// one beat (Match's READ_BEAT_MS) before the rate step
+const LABEL_LINE = "Producer, vintage, grape…";
+const LABEL_BEAT_MS = 650;
 const alertLine = { fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: BURGUNDY };
 const headline = {
   fontFamily: SERIF, fontSize: "27px", fontWeight: 700, lineHeight: 1.15,
@@ -114,6 +127,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
   const [catalog, setCatalog] = useState(null);
   const [scanError, setScanError] = useState("");
   const [scanProgress, setScanProgress] = useState(0);
+  const [scanLine, setScanLine] = useState(LABEL_LINE);
   const [entry, setEntry] = useState(null);
   const [rating, setRating] = useState(null);
   const [place, setPlace] = useState("home");
@@ -121,6 +135,10 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saved, setSaved] = useState(null);
+  // The save has landed and the rate step is on its way out (D_EXIT)
+  const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
+  const leaveTimer = useRef(null);
   const cameraRef = useRef(null);
   const galleryRef = useRef(null);
   // Bumped by every scan and every cancel: a response for a stale token is
@@ -153,6 +171,8 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
 
   // Scroll to top on every step change (§9.2)
   useEffect(() => { window.scrollTo(0, 0); }, [step]);
+
+  useEffect(() => () => clearTimeout(leaveTimer.current), []);
 
   // The catalog is 140KB — loaded when the search step first opens, like
   // the quiz's Step 5. A failed load leaves search on the journal alone.
@@ -217,6 +237,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     };
     setScanError("");
     setScanProgress(0.9);
+    setScanLine(LABEL_LINE);
     setStep("scanning");
 
     try {
@@ -242,9 +263,11 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         ...entryFromScan(source, displayName, data.vintage),
         meta: confidentMeta(resolveWine(displayName)) || metaLine(data.region, data.country),
       };
-      // Let the reading bar complete before the rate step lands
+      // The label is read: the line says what it found and the bar
+      // completes, then the rate step lands
       setScanProgress(1);
-      setTimeout(() => { if (token === scanToken.current) beginRate(scanned); }, 300);
+      setScanLine([scanned.base, scanned.vintage].filter(Boolean).join(" "));
+      setTimeout(() => { if (token === scanToken.current) beginRate(scanned); }, LABEL_BEAT_MS);
     } catch {
       fail("Failed to process image. Please try again.");
     }
@@ -258,9 +281,11 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
 
   // ─── Save (home's handleBottleSave, moved) ───
   const save = async () => {
-    if (!entry || !rating || saving) return;
+    if (!entry || !rating || saving || leavingRef.current) return;
     const name = nameToSave(entry);
     if (!name) return;
+    // The bloom as it stands before this bottle counts
+    const genomeBefore = profile?.identity?.genome ?? null;
     // A picked row with no verdict whose name was edited: this save renames
     // it rather than forking a second row beside it
     const takeOver = renamedFrom(entry, journal);
@@ -401,6 +426,13 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         rating,
         meta: entry.meta || confidentMeta(resolution),
         genome,
+        genomeBefore,
+        // A promotion or a shift is the big moment: the bloom grows
+        moment: growthOf({
+          promotions: evolutionResult?.promotions,
+          demotions: evolutionResult?.demotions,
+          shift,
+        }),
         copy: savedCopy({
           rating,
           promotions: evolutionResult?.promotions,
@@ -409,7 +441,20 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
           isFirst,
         }),
       });
-      setStep("saved");
+      // The rate step leaves, then the saved step arrives — at once when
+      // the viewer asked for less motion
+      const arrive = () => {
+        leavingRef.current = false;
+        setLeaving(false);
+        setStep("saved");
+      };
+      if (prefersReducedMotion()) {
+        arrive();
+      } else {
+        leavingRef.current = true;
+        setLeaving(true);
+        leaveTimer.current = setTimeout(arrive, D_EXIT);
+      }
     } catch (err) {
       console.error("Bottle save failed:", err);
       setSaveError("Couldn't save — please try again.");
@@ -455,7 +500,8 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     const next = numeralCounter();
     return (
       <div data-testid="log-find">
-        <h1 style={TYPE.h1}>Log a bottle</h1>
+        <Enter as="h1" style={TYPE.h1}>Log a bottle</Enter>
+        <Enter {...PAGE_REST}>
         <p style={{ ...TYPE.sub, marginTop: 8 }}>Snap the label and rate it — every rating sharpens your DNA.</p>
         {scanError && (
           <p role="alert" data-testid="bottle-error" style={{ ...alertLine, marginTop: 18 }}>{scanError}</p>
@@ -490,6 +536,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
             ))}
           </>
         )}
+        </Enter>
       </div>
     );
   };
@@ -538,25 +585,28 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
   };
 
   const renderScanning = () => (
-    <div data-testid="bottle-processing" style={{
-      minHeight: 640, display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", textAlign: "center",
-    }}>
-      <div aria-hidden="true" style={{ fontSize: "34px", lineHeight: 1 }}>📸</div>
-      <div style={{ ...TYPE.eyebrow, letterSpacing: "0.24em", marginTop: 22 }}>Reading the label</div>
-      <p style={{ fontFamily: SERIF, fontStyle: "italic", fontSize: "21px", lineHeight: 1.35, color: INK, marginTop: 12 }}>
-        Producer, vintage, grape…
-      </p>
-      <ProgressLine variant="reading" value={scanProgress} duration={1600} label="Reading the label" style={{ marginTop: 20 }} />
-      <TextAction tone="quiet" opacity={0.5} onClick={cancelScan} style={{ marginTop: 32 }}>Cancel</TextAction>
-    </div>
+    <ReadingView
+      testId="bottle-processing"
+      genome={profile?.identity?.genome}
+      fallback={{ mark: "📸", eyebrow: "Reading the label" }}
+      eyebrow="📸 Reading the label"
+      line={scanLine}
+      progress={scanProgress}
+      barMs={scanProgress >= 1 ? 500 : 1600}
+      barLabel="Reading the label"
+      onCancel={cancelScan}
+      style={{ minHeight: 640 }}
+    />
   );
 
   const renderRate = () => {
     const next = numeralCounter();
-    const canSave = Boolean(rating) && Boolean(squash(entry.base)) && !saving;
+    const busy = saving || leaving;
+    const canSave = Boolean(rating) && Boolean(squash(entry.base)) && !busy;
     return (
-      <div data-testid="bottle-confirm">
+      <div data-testid="bottle-confirm" style={leaving ? {
+        ...EXIT.to, transition: `opacity ${D_EXIT}ms ${EASE}, transform ${D_EXIT}ms ${EASE}`,
+      } : undefined}>
         <div style={TYPE.eyebrow}>{EYEBROWS[entry.source] || EYEBROWS.search}</div>
         <NameField
           value={entry.base}
@@ -585,42 +635,10 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
 
         {saveError && <p role="alert" style={{ ...alertLine, marginTop: 24 }}>{saveError}</p>}
         <LeaderEntry
-          tone="filled" mark="→" label={saving ? "Saving…" : "Save to journal"}
+          tone="filled" mark="→" label={busy ? "Saving…" : "Save to journal"}
           disabled={!canSave} onClick={save} testId="log-save"
           style={{ marginTop: saveError ? 14 : 34 }}
         />
-      </div>
-    );
-  };
-
-  const renderSaved = () => {
-    const r = ratingFor(saved.rating);
-    return (
-      <div>
-        <div style={{ textAlign: "center", paddingTop: 18 }}>
-          <PalateMark genome={saved.genome} size={132} />
-          <div style={{ ...TYPE.eyebrow, marginTop: 22 }}>{saved.copy.eyebrow}</div>
-          <h1 style={{ ...headline, marginTop: 10, textWrap: "balance" }}>{saved.copy.headline}</h1>
-          {saved.copy.sub && (
-            <p style={{
-              fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.55,
-              color: ink(0.7), marginTop: 10, textWrap: "pretty",
-            }}>{saved.copy.sub}</p>
-          )}
-        </div>
-        <div style={{ marginTop: 26, padding: "16px 0", borderTop: `1px solid ${ink(0.1)}`, borderBottom: `1px solid ${ink(0.1)}` }}>
-          <WineRow name={saved.name} mark={r?.emoji} meta={metaLine(saved.meta, "Today")}
-            style={{ padding: 0, borderBottom: "none" }} />
-        </div>
-        {saved.copy.lines.map((line) => (
-          <p key={line} style={{
-            fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5,
-            color: BURGUNDY, marginTop: 12,
-          }}>{line}</p>
-        ))}
-        <LeaderEntry secondary label="See it in your palate" href="/palate" style={{ marginTop: 28 }} />
-        <LeaderEntry secondary label="Log another bottle" onClick={logAnother} style={{ marginTop: 22 }} />
-        <LeaderEntry secondary label="Back to your list" href="/" style={{ marginTop: 22 }} />
       </div>
     );
   };
@@ -641,7 +659,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         {step === "search" && renderSearch()}
         {step === "scanning" && renderScanning()}
         {step === "rate" && entry && renderRate()}
-        {step === "saved" && saved && renderSaved()}
+        {step === "saved" && saved && <SavedStep saved={saved} onLogAnother={logAnother} />}
       </main>
     </>
   );

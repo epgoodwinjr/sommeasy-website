@@ -6,9 +6,11 @@
 //
 // A hairline track with a burgundy diamond knocked out of the rule by a
 // cream ring. The diamond starts centered and eases to `value` (0–1) on
-// mount; stagger a stack with `delay`. Rails stack 16px apart — the
-// caller's margin.
+// mount; stagger a stack with `delay` — the first move only: a later change
+// of `value` eases straight to it. Rails stack 16px apart — the caller's
+// margin.
 
+import { useState } from "react";
 import useMounted from "./useMounted";
 import { BURGUNDY, CREAM, INK, SANS, SOFT_OUT, ink } from "./tokens";
 
@@ -19,6 +21,7 @@ const endLabel = {
 
 export default function Rail({ left, right, value, delay = 0, style }) {
   const mounted = useMounted();
+  const [placed, setPlaced] = useState(false);
   const pct = Math.round(Math.min(1, Math.max(0, Number(value) || 0)) * 100);
   return (
     <div style={{
@@ -27,11 +30,11 @@ export default function Rail({ left, right, value, delay = 0, style }) {
     }}>
       <span style={{ ...endLabel, textAlign: "right" }}>{left}</span>
       <div style={{ position: "relative", height: 1, background: ink(0.2) }}>
-        <div style={{
+        <div onTransitionEnd={() => setPlaced(true)} style={{
           position: "absolute", top: 0, left: mounted ? `${pct}%` : "50%",
           width: 9, height: 9, margin: "-4px 0 0 -4.5px",
           background: BURGUNDY, transform: "rotate(45deg)", boxShadow: `0 0 0 3px ${CREAM}`,
-          transition: `left 0.9s ${SOFT_OUT} ${delay}ms`,
+          transition: `left 0.9s ${SOFT_OUT} ${placed ? 0 : delay}ms`,
         }} />
       </div>
       <span style={endLabel}>{right}</span>

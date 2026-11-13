@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sommeasy Motion Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Sommeasy's own House List tokens. One visual world, light only, by choice. */
+  --ink: #1B3D2F;
+  --burgundy: #8B2332;
+  --burgundy-deep: #7A1E2C;
+  --sage: #6B8F5E;
+  --cream: #F5F0E8;
+  --chrome: #1B3D2F;
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans: 'Source Sans 3', -apple-system, 'Segoe UI', sans-serif;
+  /* Layout: forest-green study chrome above and below; between them a phone
+     column showing the app, with spec notes beside it (below it on phones). */
+  color-scheme: light;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { height: 100%; }
+body {
+  background: #E9E2D5; color: var(--ink); font-family: var(--sans);
+  -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; min-height: 100%;
+}
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+button:focus-visible, a:focus-visible { outline: 2px solid rgba(139,35,50,0.55); outline-offset: 2px; }
+
+/* ── Study chrome ── */
+.chrome { background: var(--chrome); color: var(--cream); position: sticky; top: 0; z-index: 20; }
+.chrome-in { max-width: 860px; margin: 0 auto; padding: 12px 16px 0; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand-name { font: 700 17px/1 var(--serif); letter-spacing: 0.01em; }
+.brand-tag { font: 700 10px/1 var(--sans); text-transform: uppercase; letter-spacing: 0.22em; color: rgba(245,240,232,0.6); }
+.tabs { display: flex; gap: 4px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: 1 1 auto; padding: 10px 8px 11px; white-space: nowrap; text-align: center;
+  font: 600 13px/1.2 var(--sans); color: rgba(245,240,232,0.6);
+  border-bottom: 2px solid transparent;
+}
+.tab i { font: italic 400 13px var(--serif); margin-right: 6px; color: rgba(245,240,232,0.5); }
+.tab[aria-selected="true"] { color: var(--cream); border-bottom-color: var(--cream); }
+.tab[aria-selected="true"] i { color: var(--cream); }
+.chrome .tab:focus-visible { outline-color: var(--cream); outline-offset: -2px; }
+
+.study {
+  flex: 1; width: 100%; max-width: 860px; margin: 0 auto; padding: 20px 16px 28px;
+  display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); gap: 16px 32px; align-items: start;
+}
+.variants { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 0; }
+.variants:empty { display: none; }
+.variants .vlab { font: 700 10px/1 var(--sans); text-transform: uppercase; letter-spacing: 0.2em; color: rgba(27,61,47,0.55); margin-right: 4px; }
+.chip {
+  padding: 8px 14px; border-radius: 100px; border: 1px solid rgba(27,61,47,0.25);
+  font: 600 13px/1 var(--sans); color: rgba(27,61,47,0.75); background: rgba(255,255,255,0.4);
+}
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+
+.phone {
+  background: var(--cream); border-radius: 28px; border: 1px solid rgba(27,61,47,0.16);
+  box-shadow: 0 18px 50px rgba(27,61,47,0.16); overflow: hidden; min-height: 720px; position: relative;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(139,35,50,0.03) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(27,61,47,0.04) 0%, transparent 50%);
+}
+.notes { padding-top: 6px; }
+.notes h2 { font: 700 22px/1.2 var(--serif); letter-spacing: -0.01em; text-wrap: balance; }
+.notes .lede { font: 400 15px/1.5 var(--sans); color: rgba(27,61,47,0.72); margin-top: 8px; max-width: 46ch; }
+.notes h3 { font: 700 10px/1 var(--sans); text-transform: uppercase; letter-spacing: 0.22em; color: var(--burgundy); margin-top: 22px; }
+.notes ol, .notes ul { list-style: none; margin-top: 10px; display: flex; flex-direction: column; gap: 7px; }
+.notes li { font: 400 14px/1.45 var(--sans); color: rgba(27,61,47,0.82); display: flex; gap: 10px; }
+.notes li b { font: 600 13px/1.6 var(--sans); font-variant-numeric: tabular-nums; color: rgba(27,61,47,0.5); min-width: 38px; flex-shrink: 0; }
+.notes ul li::before { content: "?"; font: italic 400 15px/1.35 var(--serif); color: var(--burgundy); min-width: 10px; }
+.notes .reduced { margin-top: 18px; font: 400 13px/1.45 var(--sans); color: rgba(27,61,47,0.65); border-left: 2px solid var(--burgundy); padding-left: 10px; }
+
+.controls { background: var(--chrome); color: var(--cream); position: sticky; bottom: 0; z-index: 20; }
+.controls-in { max-width: 860px; margin: 0 auto; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 12px; }
+.replay { padding: 11px 20px; border-radius: 100px; background: var(--cream); color: var(--ink); font: 700 14px/1 var(--sans); }
+.controls .replay:focus-visible, .controls .spd:focus-visible { outline-color: var(--cream); }
+.speed { margin-left: auto; display: flex; align-items: center; gap: 2px; border: 1px solid rgba(245,240,232,0.3); border-radius: 100px; padding: 3px; }
+.spd { padding: 8px 12px; border-radius: 100px; font: 600 12px/1 var(--sans); color: rgba(245,240,232,0.7); }
+.spd[aria-pressed="true"] { background: rgba(245,240,232,0.16); color: var(--cream); }
+
+@media (max-width: 480px) {
+  .tab { padding: 10px 2px 11px; font-size: 12.5px; }
+  .tab i { display: none; }
+  .variants .vlab { display: none; }
+  .chip { padding: 8px 13px; }
+}
+@media (max-width: 720px) {
+  .study { grid-template-columns: minmax(0, 1fr); padding: 12px 10px 24px; }
+  .phone { border-radius: 20px; min-height: 640px; max-width: 430px; width: 100%; margin: 0 auto; }
+  .notes { padding: 4px 8px 0; }
+}
+
+/* ── The app inside the phone (House List) ── */
+.app { padding: 24px 28px 44px; color: var(--ink); }
+.runhead { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid rgba(27,61,47,0.08); }
+.runhead .back { font: 600 14px/1 var(--sans); color: var(--burgundy); }
+.runhead img { height: 26px; width: auto; display: block; }
+.runhead .srch { font-size: 15px; opacity: 0.8; }
+.mast { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.mast img { height: 24px; width: auto; }
+.mast span { font: 700 10px/1 var(--sans); letter-spacing: 0.32em; text-transform: uppercase; color: var(--burgundy); }
+.eyebrow { font: 700 10px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.22em; color: var(--burgundy); }
+.meta { font: 600 10px/1.4 var(--sans); text-transform: uppercase; letter-spacing: 0.14em; color: rgba(27,61,47,0.45); }
+.h1 { font: 700 30px/1.15 var(--serif); letter-spacing: -0.01em; text-wrap: balance; }
+.sub { font: 400 15px/1.5 var(--sans); color: rgba(27,61,47,0.55); }
+.quiet { font: 400 14px/1.5 var(--sans); color: rgba(27,61,47,0.5); }
+.quiet b { color: var(--burgundy); font-weight: 600; }
+.sect { display: flex; align-items: center; gap: 10px; }
+.sect .num { font: italic 400 16px/1 var(--serif); color: var(--burgundy); }
+.sect .lab { font: 700 10px/1 var(--sans); letter-spacing: 0.24em; text-transform: uppercase; color: rgba(27,61,47,0.5); white-space: nowrap; }
+.sect .rule { flex: 1; height: 1px; background: rgba(27,61,47,0.1); transform-origin: left center; }
+.ldr { flex: 1; min-width: 12px; border-bottom: 1.5px dotted rgba(27,61,47,0.25); margin-bottom: 6px; }
+.entry { display: flex; align-items: flex-end; gap: 10px; }
+.entry .lab { font: 600 24px/1.1 var(--serif); white-space: nowrap; }
+.entry .ldr { border-bottom-width: 2px; margin-bottom: 9px; }
+.entry .circ {
+  width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font: 400 20px/1 var(--sans); color: var(--cream);
+  background: linear-gradient(135deg, #8B2332, #7A1E2C); box-shadow: 0 6px 20px rgba(139,35,50,0.3);
+}
+.entry.sec .lab { font-size: 20px; line-height: 1.2; }
+.entry.sec .ldr { border-bottom-width: 1.5px; margin-bottom: 6px; }
+.entry.sec .chev { font: 400 18px/1.2 var(--sans); color: var(--burgundy); }
+.divider { display: flex; align-items: center; gap: 14px; }
+.divider i { flex: 1; height: 1px; background: rgba(27,61,47,0.14); }
+.divider i:first-child { transform-origin: right center; }
+.divider i:last-child { transform-origin: left center; }
+.divider span { font-size: 10px; line-height: 1; color: var(--burgundy); }
+.hair { height: 1px; background: rgba(27,61,47,0.1); transform-origin: left center; }
+.note { font: italic 400 14.5px/1.55 var(--serif); color: rgba(27,61,47,0.78); }
+.w { display: inline-block; white-space: pre; }
+.bloom { display: inline-flex; line-height: 0; flex-shrink: 0; }
+.bloom.breathe { animation: breathe 3.4s ease-in-out infinite; }
+@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+.dots b { display: inline-block; animation: dot 1.4s ease-in-out infinite; font-weight: 400; }
+.dots b:nth-child(2) { animation-delay: 0.18s; } .dots b:nth-child(3) { animation-delay: 0.36s; }
+@keyframes dot { 0%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+.bar { width: 180px; height: 2px; border-radius: 2px; background: rgba(27,61,47,0.1); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 100%; background: var(--sage); transform-origin: left center; transform: scaleX(0); }
+
+/* Welcome */
+.hero { font: 700 36px/1.08 var(--serif); letter-spacing: -0.015em; text-wrap: balance; }
+.demo { position: relative; height: 318px; }
+.sheet {
+  position: absolute; inset: 0 0 auto 0; background: rgba(255,255,255,0.6); border: 1px solid rgba(27,61,47,0.12);
+  border-radius: 3px; padding: 14px 18px 12px; box-shadow: 0 10px 30px rgba(27,61,47,0.08); overflow: hidden;
+}
+.sheet .shead { text-align: center; font: 700 9px/1 var(--sans); letter-spacing: 0.3em; text-transform: uppercase; color: rgba(27,61,47,0.5); padding-bottom: 10px; border-bottom: 1px solid rgba(27,61,47,0.12); margin-bottom: 6px; }
+.lrow { display: flex; align-items: flex-end; gap: 6px; padding: 5px 0; font: 400 12.5px/1.35 var(--serif); color: rgba(27,61,47,0.55); position: relative; }
+.lrow .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lrow .ldr { border-bottom-width: 1px; margin-bottom: 4px; min-width: 8px; }
+.lrow .pr { font-variant-numeric: tabular-nums; }
+.lrow .tick { position: absolute; left: -13px; top: 5px; font: italic 400 11px/1.5 var(--serif); color: var(--burgundy); }
+.scan { position: absolute; left: 0; right: 0; top: 0; height: 26px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(139,35,50,0) 0%, rgba(139,35,50,0.07) 80%, rgba(139,35,50,0.5) 100%); border-bottom: 1px solid rgba(139,35,50,0.5); }
+.dpicks { position: absolute; inset: 0 0 auto 0; }
+.pname { font: 600 19px/1.25 var(--serif); }
+.pname em { font-weight: 400; }
+.price { font: 400 17px/1.3 var(--serif); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mini { display: flex; align-items: flex-end; gap: 8px; padding: 11px 0; border-top: 1px solid rgba(27,61,47,0.08); }
+.mini .num { font: italic 400 14px/1.4 var(--serif); color: var(--burgundy); width: 20px; flex-shrink: 0; }
+.mini .nm { font: 400 15px/1.35 var(--serif); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 16px; }
+.status p { font: italic 400 15px/1.3 var(--serif); color: rgba(27,61,47,0.75); min-height: 20px; text-align: center; }
+
+/* Reveal */
+.center { text-align: center; }
+.title { font: 700 32px/1.1 var(--serif); letter-spacing: -0.01em; text-wrap: balance; }
+.epithet { font: italic 400 16px/1.4 var(--serif); color: var(--burgundy); }
+.prose { font: italic 400 15.5px/1.6 var(--serif); color: rgba(27,61,47,0.78); text-align: left; }
+.saved { font: 600 13px/1 var(--sans); color: var(--sage); }
+.reading-line { font: italic 400 19px/1.5 var(--serif); color: rgba(27,61,47,0.7); }
+
+/* Promotion */
+.h2 { font: 700 27px/1.15 var(--serif); letter-spacing: -0.01em; text-wrap: balance; }
+.h2 em { font-weight: 400; }
+.tiles { display: flex; align-items: center; gap: 6px; }
+.tiles .prompt { margin-right: auto; font: italic 400 17px/1.3 var(--serif); }
+.tile {
+  width: 46px; height: 46px; border-radius: 12px; border: 1px solid rgba(27,61,47,0.12); background: rgba(255,255,255,0.5);
+  font-size: 19px; line-height: 1; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.tile:hover { border-color: rgba(139,35,50,0.3); background: rgba(139,35,50,0.05); }
+.hint { font: 400 13px/1.45 var(--sans); color: rgba(27,61,47,0.5); }
+.wrow { display: flex; align-items: flex-end; gap: 8px; }
+.wrow .nm { font: 400 17px/1.35 var(--serif); min-width: 0; }
+.done { font: 600 13px/1.45 var(--sans); color: var(--burgundy); }
+
+/* Picks */
+.reading { min-height: 640px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 0 44px; }
+.reading .line { font: italic 400 22px/1.35 var(--serif); min-height: 60px; text-wrap: balance; margin-top: 12px; }
+.ticker { height: 14px; margin-top: 16px; }
+.terms { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; position: relative; }
+.terms .tr { position: absolute; left: 0; right: 0; height: 1px; background: rgba(27,61,47,0.1); transform-origin: left center; }
+.terms .tr.t { top: 0; } .terms .tr.b { bottom: 0; }
+.terms .adj { font: 700 12px/1 var(--sans); color: var(--burgundy); white-space: nowrap; }
+.somm { text-align: center; overflow: hidden; }
+.somm p { font: italic 400 16px/1.55 var(--serif); margin-top: 10px; text-wrap: pretty; }
+.somm p.tasting { font-size: 15px; color: rgba(27,61,47,0.55); }
+.pick .pname { font-size: 19px; }
+.pick.first .pname { font-size: 21px; }
+.notebox { overflow: hidden; }
+.acts { display: flex; gap: 22px; align-items: baseline; }
+.acts .a1 { font: 600 14px/1.3 var(--sans); color: var(--burgundy); white-space: nowrap; }
+.acts .a2 { font: 600 14px/1.3 var(--sans); color: rgba(27,61,47,0.55); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bloom.breathe, .dots b { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="chrome">
+  <div class="chrome-in">
+    <div class="brand"><span class="brand-name">Sommeasy</span><span class="brand-tag">Motion study</span></div>
+    <nav class="tabs" role="tablist" aria-label="Scenes" id="tabs"></nav>
+  </div>
+</header>
+
+<main class="study">
+  <div class="variants" id="variants" role="group" aria-label="What joins the DNA"></div>
+  <section class="phone" id="phone" aria-label="App preview"><div id="stage"></div></section>
+  <aside class="notes" id="notes" aria-label="Notes on this scene"></aside>
+</main>
+
+<footer class="controls">
+  <div class="controls-in">
+    <button class="replay" id="replay" type="button">↻ Replay</button>
+    <div class="speed" role="group" aria-label="Playback speed">
+      <button class="spd" type="button" data-s="1" aria-pressed="true">Full speed</button>
+      <button class="spd" type="button" data-s="0.5" aria-pressed="false">Half</button>
+      <button class="spd" type="button" data-s="0.25" aria-pressed="false">Quarter</button>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+"use strict";
+
+/* ════════════════════════════════════════════════════════════════
+   Engine: one clock, scaled by the speed control, cancellable.
+   ════════════════════════════════════════════════════════════════ */
+var SOFT = "cubic-bezier(0.22,1,0.36,1)";
+var REDUCED = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+var speed = 1;
+var run = { gen: 0, timers: [], anims: [], cleanups: [] };
+
+function rate() { return REDUCED ? 60 : speed; }
+function clearRun() {
+  run.gen++;
+  run.timers.forEach(clearTimeout); run.timers = [];
+  run.anims.forEach(function (a) { try { a.cancel(); } catch (e) {} }); run.anims = [];
+  run.cleanups.forEach(function (f) { f(); }); run.cleanups = [];
+}
+function at(ms, fn) {
+  var g = run.gen;
+  run.timers.push(setTimeout(function () { if (g === run.gen) fn(); }, ms / rate()));
+}
+function anim(el, frames, o) {
+  o = o || {};
+  var a = el.animate(frames, {
+    duration: (o.duration || 600) / rate(), delay: (o.delay || 0) / rate(),
+    easing: o.easing || SOFT, fill: "both",
+  });
+  run.anims.push(a);
+  return a;
+}
+function el(html) { var t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+
+/* The Ink family. Each takes (element, delay ms, duration ms). */
+var A = {
+  rise: function (e, d, t) { anim(e, [{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }], { delay: d, duration: t || 700 }); },
+  fade: function (e, d, t) { anim(e, [{ opacity: 0 }, { opacity: 1 }], { delay: d, duration: t || 500, easing: "ease" }); },
+  leader: function (e, d, t) { anim(e, [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0 0 0)" }], { delay: d, duration: t || 650 }); },
+  rule: function (e, d, t) { anim(e, [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { delay: d, duration: t || 650 }); },
+  pop: function (e, d, t) { anim(e, [{ opacity: 0, transform: "scale(0.6)" }, { opacity: 1, transform: "none" }], { delay: d, duration: t || 420 }); },
+  words: function (e, d, t) { writeWords(e, d, +e.dataset.s || 32, t || 450); },
+};
+function writeWords(e, d, step, t) {
+  var text = e.dataset.text || e.textContent;
+  e.dataset.text = text; e.textContent = "";
+  var parts = text.split(" ");
+  parts.forEach(function (w, i) {
+    var s = document.createElement("span");
+    s.className = "w"; s.textContent = w + (i < parts.length - 1 ? " " : "");
+    e.appendChild(s);
+    anim(s, [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { delay: d + i * step, duration: t });
+  });
+  return d + parts.length * step + t;
+}
+/* Play every [data-a] under root; data-d is its delay, data-t its duration. */
+function play(root, base) {
+  var list = root.matches && root.matches("[data-a]") ? [root] : [];
+  list = list.concat([].slice.call(root.querySelectorAll("[data-a]")));
+  list.forEach(function (e) { A[e.dataset.a](e, (base || 0) + (+e.dataset.d || 0), +e.dataset.t || undefined); });
+}
+function swapLine(e, text) {
+  anim(e, [{ opacity: 1 }, { opacity: 0 }], { duration: 140, easing: "ease" });
+  at(150, function () { e.textContent = text; anim(e, [{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }], { duration: 320 }); });
+}
+function setBar(bar, value, dur) {
+  var i = bar.firstElementChild, from = i._v || 0;
+  anim(i, [{ transform: "scaleX(" + from + ")" }, { transform: "scaleX(" + value + ")" }], { duration: dur });
+  i._v = value;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   The Bloom: a port of src/lib/palateMark.js (geometry and palette
+   unchanged), rendered from a state so every feature can move.
+   ════════════════════════════════════════════════════════════════ */
+var G = { discR: 74, frameOuterR: 71, frameInnerR: 67.5, orbitR: 56, petalBaseR: 24, petalTipMinR: 47, petalTipMaxR: 66,
+  petalMinCount: 5, petalExtraCount: 4, petalWidthFactor: 0.36, petalWidthCapDeg: 18, petalShoulder: 0.65,
+  tipBulgeMin: 0.8, tipBulgeMax: 5, stamenBaseR: 22, stamenTipMinR: 34, stamenTipMaxR: 60, ringR: 18.5, ringWidth: 4.2,
+  ringGapDeg: 8, ringSliverDeg: 10, berryMax: 6, berryR: 2.4, coreR: 6.5 };
+var C = { disc: "#1B3D2F", petal: "#2A5540", line: "#C9DAC4", sage: "#6B8F5E", cream: "#F5F0E8", burgundy: "#8B2332" };
+
+function mulberry32(a) {
+  var s = a >>> 0;
+  return function () {
+    s = (s + 0x6d2b79f5) >>> 0;
+    var t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function fmt(n) { var r = Math.round(n * 100) / 100; return String(r === 0 ? 0 : r); }
+function polar(r, deg) { var rad = deg * Math.PI / 180; return [80 + r * Math.cos(rad), 80 + r * Math.sin(rad)]; }
+function pt(r, deg) { var p = polar(r, deg); return fmt(p[0]) + " " + fmt(p[1]); }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp01(n) { return Math.min(1, Math.max(0, n)); }
+function eo(t, start, dur) { var x = clamp01((t - start) / dur); return 1 - Math.pow(1 - x, 4); }
+function eio(x) { x = clamp01(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+
+function markParams(g) {
+  var rng = mulberry32(g.seed);
+  var ringPhase = rng() * 360;
+  var petals = G.petalMinCount + Math.round(g.focus * G.petalExtraCount);
+  var sector = 360 / petals;
+  var bloomPhase = -90 + rng() * sector;
+  var order = []; for (var i = 0; i < petals; i++) order.push(i);
+  for (i = petals - 1; i > 0; i--) { var j = Math.floor(rng() * (i + 1)); var tmp = order[i]; order[i] = order[j]; order[j] = tmp; }
+  return {
+    petals: petals, sector: sector, bloomPhase: bloomPhase, ringPhase: ringPhase,
+    tipR: lerp(G.petalTipMinR, G.petalTipMaxR, g.spread),
+    tipBulge: lerp(G.tipBulgeMin, G.tipBulgeMax, g.world),
+    w: Math.min(sector * G.petalWidthFactor, G.petalWidthCapDeg),
+    stamenTipR: lerp(G.stamenTipMinR, G.stamenTipMaxR, g.range),
+    berries: Math.round(g.depth * G.berryMax), order: order,
+    burg: G.ringSliverDeg + (1 - g.color) * (360 - 2 * G.ringGapDeg - 2 * G.ringSliverDeg),
+  };
+}
+function creamOf(burg) { return 360 - 2 * G.ringGapDeg - burg; }
+function petalPath(a, tipR, w, bulge) {
+  var midR = G.petalBaseR * (1 - G.petalShoulder) + tipR * G.petalShoulder, th = w * 0.25, inset = 1.5;
+  return "M " + pt(G.petalBaseR, a) + " Q " + pt(midR, a - w) + " " + pt(tipR - inset, a - th) +
+    " C " + pt(tipR + bulge, a - th * 0.4) + " " + pt(tipR + bulge, a + th * 0.4) + " " + pt(tipR - inset, a + th) +
+    " Q " + pt(midR, a + w) + " " + pt(G.petalBaseR, a) + " Z";
+}
+function arcPath(r, start, sweep) {
+  return "M " + pt(r, start) + " A " + fmt(r) + " " + fmt(r) + " 0 " + (sweep > 180 ? 1 : 0) + " 1 " + pt(r, start + sweep);
+}
+function berryPos(S, b) { var p = S.petals[b.pi]; return polar(G.petalBaseR + (p.tip - G.petalBaseR) * b.rf, p.a); }
+
+function bloomSVG(S, size) {
+  var o = [], i, p, q;
+  o.push('<svg viewBox="0 0 160 160" width="' + size + '" height="' + size + '" aria-hidden="true" focusable="false">');
+  o.push('<g transform="translate(80 80) scale(' + fmt(S.scale == null ? 1 : S.scale) + ') translate(-80 -80)" opacity="' + fmt(S.disc) + '">');
+  o.push('<circle cx="80" cy="80" r="' + G.discR + '" fill="' + C.disc + '"/>');
+  var dash = S.frame < 1 ? ' pathLength="1" stroke-dasharray="' + fmt(S.frame) + ' 1" transform="rotate(-90 80 80)"' : "";
+  if (S.frame > 0.01) {
+    o.push('<circle cx="80" cy="80" r="' + G.frameOuterR + '" fill="none" stroke="' + C.cream + '" stroke-width="1.1"' + dash + '/>');
+    o.push('<circle cx="80" cy="80" r="' + G.frameInnerR + '" fill="none" stroke="' + C.sage + '" stroke-width="0.5"' + dash + '/>');
+  }
+  o.push('<circle cx="80" cy="80" r="' + G.orbitR + '" fill="none" stroke="' + C.sage + '" stroke-width="1" stroke-dasharray="0.2 5.8" stroke-linecap="round" opacity="' + fmt(S.orbit) + '" transform="rotate(' + fmt(S.orbitRot || 0) + ' 80 80)"/>');
+  for (i = 0; i < S.stamens.length; i++) {
+    p = S.stamens[i]; if (p.tip <= G.stamenBaseR + 0.5) continue;
+    var s1 = polar(G.stamenBaseR, p.a), s2 = polar(p.tip, p.a), sd = polar(p.tip + 1.8, p.a);
+    o.push('<g opacity="' + fmt(p.o) + '"><line x1="' + fmt(s1[0]) + '" y1="' + fmt(s1[1]) + '" x2="' + fmt(s2[0]) + '" y2="' + fmt(s2[1]) + '" stroke="' + C.line + '" stroke-width="0.8"/><circle cx="' + fmt(sd[0]) + '" cy="' + fmt(sd[1]) + '" r="1.3" fill="' + C.line + '"/></g>');
+  }
+  for (i = 0; i < S.petals.length; i++) {
+    p = S.petals[i]; if (p.o <= 0.001) continue;
+    o.push('<g opacity="' + fmt(p.o) + '"><path d="' + petalPath(p.a, p.tip, p.w, S.bulge) + '" fill="' + C.petal + '" stroke="' + C.line + '" stroke-width="1.2" stroke-linejoin="round"/>');
+    var ribEnd = G.petalBaseR + (p.tip - G.petalBaseR) * 0.72;
+    if (ribEnd > G.petalBaseR + 4.5) {
+      var m1 = polar(G.petalBaseR + 4, p.a), m2 = polar(ribEnd, p.a);
+      o.push('<line x1="' + fmt(m1[0]) + '" y1="' + fmt(m1[1]) + '" x2="' + fmt(m2[0]) + '" y2="' + fmt(m2[1]) + '" stroke="' + C.cream + '" stroke-width="0.7"/>');
+    }
+    o.push("</g>");
+  }
+  for (i = 0; i < S.berries.length; i++) {
+    q = S.berries[i]; if (q.o <= 0.001) continue;
+    var bp = berryPos(S, q);
+    o.push('<circle cx="' + fmt(bp[0]) + '" cy="' + fmt(bp[1]) + '" r="' + fmt(G.berryR * q.s) + '" fill="' + C.burgundy + '" stroke="' + C.cream + '" stroke-width="0.8" opacity="' + fmt(q.o) + '"/>');
+  }
+  if (S.ring.burg > 0.4) o.push('<path d="' + arcPath(G.ringR, S.ring.phase, S.ring.burg) + '" fill="none" stroke="' + C.burgundy + '" stroke-width="' + G.ringWidth + '" stroke-linecap="round"/>');
+  if (S.ring.cream > 0.4) o.push('<path d="' + arcPath(G.ringR, S.ring.phase + S.ring.burgFull + G.ringGapDeg, S.ring.cream) + '" fill="none" stroke="' + C.cream + '" stroke-width="' + G.ringWidth + '" stroke-linecap="round"/>');
+  o.push('<circle cx="80" cy="80" r="' + fmt(G.coreR * S.core) + '" fill="' + C.burgundy + '" stroke="' + C.cream + '" stroke-width="1"/>');
+  (S.ripples || []).forEach(function (r) {
+    if (r.o > 0.01) o.push('<circle cx="' + fmt(r.x) + '" cy="' + fmt(r.y) + '" r="' + fmt(r.r) + '" fill="none" stroke="' + C.cream + '" stroke-width="' + fmt(r.w || 0.9) + '" opacity="' + fmt(r.o) + '"/>');
+  });
+  o.push("</g></svg>");
+  return o.join("");
+}
+
+/* The settled mark: identical to today's static render. */
+function settled(P) {
+  var S = { disc: 1, scale: 1, frame: 1, orbit: 1, orbitRot: 0, core: 1, bulge: P.tipBulge, stamens: [], petals: [], berries: [],
+    ring: { phase: P.ringPhase, burg: P.burg, burgFull: P.burg, cream: creamOf(P.burg) } };
+  for (var i = 0; i < P.petals; i++) {
+    S.stamens.push({ a: P.bloomPhase + (i + 0.5) * P.sector, tip: P.stamenTipR, o: 1 });
+    S.petals.push({ a: P.bloomPhase + i * P.sector, tip: P.tipR, w: P.w, o: 1 });
+  }
+  for (var k = 0; k < P.berries; k++) S.berries.push({ pi: P.order[k % P.petals], rf: k < P.petals ? 0.52 : 0.34, s: 1, o: 1 });
+  return S;
+}
+
+/* Big moment 1: the medallion waits, then the bloom draws itself.
+   t is ms since the medallion appeared; the draw begins at `think`. */
+function revealState(P, t, think) {
+  var S = settled(P), d = t - think, i, g;
+  var v = 0.02, tau = 900; // orbit beads turn while waiting, then coast to rest
+  S.orbitRot = d < 0 ? v * t : v * think + v * tau * (1 - Math.exp(-d / tau));
+  var amp = d < 0 ? 1 : Math.exp(-d / 260);
+  S.core = 1 + 0.2 * amp * (0.5 - 0.5 * Math.cos(2 * Math.PI * t / 1500));
+  S.disc = eo(t, 0, 500); S.scale = lerp(0.94, 1, eo(t, 0, 700)); S.frame = eo(t, 120, 900); S.orbit = eo(t, 300, 800);
+  S.ring.burg = P.burg * eo(d, 0, 700);
+  S.ring.cream = creamOf(P.burg) * eo(d, 450, 650);
+  for (i = 0; i < P.petals; i++) {
+    g = eo(d, 250 + i * 45, 500);
+    S.stamens[i].tip = lerp(G.stamenBaseR, P.stamenTipR, g); S.stamens[i].o = g;
+    g = eo(d, 500 + i * 120, 750);
+    S.petals[i].tip = lerp(G.petalBaseR, P.tipR, g); S.petals[i].w = P.w * (0.35 + 0.65 * g); S.petals[i].o = Math.min(1, g * 3);
+  }
+  var b0 = 500 + P.petals * 120 + 250;
+  for (i = 0; i < S.berries.length; i++) { g = eo(d, b0 + i * 110, 420); S.berries[i].s = lerp(1.9, 1, g); S.berries[i].o = g; }
+  return S;
+}
+function revealLength(P) { return 500 + P.petals * 120 + 250 + P.berries * 110 + 420; }
+
+/* Big moment 2: the same bloom, grown. From params A to params B. */
+function growState(PA, PB, t, dur) {
+  var u = eio(t / dur), S = settled(PB), i, g;
+  S.scale = 1 + 0.06 * Math.sin(Math.PI * clamp01(t / (dur * 1.05)));
+  S.ripples = [];
+  // One wide pulse from the heart of the bloom, whatever joined
+  var wp = clamp01((t - dur * 0.42) / 1100);
+  if (wp > 0 && wp < 1) S.ripples.push({ x: 80, y: 80, r: lerp(22, 68, 1 - Math.pow(1 - wp, 3)), o: 0.5 * (1 - wp), w: 1.1 });
+  S.bulge = lerp(PA.tipBulge, PB.tipBulge, u);
+  S.ring.burg = lerp(PA.burg, PB.burg, u); S.ring.burgFull = S.ring.burg; S.ring.cream = creamOf(S.ring.burg);
+  for (i = 0; i < PB.petals; i++) {
+    if (i < PA.petals) {
+      S.petals[i].a = lerp(PA.bloomPhase + i * PA.sector, S.petals[i].a, u);
+      S.petals[i].tip = lerp(PA.tipR, PB.tipR, u); S.petals[i].w = lerp(PA.w, PB.w, u);
+      S.stamens[i].a = lerp(PA.bloomPhase + (i + 0.5) * PA.sector, S.stamens[i].a, u);
+      S.stamens[i].tip = lerp(PA.stamenTipR, PB.stamenTipR, u);
+    } else {
+      g = eo(t, dur * 0.3, dur * 0.75);
+      S.petals[i].tip = lerp(G.petalBaseR, PB.tipR, g); S.petals[i].w = PB.w * (0.35 + 0.65 * g); S.petals[i].o = Math.min(1, g * 3);
+      S.stamens[i].tip = lerp(G.stamenBaseR, PB.stamenTipR, eo(t, dur * 0.45, dur * 0.6)); S.stamens[i].o = eo(t, dur * 0.45, dur * 0.4);
+    }
+  }
+  if (PA.petals === PB.petals) {
+    for (i = PA.berries; i < S.berries.length; i++) {
+      var land = dur * 0.5 + (i - PA.berries) * 140;
+      g = eo(t, land, 460); S.berries[i].s = lerp(2.4, 1, g); S.berries[i].o = g;
+      if (i === PA.berries && t > land) {
+        var bp = berryPos(S, S.berries[i]);
+        [120, 400].forEach(function (lag) {
+          var rp = clamp01((t - land - lag) / 900);
+          if (rp > 0 && rp < 1) S.ripples.push({ x: bp[0], y: bp[1], r: lerp(3, 18, 1 - Math.pow(1 - rp, 3)), o: 0.85 * (1 - rp) });
+        });
+      }
+    }
+  } else {
+    // A new petal re-deals which petals carry fruit: berries lift, then land again
+    var lift = 1 - eo(t, 0, dur * 0.28), old = [];
+    for (i = 0; i < PA.berries; i++) old.push({ pi: PA.order[i % PA.petals], rf: i < PA.petals ? 0.52 : 0.34, s: 1, o: lift });
+    for (i = 0; i < S.berries.length; i++) { g = eo(t, dur * 0.8 + i * 110, 420); S.berries[i].s = lerp(1.9, 1, g); S.berries[i].o = g; }
+    S.berries = old.concat(S.berries);
+  }
+  return S;
+}
+
+function drive(host, size, stateAt, total, done) {
+  var g = run.gen, t0 = performance.now();
+  if (REDUCED) { host.innerHTML = bloomSVG(stateAt(total + 5000), size); if (done) done(); return; }
+  function frame(now) {
+    if (g !== run.gen) return;
+    var t = (now - t0) * speed;
+    host.innerHTML = bloomSVG(stateAt(t), size);
+    if (t < total) requestAnimationFrame(frame); else if (done) done();
+  }
+  requestAnimationFrame(frame);
+}
+
+/* The sample palate: "The Stellenbosch Loyalist". */
+var GENOME = { seed: 20260730, world: 0.62, color: 0.6, focus: 0.5, depth: 0.5, spread: 0.55, range: 0.6 };
+function withDial(k, v) { var g = {}; for (var x in GENOME) g[x] = GENOME[x]; g[k] = v; return g; }
+
+/* ════════════════════════════════════════════════════════════════
+   Shared furniture
+   ════════════════════════════════════════════════════════════════ */
+var PROTEA = '<img src="protea.png" alt="">';
+function runhead(back) {
+  return '<div class="runhead" data-a="fade" data-d="0"><span class="back">‹ ' + back + '</span>' + PROTEA + '<span class="srch" aria-hidden="true">🔍</span></div>';
+}
+function divider(d) {
+  return '<div class="divider" aria-hidden="true"><i data-a="rule" data-d="' + d + '"></i><span data-a="fade" data-d="' + d + '">✦</span><i data-a="rule" data-d="' + d + '"></i></div>';
+}
+var LIST = [
+  ["Sancerre, Domaine Vacheron 2023", 92], ["Chablis 1er Cru, William Fèvre 2022", 110],
+  ["Chardonnay, Newton Johnson 2023", 78], ["Chenin Blanc, Ken Forrester 2022", 48],
+  ["Riesling Kabinett, J.J. Prüm 2022", 84], ["Viña Gravonia, López de Heredia 2015", 74],
+  ["Albariño, Do Ferreiro 2023", 62], ["Grüner Veltliner, Nikolaihof 2022", 68],
+];
+var MATCHES = [2, 3, 5];
+
+/* ════════════════════════════════════════════════════════════════
+   Scene I: Welcome, with the self-playing demo
+   ════════════════════════════════════════════════════════════════ */
+function sceneWelcome(stage) {
+  stage.innerHTML =
+    '<div class="app" style="padding-top:22px">' +
+      '<div class="mast" data-a="fade" data-d="0">' + PROTEA + '<span>Sommeasy</span></div>' +
+      '<h1 class="hero" style="margin-top:34px" data-a="words" data-d="150" data-s="70" data-t="600">Never guess at a wine list again.</h1>' +
+      '<p class="sub" style="margin-top:12px;font-size:16px" data-a="rise" data-d="650">Tell us what you like. We’ll find it on the menu.</p>' +
+      '<div class="entry" style="margin-top:30px">' +
+        '<span class="lab" data-a="rise" data-d="850">Build your palate</span>' +
+        '<span class="ldr" data-a="leader" data-d="1050" data-t="700"></span>' +
+        '<span class="circ" data-a="pop" data-d="1500">→</span>' +
+      '</div>' +
+      '<p class="sub" style="font-size:13px;margin-top:6px" data-a="fade" data-d="1250">Takes about two minutes.</p>' +
+      '<p class="quiet" style="margin-top:18px" data-a="fade" data-d="1450">Already have an account? <b>Sign in</b></p>' +
+      '<div style="margin-top:30px">' + divider(1500) + '</div>' +
+      '<div class="sect" style="margin-top:22px"><span class="lab" data-a="fade" data-d="1650">Watch it work</span><span class="rule" data-a="rule" data-d="1650"></span></div>' +
+      '<div class="demo" id="demo" style="margin-top:18px"></div>' +
+      '<div class="status"><p id="dline"></p><div class="bar" id="dbar"><i></i></div></div>' +
+    '</div>';
+  play(stage);
+  var demo = stage.querySelector("#demo"), line = stage.querySelector("#dline"), bar = stage.querySelector("#dbar");
+
+  function cycle() {
+    var rows = LIST.map(function (r) {
+      return '<div class="lrow"><span class="nm">' + r[0] + '</span><span class="ldr"></span><span class="pr">' + r[1] + '</span></div>';
+    }).join("");
+    demo.innerHTML =
+      '<div class="sheet"><div class="shead">By the bottle · White</div>' + rows + '<div class="scan" style="opacity:0"></div></div>' +
+      '<div class="dpicks" style="visibility:hidden">' +
+        '<div class="sect"><span class="num" data-a="fade" data-d="0">I.</span><span class="lab" data-a="fade" data-d="80">🏆 Top pick</span><span class="rule" data-a="rule" data-d="80"></span></div>' +
+        '<div class="wrow" style="margin-top:14px"><span class="pname" data-a="rise" data-d="180">Newton Johnson Chardonnay <em><i>2023</i></em></span><span class="ldr" data-a="leader" data-d="420"></span><span class="price" data-a="fade" data-d="800">$78</span></div>' +
+        '<div class="meta" style="margin-top:6px" data-a="fade" data-d="480">Hemel-en-Aarde · Chardonnay</div>' +
+        '<p class="note" style="margin-top:10px" data-a="words" data-d="700" data-s="34">“Sea-cooled Chardonnay with your kind of nerve. White Burgundy that moved somewhere sunnier.”</p>' +
+        '<div style="margin-top:16px">' +
+          '<div class="mini" data-a="rise" data-d="1500"><span class="num">II.</span><span class="nm">Ken Forrester Chenin Blanc</span><span class="ldr"></span><span class="price" style="font-size:15px">$48</span></div>' +
+          '<div class="mini" data-a="rise" data-d="1680" style="border-bottom:1px solid rgba(27,61,47,0.08)"><span class="num">III.</span><span class="nm">López de Heredia Gravonia</span><span class="ldr"></span><span class="price" style="font-size:15px">$74</span></div>' +
+        '</div>' +
+      '</div>';
+    var sheet = demo.querySelector(".sheet"), scan = demo.querySelector(".scan"), picks = demo.querySelector(".dpicks");
+    var lrows = [].slice.call(demo.querySelectorAll(".lrow"));
+    anim(demo, [{ opacity: 0 }, { opacity: 1 }], { duration: 400, easing: "ease" });
+    line.textContent = "Reading the list…"; bar.firstElementChild._v = 0; setBar(bar, 0.55, 2000);
+
+    // The read: a line travels down the sheet; each row darkens as it passes
+    var last = lrows[lrows.length - 1];
+    var y0 = lrows[0].offsetTop + lrows[0].offsetHeight - 26, y1 = last.offsetTop + last.offsetHeight - 26;
+    anim(scan, [{ opacity: 0, transform: "translateY(" + y0 + "px)" }, { opacity: 1, transform: "translateY(" + y0 + "px)", offset: 0.08 },
+      { opacity: 1, transform: "translateY(" + y1 + "px)", offset: 0.92 }, { opacity: 0, transform: "translateY(" + y1 + "px)" }],
+      { delay: 350, duration: 1750, easing: "cubic-bezier(0.4,0,0.6,1)" });
+    lrows.forEach(function (r, i) {
+      anim(r, [{ color: "rgba(27,61,47,0.55)" }, { color: "rgba(27,61,47,1)", offset: 0.35 }, { color: "rgba(27,61,47,0.78)" }],
+        { delay: 480 + i * (1470 / lrows.length), duration: 650, easing: "ease" });
+    });
+    at(2150, function () { swapLine(line, "Reading eight wines…"); });
+    at(2900, function () { swapLine(line, "Weighing them against your DNA…"); setBar(bar, 0.9, 900); });
+    // The match: three lines step forward, the rest step back
+    at(3800, function () {
+      swapLine(line, "Three bottles, three kinds of yes."); setBar(bar, 1, 500);
+      var n = 0;
+      lrows.forEach(function (r, i) {
+        if (MATCHES.indexOf(i) >= 0) {
+          var k = n++;
+          anim(r, [{ color: "rgba(27,61,47,0.78)" }, { color: "#8B2332" }], { delay: k * 160, duration: 450 });
+          var tick = el('<span class="tick">' + ["i.", "ii.", "iii."][k] + "</span>"); r.appendChild(tick);
+          anim(tick, [{ opacity: 0, transform: "translateX(-4px)" }, { opacity: 1, transform: "none" }], { delay: k * 160, duration: 400 });
+        } else anim(r, [{ color: "rgba(27,61,47,0.78)" }, { color: "rgba(27,61,47,0.26)" }], { duration: 500, easing: "ease" });
+      });
+    });
+    // The list gives way to the picks
+    at(5100, function () {
+      anim(sheet, [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-10px)" }], { duration: 420, easing: "ease" });
+    });
+    at(5400, function () { picks.style.visibility = "visible"; play(picks); });
+    if (REDUCED) return;
+    at(10600, function () {
+      if (!inView) { playing = false; return; } // rests on the picks until it is looked at again
+      anim(demo, [{ opacity: 1 }, { opacity: 0 }], { duration: 400, easing: "ease" });
+      at(450, cycle);
+    });
+  }
+  // Plays when scrolled to, loops while visible, rests off-screen
+  var inView = false, playing = false, armed = false;
+  function start() { if (playing || !armed || !inView) return; playing = true; cycle(); }
+  at(1500, function () { armed = true; start(); });
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (es) { inView = es[es.length - 1].isIntersecting; start(); }, { threshold: 0.45 });
+    io.observe(demo); run.cleanups.push(function () { io.disconnect(); });
+  } else { inView = true; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Scene II: The reveal
+   ════════════════════════════════════════════════════════════════ */
+function sceneReveal(stage) {
+  var P = markParams(GENOME), THINK = 1900, D = THINK, L = revealLength(P);
+  stage.innerHTML =
+    '<div class="app center" style="padding-top:56px">' +
+      '<div style="position:relative">' +
+        '<span class="bloom" id="rb" style="width:176px;height:176px"></span>' +
+        '<p class="reading-line" id="rl" style="position:absolute;left:0;right:0;top:204px">The Somm is reading your palate<span class="dots"><b>.</b><b>.</b><b>.</b></span></p>' +
+      '</div>' +
+      '<div class="eyebrow" style="margin-top:26px;color:rgba(27,61,47,0.5)" data-a="fade" data-d="' + (D + 1500) + '">Your Wine DNA</div>' +
+      '<h1 class="title" style="margin-top:10px" data-a="words" data-d="' + (D + 1750) + '" data-s="110" data-t="700">The Stellenbosch Loyalist</h1>' +
+      '<p class="epithet" style="margin-top:10px" data-a="rise" data-d="' + (D + 2350) + '">Rooted in the Cape, loyal to Chenin</p>' +
+      '<div style="margin-top:24px">' + divider(D + 2700) + '</div>' +
+      '<p class="prose" style="margin-top:22px" data-a="words" data-d="' + (D + 2950) + '" data-s="22" data-t="500">You drink with a home base. The Cape’s granite and sea fog run through your choices, and Chenin Blanc keeps pulling you back. But you’re no hermit: a Loire detour here, a Burgundy flirtation there.</p>' +
+      '<div class="saved" style="margin-top:26px" data-a="fade" data-d="' + (D + 4300) + '">✓ Saved to your palate</div>' +
+      '<div class="entry" style="margin-top:18px;text-align:left">' +
+        '<span class="lab" data-a="rise" data-d="' + (D + 4450) + '">Meet your palate</span>' +
+        '<span class="ldr" data-a="leader" data-d="' + (D + 4650) + '" data-t="700"></span>' +
+        '<span class="circ" data-a="pop" data-d="' + (D + 5100) + '">→</span>' +
+      '</div>' +
+    '</div>';
+  play(stage);
+  var host = stage.querySelector("#rb"), rl = stage.querySelector("#rl");
+  anim(rl, [{ opacity: 0 }, { opacity: 1 }], { delay: 300, duration: 500, easing: "ease" });
+  at(THINK - 250, function () { anim(rl, [{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: "ease" }); });
+  drive(host, 176, function (t) { return revealState(P, t, THINK); }, THINK + L + 200);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Scene III: A promotion
+   ════════════════════════════════════════════════════════════════ */
+var PROMO = {
+  estate: { chip: "An estate", wine: "Ken Forrester The FMC Chenin Blanc", vintage: "2021", meta: "Stellenbosch · Chenin Blanc",
+    head: "Ken Forrester just joined your DNA", sub: "Two loved bottles made the case — we’ll look for it on every list you scan.", to: withDial("depth", 0.667) },
+  region: { chip: "A region", wine: "Mullineux Old Vines White", vintage: "2022", meta: "Swartland · Chenin blend",
+    head: "Swartland just joined your DNA", sub: "Five loved bottles made the case — we’ll look for it on every list you scan.", to: withDial("spread", 0.85) },
+  country: { chip: "A country", wine: "Niepoort Redoma Branco", vintage: "2022", meta: "Douro · White blend",
+    head: "Portugal just joined your DNA", sub: "Seven loved bottles made the case — we’ll look for it on every list you scan.", to: withDial("focus", 0.75) },
+};
+var promoKind = "estate";
+var RATINGS = [["loved", "❤️", "Loved it"], ["liked", "👍", "Liked it"], ["fine", "😐", "It was fine"], ["not_for_me", "👎", "Not for me"]];
+
+function scenePromotion(stage) {
+  var V = PROMO[promoKind], PA = markParams(GENOME), PB = markParams(V.to);
+  stage.innerHTML = runhead("Your list") +
+    '<div class="app" id="step">' +
+      '<div class="eyebrow" data-a="fade" data-d="100">Log a bottle</div>' +
+      '<h1 class="h2" style="margin-top:10px" data-a="rise" data-d="180">' + V.wine + ' <em><i>' + V.vintage + '</i></em></h1>' +
+      '<div class="meta" style="margin-top:10px" data-a="fade" data-d="320">' + V.meta + '</div>' +
+      '<div class="hair" style="margin-top:22px" data-a="rule" data-d="380"></div>' +
+      '<div class="tiles" style="margin-top:22px" data-a="rise" data-d="480"><span class="prompt">How was it?</span>' +
+        RATINGS.map(function (r) { return '<button class="tile" type="button" data-r="' + r[0] + '" aria-label="' + r[2] + '" title="' + r[2] + '">' + r[1] + "</button>"; }).join("") +
+      '</div>' +
+      '<p class="hint" style="margin-top:26px" data-a="fade" data-d="900">Tap a rating. ❤️ plays the big moment. The other three show the quiet path.</p>' +
+    '</div>';
+  play(stage);
+  var step = stage.querySelector("#step"), tiles = [].slice.call(stage.querySelectorAll(".tile")), used = false;
+  tiles.forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (used) return; used = true;
+      var r = RATINGS.filter(function (x) { return x[0] === b.dataset.r; })[0];
+      // The tile answers the tap at once
+      anim(b, [{ transform: "scale(1)" }, { transform: "scale(0.88)", offset: 0.3 }, { transform: "scale(1.08)", offset: 0.65 }, { transform: "none" }], { duration: 380, easing: "ease-out" });
+      b.style.borderColor = "rgba(139,35,50,0.45)"; b.style.background = "rgba(139,35,50,0.09)";
+      tiles.forEach(function (o) { if (o !== b) anim(o, [{ opacity: 1 }, { opacity: 0.25 }], { duration: 220, easing: "ease" }); });
+      at(430, function () { anim(step, [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-8px)" }], { duration: 300, easing: "ease" }); });
+      at(740, function () { saved(r); });
+    });
+  });
+
+  function saved(r) {
+    var big = r[0] === "loved", GROW = 700, DUR = 2100, SIZE = big ? 164 : 132, T = big ? GROW + 1150 : 250;
+    var eyebrow = big ? "🧬 Your DNA just grew" : r[1] + " " + r[2];
+    var head = big ? V.head : "Noted in your journal";
+    step.innerHTML =
+      '<div class="center">' +
+        '<span class="bloom" id="pb" style="width:' + SIZE + 'px;height:' + SIZE + 'px" data-a="rise" data-d="0" data-t="600"></span>' +
+        '<div class="eyebrow" style="margin-top:22px" data-a="fade" data-d="' + T + '">' + eyebrow + '</div>' +
+        '<h1 class="h2" style="margin-top:10px" data-a="words" data-d="' + (T + 200) + '" data-s="85" data-t="650">' + head + '</h1>' +
+        (big ? '<p class="note" style="font-size:16px;margin-top:10px;color:rgba(27,61,47,0.65)" data-a="words" data-d="' + (T + 800) + '" data-s="30">' + V.sub + '</p>' : "") +
+      '</div>' +
+      '<div class="hair" style="margin-top:24px" data-a="rule" data-d="' + (T + (big ? 1500 : 500)) + '"></div>' +
+      '<div style="padding:15px 0">' +
+        '<div class="wrow"><span class="nm" data-a="rise" data-d="' + (T + (big ? 1600 : 600)) + '">' + V.wine + " " + V.vintage + '</span><span class="ldr" data-a="leader" data-d="' + (T + (big ? 1800 : 800)) + '"></span><span style="font-size:15px" data-a="pop" data-d="' + (T + (big ? 2250 : 1250)) + '">' + r[1] + '</span></div>' +
+        '<div class="meta" style="margin-top:6px" data-a="fade" data-d="' + (T + (big ? 1750 : 750)) + '">' + V.meta + ' · Today</div>' +
+      '</div>' +
+      '<div class="hair" data-a="rule" data-d="' + (T + (big ? 1700 : 700)) + '"></div>' +
+      '<div style="display:flex;flex-direction:column;gap:22px;margin-top:26px">' +
+        ["See it in your palate", "Log another bottle", "Back to your list"].map(function (l, i) {
+          var d = T + (big ? 2300 : 1100) + i * 130;
+          return '<div class="entry sec"><span class="lab" data-a="rise" data-d="' + d + '">' + l + '</span><span class="ldr" data-a="leader" data-d="' + (d + 150) + '"></span><span class="chev" data-a="fade" data-d="' + (d + 500) + '">›</span></div>';
+        }).join("") +
+      '</div>';
+    step.getAnimations().forEach(function (a) { a.cancel(); });
+    var host = step.querySelector("#pb");
+    host.innerHTML = bloomSVG(settled(PA), SIZE);
+    play(step);
+    if (big) at(GROW, function () { drive(host, SIZE, function (t) { return growState(PA, PB, t, DUR); }, DUR + 1500); });
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Scene IV: Picks arriving
+   ════════════════════════════════════════════════════════════════ */
+var PICKS = [
+  { num: "I.", role: "🏆 Top pick", name: "Newton Johnson Chardonnay", vintage: "2023", price: "$78", meta: "Hemel-en-Aarde · Chardonnay",
+    engine: "Chardonnay — a grape already in your DNA.",
+    somm: "“With the roast chicken, this is the bottle — sea-cooled Chardonnay with your kind of nerve. It drinks like white Burgundy that moved somewhere sunnier.”" },
+  { num: "II.", role: "💰 Great value", name: "Ken Forrester Old Vine Reserve Chenin Blanc", vintage: "2022", price: "$48", meta: "Stellenbosch · Chenin Blanc",
+    engine: "Chenin Blanc from Stellenbosch — both already in your DNA.",
+    somm: "“Your home grape at a kind price. Honeyed pear up front, that waxy old-vine grip underneath.”" },
+  { num: "III.", role: "🧭 Adventure", name: "López de Heredia Viña Gravonia Blanco", vintage: "2015", price: "$74", meta: "Rioja · Viura",
+    engine: "Spain — a country already in your DNA.",
+    somm: "“Trust us on this one. Aged white Rioja is Chenin’s eccentric uncle — nutty, saline, unforgettable.”" },
+];
+var SUMMARY = "A list that leans French but hides its best value in the Cape. Your lane tonight is white with backbone — three bottles below, each a different kind of yes.";
+
+function scenePicks(stage) {
+  var P = markParams(GENOME);
+  stage.innerHTML =
+    '<div class="reading" id="rd">' +
+      '<span class="bloom breathe" style="width:96px;height:96px" data-a="rise" data-d="0">' + bloomSVG(settled(P), 96) + '</span>' +
+      '<div class="eyebrow" style="letter-spacing:0.24em;margin-top:28px" data-a="fade" data-d="200">🍷 The Somm is reading</div>' +
+      '<p class="line" id="pl" data-a="fade" data-d="300">Reading the list…</p>' +
+      '<div class="bar" id="pbar" style="margin-top:14px" data-a="fade" data-d="300"><i></i></div>' +
+      '<div class="meta ticker" id="tk"></div>' +
+    '</div>';
+  play(stage);
+  var rd = stage.querySelector("#rd"), line = stage.querySelector("#pl"), bar = stage.querySelector("#pbar"), tk = stage.querySelector("#tk");
+  setBar(bar, 0.9, 3200);
+  // The list passes under the Somm's eye, one line at a time
+  LIST.concat(LIST.slice(0, 5)).forEach(function (r, i) {
+    at(450 + i * 190, function () { tk.textContent = r[0]; anim(tk, [{ opacity: 0.2 }, { opacity: 1 }], { duration: 160, easing: "ease" }); });
+  });
+  at(1500, function () { swapLine(line, "Reading forty-two wines…"); });
+  at(2950, function () { anim(tk, [{ opacity: 1 }, { opacity: 0 }], { duration: 250, easing: "ease" }); swapLine(line, "Weighing them against your DNA…"); });
+  at(4100, function () { swapLine(line, "Three bottles, three kinds of yes."); setBar(bar, 1, 500); });
+  at(5200, function () { anim(rd, [{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-10px)" }], { duration: 350, easing: "ease" }); });
+  at(5560, showPicks);
+
+  function showPicks() {
+    var body = PICKS.map(function (p, i) {
+      var d = 800 + i * 450;
+      return '<div class="pick' + (i === 0 ? " first" : "") + '" style="margin-top:' + (i === 0 ? 30 : 34) + 'px">' +
+        '<div class="sect"><span class="num" data-a="fade" data-d="' + d + '">' + p.num + '</span><span class="lab" data-a="fade" data-d="' + (d + 80) + '">' + p.role + '</span><span class="rule" data-a="rule" data-d="' + (d + 80) + '"></span></div>' +
+        '<div class="wrow" style="margin-top:16px"><span class="pname" data-a="rise" data-d="' + (d + 160) + '">' + p.name + ' <em><i>' + p.vintage + '</i></em></span><span class="ldr" style="min-width:20px" data-a="leader" data-d="' + (d + 380) + '"></span><span class="price" data-a="fade" data-d="' + (d + 720) + '">' + p.price + '</span></div>' +
+        '<div class="meta" style="margin-top:8px" data-a="fade" data-d="' + (d + 420) + '">' + p.meta + '</div>' +
+        '<div class="notebox" style="margin-top:12px"><p class="note" data-a="rise" data-d="' + (d + 520) + '">' + p.engine + '</p></div>' +
+        '<div class="acts" style="margin-top:14px" data-a="fade" data-d="' + (d + 780) + '"><span class="a1">🥂 This one’s on the table</span><span class="a2">Had it? Rate it</span></div>' +
+      '</div>';
+    }).join("");
+    stage.innerHTML = runhead("Your list") +
+      '<div class="app">' +
+        '<h1 class="h1" data-a="rise" data-d="80">Your picks</h1>' +
+        '<p class="sub" style="margin-top:8px" data-a="rise" data-d="180">42 wines — here’s where to start</p>' +
+        '<div class="terms" style="margin-top:16px"><i class="tr t" data-a="rule" data-d="300"></i><i class="tr b" data-a="rule" data-d="300"></i><span class="meta" style="color:rgba(27,61,47,0.55)" data-a="fade" data-d="450">All wines · Any price · No steer</span><span class="adj" data-a="fade" data-d="450">Adjust ›</span></div>' +
+        '<div class="somm" id="somm" style="margin-top:28px" data-a="fade" data-d="600"><div class="eyebrow">🍷 The Somm says</div><p class="tasting">The Somm is tasting<span class="dots"><b>.</b><b>.</b><b>.</b></span></p></div>' +
+        body +
+        '<div style="margin-top:36px">' + divider(2500) + '</div>' +
+      '</div>';
+    play(stage);
+    at(4200, sommArrives);
+  }
+
+  /* The Somm lands: the summary writes in, then each note in turn. Heights
+     ease so nothing below jumps. */
+  function easeHeight(box, fill) {
+    var h0 = box.offsetHeight; box.style.height = h0 + "px";
+    fill();
+    var h1 = box.scrollHeight;
+    box.style.transition = "height " + (450 / rate()) + "ms " + SOFT;
+    requestAnimationFrame(function () { box.style.height = h1 + "px"; });
+    at(500, function () { box.style.transition = ""; box.style.height = ""; });
+  }
+  function sommArrives() {
+    var somm = stage.querySelector("#somm"), tasting = somm.querySelector("p");
+    anim(tasting, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: "ease" });
+    at(210, function () {
+      easeHeight(somm, function () {
+        tasting.className = ""; tasting.innerHTML = ""; tasting.dataset.text = SUMMARY;
+        tasting.getAnimations().forEach(function (a) { a.cancel(); });
+        writeWords(tasting, 120, 30, 480);
+      });
+    });
+    [].slice.call(stage.querySelectorAll(".notebox")).forEach(function (box, i) {
+      at(1250 + i * 520, function () {
+        var old = box.firstElementChild;
+        anim(old, [{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: "ease" });
+        at(210, function () {
+          easeHeight(box, function () {
+            box.innerHTML = '<p class="note"></p>';
+            var n = box.firstElementChild; n.dataset.text = PICKS[i].somm; writeWords(n, 80, 26, 450);
+          });
+        });
+      });
+    });
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Study chrome: scenes, notes, controls
+   ════════════════════════════════════════════════════════════════ */
+var SCENES = [
+  { id: "welcome", num: "I", tab: "Front door", fn: sceneWelcome,
+    title: "The front door, showing the product",
+    lede: "Welcome in the House List look. The headline sets, the leader draws to the one action, and below it a list is read and three picks write themselves in. The demo plays once you scroll to it and rests when you scroll away.",
+    beats: [["0.2s", "Headline sets, one word at a time"], ["0.9s", "The entry rises, its leader draws, the button lands"], ["—", "Demo starts when it scrolls into view"], ["+0.4s", "A reading line travels down the list"], ["+3.8s", "Three lines step forward, the rest step back"], ["+5.4s", "The list gives way and the picks write in"], ["+11s", "Loops while visible, rests off-screen"]],
+    judge: ["Does the demo explain Sommeasy with no instructions?", "Scroll away and back: does starting on arrival feel right?", "Left-aligned headline, like the rest of the House List. Right call for a front door?"] },
+  { id: "reveal", num: "II", tab: "The reveal", fn: sceneReveal,
+    title: "Big moment one: the bloom draws itself",
+    lede: "The quiz ends on a waiting medallion. Then the ring sweeps, the stamens reach, each petal opens in turn and the berries land. The title sets only once the bloom is whole.",
+    beats: [["0.0s", "Medallion waits, beads turning, core pulsing"], ["1.9s", "Ring sweeps: burgundy, then cream"], ["2.4s", "Petals open one by one, 120ms apart"], ["3.5s", "Berries land"], ["3.7s", "Title sets word by word, then the epithet"], ["4.9s", "The reading writes in"], ["6.2s", "Saved, and the way on"]],
+    judge: ["Is 1.9 seconds of waiting the right amount of anticipation?", "Petals one by one, or all together?", "Should the bloom sit on cream like this, or keep the dark green card it has today?"] },
+  { id: "promotion", num: "III", tab: "A promotion", fn: scenePromotion,
+    title: "Big moment two: the same bloom, grown",
+    lede: "Tap ❤️. The tile answers, the page turns, and the bloom you already have grows into its new shape. This is the bigger version: a larger bloom, a longer swell, a pulse from its heart. Switch what joins above to see each kind of growth. The other ratings show the quiet path.",
+    beats: [["0.0s", "Tile presses and settles; the others step back"], ["0.7s", "Saved screen arrives with the bloom as it was"], ["1.4s", "The bloom grows over 2.1 seconds"], ["2.3s", "A pulse crosses the bloom from its heart"], ["2.5s", "A berry lands with two ripples (estate)"], ["2.6s", "Headline sets, then the reason"], ["4.1s", "The bottle is entered; the ways on follow"]],
+    judge: ["Estate adds a berry, region lengthens the petals, country opens a new one. Does each read as growth?", "Bigger now. Is this the right size, or one notch too many?", "Does the quiet path feel finished without a moment of its own?"] },
+  { id: "picks", num: "IV", tab: "The picks", fn: scenePicks,
+    title: "Big moment three: the picks arrive",
+    lede: "The wait shows the list passing under the Somm’s eye while your bloom breathes. The picks then enter in rank order. A few seconds later the Somm’s own words write in over the plain notes, and nothing jumps.",
+    beats: [["0.0s", "Bloom breathes; list lines flick past"], ["1.5s", "The count, then the weighing"], ["4.1s", "“Three kinds of yes”"], ["5.6s", "Picks enter in order, 450ms apart"], ["9.8s", "The Somm’s summary writes in"], ["11.0s", "Each note is rewritten in turn"]],
+    judge: ["Does the list flicking past make the wait feel shorter?", "Is the Somm rewriting the notes a pleasure or a distraction?", "The real wait is 12 to 20 seconds. This scene compresses it."] },
+];
+var current = SCENES[0];
+var stage = document.getElementById("stage"), notes = document.getElementById("notes"), variants = document.getElementById("variants"), tabs = document.getElementById("tabs");
+
+SCENES.forEach(function (s) {
+  var b = el('<button class="tab" role="tab" type="button" id="tab-' + s.id + '" aria-selected="false"><i>' + s.num + ".</i>" + s.tab + "</button>");
+  b.addEventListener("click", function () { go(s, true); });
+  tabs.appendChild(b); s.btn = b;
+});
+
+function renderNotes(s) {
+  notes.innerHTML = "<h2>" + s.title + '</h2><p class="lede">' + s.lede + "</p>" +
+    "<h3>What plays</h3><ol>" + s.beats.map(function (b) { return "<li><b>" + b[0] + "</b><span>" + b[1] + "</span></li>"; }).join("") + "</ol>" +
+    "<h3>What to judge</h3><ul>" + s.judge.map(function (j) { return "<li><span>" + j + "</span></li>"; }).join("") + "</ul>" +
+    (REDUCED ? '<p class="reduced">This device asks for reduced motion, so each scene jumps to its settled state. The app will do the same.</p>' : "");
+}
+function renderVariants(s) {
+  variants.innerHTML = "";
+  if (s.id !== "promotion") return;
+  variants.appendChild(el('<span class="vlab">What joins</span>'));
+  Object.keys(PROMO).forEach(function (k) {
+    var c = el('<button class="chip" type="button" aria-pressed="' + (k === promoKind) + '">' + PROMO[k].chip + "</button>");
+    c.addEventListener("click", function () { promoKind = k; go(s, false); });
+    variants.appendChild(c);
+  });
+}
+function go(s, fromTab) {
+  current = s;
+  clearRun();
+  SCENES.forEach(function (x) { x.btn.setAttribute("aria-selected", String(x === s)); });
+  renderVariants(s); renderNotes(s);
+  stage.innerHTML = "";
+  s.fn(stage);
+  if (fromTab) {
+    try { history.replaceState(null, "", "#" + s.id); } catch (e) { location.hash = s.id; }
+    window.scrollTo(0, 0);
+    s.btn.scrollIntoView({ block: "nearest", inline: "center" });
+  }
+}
+document.getElementById("replay").addEventListener("click", function () { window.scrollTo(0, 0); go(current, false); });
+[].slice.call(document.querySelectorAll(".spd")).forEach(function (b) {
+  b.addEventListener("click", function () {
+    speed = +b.dataset.s;
+    [].slice.call(document.querySelectorAll(".spd")).forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
+    go(current, false);
+  });
+});
+function fromHash() {
+  var id = (location.hash || "").replace("#", "");
+  return SCENES.filter(function (s) { return s.id === id; })[0] || SCENES[0];
+}
+window.addEventListener("hashchange", function () { var s = fromHash(); if (s !== current) go(s, false); });
+
+go(fromHash(), false);
+})();
+</script>
+</body>
+</html>

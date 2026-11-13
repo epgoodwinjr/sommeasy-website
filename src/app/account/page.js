@@ -36,6 +36,8 @@ import { ChoiceOptions } from "@/components/house/ChoiceLine";
 import ConfirmBlock, { StartFreshConfirm } from "@/components/house/ConfirmBlock";
 import Toast, { useToast } from "@/components/house/Toast";
 import EmptyState from "@/components/house/EmptyState";
+import Enter from "@/components/house/Enter";
+import { PAGE_REST } from "@/components/house/motion";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, ink } from "@/components/house/tokens";
 
 const column = { maxWidth: COLUMN, margin: "0 auto", padding: `24px ${GUTTER}px 48px` };
@@ -374,7 +376,7 @@ export default function AccountPage() {
     <>
       <RunningHead />
       <main style={column}>
-        <div style={{ textAlign: "center" }}>
+        <Enter style={{ textAlign: "center" }}>
           <div style={{ display: "flex", justifyContent: "center" }}>
             <PalateMark genome={genome} size={60} />
           </div>
@@ -388,8 +390,9 @@ export default function AccountPage() {
               textTransform: "uppercase", color: ink(0.45), marginTop: 6,
             }}>Member since {memberSince}</div>
           )}
-        </div>
+        </Enter>
 
+        <Enter {...PAGE_REST}>
         {/* ─── I. You ─── */}
         <section>
           <SectionHead numeral={next()} label="You" style={sectionHead} />
@@ -583,6 +586,7 @@ export default function AccountPage() {
             />
           )}
         </div>
+        </Enter>
       </main>
       <Toast toasts={toasts} aboveServiceBar />
       <ServiceBar />

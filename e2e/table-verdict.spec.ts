@@ -238,8 +238,30 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await expect(ask.getByTestId("rating-tile-fine")).toHaveCount(0);
     await expect(ask).toContainText("😐 It was fine — noted.");
     // The reply takes focus (announced, and the user keeps their place)
-    await expect(ask.getByRole("status")).toBeFocused();
+    const reply = ask.getByTestId("verdict-reply");
+    await expect(reply).toBeFocused();
     await expect(ask).toContainText("We’ll weigh it lightly next time.");
+
+    // …and it is SAID once (docs/motion README §15.2). The focused line is
+    // not a live region — focus reads its noted line — and what the engine
+    // added reaches screen readers through the section's ONE status region,
+    // which holds only that: never the noted line a second time.
+    await expect(reply).not.toHaveAttribute("role", /.*/);
+    await expect(reply).not.toHaveAttribute("aria-live", /.*/);
+    const said = ask.getByRole("status");
+    await expect(said).toHaveCount(1);
+    await expect(said).toHaveText("We’ll weigh it lightly next time.");
+    await expect(said).not.toBeFocused();
+    // What a screen reader meets in the reply: its text, less anything
+    // hidden from it — the noted line, once, and nothing after it
+    const heard = await reply.evaluate((el) => {
+      const copy = el.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
+      return copy.textContent;
+    });
+    expect(heard).toBe("😐 It was fine — noted.");
+    // On screen the reply is still one whole line
+    await expect(reply).toHaveText("😐 It was fine — noted. We’ll weigh it lightly next time.");
 
     // The real rate flow: the wishlist row became a rated journal row…
     await expect

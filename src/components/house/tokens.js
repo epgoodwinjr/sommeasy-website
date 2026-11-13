@@ -22,13 +22,22 @@ export const CIRCLE_SHADOW = "0 6px 20px rgba(139,35,50,0.3)";
 export const PILL_SHADOW = "0 6px 20px rgba(139,35,50,0.25)";
 export const TOAST_SHADOW = "0 4px 20px rgba(27,61,47,0.3)";
 
-/** Interactive elements; the soft-out curve drives fills, rails and reveals. */
+/** Interactive elements; the soft-out curve drives fills, rails and reveals.
+ *  The curve itself lives with the other motion values in motion.js. */
 export const TRANSITION = "all 0.15s ease";
-export const SOFT_OUT = "cubic-bezier(0.22,1,0.36,1)";
+export { SOFT_OUT } from "./motion";
 
 /** A dotted leader: 1.5px at 0.25 by default; 2px on primary entries,
  *  0.22 on setting/fact/DNA rows, 0.2 on the rating list and Reserved rows. */
 export const leader = (width = 1.5, alpha = 0.25) => `${width}px dotted ${ink(alpha)}`;
+
+/** Heard, not seen: text for screen readers only — a status region that
+ *  says once what a written line shows (home's From last night reply).
+ *  `clip`, not clip-path: nothing here reads as an entrance left behind. */
+export const SR_ONLY = {
+  position: "absolute", width: 1, height: 1, margin: -1, padding: 0, border: 0,
+  overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap",
+};
 
 /** The page column: 560px, 28px gutters (auth pages: 400px / 36px). */
 export const COLUMN = 560;

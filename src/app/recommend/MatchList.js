@@ -23,10 +23,18 @@
 //   - Choosing quiets the other picks (faded, no choose button); the pill's
 //     Change brings their choose buttons back. Nothing is un-chosen until
 //     another pick is chosen — the ledger's `replaced` semantics.
+//
+// In motion (docs/motion/README.md §8.5, big moment 3): the reading view
+// breathes, flicks through the names it has really read and leaves before
+// the picks arrive; the picks are written in, in rank order; and when the
+// Somm lands, its summary and then each note are written in over the
+// engine's, nothing under them jumping. All of it is presentation — the
+// reading still commits nothing until the picks land, the Somm is still
+// progressive enhancement, and no write waits on any of it.
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
-import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryName, getRegionDisplayName, getVarietalDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
+import { parseWineList, matchWinesAgainstDNA, curatePicks, buildMenuContext, buildFeedbackSignals, getPickTypeInfo, getCountryName, getRegionDisplayName, getVarietalDisplayName, getProducerDisplayName, formatWineName, getPickCount } from "@/lib/matchEngine";
 import { buildSommPayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
@@ -36,19 +44,24 @@ import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { metaLine, pickFlag, pickNote, picksSubline, readingLine, termsLine } from "@/lib/houseCopy";
 import { findJournalRow, termsFromPreferences } from "@/lib/matchTerms";
-import PalateMark from "@/components/PalateMark";
+import ReadingView from "@/components/ReadingView";
 import RunningHead from "@/components/house/RunningHead";
 import SectionHead from "@/components/house/SectionHead";
 import LeaderEntry from "@/components/house/LeaderEntry";
 import RuledField from "@/components/house/RuledField";
 import TextAction, { TextActions } from "@/components/house/TextAction";
-import ProgressLine from "@/components/house/ProgressLine";
 import Divider from "@/components/house/Divider";
+import RuleDraw from "@/components/house/RuleDraw";
 import EmptyState from "@/components/house/EmptyState";
 import Toast, { useToast } from "@/components/house/Toast";
+import Enter from "@/components/house/Enter";
+import {
+  D_EXIT, PAGE_REST, PICKS, QUICK_RISE, SOMM, pickDelay, picksCloseDelay, prefersReducedMotion, sommNoteDelay,
+} from "@/components/house/motion";
 import TonightsTerms, { STEER_MAX } from "./TonightsTerms";
 import PickEntry from "./PickEntry";
-import { BURGUNDY, COLUMN, CREAM, GRADIENT, GUTTER, INK, PILL_SHADOW, SANS, SERIF, SOFT_OUT, TYPE, ink } from "@/components/house/tokens";
+import SommSays from "./SommSays";
+import { BURGUNDY, COLUMN, CREAM, GRADIENT, GUTTER, INK, PILL_SHADOW, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
 // ─── Image compression utility ───
 // Returns a compressed JPEG Blob (default: max 1200px, 0.7 quality — wine list text stays readable)
@@ -111,6 +124,10 @@ const termsKeyOf = (steerText, color, min, max) =>
   JSON.stringify([steerText || null, color, min ?? null, max ?? null]);
 const priceOf = (digits) => (digits ? parseFloat(digits) : null);
 
+// What the reading's ticker may show: the names the parse really returned —
+// these, and never one it didn't (docs/motion README §8.5)
+const tickerNames = (entries) => entries.map((e) => formatWineName(e.name || "")).filter(Boolean);
+
 // The grape line when the engine didn't map one: Vision's own variety, or a
 // blend named by the wine's color (the old chips' fallback)
 function fallbackGrape(pick) {
@@ -139,24 +156,17 @@ function pickFacts(pick) {
     // A vintage set inside the name is never printed twice
     vintage: vintage && !base.includes(String(vintage)) ? String(vintage) : null,
     meta: metaLine(region || country, grape || fallbackGrape(pick)),
-    names: { producer: pick.detectedProducer, region, grape, country },
+    // The estate note names the producer as Your palate does — never the
+    // engine's lookup key ("kanonkop")
+    names: { producer: getProducerDisplayName(pick.detectedProducer, pick.detectedProducerId), region, grape, country },
   };
 }
 
 const column = { maxWidth: COLUMN, margin: "0 auto", padding: `22px ${GUTTER}px 56px` };
 const alertLine = { fontFamily: SERIF, fontStyle: "italic", fontSize: "14px", lineHeight: 1.5, color: BURGUNDY };
-
-/** A mount reveal: fade + 10px rise (§6 Motion). */
-function Rise({ children, style, ...rest }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    ref.current?.animate?.(
-      [{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "translateY(0)" }],
-      { duration: 300, easing: SOFT_OUT },
-    );
-  }, []);
-  return <div ref={ref} style={style} {...rest}>{children}</div>;
-}
+// The terms bar's two rules: hairlines at its top and bottom edge, so they
+// can draw (a border can't)
+const termsRule = { position: "absolute", left: 0, right: 0, height: 1, background: ink(0.1) };
 
 /** "Get my picks" — the pill beside the link and under the pasted list. */
 function PillButton({ children, disabled, onClick, testId }) {
@@ -216,7 +226,9 @@ export default function MatchList({ isMobile = false }) {
   const [wineListText, setWineListText] = useState("");
   const [extractedFrom, setExtractedFrom] = useState(null);
   const [errorMsg, setErrorMsg] = useState("");
-  // The reading state — { line, progress } while the Somm reads
+  // The reading state while the Somm reads: { line, progress, names,
+  // leaving } — `names` only once a list has really been parsed (the
+  // ticker), `leaving` while the view plays out before the picks arrive
   const [reading, setReading] = useState(null);
   // The analysis
   const [picks, setPicks] = useState(null);
@@ -238,6 +250,19 @@ export default function MatchList({ isMobile = false }) {
   const [chosenWine, setChosenWine] = useState(null);
   const [changing, setChanging] = useState(false);
   const [bypassState, setBypassState] = useState(null); // null | "noted" | "dismissed"
+  // Picks the Somm didn't keep, fading out before its own take their place
+  const [goingKeys, setGoingKeys] = useState(null);
+  // The arrival (docs/motion §8.5) is earned by picks LANDING — an analysis
+  // that commits — and plays once, for what mounts with the view then.
+  // `picksMounted` is false for the render in which the picks view mounts
+  // and true after it, so a pick that joins later (the Somm's, a refilter's)
+  // fades in, in place. `picksLanded` / `picksPlayed` tell a landing from a
+  // view that merely came back: another page that failed to read, or was
+  // cancelled, returns the picks exactly as they were — nothing plays, and
+  // its error is seen at once
+  const picksMounted = useRef(false);
+  const picksLanded = useRef(0);
+  const picksPlayed = useRef(0);
   const sommSeqRef = useRef(0);
   const readTokenRef = useRef(0);
   const verdictSessionRef = useRef(null);
@@ -293,11 +318,18 @@ export default function MatchList({ isMobile = false }) {
   const view = reading ? "reading" : picks ? "picks" : "input";
   // Scroll to top on every step change: Match → Reading → Picks (§9.2)
   useEffect(() => { window.scrollTo(0, 0); }, [view]);
+  useEffect(() => {
+    picksMounted.current = view === "picks";
+    if (view === "picks") picksPlayed.current = picksLanded.current;
+  }, [view]);
+  // Constant for a mounted picks view's first render; false ever after
+  const picksFirstRender = view === "picks" && !picksMounted.current;
+  const arriving = picksFirstRender && picksLanded.current !== picksPlayed.current;
 
   // ─── The reading state ───
   const beginReading = () => {
     setErrorMsg("");
-    setReading({ line: readingLine("list"), progress: 0.9 });
+    setReading({ line: readingLine("list"), progress: 0.9, names: null, leaving: false });
     return ++readTokenRef.current;
   };
   const isStale = (token) => token !== readTokenRef.current;
@@ -334,6 +366,7 @@ export default function MatchList({ isMobile = false }) {
   // algorithmic picks are already on screen), then the ledger. `source`
   // ("scan" | "pdf" | "url" | "paste") rides the menu_analyzed event.
   const commitAnalysis = (a, source) => {
+    picksLanded.current += 1;
     setTotalParsed(a.entries.length);
     userDNARef.current = a.userDNA;
     setScoredEntries(a.scored);
@@ -369,10 +402,11 @@ export default function MatchList({ isMobile = false }) {
   // list's own state (pages, the extracted text) only once nothing can
   // cancel it.
   const finishReading = async (token, entries, source, beforeCommit) => {
-    setReading((r) => r && { ...r, line: readingLine("count", entries.length) });
+    // The list is parsed: for this one beat its names pass under the bar
+    setReading((r) => r && { ...r, line: readingLine("count", entries.length), names: tickerNames(entries) });
     await pause(READ_BEAT_MS);
     if (isStale(token)) return;
-    setReading((r) => r && { ...r, line: readingLine("weigh", entries.length) });
+    setReading((r) => r && { ...r, line: readingLine("weigh", entries.length), names: null });
     const analysis = analyzeEntries(entries, priceOf(minPrice), priceOf(maxPrice), colorPref);
     await pause(READ_BEAT_MS);
     if (isStale(token)) return;
@@ -380,6 +414,13 @@ export default function MatchList({ isMobile = false }) {
     if (done) {
       setReading((r) => r && { ...r, line: done, progress: 1 });
       await pause(READ_BEAT_MS);
+      if (isStale(token)) return;
+    }
+    // The view leaves before the picks arrive. Cancel is live through it,
+    // and still costs nothing: nothing is committed until it is over
+    if (!prefersReducedMotion()) {
+      setReading((r) => r && { ...r, leaving: true });
+      await pause(D_EXIT);
       if (isStale(token)) return;
     }
     beforeCommit?.();
@@ -394,6 +435,7 @@ export default function MatchList({ isMobile = false }) {
     // Invalidate any in-flight somm request so it can't overwrite this state.
     sommSeqRef.current++;
     if (sommState === "pending") setSommState("idle");
+    setGoingKeys(null);
     const menuCtx = buildMenuContext(scoredEntries.filter(e => e.score > 0));
     const pickCount = getPickCount(totalParsed, newColorPref);
     const curated = curatePicks(scoredEntries, {
@@ -513,6 +555,21 @@ export default function MatchList({ isMobile = false }) {
         setSommState("fallback");
         recordMenuAnalyzed({ outcome: "fallback", duration_ms: sommMs });
         return;
+      }
+      // The Somm lands (docs/motion §8.5). A pick it didn't keep fades out
+      // before its own fades in, in place; the rest stay where they are.
+      // Everything after — the summary, then each note written in over the
+      // engine's — is the picks' own presentation, staged from this commit
+      const kept = new Set(sommPicks.map(wineKey));
+      const going = curated.map(wineKey).filter((key) => !kept.has(key));
+      if (going.length > 0 && !prefersReducedMotion()) {
+        setGoingKeys(new Set(going));
+        await pause(SOMM.outMs);
+        setGoingKeys(null);
+        if (sommSeqRef.current !== seq) { // a refilter landed during the fade
+          recordMenuAnalyzed({ outcome: "superseded", duration_ms: sommMs });
+          return;
+        }
       }
       setPicks(sommPicks);
       setSommNotes(notes);
@@ -927,6 +984,7 @@ export default function MatchList({ isMobile = false }) {
     setSommSummary("");
     setSommState("idle");
     setSommTermsKey(null);
+    setGoingKeys(null);
     setAdjustOpen(false);
     setTilesOpen({});
     // A new table sitting: fresh verdict session, cleared declarations —
@@ -1021,8 +1079,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   const renderInput = () => {
     const next = numeralCounter();
     return (
-      <div>
-        <h1 style={TYPE.h1}>Match the wine list</h1>
+      <div key="input">
+        <Enter as="h1" style={TYPE.h1}>Match the wine list</Enter>
+        <Enter {...PAGE_REST}>
         <p style={{ ...TYPE.sub, marginTop: 8 }}>Share a wine list and we’ll find your best matches.</p>
         {errorMsg && (
           <p role="alert" data-testid="error-message" style={{ ...alertLine, marginTop: 18 }}>{errorMsg}</p>
@@ -1050,7 +1109,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           style={{ marginTop: 22 }}
         />
         {linkOpen && (
-          <Rise style={{ display: "flex", alignItems: "flex-end", gap: 12, marginTop: 8 }}>
+          <Enter {...QUICK_RISE} style={{ display: "flex", alignItems: "flex-end", gap: 12, marginTop: 8 }}>
             <RuledField
               variant="url"
               type="url"
@@ -1073,7 +1132,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             <PillButton testId="url-fetch-button" disabled={!menuUrl.trim()} onClick={handleUrlFetch}>
               Get my picks
             </PillButton>
-          </Rise>
+          </Enter>
         )}
         <div style={{ marginTop: 14 }}>
           <TextAction
@@ -1082,7 +1141,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           >or paste the text manually</TextAction>
         </div>
         {showPasteMode && (
-          <Rise style={{ marginTop: 4 }}>
+          <Enter {...QUICK_RISE} style={{ marginTop: 4 }}>
             {extractedFrom && wineListText && (
               <p style={{ fontFamily: SANS, fontSize: "12px", lineHeight: 1.5, color: ink(0.6), marginBottom: 4 }}>
                 {extractedFrom === "scan" ? "📸 Extracted from your photo" : "🔗 Extracted from the link"} — review and edit if needed.
@@ -1095,11 +1154,12 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               </PillButton>
               <TextAction tone="quiet" opacity={0.55} onClick={loadExample}>Try an example list</TextAction>
             </div>
-          </Rise>
+          </Enter>
         )}
 
         <SectionHead numeral={next()} label="Tonight’s terms" style={{ margin: "24px 0 10px" }} />
         <TonightsTerms {...termsProps} steerId="steer-input" />
+        </Enter>
       </div>
     );
   };
@@ -1108,23 +1168,19 @@ Barolo, Giacomo Conterno 2018.........................$210`);
   // READING — the Somm is reading (screen 07)
   // ═══════════════════════════════════════════════════
   const renderReading = () => (
-    <div data-testid="processing-spinner" style={{
-      minHeight: "100vh", maxWidth: COLUMN, margin: "0 auto", padding: "0 44px",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      textAlign: "center",
-    }}>
-      <PalateMark genome={profile.identity?.genome} size={96} />
-      <div style={{ ...TYPE.eyebrow, letterSpacing: "0.24em", marginTop: 28 }}>🍷 The Somm is reading</div>
-      <p aria-live="polite" style={{
-        fontFamily: SERIF, fontStyle: "italic", fontSize: "22px", lineHeight: 1.35, color: INK,
-        marginTop: 12, minHeight: 60, textWrap: "balance",
-      }}>{reading.line}</p>
-      <ProgressLine
-        variant="reading" value={reading.progress} duration={reading.progress >= 1 ? 500 : 2300}
-        label="Reading the list" style={{ marginTop: 14 }}
-      />
-      <TextAction tone="quiet" opacity={0.5} onClick={cancelReading} style={{ marginTop: 36 }}>Cancel</TextAction>
-    </div>
+    <ReadingView
+      testId="processing-spinner"
+      genome={profile.identity?.genome}
+      eyebrow="🍷 The Somm is reading"
+      line={reading.line}
+      progress={reading.progress}
+      barMs={reading.progress >= 1 ? 500 : 2300}
+      barLabel="Reading the list"
+      names={reading.names}
+      leaving={reading.leaving}
+      onCancel={cancelReading}
+      style={{ minHeight: "100vh", maxWidth: COLUMN, margin: "0 auto", padding: "0 44px" }}
+    />
   );
 
   // ═══════════════════════════════════════════════════
@@ -1138,55 +1194,52 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     const askAgainVisible = hasPicks && sommState !== "pending"
       && termsKeyOf(steer.trim().slice(0, STEER_MAX), colorPref, priceOf(minPrice), priceOf(maxPrice)) !== sommTermsKey;
     const seenKeys = new Set();
+    // The arrival (docs/motion §8.5's table): when the picks have just
+    // landed, everything that mounts with the view is written in, each part
+    // on its delay from PICKS. A pick that joins later is handed no delay —
+    // it fades in where it stands. A view that only came back plays nothing
+    const closeAt = picksCloseDelay(picks.length);
+    const enterAt = (delay) => (arriving ? delay : undefined);
     return (
-      <div>
-        <h1 data-testid="results-heading" style={TYPE.h1}>{hasPicks ? "Your picks" : "No matches found"}</h1>
-        <p style={{ ...TYPE.sub, marginTop: 8 }}>
+      <div key="picks">
+        <Enter as="h1" play={arriving} delay={PICKS.title} data-testid="results-heading" style={TYPE.h1}>
+          {hasPicks ? "Your picks" : "No matches found"}
+        </Enter>
+        <Enter as="p" play={arriving} delay={PICKS.sub} style={{ ...TYPE.sub, marginTop: 8 }}>
           {picksSubline({ wines: totalParsed, pages: pageCount, picks: picks.length })}
-        </p>
+        </Enter>
 
         {/* The terms bar — Adjust opens Tonight's terms in place */}
         <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-          marginTop: 16, padding: "6px 0", borderTop: `1px solid ${ink(0.1)}`, borderBottom: `1px solid ${ink(0.1)}`,
+          position: "relative", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+          marginTop: 16, padding: "7px 0",
         }}>
-          <span style={{
+          <RuleDraw enterDelay={enterAt(PICKS.terms)} style={{ ...termsRule, top: 0 }} />
+          <RuleDraw enterDelay={enterAt(PICKS.terms)} style={{ ...termsRule, bottom: 0 }} />
+          <Enter as="span" kind="fade" play={arriving} delay={PICKS.termsText} style={{
             fontFamily: SANS, fontSize: "10px", fontWeight: 600, lineHeight: 1.5, textTransform: "uppercase",
             letterSpacing: "0.14em", color: ink(0.55), minWidth: 0, overflowWrap: "anywhere",
-          }}>{termsLine({ color: colorPref, min: minPrice, max: maxPrice, steer })}</span>
-          <TextAction size={12} weight={700} ariaExpanded={adjustOpen} onClick={() => setAdjustOpen((open) => !open)}>
-            Adjust ›
-          </TextAction>
+          }}>{termsLine({ color: colorPref, min: minPrice, max: maxPrice, steer })}</Enter>
+          <Enter as="span" kind="fade" play={arriving} delay={PICKS.termsText} style={{ flexShrink: 0 }}>
+            <TextAction size={12} weight={700} ariaExpanded={adjustOpen} onClick={() => setAdjustOpen((open) => !open)}>
+              Adjust ›
+            </TextAction>
+          </Enter>
         </div>
         {adjustOpen && (
-          <Rise style={{ marginTop: 18 }}>
+          <Enter {...QUICK_RISE} style={{ marginTop: 18 }}>
             <TonightsTerms {...termsProps} steerId="steer-input-results" />
             {askAgainVisible && (
               <TextAction weight={700} testId="ask-somm-again" onClick={askAgain} style={{ marginTop: 8 }}>
                 🍷 Ask the Somm again
               </TextAction>
             )}
-          </Rise>
+          </Enter>
         )}
 
-        {/* The Somm says — "tasting" while it curates; omitted on fallback */}
-        {hasPicks && sommState === "pending" && (
-          <div data-testid="somm-thinking" style={{ textAlign: "center", marginTop: 28 }}>
-            <div style={TYPE.eyebrow}>🍷 The Somm says</div>
-            <p style={{
-              fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.55, color: ink(0.55), marginTop: 10,
-            }}>The Somm is tasting…</p>
-          </div>
-        )}
-        {hasPicks && sommState === "done" && sommSummary && (
-          <div data-testid="somm-summary" style={{ textAlign: "center", marginTop: 28 }}>
-            <div style={TYPE.eyebrow}>🍷 The Somm says</div>
-            <p style={{
-              fontFamily: SERIF, fontStyle: "italic", fontSize: "16px", lineHeight: 1.55, color: INK,
-              marginTop: 10, textWrap: "pretty",
-            }}>{sommSummary}</p>
-          </div>
-        )}
+        {/* The Somm says — "tasting" while it curates, its summary written
+            in when it lands; gone on fallback */}
+        <SommSays state={hasPicks ? sommState : "idle"} summary={sommSummary} enterDelay={enterAt(PICKS.somm)} />
 
         {hasPicks && (
           <div data-testid="picks-container">
@@ -1214,8 +1267,12 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   price={pick.price != null ? `$${pick.price}` : null}
                   meta={facts.meta}
                   flag={rating ? null : pickFlag(journalRow)}
-                  note={sommNote || pickNote({ reasons: (pick.matchReasons || []).map((r) => r.type), ...facts.names })}
-                  sommNote={Boolean(sommNote)}
+                  note={pickNote({ reasons: (pick.matchReasons || []).map((r) => r.type), ...facts.names })}
+                  sommNote={sommNote}
+                  sommDelay={sommNoteDelay(i)}
+                  enterDelay={enterAt(pickDelay(i))}
+                  swapIn={!picksFirstRender}
+                  going={Boolean(goingKeys?.has(wineKey(pick)))}
                   chosen={chosen}
                   quiet={quiet}
                   changing={changing}
@@ -1239,7 +1296,8 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           }}>We’ll ask how it drank tomorrow morning.</p>
         )}
 
-        <Divider style={{ marginTop: 36 }} />
+        <Divider enterDelay={enterAt(closeAt)} style={{ marginTop: 36 }} />
+        <Enter kind="fade" play={arriving} delay={closeAt}>
         {hasPicks && bypassState === null && (
           <div style={{ textAlign: "center", marginTop: 10 }}>
             <TextAction tone="quiet" underlined opacity={0.5} testId="bypass-somm" onClick={handleBypass}>
@@ -1248,7 +1306,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           </div>
         )}
         {hasPicks && bypassState === "noted" && (
-          <Rise data-testid="bypass-noted" style={{ textAlign: "center" }}>
+          <Enter {...QUICK_RISE} data-testid="bypass-noted" style={{ textAlign: "center" }}>
             <p style={{
               fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.55, color: INK,
               marginTop: 20, textWrap: "pretty",
@@ -1257,17 +1315,20 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               <TextAction weight={700} href="/log" testId="bypass-log-link">📸 Log what you drank</TextAction>
               <TextAction tone="quiet" testId="bypass-skip" onClick={() => setBypassState("dismissed")}>Skip</TextAction>
             </TextActions>
-          </Rise>
+          </Enter>
         )}
+        </Enter>
         {/* Only another page can fail over the picks (they're untouched —
             a page commits nothing until it reads): its error sits beside
             the control that retries it, under its own id, never the input
-            view's error-message (PR #21) */}
+            view's error-message (PR #21). Never inside an entrance: a
+            failed page is seen the moment the picks are back */}
         {errorMsg && (
           <p role="alert" aria-live="polite" data-testid="add-page-error" style={{ ...alertLine, textAlign: "center", marginTop: 18 }}>
             {errorMsg}
           </p>
         )}
+        <Enter kind="fade" play={arriving} delay={closeAt}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginTop: 8 }}>
           {extractedFrom === "scan" && (
             <TextAction tone="secondary" onClick={() => {
@@ -1277,6 +1338,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           )}
           <TextAction testId="scan-again-button" onClick={handleReset}>📋 Scan another list</TextAction>
         </div>
+        </Enter>
       </div>
     );
   };
@@ -1288,7 +1350,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           state, so the trail keeps calling it "Match a list" (a "Your
           picks" label elsewhere would land on an empty Match page) */}
       {view !== "reading" && (
-        <RunningHead {...(view === "picks" && { backLabel: "Match a list", onBack: handleReset })} />
+        <RunningHead enter={arriving} {...(view === "picks" && { backLabel: "Match a list", onBack: handleReset })} />
       )}
       {/* Mounted in every view: a new list can arrive mid-read (it
           supersedes the old one) and "Add another page" lives over the picks */}
