@@ -94,35 +94,82 @@ export function findJournalRow(name, rows) {
 // wines fit it, and the color whenever fewer than three wines had it — a
 // "$250 and up" search showed five bottles under $170.
 
-const SPARKLING_SECTION = /sparkling|champagne|bubbles|fizz|pétillant|spumante|mousseux/;
+// Reading "sparkling" — WORDS, never letters inside a longer word. Every
+// text is folded first as normalizeWineName folds a name (lowercase, no
+// accents, single spaces between words), so the terms below are written
+// folded and "Crémant", "CREMANT", "Pét-Nat" and "Pet Nat" are one spelling
+// each. Until Nov 2026 the name was tested with indexOf: "asti" sat inside
+// Castillo and Sebastiani, "cava" inside Cavallotto, "mcc" inside McCrea,
+// "brut" inside Brutocao — reds left out under Reds, offered under Sparkling.
+
+// A heading or a variety is read from the START of a word: a plural
+// ("Champagnes", "Sparkling Wines") is still the heading
+const SPARKLING_SECTION = /(?:^| )(?:sparkling|champagne|bubbles|fizz|petillant|spumante|mousseux)/;
+const SPARKLING_VARIETY = /(?:^| )(?:champagne blend|sparkling)/;
+
+// In a name: a whole word, or a run of whole words
 const SPARKLING_NAME_TERMS = [
-  "champagne", "cava", "prosecco", "crémant", "cremant",
+  "champagne", "cava", "prosecco", "cremant",
   "brut", "blanc de blancs", "blanc de noirs",
-  "méthode traditionnelle", "methode cap classique", "mcc",
-  "sekt", "spumante", "franciacorta", "asti",
-  "pétillant naturel", "pet-nat", "ancestrale",
+  "methode traditionnelle", "methode cap classique", "mcc",
+  "spumante", "franciacorta",
+  "petillant naturel", "pet nat", "ancestrale",
 ];
+
+// Sekt is the one term German writes inside a longer word, as its head
+// ("Winzersekt", "Jahrgangssekt") or its first part ("Sektkellerei")
+function isSektWord(word) {
+  return word.startsWith("sekt") || word.endsWith("sekt");
+}
+
+// "Asti" is the sparkling wine only as the wine's own name — "Asti", "Asti
+// Spumante", "Moscato d'Asti". After any other grape ("Barbera d'Asti",
+// Dolcetto, Grignolino, Freisa) it is where a still wine is from.
+function namesAsti(words) {
+  const moscato = words.includes("moscato");
+  return words.some((word, i) => word === "asti" && (moscato || (words[i - 1] !== "d" && words[i - 1] !== "di")));
+}
+
+/** A color, or null when there is none to go on. wineUnified files two
+ *  grapes under the color "unknown" ("Sauvignon"; "Corvina, Rondinella,
+ *  Molinara"), and a photo may say "unknown" — or the word "null" — of a
+ *  wine: placeholders for "no color", not a fifth color. Until Nov 2026
+ *  "unknown" was read as one, and such a wine fit no color filter at all —
+ *  not red, not white, not sparkling. */
+export function knownColor(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim().toLowerCase();
+  return text && text !== "unknown" && text !== "null" ? value : null;
+}
 
 /** Does this entry read as a sparkling wine — by its detected color, its
  *  Vision color, its section header, its name or its variety? */
 export function isSparkling(entry) {
   if (!entry || typeof entry !== "object") return false;
-  const name = (entry.name || "").toLowerCase();
-  const section = (entry.section || "").toLowerCase();
-  const variety = (entry.visionData && entry.visionData.variety ? entry.visionData.variety : "").toLowerCase();
-  const visionColor = (entry.visionData && entry.visionData.color ? entry.visionData.color : "").toLowerCase();
-  const detectedColor = (entry.detectedColor || "").toLowerCase();
+  const vision = entry.visionData || {};
+  const detectedColor = normalizeWineName(entry.detectedColor); // "rosé" folds to "rose"
+  const visionColor = normalizeWineName(vision.color);
 
   if (detectedColor === "sparkling") return true;
   if (visionColor === "sparkling") return true;
-  if (SPARKLING_SECTION.test(section)) return true;
-  if (SPARKLING_NAME_TERMS.some((term) => name.indexOf(term) >= 0)) return true;
-  return /champagne blend|sparkling/.test(variety);
+  if (SPARKLING_SECTION.test(normalizeWineName(entry.section))) return true;
+
+  const name = normalizeWineName(entry.name);
+  const padded = ` ${name} `;
+  if (SPARKLING_NAME_TERMS.some((term) => padded.includes(` ${term} `))) return true;
+  const words = name.split(" ");
+  if (words.some(isSektWord)) return true;
+  // Asti is made from Moscato Bianco: a wine known to be red or rosé that
+  // says "Asti" ("Barbera, Vietti, Asti") is naming the place. Only Asti
+  // yields to the color — a Brut rosé or a sparkling Shiraz is sparkling.
+  const color = detectedColor || visionColor;
+  if (namesAsti(words) && color !== "red" && color !== "rose") return true;
+  return SPARKLING_VARIETY.test(normalizeWineName(vision.variety));
 }
 
 /** Does this entry fit the color the diner chose? No color (or "all") fits
- *  everything. A wine whose color is unknown — a text line with no clue —
- *  fits red, white or rosé as it always has; a wine Vision gave a color to
+ *  everything. A wine whose color is unknown — a text line with no clue, a
+ *  grape the data has no color for — fits red, white or rosé; a wine Vision gave a color to
  *  must match it; sparkling takes only what reads as sparkling, and a
  *  sparkling wine is never a red or a white. */
 export function fitsColor(entry, color) {
@@ -130,8 +177,9 @@ export function fitsColor(entry, color) {
   if (!entry || typeof entry !== "object") return false;
   if (color === "sparkling") return isSparkling(entry);
   if ((color === "red" || color === "white") && isSparkling(entry)) return false;
-  if (entry.visionData && entry.visionData.color) return entry.detectedColor === color;
-  return !entry.detectedColor || entry.detectedColor === color;
+  const detected = knownColor(entry.detectedColor);
+  if (knownColor(entry.visionData && entry.visionData.color)) return detected === color;
+  return !detected || detected === color;
 }
 
 // A limit as the page may hold it: a positive number, or digits. Anything
@@ -217,8 +265,8 @@ export function fitsAdventure(entry, { color, min, max } = {}) {
 // one, else what the engine (or the photo) detected, else unknown
 function colorOf(entry) {
   if (isSparkling(entry)) return "sparkling";
-  const color = entry.detectedColor || (entry.visionData && entry.visionData.color) || "";
-  return String(color).toLowerCase() || null;
+  const color = knownColor(entry.detectedColor) || knownColor(entry.visionData && entry.visionData.color);
+  return color ? color.toLowerCase() : null;
 }
 
 /**

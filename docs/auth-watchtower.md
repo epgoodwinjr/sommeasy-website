@@ -172,6 +172,13 @@ Run these over the last 7 days of Vercel logs (Logs tab → filter, or
     AND occurred_at > now() - interval '7 days'
   GROUP BY 1, 2, 3, 4 ORDER BY 1, 2;
   ```
+- **A budget rejection** reads `non-splurge 88 > budget max` on main. Once
+  `loose-ends` is live it also names the picks — `non-splurge 88 > budget max
+  (over max: i=0 $68, i=5 $88)` — so group it with
+  `split_part(reason, ' (over max', 1)`. On main (Nov 13, 2026, 180 replayed
+  runs) "up to $60" on a 40-bottle list fell back 9 times in 30; on
+  `loose-ends`, none of the six budget cases was rejected even once in 180.
+  A `non-splurge` reason in production after that merge is news.
 - **Baseline (Nov 12, 2026, 90 replayed runs on the fixed route):** 0
   fallbacks (35 before), 78 first attempt, 2 salvaged, 10 retried — every
   retry `non-splurge N > budget max` on a tight budget, recovered at 16–20s.

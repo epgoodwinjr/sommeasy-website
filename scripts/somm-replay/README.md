@@ -19,6 +19,8 @@ fires.
 |---|---|---|---|
 | The full replay, 27 cases × 5 | 135 | ~145 | **about $1.90**, 5–7 minutes |
 | The six lone-Adventure cases × 5 | 30 | 30 | $0.25, about a minute (Nov 13, 2026) |
+| The six budget cases × 30 | 180 | 180–207 | $2.12 on today's route ($3.13 before Nov 13's fix), 6–8 minutes |
+| The retry probe, 27 rejected replies × 2 | 54 | 54 | about $1.05, 2 minutes |
 | One case × 5 | 5 | 5–10 | $0.04–$0.13 |
 | One one-wine case, one run | 1 | 1 | ~$0.007 |
 | `--dry` | 0 | 0 | free |
@@ -77,6 +79,42 @@ an outcome surprises you).
 
 A long replay started as a background task may crawl; run it in a terminal.
 
+**Five runs are a rumor, thirty are a rate.** The Nov 12 budget baseline
+(six cases × 5) showed one fallback in 30 runs. At 30 runs a case, one of
+those cases fell back 9 times in 30. Use `--runs 30` on the cases a change
+is about before quoting a rate.
+
+## The retry probe
+
+A replay shows how often the first reply is rejected. `retry-probe.mjs`
+shows what the route's corrective message does about it: it hands a recorded
+rejected reply back to the real route as its first answer (no API call for
+that one) and lets the route send its real retry to the real API. One paid
+call a run, and every run exercises the retry.
+
+```bash
+node scripts/somm-replay/retry-probe.mjs --from my-change
+```
+
+```bash
+node scripts/somm-replay/retry-probe.mjs --from my-change --save
+```
+
+```bash
+node scripts/somm-replay/retry-probe.mjs --set scripts/somm-replay/baselines/2026-11-13-rejected.json --reps 2 --tag my-retry
+```
+
+`--from <tag>` lists the rejected first replies in `results/<tag>.full.json`
+(free). `--save` keeps them beside the payloads they answered
+(`results/<tag>.rejected.json`) — save BEFORE changing the payload builder:
+a reply's indices mean nothing against a different slate. `--set <file>`
+replays a saved set; each run's `sent` in the `.full.json` is the corrective
+message as the route wrote it.
+
+`baselines/2026-11-13-rejected.json` is such a set: 27 replies with two
+picks over the max, against Nov 13's 25-candidate budget payloads. Replay it
+when the retry's wording, the validator's reasons or the model change.
+
 ## Reading the result
 
 | Outcome | Meaning |
@@ -119,5 +157,18 @@ touching the route — a request parameter, say — amend the outgoing body in
   candidates under a budget, five runs each: `silent` five times while the
   clamp counted only priced wines, `first_attempt` five times once it agreed
   with the validator.
+
+- `baselines/2026-11-13-budget-before.json` / `-after.json` — the six budget
+  cases, 30 runs each, on main's route and on the `loose-ends` one (few
+  stretch wines in the slate, each marked `overMax`, a retry that names every
+  pick over the max): one call 153 → 180 of 180, retried 18 → 0, fallback
+  9 → 0 (all nine on "up to $60"), slowest 24.2s → 15.7s, $3.13 → $2.12.
+- `baselines/2026-11-13-budget-three-unmarked.json` / `-one-unmarked.json` —
+  the same 180 with three stretch wines and with one, neither marked: three
+  were rejected on the first reply 39 times (the retry recovered all 39);
+  one, never — but the Somm has no choice of stretch.
+- `baselines/2026-11-13-retry-before.json` / `-after.json` — the retry probe
+  on `2026-11-13-rejected.json`, twice each: the old corrective message
+  recovered 27 of 54, the one that names every over-max pick 54 of 54.
 
 A new baseline is a compact result file copied here under its date.

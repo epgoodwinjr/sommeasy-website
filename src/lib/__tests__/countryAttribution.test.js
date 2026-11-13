@@ -148,14 +148,17 @@ function buildSearchIndex() {
     }
   }
 
+  // A grape's color is a color or nothing (mirror of matchTerms' knownColor):
+  // the data files two grapes under "unknown", which is no color
+  const knownColor = (c) => (typeof c === "string" && c.trim() && !["unknown", "null"].includes(c.trim().toLowerCase()) ? c : null);
   for (const v of VARIETALS) {
     if (v.name.length < 4) continue;
-    idx.varietyTerms.push({ term: v.name.toLowerCase(), name: v.name, color: v.color, dnaVarietalId: v.id });
+    idx.varietyTerms.push({ term: v.name.toLowerCase(), name: v.name, color: knownColor(v.color), dnaVarietalId: v.id });
     if (v.name.includes(" / ")) {
       for (const part of v.name.split(" / ")) {
         const partLower = part.trim().toLowerCase();
         if (partLower.length >= 4 && !idx.varietyTerms.some(vt => vt.term === partLower)) {
-          idx.varietyTerms.push({ term: partLower, name: v.name, color: v.color, dnaVarietalId: v.id });
+          idx.varietyTerms.push({ term: partLower, name: v.name, color: knownColor(v.color), dnaVarietalId: v.id });
         }
       }
     }
@@ -165,7 +168,7 @@ function buildSearchIndex() {
     if (synLower.length < 4 || idx.varietyTerms.some(v => v.term === synLower)) continue;
     const canonical = VARIETALS.find(v => v.id === canonicalId);
     if (!canonical) continue;
-    idx.varietyTerms.push({ term: synLower, name: canonical.name, color: canonical.color, dnaVarietalId: canonicalId });
+    idx.varietyTerms.push({ term: synLower, name: canonical.name, color: knownColor(canonical.color), dnaVarietalId: canonicalId });
   }
   idx.varietyTerms.sort((a, b) => b.term.length - a.term.length);
 
@@ -746,6 +749,11 @@ async function realModuleTests() {
       assert(sorted(mirror.regionIds) === sorted(real.detectedRegionIds), `"${line}" regions: mirror ${sorted(mirror.regionIds)}, real ${sorted(real.detectedRegionIds)}`);
       assert(sorted(mirror.countryIds) === sorted(real.detectedCountryIds), `"${line}" countries: mirror ${sorted(mirror.countryIds)}, real ${sorted(real.detectedCountryIds)}`);
       assert(sorted(mirror.varietalIds) === sorted(real.detectedVarietalIds), `"${line}" grapes: mirror ${sorted(mirror.varietalIds)}, real ${sorted(real.detectedVarietalIds)}`);
+      // The grape's color too — a color or nothing, never the data's "unknown"
+      // (the rosé-only appellations — Tavel, the Anjou rosés — are colored after detection, by a rule the mirror doesn't carry)
+      const roseOnly = /\btavel\b|d'anjou/i.test(line);
+      assert(roseOnly || (mirror.color || null) === real.detectedColor, `"${line}" color: mirror ${mirror.color}, real ${real.detectedColor}`);
+      assert(real.detectedColor !== "unknown", `"${line}": "unknown" is no color`);
       if (real.detectedRegionIds.length + real.detectedCountryIds.length + real.detectedVarietalIds.length > 0) read++;
     }
     assert(lines.size > 1400 && read > lines.size * 0.9, `a real corpus: ${read} of ${lines.size} lines read`);

@@ -1,0 +1,4412 @@
+[
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14811,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3627,
+   "out": 533
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 66 > budget max"
+  ],
+  "wallMs": 20247,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7863,
+   "out": 943
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max"
+  ],
+  "wallMs": 20954,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7878,
+   "out": 982
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max"
+  ],
+  "wallMs": 21919,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7903,
+   "out": 1009
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max",
+   "non-splurge 68 > budget max"
+  ],
+  "wallMs": 22265,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7911,
+   "out": 1053
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max",
+   "non-splurge 68 > budget max"
+  ],
+  "wallMs": 23620,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7944,
+   "out": 1126
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13713,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3627,
+   "out": 492
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14962,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3627,
+   "out": 540
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max"
+  ],
+  "wallMs": 21404,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7884,
+   "out": 992
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 68 > budget max",
+   "non-splurge 68 > budget max"
+  ],
+  "wallMs": 21249,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7889,
+   "out": 1014
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max"
+  ],
+  "wallMs": 23054,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7928,
+   "out": 1092
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max"
+  ],
+  "wallMs": 23312,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7935,
+   "out": 1024
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max",
+   "non-splurge 68 > budget max"
+  ],
+  "wallMs": 22523,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7915,
+   "out": 1040
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13968,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3627,
+   "out": 508
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max"
+  ],
+  "wallMs": 21443,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7868,
+   "out": 927
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13046,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3627,
+   "out": 472
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 74 > budget max"
+  ],
+  "wallMs": 19561,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7874,
+   "out": 971
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 66 > budget max"
+  ],
+  "wallMs": 24229,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7953,
+   "out": 1106
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13990,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3627,
+   "out": 497
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max",
+   "non-splurge 68 > budget max"
+  ],
+  "wallMs": 22802,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7942,
+   "out": 1094
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14101,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3627,
+   "out": 554
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 68 > budget max",
+   "non-splurge 68 > budget max"
+  ],
+  "wallMs": 22953,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7994,
+   "out": 1175
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max"
+  ],
+  "wallMs": 22222,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7884,
+   "out": 1007
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 74 > budget max"
+  ],
+  "wallMs": 21235,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7887,
+   "out": 992
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13924,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3627,
+   "out": 537
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max"
+  ],
+  "wallMs": 22871,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7937,
+   "out": 1060
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 88 > budget max",
+   "non-splurge 72 > budget max"
+  ],
+  "wallMs": 22617,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7913,
+   "out": 1048
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 68 > budget max",
+   "non-splurge 68 > budget max"
+  ],
+  "wallMs": 19214,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7877,
+   "out": 979
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 66 > budget max"
+  ],
+  "wallMs": 21534,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7891,
+   "out": 1006
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13433,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 505
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14816,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 536
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14143,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 500
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$60",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "fallback",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 68 > budget max",
+   "non-splurge 68 > budget max"
+  ],
+  "wallMs": 21881,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7924,
+   "out": 1043
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14384,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 516
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14024,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 508
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 58 > budget max"
+  ],
+  "wallMs": 21501,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7904,
+   "out": 1026
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14234,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 520
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 15239,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 542
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14649,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 528
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14891,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 534
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13687,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 493
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13211,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 470
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11823,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 455
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13534,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 509
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14871,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 565
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14318,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 508
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14956,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 548
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13848,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 517
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13108,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 492
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 16653,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 601
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 12751,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 481
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 58 > budget max"
+  ],
+  "wallMs": 19369,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 7870,
+   "out": 969
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14135,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 542
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 15612,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 581
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13630,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 499
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13816,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 510
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14693,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 576
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14703,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 550
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10738,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 376
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14163,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 507
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10363,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 367
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$50",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 5,
+   "candidates": 25,
+   "asked": 5,
+   "pickCount": 5
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 14282,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 3632,
+   "out": 549
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9931,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 351
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9320,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 357
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10432,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 386
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10525,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 361
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11199,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 355
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10146,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 359
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10095,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 388
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10924,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 399
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10710,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 371
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10514,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 379
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9482,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 346
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10787,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 358
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10301,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 378
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9883,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 365
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10373,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 367
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9708,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 348
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11157,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 373
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11081,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 376
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11799,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 365
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10535,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 380
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9513,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 339
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9952,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 379
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10567,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 417
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9421,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 354
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9595,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 368
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10332,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 379
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10188,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 363
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 3,
+   "candidates": 7,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10970,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2184,
+   "out": 379
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9845,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 365
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11230,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 439
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10796,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 374
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9356,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 342
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9470,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 381
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10613,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 401
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9926,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 410
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10943,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 389
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 82 > budget max"
+  ],
+  "wallMs": 20167,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 5145,
+   "out": 861
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10381,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 348
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9580,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 347
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10600,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 401
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11244,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 369
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 12468,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 419
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10647,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 404
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10681,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 397
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11029,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 402
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 82 > budget max"
+  ],
+  "wallMs": 17277,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 5027,
+   "out": 734
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10452,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 385
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9777,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 361
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 16740,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 360
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11013,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 403
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 22564,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 350
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9122,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 350
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10835,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 382
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 11517,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 338
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 13040,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 376
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "retried",
+  "attempts": 2,
+  "reasons": [
+   "non-splurge 82 > budget max"
+  ],
+  "wallMs": 16172,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 4997,
+   "out": 695
+  },
+  "calls": 2,
+  "replyStarts": [
+   "{",
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10461,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 358
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40/broad red max$80",
+  "shape": {
+   "parsed": 40,
+   "matched": 38,
+   "enginePicks": 3,
+   "candidates": 9,
+   "asked": 5,
+   "pickCount": 3
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 10464,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2269,
+   "out": 413
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7744,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 249
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 9429,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 300
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 8480,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 279
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7231,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 249
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7865,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 277
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7811,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 245
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7337,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 242
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6151,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 225
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 8096,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 273
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7609,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 245
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6665,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 233
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7174,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 240
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6945,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 251
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6861,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 256
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6636,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 238
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 8535,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 302
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7600,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 265
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7923,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 257
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6987,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 263
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7410,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 260
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7675,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 278
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7027,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 251
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7425,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 267
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7451,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 257
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7660,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 287
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6721,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 252
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "first_attempt",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6126,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 219
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7338,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 257
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7049,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 256
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$41",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 2,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 2
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6573,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2994,
+   "out": 245
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6523,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 170
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6907,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 173
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5895,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 170
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6296,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 164
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6045,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 164
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5828,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 164
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5552,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 188
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6255,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 194
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5112,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 154
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6155,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 185
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7096,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 194
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7523,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 231
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5744,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 165
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6207,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 184
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7466,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 221
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5290,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 157
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5598,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 168
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 7839,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 222
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 5465,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 167
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6615,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 180
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6695,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 210
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6732,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 190
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 8647,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 181
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6945,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 192
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 8030,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 184
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6812,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 175
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 8064,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 172
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6162,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 169
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6377,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 199
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ },
+ {
+  "label": "realistic40 max$39 (lone splurge)",
+  "shape": {
+   "parsed": 40,
+   "matched": 35,
+   "enginePicks": 1,
+   "candidates": 18,
+   "asked": 5,
+   "pickCount": 1
+  },
+  "outcome": "salvaged",
+  "attempts": 1,
+  "reasons": [],
+  "wallMs": 6976,
+  "model": "claude-sonnet-4-6",
+  "tokens": {
+   "in": 2992,
+   "out": 183
+  },
+  "calls": 1,
+  "replyStarts": [
+   "{"
+  ]
+ }
+]

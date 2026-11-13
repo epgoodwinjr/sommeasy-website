@@ -3,7 +3,7 @@
 
 import wineUnified from "./wineUnified.json";
 import { buildCoreNameAliases } from "./producerAliases.js";
-import { fitsColor, budgetFit, budgetLimits, isPickable, isSparkling } from "./matchTerms.js";
+import { fitsColor, budgetFit, budgetLimits, isPickable, isSparkling, knownColor } from "./matchTerms.js";
 
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
@@ -96,11 +96,14 @@ function buildSearchIndex() {
     }
   }
 
-  // Varietals from unified varietals array (71 entries)
+  // Varietals from unified varietals array (71 entries). A grape's color is
+  // a color or nothing: the data files two under "unknown" ("Sauvignon";
+  // "Corvina, Rondinella, Molinara"), which must never become a wine's
+  // detectedColor — it fit no color filter, and outranked the wine's heading
   for (const v of VARIETALS) {
     if (v.name.length < 4) continue;
     idx.varietyTerms.push({
-      term: v.name.toLowerCase(), name: v.name, color: v.color,
+      term: v.name.toLowerCase(), name: v.name, color: knownColor(v.color),
       dnaVarietalId: v.id, count: v.reviewCount || 0,
     });
     // Add synonym terms (e.g., "shiraz" for "syrah")
@@ -109,7 +112,7 @@ function buildSearchIndex() {
         const partLower = part.trim().toLowerCase();
         if (partLower.length >= 4 && !idx.varietyTerms.some(vt => vt.term === partLower)) {
           idx.varietyTerms.push({
-            term: partLower, name: v.name, color: v.color,
+            term: partLower, name: v.name, color: knownColor(v.color),
             dnaVarietalId: v.id, count: v.reviewCount || 0,
           });
         }
@@ -123,7 +126,7 @@ function buildSearchIndex() {
     const canonical = VARIETALS.find(v => v.id === canonicalId);
     if (!canonical) continue;
     idx.varietyTerms.push({
-      term: synLower, name: canonical.name, color: canonical.color,
+      term: synLower, name: canonical.name, color: knownColor(canonical.color),
       dnaVarietalId: canonicalId, count: canonical.reviewCount || 0,
     });
   }
@@ -796,7 +799,7 @@ function detectVisionAttributes(entry) {
   return {
     regionIds, countryIds, varietalIds, producerTerms, regionLabels,
     // The photo's color stands; without one, the grape's
-    color: fieldText(vd.color) || varietalColor,
+    color: knownColor(fieldText(vd.color)) || varietalColor,
     // The producer as the photo read it — the estate reason's words, and
     // the producer a wine keeps (for variety among the picks) when the data
     // doesn't know it
@@ -1129,7 +1132,7 @@ export function entriesFromVision(wines) {
       originalLine: name,
       section: w.section || null,
       isByTheGlass: glassOnly,
-      sectionColor: w.color || null,
+      sectionColor: knownColor(w.color),
       sectionVarietal: null,
       vintage: w.vintage || null,
       visionData: {
@@ -1500,5 +1503,5 @@ export function getProducerDisplayName(producer, producerId) {
 export function getVarietalColor(varietalId) {
   if (!varietalId) return null;
   const varietal = VARIETALS.find(function(v) { return v.id === varietalId; });
-  return varietal && varietal.color && varietal.color !== "unknown" ? varietal.color : null;
+  return varietal ? knownColor(varietal.color) : null;
 }

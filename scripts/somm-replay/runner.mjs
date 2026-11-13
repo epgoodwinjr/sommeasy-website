@@ -47,9 +47,27 @@ for (const level of ["log", "error"]) {
 // parameter, drop one) — the handler still runs as it is.
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
-  const res = await realFetch(input, init);
   const run = als.getStore();
   const url = typeof input === "string" ? input : input.url;
+  // A job may carry the FIRST reply (retry-probe.mjs): the route's first call
+  // is answered with it and never reaches the API, so the run is the
+  // corrective retry alone — the route's own message, the model's real answer.
+  if (run && run.firstReply != null && !run.firstReplyUsed && url.includes("api.anthropic.com")) {
+    run.firstReplyUsed = true;
+    run.calls.push({ status: 200, model: "replayed-first-reply", stop_reason: "end_turn", usage: { in: 0, out: 0 }, text: run.firstReply, error: null, replayed: true });
+    return new Response(JSON.stringify({
+      id: "msg_replayed", type: "message", role: "assistant", model: "replayed-first-reply",
+      content: [{ type: "text", text: run.firstReply }], stop_reason: "end_turn", usage: { input_tokens: 0, output_tokens: 0 },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }
+  // The corrective retry's own words, when the route sends one
+  if (run && url.includes("api.anthropic.com")) {
+    try {
+      const { messages } = JSON.parse(init.body);
+      if (messages.length > 1) run.sent.push(messages.at(-1).content);
+    } catch { /* not a messages call */ }
+  }
+  const res = await realFetch(input, init);
   if (run && url.includes("api.anthropic.com")) {
     try {
       const body = await res.clone().json();
@@ -73,8 +91,8 @@ export const { CLAUDE_MODEL } = await import(at("src/lib/anthropicConfig.js"));
 export const { estimateClaudeCostUSD } = await import(at("src/lib/rateLimit.js"));
 export const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
 
-async function runOnce(label, payload) {
-  const run = { label, routeLogs: [], calls: [] };
+async function runOnce(label, payload, firstReply) {
+  const run = { label, routeLogs: [], calls: [], sent: [], firstReply: firstReply ?? null };
   const started = Date.now();
   const res = await als.run(run, () =>
     POST(new Request("http://localhost/api/somm-picks", {
@@ -97,7 +115,7 @@ async function runOnce(label, payload) {
   return run;
 }
 
-/** jobs: [{ label, payload, shape }] → one result per job, in finishing order. */
+/** jobs: [{ label, payload, shape, firstReply? }] → one result per job, in finishing order. */
 export async function runJobs(jobs, { concurrency = 6, onRun } = {}) {
   const results = [];
   let next = 0;
@@ -106,7 +124,7 @@ export async function runJobs(jobs, { concurrency = 6, onRun } = {}) {
       const job = jobs[next++];
       let run;
       try {
-        run = await runOnce(job.label, job.payload);
+        run = await runOnce(job.label, job.payload, job.firstReply);
       } catch (err) {
         run = { label: job.label, outcome: "harness_error", error: String(err), calls: [], reasons: [], wallMs: 0 };
       }

@@ -256,6 +256,88 @@ async function main() {
     assert(data.meta.reasons.length === 2 && /output format rejected/.test(data.meta.reasons[0]) && data.meta.reasons[1] === "error: api 400", JSON.stringify(data.meta.reasons));
   });
 
+  console.log("\n═══ /api/somm-picks — the corrective retry names every pick over the max ═══");
+
+  const budgetPayload = (extra = {}) => routePayload({
+    candidates: [
+      { i: 0, name: "Estate Pinotage", price: 68, score: 9.4 },
+      { i: 1, name: "Chenin Blanc", price: 44, score: 5 },
+      { i: 2, name: "Second Pinotage", price: 68, score: 2 },
+      { i: 3, name: "Syrah", price: 88, score: 3.6 },
+      { i: 4, name: "Cinsault", price: 42, score: 1.8 },
+      { i: 5, name: "Chardonnay", price: 58, score: 1.6 },
+      { i: 6, name: "Grenache", price: 54, score: 1.4 },
+      { i: 7, name: "Colombard", price: 40, score: 0.8 },
+    ],
+    algorithmicPicks: [1, 0, 4, 5, 6], pickCount: 5, budget: { min: null, max: 60 }, ...extra,
+  });
+  // The reply the up-to-$60 replay kept getting: four good picks, then a second stretch in the last slot
+  const twoOver = (last) => ({ picks: [noteFor(1, "top"), noteFor(0, "splurge"), noteFor(4, "value"), noteFor(5, "adventure"), noteFor(last, "wildcard")], sommSummary: "Five." });
+  const fixed = twoOver(6);
+
+  await test("two picks over the max: the retry names BOTH by index and price, says one may stay as the splurge, and lists what may replace the other", async () => {
+    const { data, calls } = await callRoute(budgetPayload(), [modelReply(twoOver(3)), modelReply(fixed)]);
+    assert(calls.length === 2, `expected a retry, got ${calls.length} calls`);
+    const retry = calls[1].messages.at(-1).content;
+    assert(retry.includes('i=0 ($68, your "splurge")') && retry.includes('i=3 ($88, your "wildcard")'), `both named: ${retry}`);
+    assert(/at most ONE/i.test(retry) && /at or under \$60/.test(retry), `the rule as a price: ${retry}`);
+    assert(retry.includes("i=6 ($54)") && retry.includes("i=7 ($40)"), `the in-budget wines not picked: ${retry}`);
+    assert(!retry.includes("i=2 ($68)"), "an over-max wine is never offered as a replacement");
+    assert(/Rules to satisfy/.test(retry) && /ONLY the corrected JSON/.test(retry), "the retry keeps its contract lines");
+    assert(!data.fallback && data.meta.outcome === "retried" && data.picks.length === 5, JSON.stringify(data.meta));
+  });
+
+  await test("two wines at one price: the retry tells them apart by index (the reply that used to come back unchanged)", async () => {
+    // The $68 Splurge and a second $68 as the wildcard. "non-splurge 68 > budget max" read as the Splurge itself.
+    const { data, calls } = await callRoute(budgetPayload(), [modelReply(twoOver(2)), modelReply(fixed)]);
+    const retry = calls[1].messages.at(-1).content;
+    assert(retry.includes('i=0 ($68, your "splurge")') && retry.includes('i=2 ($68, your "wildcard")'), retry);
+    assert(data.meta.reasons.length === 1 && data.meta.reasons[0].includes("i=0 $68, i=2 $68"), `the ledger's reason names them too: ${data.meta.reasons[0]}`);
+    assert(data.meta.reasons[0].length <= 160, "inside the cap");
+  });
+
+  await test("still two over after the retry: a fallback whose reasons name the picks both times", async () => {
+    const { data, calls } = await callRoute(budgetPayload(), [modelReply(twoOver(3)), modelReply(twoOver(2))]);
+    assert(calls.length === 2 && data.fallback === true, `two calls, then the page keeps its picks: ${JSON.stringify(data)}`);
+    assert(data.meta.reasons.length === 2 && data.meta.reasons[0].includes("i=3 $88") && data.meta.reasons[1].includes("i=2 $68"), JSON.stringify(data.meta.reasons));
+  });
+
+  await test("a rejection that is not about the budget says nothing about it", async () => {
+    const { calls } = await callRoute(budgetPayload(), [modelReply({ picks: [noteFor(1, "top")], sommSummary: "One." }), modelReply(fixed)]);
+    const retry = calls[1].messages.at(-1).content;
+    assert(/pick count 1 < 5/.test(retry), retry);
+    assert(!retry.includes("These picks are priced above") && !retry.includes("i=6 ($54)"), `no budget correction for a short answer: ${retry}`);
+  });
+
+  console.log("\n═══ /api/somm-picks — a wine over the max is marked ═══");
+
+  await test("under a budget every candidate over the max reaches Claude marked \"overMax\" — and no other, whatever the caller sent", async () => {
+    const payload = budgetPayload();
+    payload.candidates[1].overMax = true; // a stale mark on a $44 wine
+    const { sentPayload } = await callRoute(payload, [modelReply(fixed)]);
+    const marked = sentPayload.candidates.filter((c) => c.overMax === true).map((c) => c.i);
+    assert(JSON.stringify(marked) === JSON.stringify([0, 2, 3]), `the three over $60: ${JSON.stringify(marked)}`);
+    assert(sentPayload.candidates.every((c) => c.price > 60 || !("overMax" in c)), "a wine inside the budget carries no mark at all");
+  });
+
+  await test("no maximum, no marks; and the lone Adventure's slate is never marked", async () => {
+    const unlimited = budgetPayload({ budget: { min: null, max: null } });
+    unlimited.candidates[0].overMax = true; // a stale mark from a caller
+    const open = await callRoute(unlimited, [modelReply(fixed)]);
+    assert(open.sentPayload.candidates.every((c) => !("overMax" in c)), "no max: nothing is over it");
+    const adventure = await callRoute(routePayload({ mode: "adventure", pickCount: 1, budget: { min: null, max: 50 } }), [
+      modelReply({ picks: [{ i: 0, role: "adventure", note: "Not your usual grape, but the nearest thing here to what you love. Worth a try." }], sommSummary: "" }),
+    ]);
+    assert(adventure.sentPayload.candidates.every((c) => !("overMax" in c)), "the Adventure has no splurge and no mark");
+  });
+
+  await test("the brief says what the mark means: at most one marked pick, and it is the splurge", async () => {
+    const { sent } = await callRoute(budgetPayload(), [modelReply(fixed)]);
+    assert(/"overMax": true/.test(sent.system.split("Your task:")[0]), "the payload description names the mark");
+    assert(/at most ONE/i.test(sent.system) && /"overMax"/.test(sent.system.split("3. Budget")[1].split("4. ")[0]), "rule 3 reads the budget through the mark");
+    assert(/never above 2x budget\.max/.test(sent.system), "twice the max is still the ceiling");
+  });
+
   console.log("\n═══ /api/somm-picks — the reasons ride the meta ═══");
 
   await test("a first-attempt success carries no reasons, and says what was asked of which model", async () => {
