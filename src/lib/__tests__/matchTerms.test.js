@@ -150,6 +150,38 @@ async function main() {
     assertEq(terms.fitsColor(wine({ visionData: { color: null } }), "red"), true, "no Vision color → unknown");
   });
 
+  // ── An unknown color is no color (Nov 2026) ──
+  // wineUnified files two grapes under the color "unknown" ("Sauvignon";
+  // "Corvina, Rondinella, Molinara"). Read as a color, it matched no filter.
+
+  await test("knownColor: a color is a color; \"unknown\", nothing and junk are none", () => {
+    for (const color of ["red", "white", "rosé", "sparkling"]) assertEq(terms.knownColor(color), color, color);
+    for (const none of ["unknown", "Unknown", " UNKNOWN ", "null", "NULL", "", "   ", null, undefined, 0, 7, true, {}, []]) {
+      assertEq(terms.knownColor(none), null, JSON.stringify(none));
+    }
+  });
+
+  await test("fitsColor: a wine filed under \"unknown\" is a wine of unknown color — red, white and rosé take it, sparkling does not", () => {
+    const filed = wine({ detectedColor: "unknown" });
+    for (const color of ["red", "white", "rosé"]) {
+      assertEq(terms.fitsColor(filed, color), true, color);
+      assertEq(terms.fitsColor(filed, color), terms.fitsColor(wine(), color), `${color}: as any wine of unknown color`);
+    }
+    assertEq(terms.fitsColor(filed, "sparkling"), false, "unknown is not sparkling");
+    assertEq(terms.fitsColor(wine({ detectedColor: "unknown", name: "Casa Nadie Sauvignon Brut" }), "sparkling"), true, "…unless it reads as one");
+    assertEq(terms.fitsColor(wine({ detectedColor: "unknown", name: "Casa Nadie Sauvignon Brut" }), "white"), false, "and a sparkling wine is still no white");
+  });
+
+  await test("fitsColor: a photo that says \"unknown\" gave no color — the detected one decides, or none does", () => {
+    assertEq(terms.fitsColor(vision("unknown"), "red"), true, "both unknown → red takes it");
+    assertEq(terms.fitsColor(vision("unknown"), "white"), true, "and white");
+    assertEq(terms.fitsColor(wine({ detectedColor: "red", visionData: { color: "unknown" } }), "red"), true, "the grape's color stands");
+    assertEq(terms.fitsColor(wine({ detectedColor: "red", visionData: { color: "unknown" } }), "white"), false, "and still excludes");
+    assertEq(terms.fitsColor(wine({ detectedColor: "unknown", visionData: { color: "white" } }), "white"), false, "a photographed white the engine never colored keeps the reading it had");
+    assertEq(terms.fitsColor(wine({ detectedColor: "unknown", visionData: { color: "white" } }), "red"), false, "…a known color is never widened");
+    assertEq(terms.fitsColor(wine({ visionData: { color: "null" } }), "red"), true, "the word \"null\", as a photo sometimes writes it, is no color either");
+  });
+
   await test("fitsColor: sparkling takes only what reads as sparkling — by color, section, name or variety", () => {
     assertEq(terms.fitsColor(wine({ detectedColor: "sparkling" }), "sparkling"), true, "detected");
     assertEq(terms.fitsColor(vision("sparkling"), "sparkling"), true, "Vision");
@@ -402,6 +434,18 @@ async function main() {
     assertEq(pickOf([white("W1", 30), white("W2", 40), white("W3", 50)], { lean: "red" }), "W2", "nothing but whites: the middle white");
     assertEq(pickOf([red("R", 60), blank("Fizz", 50, { detectedColor: "sparkling" })], { lean: "red" }), "R", "a sparkling wine is no red");
     assertEq(pickOf([blank("Cava Brut Nature", 50), red("R", 60)], { lean: "red" }), "R", "sparkling by its name");
+  });
+
+  await test("THE RULE: a wine filed under \"unknown\" ranks as a wine of unknown color — after the palate's color, before the rest", () => {
+    const filed = (name, price) => blank(name, price, { detectedColor: "unknown" });
+    assertEq(pickOf([white("W1", 30), white("W2", 40), filed("U", 45)], { lean: "red" }), "U", "no reds: the wine that might be one, not a known white");
+    assertEq(pickOf([filed("U", 50), red("R", 60)], { color: "red" }), "R", "a known red before it, when red is asked for");
+    assertEq(pickOf([filed("U", 50)], { color: "red" }), "U", "…and red takes it when it is all there is");
+    assertEq(pickOf([filed("U", 50)], { color: "white" }), "U", "as white does");
+    assertEq(pickOf([filed("U", 50)], { color: "sparkling" }), null, "never sparkling");
+    const order = (list, t) => terms.rankAdventures(list, t).map((e) => e.name);
+    assertEq(order([white("W", 40), filed("U", 45), red("R", 60)], { lean: "red" }), ["R", "U", "W"], "the three tiers");
+    assertEq(order([white("W", 40), filed("U", 45), red("R", 60)], { lean: "red" }), order([white("W", 40), blank("U", 45), red("R", 60)], { lean: "red" }), "exactly as a wine with no color at all");
   });
 
   await test("THE RULE, under tonight's terms: a chosen color outranks the lean, and the budget is the budget", () => {

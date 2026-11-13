@@ -5,7 +5,7 @@
 // matchEngine's JSON imports. Its one import is matchTerms.js — itself
 // dependency-free — for the terms rule it shares with the engine's picks.
 
-import { fitsColor, budgetFit, budgetLimits, isPickable, isSparkling, rankAdventures } from "./matchTerms.js";
+import { fitsColor, budgetFit, budgetLimits, isPickable, isSparkling, knownColor, rankAdventures } from "./matchTerms.js";
 
 export const SOMM_ROLES = ["top", "value", "adventure", "splurge", "wildcard"];
 const CANDIDATE_CAP = 25;
@@ -382,7 +382,7 @@ export function buildAdventurePayload({
     varietal: e.detectedVarietalId ? d.varietal(e.detectedVarietalId) : null,
     region: e.detectedRegionIds?.length ? d.region(e.detectedRegionIds[0], e.detectedCountry) : null,
     country: e.detectedCountry ? d.country(e.detectedCountry) : null,
-    color: isSparkling(e) ? "sparkling" : e.detectedColor || e.visionData?.color || null,
+    color: isSparkling(e) ? "sparkling" : knownColor(e.detectedColor) || knownColor(e.visionData?.color),
     ...(steerTerms.length > 0 && matchesSteer(e) ? { steerMatch: true } : {}),
   }));
 

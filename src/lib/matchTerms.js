@@ -130,6 +130,18 @@ function namesAsti(words) {
   return words.some((word, i) => word === "asti" && (moscato || (words[i - 1] !== "d" && words[i - 1] !== "di")));
 }
 
+/** A color, or null when there is none to go on. wineUnified files two
+ *  grapes under the color "unknown" ("Sauvignon"; "Corvina, Rondinella,
+ *  Molinara"), and a photo may say "unknown" — or the word "null" — of a
+ *  wine: placeholders for "no color", not a fifth color. Until Nov 2026
+ *  "unknown" was read as one, and such a wine fit no color filter at all —
+ *  not red, not white, not sparkling. */
+export function knownColor(value) {
+  if (typeof value !== "string") return null;
+  const text = value.trim().toLowerCase();
+  return text && text !== "unknown" && text !== "null" ? value : null;
+}
+
 /** Does this entry read as a sparkling wine — by its detected color, its
  *  Vision color, its section header, its name or its variety? */
 export function isSparkling(entry) {
@@ -156,8 +168,8 @@ export function isSparkling(entry) {
 }
 
 /** Does this entry fit the color the diner chose? No color (or "all") fits
- *  everything. A wine whose color is unknown — a text line with no clue —
- *  fits red, white or rosé as it always has; a wine Vision gave a color to
+ *  everything. A wine whose color is unknown — a text line with no clue, a
+ *  grape the data has no color for — fits red, white or rosé; a wine Vision gave a color to
  *  must match it; sparkling takes only what reads as sparkling, and a
  *  sparkling wine is never a red or a white. */
 export function fitsColor(entry, color) {
@@ -165,8 +177,9 @@ export function fitsColor(entry, color) {
   if (!entry || typeof entry !== "object") return false;
   if (color === "sparkling") return isSparkling(entry);
   if ((color === "red" || color === "white") && isSparkling(entry)) return false;
-  if (entry.visionData && entry.visionData.color) return entry.detectedColor === color;
-  return !entry.detectedColor || entry.detectedColor === color;
+  const detected = knownColor(entry.detectedColor);
+  if (knownColor(entry.visionData && entry.visionData.color)) return detected === color;
+  return !detected || detected === color;
 }
 
 // A limit as the page may hold it: a positive number, or digits. Anything
@@ -252,8 +265,8 @@ export function fitsAdventure(entry, { color, min, max } = {}) {
 // one, else what the engine (or the photo) detected, else unknown
 function colorOf(entry) {
   if (isSparkling(entry)) return "sparkling";
-  const color = entry.detectedColor || (entry.visionData && entry.visionData.color) || "";
-  return String(color).toLowerCase() || null;
+  const color = knownColor(entry.detectedColor) || knownColor(entry.visionData && entry.visionData.color);
+  return color ? color.toLowerCase() : null;
 }
 
 /**

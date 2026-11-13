@@ -426,5 +426,125 @@ test("the lone Adventure: on a list the palate knows nothing on, Reds ranks the 
   assertEq(FIZZ.map((p) => told[p]), FIZZ.map(() => "sparkling"), "the sparklers");
 });
 
+console.log("\n═══ An unknown color is no color ═══");
+
+// wineUnified files two grapes under the color "unknown" — "Sauvignon" and
+// "Corvina, Rondinella, Molinara". Until Nov 2026 the engine handed that
+// string on as the wine's detectedColor and the terms rule read it as a
+// color: such a wine fit Red, White and Sparkling alike — none of them — and
+// the placeholder even outranked the heading the wine was printed under.
+
+const wineUnified = JSON.parse(readFileSync(new URL("../wineUnified.json", import.meta.url), "utf8"));
+const REAL_COLORS = ["red", "white", "rosé", "sparkling"];
+const ANY_PALATE = { countries: ["italy", "france"], regions: {}, estates: {}, varietals: ["sauvignon", "corvina_rondinella_molinara", "nebbiolo", "pinot_grigio"], specificWines: [] };
+const score = (entries, dna = ANY_PALATE) => engine.matchWinesAgainstDNA(entries, dna, null).scoredEntries;
+
+test("fixture premise: the data still files exactly these two grapes under \"unknown\"", () => {
+  assertEq(wineUnified.varietals.filter((v) => !["red", "white", "rosé"].includes(v.color)).map((v) => `${v.name} = ${v.color}`).sort(),
+    ["Corvina, Rondinella, Molinara = unknown", "Sauvignon = unknown"], "the grapes with no real color");
+});
+
+test("a pasted line: no grape, synonym or half of a combined name hands a wine a color that isn't one", () => {
+  const spellings = new Set();
+  for (const v of wineUnified.varietals) { spellings.add(v.name); for (const part of v.name.split(" / ")) spellings.add(part.trim()); }
+  for (const synonym of Object.keys(wineUnified.varietalLookup)) spellings.add(synonym.replace(/_/g, " "));
+  assert(spellings.size > 100, `fixture premise: every spelling (${spellings.size})`);
+  // Each line read on its own: a list drops a line that repeats another
+  // once folded ("Sémillon" / "Semillon")
+  const scored = score([...spellings].flatMap((s) => engine.parseWineList(`Bodega Nadie ${s} 2021...$50`)));
+  assertEq(scored.length, spellings.size, "one wine per spelling");
+  const odd = scored.filter((e) => e.detectedColor != null && !REAL_COLORS.includes(e.detectedColor)).map((e) => `${e.name} → ${e.detectedColor}`);
+  assertEq(odd, [], "colors that are not colors");
+  const of = (grape) => scored.find((e) => e.name === `Bodega Nadie ${grape} 2021`).detectedColor;
+  assertEq([of("Sauvignon"), of("Corvina, Rondinella, Molinara")], [null, null], "the two grapes: no color");
+  assertEq([of("Sauvignon Blanc"), of("Cabernet Sauvignon"), of("Shiraz")], ["white", "red", "red"], "their neighbours keep theirs");
+});
+
+test("a photographed wine: the same, read from its variety field — and the photo's own color stands", () => {
+  const wines = wineUnified.varietals.map((v, i) => ({ name: `Bodega Nadie Cuvée ${i}`, price: 50, variety: v.name, color: null }));
+  const scored = score(engine.entriesFromVision(wines));
+  const odd = scored.filter((e) => e.detectedColor != null && !REAL_COLORS.includes(e.detectedColor)).map((e) => `${e.visionData.variety} → ${e.detectedColor}`);
+  assertEq(odd, [], "colors that are not colors");
+  const read = (color) => score(engine.entriesFromVision([{ name: "Venica Ronco delle Mele", price: 80, variety: "Sauvignon", region: "Collio", color }]))[0];
+  assertEq(read(null).detectedColor, null, "no color read, an unknown grape: no color");
+  assertEq(read("white").detectedColor, "white", "the photo said white");
+  assertEq(read("unknown").detectedColor, null, "a photo that says \"unknown\" said nothing");
+  assertEq(REAL_COLORS.filter((c) => terms.fitsColor(read("unknown"), c)), ["red", "white", "rosé"], "…and the wine is one of unknown color");
+});
+
+test("the heading a wine is printed under colors it, as it does any wine with no color of its own", () => {
+  const [sauvignon, amarone, stranger] = score(engine.parseWineList([
+    "WHITE WINES", "Casa Nadie Sauvignon 2022...$40",
+    "RED WINES", "Tenuta Nessuno Corvina, Rondinella, Molinara 2019...$70", "Somebody Else Estate 2022...$33",
+  ].join("\n")));
+  assertEq([sauvignon.detectedColor, amarone.detectedColor, stranger.detectedColor], ["white", "red", "red"], "the section's color");
+  assertEq([terms.fitsColor(sauvignon, "red"), terms.fitsColor(amarone, "white")], [false, false], "and a known color still excludes");
+});
+
+const UNFILED = [
+  "Livio Nessuno Sauvignon, Collio 2021...$62",
+  "Azienda Nessuno Amarone, Corvina, Rondinella, Molinara 2017...$120",
+  "Cantina Nessuno Nebbiolo, Langhe 2020...$70",
+  "Cantina Nessuno Pinot Grigio, Alto Adige 2022...$40",
+  "Casa Nessuno Prosecco Superiore NV...$36",
+].join("\n");
+function unfiled(dna = ANY_PALATE) {
+  const entries = engine.parseWineList(UNFILED);
+  const { scoredEntries: scored, userDNA } = engine.matchWinesAgainstDNA(entries, dna, null);
+  return { entries, scored, userDNA, menuContext: engine.buildMenuContext(scored.filter((e) => e.score > 0)) };
+}
+const pricesOf = (list) => list.map((e) => e.price).sort((a, b) => a - b);
+
+test("the picks: Reds and Whites each offer the two wines of unknown color beside their own; Sparkling offers neither", () => {
+  const { entries, scored, userDNA, menuContext } = unfiled();
+  // (Prosecco is a white grape in the data; the wine is sparkling by its name)
+  assertEq(scored.map((e) => e.detectedColor), [null, null, "red", "white", "white"], "fixture premise: two unknown, a red, a white, a sparkler");
+  assertEq(scored.map((e) => terms.isSparkling(e)), [false, false, false, false, true], "fixture premise: one sparkling wine");
+  assert(scored.every((e) => e.score > 0), "fixture premise: the palate scores all five — " + scored.map((e) => e.score).join(", "));
+  const picks = (color) => pricesOf(engine.curatePicks(scored, { minPrice: null, maxPrice: null, colorPreference: color, maxPicks: engine.getPickCount(entries.length, color), menuContext, userDNA }));
+  assertEq(picks("red"), [62, 70, 120], "Reds: the Nebbiolo and the two unknowns");
+  assertEq(picks("white"), [40, 62, 120], "Whites: the Pinot Grigio and the two unknowns");
+  assertEq(picks("sparkling"), [36], "Sparkling: the Prosecco alone");
+});
+
+test("the Somm's slate: the same wines — and it is told no color, never \"unknown\"", () => {
+  const { entries, scored, userDNA, menuContext } = unfiled();
+  const slate = (color) => {
+    const maxPicks = engine.getPickCount(entries.length, color);
+    const picks = engine.curatePicks(scored, { minPrice: null, maxPrice: null, colorPreference: color, maxPicks, menuContext, userDNA });
+    return buildSommPayload({
+      scoredEntries: scored, algorithmicPicks: picks, pickCount: maxPicks, profile: { ...ANY_PALATE, specific_wines: [] }, ratedInteractions: [],
+      totalParsed: entries.length, budget: { min: null, max: null }, color, steer: null,
+    });
+  };
+  assertEq(pricesOf(slate("red").candidates), [62, 70, 120], "Reds");
+  assertEq(slate("red").pickCount, 3, "and it is asked for all three");
+  assertEq(pricesOf(slate("white").candidates), [40, 62, 120], "Whites");
+  const all = slate(null);
+  assert(!JSON.stringify(all).includes("unknown"), "the payload never says \"unknown\"");
+});
+
+test("the lone Adventure: an unknown-colored stranger ranks after the palate's color and before the rest, and the Somm is told no color", () => {
+  const dna = { countries: ["new_zealand"], regions: {}, estates: {}, varietals: ["pinot_noir"], specificWines: [] };
+  const scored = score(engine.parseWineList([
+    "Bodega Nadie Sauvignon 2022...$45",
+    "Bodega Nadie Pinot Grigio 2022...$40",
+    "Bodega Nadie Tempranillo 2020...$60",
+  ].join("\n")), dna);
+  assert(scored.every((e) => !(e.score > 0)), "fixture premise: nothing matches — " + scored.map((e) => `${e.name} ${e.score}`).join(", "));
+  assertEq(terms.rankAdventures(scored, { lean: "red" }).map((e) => e.price), [60, 45, 40], "red lean: the red, the unknown, the white");
+  assertEq(terms.rankAdventures(scored, { lean: "white" }).map((e) => e.price), [40, 45, 60], "white lean: the white, the unknown, the red");
+  assertEq(pricesOf(terms.rankAdventures(scored, { color: "red" })), [45, 60], "Reds: the red and the unknown");
+  const payload = buildAdventurePayload({
+    scoredEntries: scored, profile: { ...dna, specific_wines: [] }, ratedInteractions: [], totalParsed: 3,
+    budget: { min: null, max: null }, color: null, lean: "red", steer: null,
+  });
+  assertEq(payload.candidates.map((c) => [c.price, c.color]), [[60, "red"], [45, null], [40, "white"]], "as the Somm is told");
+  // …and whatever hands it an entry: the builder's own reading, not only the engine's
+  const filed = [{ name: "A", price: 50, score: 0, detectedColor: "unknown" }, { name: "B", price: 60, score: 0, visionData: { color: "Unknown" } }];
+  const direct = buildAdventurePayload({ scoredEntries: filed, profile: { ...dna, specific_wines: [] }, ratedInteractions: [], totalParsed: 2, budget: {}, color: null, lean: null, steer: null });
+  assertEq(direct.candidates.map((c) => c.color), [null, null], "an entry filed under \"unknown\" is told as no color");
+});
+
 console.log(`\nTotal: ${passed}/${passed + failed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);
