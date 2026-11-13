@@ -271,6 +271,12 @@ async function main() {
     assert(data.meta.candidates === 3 && data.meta.pickCount === 2 && data.meta.model === "claude-test", JSON.stringify(data.meta));
   });
 
+  await test("a reply that parses to nothing (JSON null) is rejected with a real reason", async () => {
+    const { data } = await callRoute(routePayload(), [modelText("null")]);
+    assert(!data.fallback && data.meta.outcome === "retried", JSON.stringify(data.meta));
+    assert(JSON.stringify(data.meta.reasons) === JSON.stringify(["not an object"]), JSON.stringify(data.meta.reasons));
+  });
+
   await test("an upstream error after a rejected attempt is recorded as its kind, never its message", async () => {
     const { data } = await callRoute(routePayload(), [
       modelReply({ picks: [], sommSummary: "" }),

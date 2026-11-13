@@ -221,7 +221,9 @@ export async function POST(request) {
         } catch {
           reason = "output was not parseable JSON";
         }
-        if (parsed) {
+        // Validate whatever parsed — a reply of `null` is "not an object",
+        // a reason like any other (never a silent null in the ledger)
+        if (reason === null) {
           const result = validateSommResponse(parsed, {
             candidates: payload.candidates,
             pickCount: payload.pickCount,
