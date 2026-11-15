@@ -195,6 +195,12 @@ const finiteOrNull = (n) => (typeof n === "number" && Number.isFinite(n) ? n : n
  *               "adventure" (nothing matched — one wine, nearest in spirit;
  *               since Nov 13, 2026). Rows before it have no key: read an
  *               absent mode as "picks".
+ *   cache_read_tokens / cache_write_tokens
+ *               since Nov 15, 2026 the Somm's brief is prompt-cached: how
+ *               much of input_tokens was read from the cache and written to
+ *               it. input_tokens stays ALL the input and est_cost_usd prices
+ *               each part at its own rate. Null from a route that predates
+ *               the cache; rows before it have no key.
  *
  * With these, "why did it fall back?" is a query; without them the ledger
  * could only count.
@@ -213,6 +219,8 @@ export function sommCurationPayload(meta, sent) {
     input_tokens: finiteOrNull(usage.inputTokens),
     output_tokens: finiteOrNull(usage.outputTokens),
     est_cost_usd: finiteOrNull(usage.estCostUSD),
+    cache_read_tokens: finiteOrNull(usage.cacheReadTokens),
+    cache_write_tokens: finiteOrNull(usage.cacheWriteTokens),
     reasons,
     candidates: finiteOrNull(m.candidates) ?? finiteOrNull(sent?.candidates),
     pick_count: finiteOrNull(m.pickCount) ?? finiteOrNull(sent?.pickCount),

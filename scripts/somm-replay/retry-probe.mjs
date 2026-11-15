@@ -77,7 +77,10 @@ const results = await runJobs(jobs, {
 mkdirSync(dir, { recursive: true });
 writeFileSync(new URL(`${tag}.full.json`, dir), JSON.stringify(results, null, 1));
 writeFileSync(new URL(`${tag}.json`, dir), JSON.stringify(results.map(compact), null, 1));
-const tokens = results.flatMap((r) => r.calls || []).reduce((t, c) => ({ in: t.in + (c.usage?.in || 0), out: t.out + (c.usage?.out || 0) }), { in: 0, out: 0 });
+const tokens = results.flatMap((r) => r.calls || []).reduce((t, c) => ({
+  in: t.in + (c.usage?.in || 0), out: t.out + (c.usage?.out || 0),
+  cacheRead: t.cacheRead + (c.usage?.cacheRead || 0), cacheWrite: t.cacheWrite + (c.usage?.cacheWrite || 0),
+}), { in: 0, out: 0, cacheRead: 0, cacheWrite: 0 });
 const recovered = results.filter((r) => r.outcome === "retried").length;
-console.log(`\nthe retry recovered ${recovered} of ${results.length} · fell back ${results.filter((r) => r.outcome === "fallback").length} · spent $${estimateClaudeCostUSD(tokens.in, tokens.out).toFixed(2)}`);
+console.log(`\nthe retry recovered ${recovered} of ${results.length} · fell back ${results.filter((r) => r.outcome === "fallback").length} · spent $${estimateClaudeCostUSD(tokens.in, tokens.out, tokens.cacheRead, tokens.cacheWrite).toFixed(2)}`);
 console.log(`wrote scripts/somm-replay/results/${tag}.json (and ${tag}.full.json: each run's "sent" is the corrective message as the route wrote it)`);

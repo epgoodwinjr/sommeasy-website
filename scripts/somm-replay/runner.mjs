@@ -75,7 +75,15 @@ globalThis.fetch = async (input, init) => {
         status: res.status,
         model: body.model,
         stop_reason: body.stop_reason,
-        usage: body.usage && { in: body.usage.input_tokens, out: body.usage.output_tokens },
+        // `in` is ALL the input (uncached + cache write + cache read), so a
+        // run reads the same before and after the brief was cached; the cache
+        // parts ride beside it
+        usage: body.usage && {
+          in: (body.usage.input_tokens || 0) + (body.usage.cache_creation_input_tokens || 0) + (body.usage.cache_read_input_tokens || 0),
+          out: body.usage.output_tokens,
+          cacheWrite: body.usage.cache_creation_input_tokens || 0,
+          cacheRead: body.usage.cache_read_input_tokens || 0,
+        },
         text: (body.content || []).filter((b) => b.type === "text").map((b) => b.text).join(""),
         error: body.error?.type || null,
       });
@@ -148,7 +156,12 @@ export function compact(run) {
     reasons: run.reasons || [],
     wallMs: run.wallMs,
     model: run.meta?.model ?? calls[0]?.model ?? null,
-    tokens: { in: calls.reduce((s, c) => s + (c.usage?.in || 0), 0), out: calls.reduce((s, c) => s + (c.usage?.out || 0), 0) },
+    tokens: {
+      in: calls.reduce((s, c) => s + (c.usage?.in || 0), 0),
+      out: calls.reduce((s, c) => s + (c.usage?.out || 0), 0),
+      cacheRead: calls.reduce((s, c) => s + (c.usage?.cacheRead || 0), 0),
+      cacheWrite: calls.reduce((s, c) => s + (c.usage?.cacheWrite || 0), 0),
+    },
     calls: calls.length,
     // The first character of each reply: "{" is JSON, anything else is prose
     replyStarts: calls.map((c) => (c.text || "").trim().slice(0, 1)),
