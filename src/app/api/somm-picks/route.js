@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { checkRateLimit, getClientIp, logClaudeUsage, estimateClaudeCostUSD, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
+import { checkRateLimit, getClientIp, logClaudeUsage, estimateClaudeCostUSD, claudeInputTokens, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { CLAUDE_MODEL } from "@/lib/anthropicConfig";
 import {
   readSommJson, validateSommResponse, feasiblePickCount, budgetCorrection, markOverMax, SOMM_ROLES,
@@ -125,6 +125,20 @@ Your task:
 Output ONLY a JSON object, no prose before or after, exactly this shape:
 {"picks": [{"i": <candidate index>, "role": "adventure", "note": "<2-3 sentences>"}], "sommSummary": ""}`;
 
+// The brief is prompt-cached (Nov 2026). It is the same on every call — every
+// diner, every list, the corrective retry — while the payload after it never
+// is, so the ONE cache breakpoint sits on the system block. Never the
+// top-level `cache_control` (automatic caching): that puts the breakpoint on
+// the last block, the payload, which changes on every call — a 1.25× cache
+// write each time and never a read. A read costs a tenth of the input price
+// and the entry lives five minutes from its last use, so it pays wherever
+// calls come close together (a replay, an e2e run, a diner's "Ask the Somm
+// again", any retry) and costs a quarter more on the brief's tokens where
+// they don't. The API caches nothing under 1,024 tokens on Sonnet 4.6 and
+// says nothing about it: the usage line's cacheWriteTokens / cacheReadTokens
+// say whether it engaged.
+const cachedBrief = (text) => [{ type: "text", text, cache_control: { type: "ephemeral" } }];
+
 // What each mode asks, and how its answer is judged
 const MODES = {
   picks: {
@@ -173,8 +187,11 @@ export async function POST(request) {
   // Telemetry across attempts — a retry is two real calls, and the cost
   // record must say so (totals, not the winning attempt's numbers). Hoisted
   // above the try so even the catch path can report what was spent.
+  // inputTokens is ALL the input (uncached + written to the cache + read from
+  // it), so a record reads the same before and after the brief was cached;
+  // the cache parts ride beside it and are priced at their own rates.
   const telemetry = {
-    attempts: 0, durationMs: 0, inputTokens: 0, outputTokens: 0,
+    attempts: 0, durationMs: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
     asked: false, reasons: [], candidates: 0, pickCount: 0, model: null, mode: "picks",
   };
   const note = (reason) => telemetry.reasons.push(reason);
@@ -186,7 +203,11 @@ export async function POST(request) {
     usage: {
       inputTokens: telemetry.inputTokens,
       outputTokens: telemetry.outputTokens,
-      estCostUSD: estimateClaudeCostUSD(telemetry.inputTokens, telemetry.outputTokens),
+      cacheReadTokens: telemetry.cacheReadTokens,
+      cacheWriteTokens: telemetry.cacheWriteTokens,
+      estCostUSD: estimateClaudeCostUSD(
+        telemetry.inputTokens, telemetry.outputTokens, telemetry.cacheReadTokens, telemetry.cacheWriteTokens
+      ),
     },
     reasons: telemetry.reasons.slice(),
     candidates: telemetry.candidates,
@@ -242,7 +263,7 @@ export async function POST(request) {
     // all-fallback.
     let useFormat = true;
     const ask = async (messages) => {
-      const request = { model: CLAUDE_MODEL, max_tokens: 3000, system: mode.system, messages };
+      const request = { model: CLAUDE_MODEL, max_tokens: 3000, system: cachedBrief(mode.system), messages };
       telemetry.asked = true;
       if (useFormat) {
         try {
@@ -274,7 +295,10 @@ export async function POST(request) {
       telemetry.attempts++;
       if (response.model) telemetry.model = response.model;
       telemetry.durationMs += ms;
-      telemetry.inputTokens += response.usage?.input_tokens || 0;
+      const input = claudeInputTokens(response.usage);
+      telemetry.inputTokens += input.total;
+      telemetry.cacheReadTokens += input.cacheRead;
+      telemetry.cacheWriteTokens += input.cacheWrite;
       telemetry.outputTokens += response.usage?.output_tokens || 0;
 
       logClaudeUsage("somm-picks", response.usage, ms);

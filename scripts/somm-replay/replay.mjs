@@ -55,11 +55,15 @@ mkdirSync(dir, { recursive: true });
 writeFileSync(new URL(`${tag}.full.json`, dir), JSON.stringify(results, null, 1));   // with every reply
 writeFileSync(new URL(`${tag}.json`, dir), JSON.stringify(results.map(compact), null, 1));
 
-const tokens = results.flatMap((r) => r.calls || []).reduce((t, c) => ({ in: t.in + (c.usage?.in || 0), out: t.out + (c.usage?.out || 0) }), { in: 0, out: 0 });
+const tokens = results.flatMap((r) => r.calls || []).reduce((t, c) => ({
+  in: t.in + (c.usage?.in || 0), out: t.out + (c.usage?.out || 0),
+  cacheRead: t.cacheRead + (c.usage?.cacheRead || 0), cacheWrite: t.cacheWrite + (c.usage?.cacheWrite || 0),
+}), { in: 0, out: 0, cacheRead: 0, cacheWrite: 0 });
 const count = (o) => results.filter((r) => r.outcome === o).length;
 console.log(
   `\nfirst attempt ${count("first_attempt")} · salvaged ${count("salvaged")} · retried ${count("retried")} · ` +
-  `fallback ${count("fallback")} · silent ${count("silent")} · spent $${estimateClaudeCostUSD(tokens.in, tokens.out).toFixed(2)}`
+  `fallback ${count("fallback")} · silent ${count("silent")} · spent $${estimateClaudeCostUSD(tokens.in, tokens.out, tokens.cacheRead, tokens.cacheWrite).toFixed(2)}`
 );
+console.log(`input ${tokens.in} tokens — ${tokens.cacheRead} read from the prompt cache, ${tokens.cacheWrite} written to it`);
 console.log(`wrote scripts/somm-replay/results/${tag}.json (and ${tag}.full.json, with the replies)`);
 console.log(`compare:  node scripts/somm-replay/compare.mjs scripts/somm-replay/baselines/2026-11-12-after.json scripts/somm-replay/results/${tag}.json`);

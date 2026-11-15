@@ -319,6 +319,20 @@ async function main() {
     assert(sommCurationPayload({ ...meta, mode: { evil: 1 } }).mode === "picks", "junk → the ordinary ask");
   });
 
+  await test("sommCurationPayload keeps the prompt cache's split beside ALL the input (Nov 15, 2026)", () => {
+    const p = sommCurationPayload({
+      outcome: "first_attempt", attempts: 1,
+      usage: { inputTokens: 2050, outputTokens: 500, cacheReadTokens: 1350, cacheWriteTokens: 0, estCostUSD: 0.010005 },
+    });
+    assert(p.input_tokens === 2050 && p.output_tokens === 500 && p.est_cost_usd === 0.010005, "input stays ALL the input, priced by the route");
+    assert(p.cache_read_tokens === 1350 && p.cache_write_tokens === 0, `read ${p.cache_read_tokens}, write ${p.cache_write_tokens} — a zero is a zero, not unknown`);
+    // A route that predates the cache sends no split: unknown, never a guessed zero
+    const older = sommCurationPayload({ outcome: "first_attempt", attempts: 1, usage: { inputTokens: 1814, outputTokens: 605, estCostUSD: 0.014517 } });
+    assert(older.cache_read_tokens === null && older.cache_write_tokens === null, JSON.stringify(older));
+    const junk = sommCurationPayload({ usage: { cacheReadTokens: "lots", cacheWriteTokens: NaN } });
+    assert(junk.cache_read_tokens === null && junk.cache_write_tokens === null, "junk → null");
+  });
+
   await test("buildEventRow accepts the two new types", () => {
     const chosen = buildEventRow(USER, "pick_chosen", pickChosenPayload({ wine: "X" }));
     assert(chosen.event_type === "pick_chosen", "pick_chosen accepted");

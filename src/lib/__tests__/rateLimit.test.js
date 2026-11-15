@@ -96,6 +96,66 @@ async function main() {
     });
   }
 
+  // ─── The one price table, with the prompt cache (Nov 15, 2026) ───
+  // Since the Somm's brief is cached the API reports a call's input in three
+  // parts, and only the part after the breakpoint is `input_tokens`. Every
+  // cost record keeps "input" meaning ALL of it and prices the cache parts
+  // at their own rates; a call with no cache is priced as it always was.
+  console.log("\n═══ the cost table — the prompt cache at its own rates ═══");
+  const { estimateClaudeCostUSD, claudeInputTokens, logClaudeUsage } = await import("../rateLimit.js");
+
+  await test("two arguments: the table it always was ($3 in, $15 out per MTok)", () => {
+    assert(estimateClaudeCostUSD(2040, 525) === 0.013995, `got ${estimateClaudeCostUSD(2040, 525)}`);
+    assert(estimateClaudeCostUSD(0, 0) === 0 && estimateClaudeCostUSD() === 0, "nothing costs nothing");
+  });
+
+  await test("a cache write costs 1.25× the input price and a read a tenth of it", () => {
+    // 3,000 input of which 2,000 written: 1,000 × $3 + 2,000 × $3.75 + 100 × $15
+    assert(estimateClaudeCostUSD(3000, 100, 0, 2000) === 0.012, `write: ${estimateClaudeCostUSD(3000, 100, 0, 2000)}`);
+    // 3,000 input of which 2,000 read: 1,000 × $3 + 2,000 × $0.30 + 100 × $15
+    assert(estimateClaudeCostUSD(3000, 100, 2000, 0) === 0.0051, `read: ${estimateClaudeCostUSD(3000, 100, 2000, 0)}`);
+    assert(estimateClaudeCostUSD(3000, 100, 2000, 0) < estimateClaudeCostUSD(3000, 100), "a read is cheaper than no cache");
+    assert(estimateClaudeCostUSD(3000, 100, 0, 2000) > estimateClaudeCostUSD(3000, 100), "a write costs more than no cache");
+  });
+
+  await test("the uncached part never goes negative, and junk prices as nothing", () => {
+    // A total smaller than its cache parts (a caller's slip): only the parts count
+    assert(estimateClaudeCostUSD(100, 0, 2000, 0) === 0.0006, `got ${estimateClaudeCostUSD(100, 0, 2000, 0)}`);
+    assert(estimateClaudeCostUSD(NaN, null, undefined, null) === 0, "junk → 0");
+  });
+
+  await test("claudeInputTokens adds up the three parts the API reports apart", () => {
+    const t = claudeInputTokens({ input_tokens: 700, cache_creation_input_tokens: 1350, cache_read_input_tokens: null, output_tokens: 9 });
+    assert(t.total === 2050 && t.cacheWrite === 1350 && t.cacheRead === 0, JSON.stringify(t));
+    const r = claudeInputTokens({ input_tokens: 700, cache_read_input_tokens: 1350 });
+    assert(r.total === 2050 && r.cacheRead === 1350 && r.cacheWrite === 0, JSON.stringify(r));
+    const plain = claudeInputTokens({ input_tokens: 1814, output_tokens: 605 });
+    assert(plain.total === 1814 && plain.cacheRead === 0 && plain.cacheWrite === 0, "no cache fields: the input as it always was");
+    for (const junk of [undefined, null, {}, { input_tokens: "lots", cache_read_input_tokens: -5 }]) {
+      const j = claudeInputTokens(junk);
+      assert(j.total === 0 && j.cacheRead === 0 && j.cacheWrite === 0, `junk ${JSON.stringify(junk)} → ${JSON.stringify(j)}`);
+    }
+  });
+
+  await test("the usage line carries ALL the input, the cache parts, and their price", () => {
+    const lines = [];
+    const { log } = console;
+    console.log = (line) => lines.push(line);
+    try {
+      logClaudeUsage("somm-picks", { input_tokens: 700, cache_read_input_tokens: 1350, output_tokens: 500 }, 1234);
+      logClaudeUsage("scan-label", { input_tokens: 1600, output_tokens: 80 }, 900);
+      logClaudeUsage("scan-label", null, 1);
+    } finally { console.log = log; }
+    assert(lines.length === 2, `one line per call with usage, got ${lines.length}`);
+    const cached = JSON.parse(lines[0]);
+    assert(cached.type === "claude_usage" && cached.route === "somm-picks" && cached.ms === 1234, lines[0]);
+    assert(cached.inputTokens === 2050 && cached.cacheReadTokens === 1350 && cached.cacheWriteTokens === 0 && cached.outputTokens === 500, lines[0]);
+    // 700 × $3 + 1,350 × $0.30 + 500 × $15 per MTok
+    assert(cached.estCostUSD === 0.010005, `price ${cached.estCostUSD}`);
+    const plain = JSON.parse(lines[1]);
+    assert(plain.inputTokens === 1600 && plain.cacheReadTokens === 0 && plain.cacheWriteTokens === 0 && plain.estCostUSD === 0.006, lines[1]);
+  });
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
   if (failed > 0) process.exit(1);
 }

@@ -109,6 +109,18 @@ const routePayload = (extra = {}) => ({
   ...extra,
 });
 
+// The brief as text, however the request carries it: since Nov 15, 2026 it
+// rides ONE system block marked for the prompt cache (the shape has its own
+// tests at the end)
+const systemText = (body) =>
+  typeof body?.system === "string" ? body.system
+  : Array.isArray(body?.system) ? body.system.map((b) => b?.text ?? "").join("")
+  : null;
+
+// A reply that reports its input in the three parts a cached call does
+const modelUsage = (usage, obj = goodModelJson()) =>
+  modelText(JSON.stringify(obj), { usage: { output_tokens: 100, ...usage } });
+
 async function main() {
   const { POST } = await import("../../app/api/somm-picks/route.js");
 
@@ -124,7 +136,7 @@ async function main() {
     const data = await res.json();
     const sent = anthropicCalls[0]?.body || null;
     const sentPayload = sent ? JSON.parse(sent.messages[0].content) : null;
-    return { res, data, sent, sentPayload, calls: anthropicCalls.map((c) => c.body) };
+    return { res, data, sent, sentPayload, prompt: systemText(sent), calls: anthropicCalls.map((c) => c.body) };
   };
 
   console.log("\n═══ /api/somm-picks steer contract ═══");
@@ -154,8 +166,7 @@ async function main() {
   });
 
   await test("system prompt carries the steer contract, occasion framing is gone", async () => {
-    const { sent } = await callRoute(routePayload({ steer: "focus on Chenin" }));
-    const system = sent.system;
+    const { prompt: system } = await callRoute(routePayload({ steer: "focus on Chenin" }));
     assert(typeof system === "string" && system.includes('"steer"'), "prompt must describe the steer field");
     assert(/outranks the palate DNA/i.test(system), "prompt must state steer > DNA");
     assert(/budget remains the hard constraint/i.test(system), "prompt must keep budget above the steer");
@@ -332,10 +343,10 @@ async function main() {
   });
 
   await test("the brief says what the mark means: at most one marked pick, and it is the splurge", async () => {
-    const { sent } = await callRoute(budgetPayload(), [modelReply(fixed)]);
-    assert(/"overMax": true/.test(sent.system.split("Your task:")[0]), "the payload description names the mark");
-    assert(/at most ONE/i.test(sent.system) && /"overMax"/.test(sent.system.split("3. Budget")[1].split("4. ")[0]), "rule 3 reads the budget through the mark");
-    assert(/never above 2x budget\.max/.test(sent.system), "twice the max is still the ceiling");
+    const { prompt } = await callRoute(budgetPayload(), [modelReply(fixed)]);
+    assert(/"overMax": true/.test(prompt.split("Your task:")[0]), "the payload description names the mark");
+    assert(/at most ONE/i.test(prompt) && /"overMax"/.test(prompt.split("3. Budget")[1].split("4. ")[0]), "rule 3 reads the budget through the mark");
+    assert(/never above 2x budget\.max/.test(prompt), "twice the max is still the ceiling");
   });
 
   console.log("\n═══ /api/somm-picks — the reasons ride the meta ═══");
@@ -440,22 +451,22 @@ async function main() {
 
   let ordinaryPrompt = null;
   await test("the Adventure has its own brief: one wine, nearest in spirit, honest that it is a stretch", async () => {
-    ordinaryPrompt = (await callRoute(routePayload())).sent.system;
-    const { sent, sentPayload } = await callRoute(adventurePayload(), [modelReply(adventureJson())]);
-    assert(sent.system !== ordinaryPrompt, "not the ordinary prompt");
+    ordinaryPrompt = (await callRoute(routePayload())).prompt;
+    const { prompt, sentPayload } = await callRoute(adventurePayload(), [modelReply(adventureJson())]);
+    assert(typeof prompt === "string" && prompt !== ordinaryPrompt, "not the ordinary prompt");
     for (const phrase of ["exactly ONE", "nearest in spirit", "stretch", "candidates", "\"adventure\"", "notForMe"]) {
-      assert(sent.system.includes(phrase), `the brief says "${phrase}"`);
+      assert(prompt.includes(phrase), `the brief says "${phrase}"`);
     }
-    assert(/never (say|claim)[^.]*match/i.test(sent.system), "it must not call the wine a match");
-    assert(/under 450 characters/.test(sent.system), "the note's length");
-    assert(!/Use each of top\/value\/adventure\/splurge/.test(sent.system), "no slate of roles to hand out");
+    assert(/never (say|claim)[^.]*match/i.test(prompt), "it must not call the wine a match");
+    assert(/under 450 characters/.test(prompt), "the note's length");
+    assert(!/Use each of top\/value\/adventure\/splurge/.test(prompt), "no slate of roles to hand out");
     assert(sentPayload.mode === "adventure" && sentPayload.candidates.length === 3, "the payload reaches Claude as sent");
   });
 
   await test("the ordinary ask is untouched: its prompt is the same with or without a mode it doesn't know", async () => {
-    const plain = (await callRoute(routePayload())).sent.system;
-    const odd = (await callRoute(routePayload({ mode: "banana" }))).sent.system;
-    assert(plain === ordinaryPrompt && odd === ordinaryPrompt, "one ordinary prompt");
+    const plain = (await callRoute(routePayload())).prompt;
+    const odd = (await callRoute(routePayload({ mode: "banana" }))).prompt;
+    assert(typeof plain === "string" && plain === ordinaryPrompt && odd === ordinaryPrompt, "one ordinary prompt");
     const { data } = await callRoute(routePayload({ mode: "banana" }));
     assert(!data.fallback && data.picks.length === 2 && data.meta.mode === "picks", JSON.stringify(data.meta));
   });
@@ -514,6 +525,79 @@ async function main() {
     const { data } = await callRoute(adventurePayload(), [apiError(401, "authentication_error", "invalid x-api-key")]);
     assert(data.fallback === true && data.meta.mode === "adventure", JSON.stringify(data));
     assert(data.meta.reasons.at(-1) === "error: api 401", JSON.stringify(data.meta.reasons));
+  });
+
+  // ─── The brief is prompt-cached (Nov 15, 2026) ───
+  // The brief is identical on every call and the payload after it never is,
+  // so the one breakpoint is the system block — never the top-level switch,
+  // whose breakpoint lands on the payload: a 1.25× write every call, no read.
+  console.log("\n═══ /api/somm-picks — the brief is prompt-cached ═══");
+
+  const EPHEMERAL = JSON.stringify({ type: "ephemeral" });
+
+  await test("the brief reaches Claude as ONE system block marked for the cache — never top-level automatic caching", async () => {
+    const { sent, prompt } = await callRoute(routePayload());
+    assert(Array.isArray(sent.system) && sent.system.length === 1, `system ${JSON.stringify(sent.system)?.slice(0, 80)}`);
+    const [block] = sent.system;
+    assert(block.type === "text" && block.text === prompt && prompt === ordinaryPrompt, "the brief, whole, as text");
+    assert(JSON.stringify(block.cache_control) === EPHEMERAL, `cache_control ${JSON.stringify(block.cache_control)} — the five-minute default, no ttl`);
+    assert(!("cache_control" in sent), "no top-level cache_control: its breakpoint would land on the payload, which changes every call");
+    assert(!JSON.stringify(sent.messages).includes("cache_control"), "no breakpoint on the payload");
+  });
+
+  await test("the corrective retry sends the same block byte for byte — it reads what the first call wrote", async () => {
+    const { calls, data } = await callRoute(routePayload(), [
+      modelReply({ picks: [noteFor(0, "top"), noteFor(0, "value")], sommSummary: "Twice the same." }),
+    ]);
+    assert(calls.length === 2 && data.meta.outcome === "retried", JSON.stringify(data.meta));
+    assert(JSON.stringify(calls[1].system) === JSON.stringify(calls[0].system), "one brief, one cache entry");
+    assert(!("cache_control" in calls[1]) && !JSON.stringify(calls[1].messages).includes("cache_control"), "still one breakpoint, on the brief");
+  });
+
+  await test("the Adventure's brief is cached the same way", async () => {
+    const { sent, prompt } = await callRoute(adventurePayload(), [modelReply(adventureJson())]);
+    assert(Array.isArray(sent.system) && sent.system.length === 1 && prompt !== ordinaryPrompt, "its own brief, one block");
+    assert(JSON.stringify(sent.system[0].cache_control) === EPHEMERAL, "marked for the cache");
+    assert(!("cache_control" in sent), "no top-level cache_control");
+  });
+
+  await test("a refused output format still sends the cached brief", async () => {
+    const { calls, data } = await callRoute(routePayload(), [apiError(400, "invalid_request_error", "output_config.format: not supported")]);
+    assert(calls.length === 2 && !data.fallback, JSON.stringify(data.meta));
+    assert(!calls[1].output_config, "the second call goes without the format");
+    assert(JSON.stringify(calls[1].system?.[0]?.cache_control) === EPHEMERAL, "and keeps the breakpoint");
+  });
+
+  await test("the meta counts ALL the input — uncached, written, read — and prices each part at its own rate", async () => {
+    const write = (await callRoute(routePayload(), [modelUsage({ input_tokens: 1000, cache_creation_input_tokens: 2000, cache_read_input_tokens: 0 })])).data.meta.usage;
+    assert(write.inputTokens === 3000 && write.cacheWriteTokens === 2000 && write.cacheReadTokens === 0, JSON.stringify(write));
+    assert(write.estCostUSD === 0.012, `a write: 1,000 × $3 + 2,000 × $3.75 + 100 × $15 per MTok = $0.012, got ${write.estCostUSD}`);
+    const read = (await callRoute(routePayload(), [modelUsage({ input_tokens: 1000, cache_read_input_tokens: 2000 })])).data.meta.usage;
+    assert(read.inputTokens === 3000 && read.cacheReadTokens === 2000 && read.cacheWriteTokens === 0, JSON.stringify(read));
+    assert(read.estCostUSD === 0.0051, `a read: 1,000 × $3 + 2,000 × $0.30 + 100 × $15 per MTok = $0.0051, got ${read.estCostUSD}`);
+    const none = (await callRoute(routePayload(), [modelUsage({ input_tokens: 3000, cache_creation_input_tokens: null, cache_read_input_tokens: null })])).data.meta.usage;
+    assert(none.inputTokens === 3000 && none.cacheReadTokens === 0 && none.cacheWriteTokens === 0, `nothing cached reads as before: ${JSON.stringify(none)}`);
+    assert(none.estCostUSD === 0.0105, `the table it always was, got ${none.estCostUSD}`);
+  });
+
+  await test("a retry adds both calls up: the first writes the brief, the second reads it", async () => {
+    const { data } = await callRoute(routePayload(), [
+      modelUsage({ input_tokens: 900, cache_creation_input_tokens: 1300 }, { picks: [noteFor(0, "top"), noteFor(0, "value")], sommSummary: "Twice the same." }),
+      modelUsage({ input_tokens: 1500, cache_read_input_tokens: 1300 }),
+    ]);
+    const u = data.meta.usage;
+    assert(data.meta.outcome === "retried" && data.meta.attempts === 2, JSON.stringify(data.meta));
+    assert(u.inputTokens === 5000 && u.cacheWriteTokens === 1300 && u.cacheReadTokens === 1300 && u.outputTokens === 200, JSON.stringify(u));
+    // 2,400 uncached × $3 + 1,300 × $3.75 + 1,300 × $0.30 + 200 × $15 per MTok
+    assert(u.estCostUSD === 0.015465, `got ${u.estCostUSD}`);
+  });
+
+  await test("the split reaches the ledger under the names the payload builder reads", async () => {
+    const { sommCurationPayload } = await import("../wineEvents.js");
+    const { data } = await callRoute(routePayload(), [modelUsage({ input_tokens: 700, cache_read_input_tokens: 1350 })]);
+    const row = sommCurationPayload(data.meta);
+    assert(row.input_tokens === 2050 && row.cache_read_tokens === 1350 && row.cache_write_tokens === 0, JSON.stringify(row));
+    assert(row.est_cost_usd === data.meta.usage.estCostUSD, "one price for the meta and the ledger");
   });
 
   console.log(`\nTotal: ${passed}/${passed + failed} passed, ${failed} failed\n`);
