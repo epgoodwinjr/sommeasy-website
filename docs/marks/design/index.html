@@ -1,0 +1,691 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sommeasy marks: design reference</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#e9e3d8;font-family:'Source Sans 3','Source Sans Pro',-apple-system,sans-serif;color:#1B3D2F}
+a{color:#8B2332}
+main{display:flex;flex-direction:column;gap:56px;padding:40px;align-items:flex-start}
+section>h2{font:600 13px/1.4 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif;letter-spacing:.16em;text-transform:uppercase;margin:0 0 12px}
+section{max-width:100%;overflow-x:auto}
+.pen{stroke-dasharray:1;stroke-dashoffset:0;animation:pen-draw .2s ease-out backwards}
+.wipe{animation:pen-wipe .8s cubic-bezier(.22,1,.36,1) backwards}
+.flip{animation:glass-flip .6s cubic-bezier(.22,1,.36,1) backwards}
+@keyframes pen-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes pen-wipe{from{clip-path:inset(-200% 100% -200% 0)}to{clip-path:inset(-200% -5% -200% -5%)}}
+@keyframes glass-flip{from{transform:rotate(-180deg)}to{transform:none}}
+@media (prefers-reduced-motion: reduce){.pen,.wipe,.flip{animation:none}}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:112px;border-radius:10px;border:1px solid rgba(27,61,47,.28);background:transparent;color:#1B3D2F;font:400 16px 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif;cursor:pointer}
+.tile .on{display:none}
+.tile.picked{border:1.5px solid #8B2332;background:rgba(139,35,50,.06);color:#8B2332;font-weight:600}
+.tile.picked .on{display:block}
+.tile.picked .off{display:none}
+</style>
+</head>
+<body>
+<main>
+<p style="max-width:70ch;margin:0;font-size:15px;line-height:1.5">Design reference for docs/marks/README.md, approved by Ed on Nov 15, 2026. A reference for look and motion, not production code. Wines, prices and notes are sample content. Where this page and the README disagree, the README wins. The exact paths are in marks.js beside this file.</p>
+<section><h2>The mark set</h2><div style="width: 1180px; height: 900px; box-sizing: border-box; padding: 40px 44px; background: #F5F0E8; color: #1B3D2F; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; display: flex; flex-direction: column; gap: 30px">
+  <div style="display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid rgba(27,61,47,0.2); padding-bottom: 16px">
+    <h1 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 30px; font-weight: 700">The mark set</h1>
+    <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-style: italic; font-size: 17px; color: rgba(27,61,47,0.75); flex-grow: 1; text-align: right">Seventeen marks and three gestures. The flags stay; the Somm speaks in type, behind one quotation mark.</p>
+  </div>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: baseline; gap: 14px">
+        <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">The glass</h2>
+        <p style="margin: 0; font-size: 13px; color: rgba(27,61,47,0.75)">Printed by the house, pencilled in by you. In the app the strokes are drawn only when you rate; reload to watch them here.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 28px">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="2 1.85 20 20" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path class="pen" pathLength="1" d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.40s; animation-duration: 0.36s"/><path class="pen" pathLength="1" d="M7.81 6.46 L8.35 5.80" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.72s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M9.60 5.60 L7.59 7.79" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.80s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M7.35 8.90 L10.79 5.73" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.89s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M11.92 5.83 L7.60 9.99" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.97s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M7.88 10.65 L12.81 5.65" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.06s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M13.93 5.71 L8.51 11.32" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.15s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M9.27 11.64 L15.32 5.59" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.23s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M16.12 6.12 L9.92 12.21" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.31s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M10.66 12.35 L16.02 7.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.40s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M16.64 7.65 L11.87 12.56" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.48s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M12.69 12.70 L16.59 8.88" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.57s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.66s; animation-duration: 0.2s"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="2 1.85 20 20" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Loved it</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Full</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="2 1.85 20 20" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path class="pen" pathLength="1" d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.90s; animation-duration: 0.36s"/><path class="pen" pathLength="1" d="M7.57 9.65 L8.64 8.70" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.22s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M9.82 8.69 L7.94 10.42" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.30s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M8.45 11.05 L10.86 8.87" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.39s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M11.78 8.85 L9.18 11.45" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.47s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M9.73 12.03 L13.06 8.77" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.56s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M14.13 8.88 L10.54 12.34" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.64s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M11.42 12.61 L15.26 8.87" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.73s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M16.25 9.03 L12.71 12.58" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.81s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 2.90s; animation-duration: 0.2s"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50 M7.57 9.65 L8.64 8.70 M9.82 8.69 L7.94 10.42 M8.45 11.05 L10.86 8.87 M11.78 8.85 L9.18 11.45 M9.73 12.03 L13.06 8.77 M14.13 8.88 L10.54 12.34 M11.42 12.61 L15.26 8.87 M16.25 9.03 L12.71 12.58 M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="2 1.85 20 20" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50 M7.57 9.65 L8.64 8.70 M9.82 8.69 L7.94 10.42 M8.45 11.05 L10.86 8.87 M11.78 8.85 L9.18 11.45 M9.73 12.03 L13.06 8.77 M14.13 8.88 L10.54 12.34 M11.42 12.61 L15.26 8.87 M16.25 9.03 L12.71 12.58 M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Liked it</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Half</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="2 1.85 20 20" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path class="pen" pathLength="1" d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 3.10s; animation-duration: 0.36s"/><path class="pen" pathLength="1" d="M8.90 11.66 L9.56 10.94" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 3.42s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M10.78 11.19 L9.82 11.97" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 3.50s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M10.59 12.20 L11.79 10.97" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 3.59s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M12.87 11.14 L11.39 12.52" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 3.67s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M12.73 12.63 L14.08 11.13" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 3.76s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 3.84s; animation-duration: 0.2s"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70 M8.90 11.66 L9.56 10.94 M10.78 11.19 L9.82 11.97 M10.59 12.20 L11.79 10.97 M12.87 11.14 L11.39 12.52 M12.73 12.63 L14.08 11.13 M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="2 1.85 20 20" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70 M8.90 11.66 L9.56 10.94 M10.78 11.19 L9.82 11.97 M10.59 12.20 L11.79 10.97 M12.87 11.14 L11.39 12.52 M12.73 12.63 L14.08 11.13 M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">It was fine</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">A sip</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="2 1.85 20 20" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(180 12 11.85)"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></g></svg><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(180 12 11.85)"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></g></svg><svg viewBox="2 1.85 20 20" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(180 12 11.85)"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Not for me</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Turned down</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="2 1.85 20 20" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="2 1.85 20 20" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Verdict pending</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Empty, waiting for you</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: baseline; gap: 14px">
+        <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">The pencil</h2>
+        <p style="margin: 0; font-size: 13px; color: rgba(27,61,47,0.75)">Yours: one weight, one colour, only for what you did.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 28px">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 3.4 C 13.5 8.7 15.2 14 16.9 19.4 C 12.6 16.2 8.1 12.8 3.8 9.6 C 9.3 9.6 14.9 9.4 20.4 9.2 C 16 12.6 11.4 16.1 7 19.6 C 8.7 14.3 10.5 9 12.3 3.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 3.4 C 13.5 8.7 15.2 14 16.9 19.4 C 12.6 16.2 8.1 12.8 3.8 9.6 C 9.3 9.6 14.9 9.4 20.4 9.2 C 16 12.6 11.4 16.1 7 19.6 C 8.7 14.3 10.5 9 12.3 3.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 3.4 C 13.5 8.7 15.2 14 16.9 19.4 C 12.6 16.2 8.1 12.8 3.8 9.6 C 9.3 9.6 14.9 9.4 20.4 9.2 C 16 12.6 11.4 16.1 7 19.6 C 8.7 14.3 10.5 9 12.3 3.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Want to try</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">A star in the margin</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12.5 4 C 6.5 3.6 3 8 3.6 12.6 C 4.2 17.6 9 20.6 13.6 19.8 C 18.4 19 21.2 14.6 20.2 10 C 19.4 6.2 15.6 3.6 10.8 4.6" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12.5 4 C 6.5 3.6 3 8 3.6 12.6 C 4.2 17.6 9 20.6 13.6 19.8 C 18.4 19 21.2 14.6 20.2 10 C 19.4 6.2 15.6 3.6 10.8 4.6" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12.5 4 C 6.5 3.6 3 8 3.6 12.6 C 4.2 17.6 9 20.6 13.6 19.8 C 18.4 19 21.2 14.6 20.2 10 C 19.4 6.2 15.6 3.6 10.8 4.6" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">On the table</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Beside the pick you ordered</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 5.4 C 12.2 9 11.8 15 12.1 18.7 M5.3 12.2 C 9 11.8 15 12.3 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 5.4 C 12.2 9 11.8 15 12.1 18.7 M5.3 12.2 C 9 11.8 15 12.3 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 5.4 C 12.2 9 11.8 15 12.1 18.7 M5.3 12.2 C 9 11.8 15 12.3 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Joined</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">… joined your DNA</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M5.3 12.2 C 9 11.6 15 12.5 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M5.3 12.2 C 9 11.6 15 12.5 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M5.3 12.2 C 9 11.6 15 12.5 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Left</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">… left your DNA</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.4 12.3 C 9 11.8 14 12.4 19.2 12 M14.2 7.4 C 15.8 9.3 17.5 10.8 19.4 12 C 17.6 13.3 16 14.9 14.5 16.8" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.4 12.3 C 9 11.8 14 12.4 19.2 12 M14.2 7.4 C 15.8 9.3 17.5 10.8 19.4 12 C 17.6 13.3 16 14.9 14.5 16.8" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.4 12.3 C 9 11.8 14 12.4 19.2 12 M14.2 7.4 C 15.8 9.3 17.5 10.8 19.4 12 C 17.6 13.3 16 14.9 14.5 16.8" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Became</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">You became …</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 9.6 C 13.5 9.5 14.5 10.7 14.4 12.1 C 14.3 13.6 13.1 14.5 11.8 14.4 C 10.4 14.3 9.5 13.1 9.6 11.8 C 9.7 10.5 10.7 9.6 12 9.6 Z" fill="#8B2332"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 9.6 C 13.5 9.5 14.5 10.7 14.4 12.1 C 14.3 13.6 13.1 14.5 11.8 14.4 C 10.4 14.3 9.5 13.1 9.6 11.8 C 9.7 10.5 10.7 9.6 12 9.6 Z" fill="#8B2332"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 9.6 C 13.5 9.5 14.5 10.7 14.4 12.1 C 14.3 13.6 13.1 14.5 11.8 14.4 C 10.4 14.3 9.5 13.1 9.6 11.8 C 9.7 10.5 10.7 9.6 12 9.6 Z" fill="#8B2332"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Began</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Your palate began</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; padding: 6px 14px 0">
+      
+        <div style="display: flex; flex-direction: column; gap: 12px; justify-content: flex-end">
+          <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 19px; font-weight: 600; white-space: nowrap; align-self: flex-start; position: relative">Kanonkop Pinotage 2020<svg viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: -12px; top: -7px; width: calc(100% + 24px); height: calc(100% + 14px); overflow: visible"><path d="M96 3 C 40 1 4 8 4 20 C 4 33 50 38 104 37 C 160 36 197 30 196 18 C 195 7 150 1 78 6" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span>
+          <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Circled: the pick on the table</span>
+        </div>
+      
+        <div style="display: flex; flex-direction: column; gap: 12px; justify-content: flex-end">
+          <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 19px; font-weight: 600; white-space: nowrap; align-self: flex-start; position: relative">Meerlust Rubicon 2019<svg viewBox="0 0 200 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: -2px; bottom: -5px; width: calc(100% + 4px); height: 7px; overflow: visible"><path d="M2 4.5 C 40 1.5 80 6.5 120 3.5 C 150 1.5 180 5.5 198 3" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span>
+          <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Underlined: a bottle you loved</span>
+        </div>
+      
+        <div style="display: flex; flex-direction: column; gap: 12px; justify-content: flex-end">
+          <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 19px; font-weight: 600; white-space: nowrap; align-self: flex-start; position: relative">Constantia Glen Five<svg viewBox="0 0 200 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: -3px; top: 50%; width: calc(100% + 6px); height: 7px; overflow: visible"><path d="M2 5 C 50 2 110 6.5 198 2.5" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span>
+          <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Struck: a bottle you passed on</span>
+        </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: baseline; gap: 14px">
+        <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">The printed tools</h2>
+        <p style="margin: 0; font-size: 13px; color: rgba(27,61,47,0.75)">The house's: hairline, in ink. In a filled circle they turn cream.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 28px">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.2 3.5 H16.8 C 17.2 3.5 17.5 3.8 17.5 4.2 V19.8 C 17.5 20.2 17.2 20.5 16.8 20.5 H7.2 C 6.8 20.5 6.5 20.2 6.5 19.8 V4.2 C 6.5 3.8 6.8 3.5 7.2 3.5 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 8 H14.8 M9.2 11.6 H14.8 M9.2 15.2 H12.6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.2 3.5 H16.8 C 17.2 3.5 17.5 3.8 17.5 4.2 V19.8 C 17.5 20.2 17.2 20.5 16.8 20.5 H7.2 C 6.8 20.5 6.5 20.2 6.5 19.8 V4.2 C 6.5 3.8 6.8 3.5 7.2 3.5 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 8 H14.8 M9.2 11.6 H14.8 M9.2 15.2 H12.6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.2 3.5 H16.8 C 17.2 3.5 17.5 3.8 17.5 4.2 V19.8 C 17.5 20.2 17.2 20.5 16.8 20.5 H7.2 C 6.8 20.5 6.5 20.2 6.5 19.8 V4.2 C 6.5 3.8 6.8 3.5 7.2 3.5 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 8 H14.8 M9.2 11.6 H14.8 M9.2 15.2 H12.6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Match a list</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">The wine list</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.6 8 H7.7 L9.2 5.5 H14.8 L16.3 8 H19.4 C 20 8 20.5 8.5 20.5 9.1 V17.9 C 20.5 18.5 20 19 19.4 19 H4.6 C 4 19 3.5 18.5 3.5 17.9 V9.1 C 3.5 8.5 4 8 4.6 8 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.4" r="3.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.6 8 H7.7 L9.2 5.5 H14.8 L16.3 8 H19.4 C 20 8 20.5 8.5 20.5 9.1 V17.9 C 20.5 18.5 20 19 19.4 19 H4.6 C 4 19 3.5 18.5 3.5 17.9 V9.1 C 3.5 8.5 4 8 4.6 8 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.4" r="3.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.6 8 H7.7 L9.2 5.5 H14.8 L16.3 8 H19.4 C 20 8 20.5 8.5 20.5 9.1 V17.9 C 20.5 18.5 20 19 19.4 19 H4.6 C 4 19 3.5 18.5 3.5 17.9 V9.1 C 3.5 8.5 4 8 4.6 8 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.4" r="3.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Photograph</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Only ever a photo</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M10.6 2.8 H13.4 V7.4 C 13.4 9 15.7 9.9 15.7 12.3 V20.2 C 15.7 20.75 15.25 21.2 14.7 21.2 H9.3 C 8.75 21.2 8.3 20.75 8.3 20.2 V12.3 C 8.3 9.9 10.6 9 10.6 7.4 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 5 H13.4 M8.3 13.8 H15.7 M8.3 18 H15.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M10.6 2.8 H13.4 V7.4 C 13.4 9 15.7 9.9 15.7 12.3 V20.2 C 15.7 20.75 15.25 21.2 14.7 21.2 H9.3 C 8.75 21.2 8.3 20.75 8.3 20.2 V12.3 C 8.3 9.9 10.6 9 10.6 7.4 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 5 H13.4 M8.3 13.8 H15.7 M8.3 18 H15.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M10.6 2.8 H13.4 V7.4 C 13.4 9 15.7 9.9 15.7 12.3 V20.2 C 15.7 20.75 15.25 21.2 14.7 21.2 H9.3 C 8.75 21.2 8.3 20.75 8.3 20.2 V12.3 C 8.3 9.9 10.6 9 10.6 7.4 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 5 H13.4 M8.3 13.8 H15.7 M8.3 18 H15.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Log a bottle</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">The bottle itself</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><rect x="3.5" y="5.5" width="17" height="13" rx="1.4" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16.4 L9 11.6 L12.4 15 L14.9 12.8 L20 17.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="15.6" cy="9.3" r="1.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><rect x="3.5" y="5.5" width="17" height="13" rx="1.4" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16.4 L9 11.6 L12.4 15 L14.9 12.8 L20 17.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="15.6" cy="9.3" r="1.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><rect x="3.5" y="5.5" width="17" height="13" rx="1.4" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16.4 L9 11.6 L12.4 15 L14.9 12.8 L20 17.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="15.6" cy="9.3" r="1.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Upload a picture</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">From the library</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(-45 12 12)"><rect x="2.4" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="10.6" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(-45 12 12)"><rect x="2.4" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="10.6" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(-45 12 12)"><rect x="2.4" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="10.6" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Paste a link</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">A menu's address</span>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; align-items: flex-end; gap: 14px; min-height: 76px">
+            <svg viewBox="0 0 24 24" width="72" height="72" aria-hidden="true" style="flex-shrink: 0; display: block"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 15 L20.2 20.2" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 15 L20.2 20.2" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 15 L20.2 20.2" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600">Search</span>
+            <span style="font-size: 13px; line-height: 1.35; color: rgba(27,61,47,0.75)">Journal and DNA</span>
+          </div>
+        </div>
+      </div>
+    </div>
+</div></section><section><h2>House & Hand, in the three places</h2><div style="width: 1180px; height: 720px; box-sizing: border-box; padding: 40px 44px; background: #F5F0E8; color: #1B3D2F; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; display: flex; flex-direction: column; gap: 26px">
+
+  <div style="display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid rgba(27,61,47,0.2); padding-bottom: 16px">
+    <span style="font-family: 'Playfair Display',Georgia,serif; font-style: italic; font-size: 20px; color: #8B2332">vi.</span>
+    <h1 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 30px; font-weight: 700">House &amp; Hand</h1>
+    <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-style: italic; font-size: 17px; color: rgba(27,61,47,0.75); flex-grow: 1; text-align: right">The house prints the glass. You shade it.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 44px; flex-grow: 1">
+
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">The verdict</h2>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 21px; font-weight: 600">Meerlust Rubicon 2019</p>
+        <p style="margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(27,61,47,0.75)">Stellenbosch · Bordeaux blend</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+        <button type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 88px; border-radius: 10px; border: 1.5px solid #8B2332; background: rgba(139,35,50,0.06); color: #8B2332; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; font-size: 15px; font-weight: 600; cursor: pointer"><svg viewBox="2 1.85 20 20" width="36" height="36" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Loved it</span></button>
+        <button type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 88px; border-radius: 10px; border: 1px solid rgba(27,61,47,0.28); background: transparent; color: #1B3D2F; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; font-size: 15px; cursor: pointer"><svg viewBox="2 1.85 20 20" width="36" height="36" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50 M7.57 9.65 L8.64 8.70 M9.82 8.69 L7.94 10.42 M8.45 11.05 L10.86 8.87 M11.78 8.85 L9.18 11.45 M9.73 12.03 L13.06 8.77 M14.13 8.88 L10.54 12.34 M11.42 12.61 L15.26 8.87 M16.25 9.03 L12.71 12.58 M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Liked it</span></button>
+        <button type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 88px; border-radius: 10px; border: 1px solid rgba(27,61,47,0.28); background: transparent; color: #1B3D2F; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; font-size: 15px; cursor: pointer"><svg viewBox="2 1.85 20 20" width="36" height="36" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70 M8.90 11.66 L9.56 10.94 M10.78 11.19 L9.82 11.97 M10.59 12.20 L11.79 10.97 M12.87 11.14 L11.39 12.52 M12.73 12.63 L14.08 11.13 M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><span>It was fine</span></button>
+        <button type="button" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; height: 88px; border-radius: 10px; border: 1px solid rgba(27,61,47,0.28); background: transparent; color: #1B3D2F; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; font-size: 15px; cursor: pointer"><svg viewBox="2 1.85 20 20" width="36" height="36" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(180 12 11.85)"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></g></svg><span>Not for me</span></button>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid rgba(27,61,47,0.2); padding-top: 14px">
+        <span style="padding-top: 2px"><svg viewBox="2 1.85 20 20" width="24" height="24" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-style: italic; font-size: 16px; line-height: 1.45">Loved it. One more loved bottle and Meerlust joins your DNA.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto">
+        <div style="display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 5.4 C 12.2 9 11.8 15 12.1 18.7 M5.3 12.2 C 9 11.8 15 12.3 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Your DNA just grew</span></div>
+        <div style="display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332"><span>The Somm is reading</span></div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">The journal</h2>
+      <div style="display: flex; flex-direction: column; border-bottom: 1px solid rgba(27,61,47,0.2)">
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px solid rgba(27,61,47,0.2)">
+        <span style="width: 34px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="26" height="26" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Meerlust Rubicon 2019<svg viewBox="0 0 200 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: -2px; bottom: -5px; width: calc(100% + 4px); height: 7px; overflow: visible"><path d="M2 4.5 C 40 1.5 80 6.5 120 3.5 C 150 1.5 180 5.5 198 3" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span></p>
+          <p style="margin: 0; font-size: 12.5px; color: rgba(27,61,47,0.75)">Loved it · Nov 8</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px dotted rgba(27,61,47,0.3)">
+        <span style="width: 34px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="26" height="26" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50 M7.57 9.65 L8.64 8.70 M9.82 8.69 L7.94 10.42 M8.45 11.05 L10.86 8.87 M11.78 8.85 L9.18 11.45 M9.73 12.03 L13.06 8.77 M14.13 8.88 L10.54 12.34 M11.42 12.61 L15.26 8.87 M16.25 9.03 L12.71 12.58 M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Ken Forrester Old Vine Chenin Blanc</span></p>
+          <p style="margin: 0; font-size: 12.5px; color: rgba(27,61,47,0.75)">Liked it · Nov 2</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px dotted rgba(27,61,47,0.3)">
+        <span style="width: 34px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="26" height="26" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70 M8.90 11.66 L9.56 10.94 M10.78 11.19 L9.82 11.97 M10.59 12.20 L11.79 10.97 M12.87 11.14 L11.39 12.52 M12.73 12.63 L14.08 11.13 M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Zenato Valpolicella Superiore</span></p>
+          <p style="margin: 0; font-size: 12.5px; color: rgba(27,61,47,0.75)">It was fine · Oct 28</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px dotted rgba(27,61,47,0.3)">
+        <span style="width: 34px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="26" height="26" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(180 12 11.85)"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></g></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Newton Unfiltered Chardonnay</span></p>
+          <p style="margin: 0; font-size: 12.5px; color: rgba(27,61,47,0.75)">Not for me · Oct 19</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px dotted rgba(27,61,47,0.3)">
+        <span style="width: 34px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="26" height="26" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Kanonkop Kadette Cape Blend</span></p>
+          <p style="margin: 0; font-size: 12.5px; color: rgba(27,61,47,0.75)">Verdict pending · Oct 30</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px dotted rgba(27,61,47,0.3)">
+        <span style="width: 34px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 3.4 C 13.5 8.7 15.2 14 16.9 19.4 C 12.6 16.2 8.1 12.8 3.8 9.6 C 9.3 9.6 14.9 9.4 20.4 9.2 C 16 12.6 11.4 16.1 7 19.6 C 8.7 14.3 10.5 9 12.3 3.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Hamilton Russell Chardonnay</span></p>
+          <p style="margin: 0; font-size: 12.5px; color: rgba(27,61,47,0.75)">Want to try · saved Oct 30</p>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; min-height: 52px; border-top: 1px dotted rgba(27,61,47,0.3)">
+        <span style="width: 34px; display: flex; justify-content: center; flex-shrink: 0"></span>
+        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+          <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; line-height: 1.25"><span style="position: relative; display: inline-block; color: rgba(27,61,47,0.75)">Constantia Glen Five<svg viewBox="0 0 200 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: -3px; top: 50%; width: calc(100% + 6px); height: 7px; overflow: visible"><path d="M2 5 C 50 2 110 6.5 198 2.5" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span></p>
+          <p style="margin: 0; font-size: 12.5px; color: rgba(27,61,47,0.75)">Passed</p>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">The pick</h2>
+      <div style="display: flex; flex-direction: column; gap: 9px">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <span style="font-family: 'Playfair Display',Georgia,serif; font-style: italic; font-size: 18px; color: #8B2332">I.</span>
+          
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332">Top pick</span>
+          <span style="flex-grow: 1; height: 1px; background: rgba(139,35,50,0.4)"></span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="position: relative; font-family: 'Playfair Display',Georgia,serif; font-size: 19px; font-weight: 600; white-space: nowrap">Kanonkop Pinotage 2020<svg viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: -12px; top: -7px; width: calc(100% + 24px); height: calc(100% + 14px); overflow: visible"><path d="M96 3 C 40 1 4 8 4 20 C 4 33 50 38 104 37 C 160 36 197 30 196 18 C 195 7 150 1 78 6" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span>
+          <span style="flex-grow: 1; border-bottom: 1.5px dotted rgba(27,61,47,0.45); transform: translateY(-4px)"></span>
+          <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 17px">$72</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(27,61,47,0.75)"><span>Stellenbosch · Pinotage</span></div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: #8B2332"><svg viewBox="2 1.85 20 20" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Loved it in October</span></div>
+        <div style="display: flex; align-items: center; gap: 9px; min-height: 44px">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12.5 4 C 6.5 3.6 3 8 3.6 12.6 C 4.2 17.6 9 20.6 13.6 19.8 C 18.4 19 21.2 14.6 20.2 10 C 19.4 6.2 15.6 3.6 10.8 4.6" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332">On the table</span>
+          <a href="#" style="margin-left: auto; font-size: 14px">Change</a>
+        </div>
+      </div>
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">The furniture</h2>
+      <div style="display: flex; flex-direction: column">
+        <div style="display: flex; align-items: center; gap: 10px; min-height: 48px; border-top: 1px solid rgba(27,61,47,0.2)">
+          <a href="#" style="font-size: 14px; color: #1B3D2F; text-decoration: none">‹ Home</a>
+          <span style="flex-grow: 1; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase">Match a list</span>
+          <button type="button" aria-label="Search" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: none; border: none; padding: 0; cursor: pointer"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 15 L20.2 20.2" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; min-height: 52px; border-top: 1px solid rgba(27,61,47,0.2)">
+          
+          <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 18px; white-space: nowrap">Photograph the list</span>
+          <span style="flex-grow: 1; border-bottom: 1.5px dotted rgba(27,61,47,0.45); transform: translateY(-4px)"></span>
+          <span style="width: 34px; height: 34px; border-radius: 50%; background: #8B2332; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.6 8 H7.7 L9.2 5.5 H14.8 L16.3 8 H19.4 C 20 8 20.5 8.5 20.5 9.1 V17.9 C 20.5 18.5 20 19 19.4 19 H4.6 C 4 19 3.5 18.5 3.5 17.9 V9.1 C 3.5 8.5 4 8 4.6 8 Z" fill="none" stroke="#F5F0E8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.4" r="3.3" fill="none" stroke="#F5F0E8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; min-height: 46px; border-top: 1px solid rgba(27,61,47,0.2); border-bottom: 1px solid rgba(27,61,47,0.2)">
+          <span aria-hidden="true" style="font-size: 16px">🇿🇦</span>
+          <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; white-space: nowrap">South Africa</span>
+          <span style="flex-grow: 1; border-bottom: 1.5px dotted rgba(27,61,47,0.45); transform: translateY(-4px)"></span>
+          <span style="font-size: 13px; color: rgba(27,61,47,0.75); white-space: nowrap">6 bottles</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div></section><section><h2>Labels, tools, flags and moments</h2><div style="width: 1180px; height: 980px; box-sizing: border-box; padding: 40px 44px; background: #F5F0E8; color: #1B3D2F; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; display: flex; flex-direction: column; gap: 26px">
+  <div style="display: flex; align-items: baseline; gap: 14px; border-bottom: 1px solid rgba(27,61,47,0.2); padding-bottom: 16px">
+    <h1 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 30px; font-weight: 700">Labels, tools, flags and moments</h1>
+    <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-style: italic; font-size: 17px; color: rgba(27,61,47,0.75); flex-grow: 1; text-align: right">Every one in the code today, and what replaces it.</p>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 44px; flex-grow: 1">
+    
+    <div style="display: flex; flex-direction: column; gap: 22px">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">Labels</h2>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">Pick roles</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">Set in type. The numeral, the small caps and the rule already say it.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; border-bottom: 1px solid rgba(27,61,47,0.2)">
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🏆 Top Pick</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332; white-space: nowrap">Top pick</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">💰 Great Value</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332; white-space: nowrap">Great value</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">✨ Splurge</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332; white-space: nowrap">Splurge</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🧭 Adventure</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332; white-space: nowrap">Adventure</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🍷 Worth Trying</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332; white-space: nowrap">Worth trying</span></span>
+        </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">Why it matched</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">Set in type, at the end of a row's meta line.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; border-bottom: 1px solid rgba(27,61,47,0.2)">
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">📍 Region + grape</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #1B3D2F; white-space: nowrap">Region + grape</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🍇 Grape match</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #1B3D2F; white-space: nowrap">Grape match</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🧭 Discovery</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #1B3D2F; white-space: nowrap">Discovery</span></span>
+        </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">The Somm's voice</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">Set in type. One hanging quotation mark, only on The Somm says.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; border-bottom: 1px solid rgba(27,61,47,0.2)">
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🍷 The Somm says</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span aria-hidden="true" style="font-family: 'Playfair Display',Georgia,serif; font-size: 28px; line-height: 0.8; height: 16px; color: #8B2332">“</span><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332; white-space: nowrap">The Somm says</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🍷 The Somm is reading</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332; white-space: nowrap">The Somm is reading</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🍷 Somm pick · Aug 1</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332; white-space: nowrap">Somm pick · Aug 1</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🍷 Ask the Somm again</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><a href="#" style="font-size: 15px; font-weight: 600">Ask the Somm again</a></span>
+        </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">Where a bottle came from</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">Set in type. Your want list keeps its pencil star.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; border-bottom: 1px solid rgba(27,61,47,0.2)">
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">📸 Label read</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #1B3D2F; white-space: nowrap">Label read</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🔍 Found it</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #1B3D2F; white-space: nowrap">Found it</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">📌 From your want list</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 3.4 C 13.5 8.7 15.2 14 16.9 19.4 C 12.6 16.2 8.1 12.8 3.8 9.6 C 9.3 9.6 14.9 9.4 20.4 9.2 C 16 12.6 11.4 16.1 7 19.6 C 8.7 14.3 10.5 9 12.3 3.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #1B3D2F; white-space: nowrap">From your want list</span></span>
+        </div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="display: flex; flex-direction: column; gap: 22px">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">Tools</h2>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">Six printed tools</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">The Cellar Set's hairline. The bottle takes over Log a bottle, so the camera only ever means a photograph.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; border-bottom: 1px solid rgba(27,61,47,0.2)">
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">📋 Match a list</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.2 3.5 H16.8 C 17.2 3.5 17.5 3.8 17.5 4.2 V19.8 C 17.5 20.2 17.2 20.5 16.8 20.5 H7.2 C 6.8 20.5 6.5 20.2 6.5 19.8 V4.2 C 6.5 3.8 6.8 3.5 7.2 3.5 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 8 H14.8 M9.2 11.6 H14.8 M9.2 15.2 H12.6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; white-space: nowrap">Match a list</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">📸 Photograph, snap</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.6 8 H7.7 L9.2 5.5 H14.8 L16.3 8 H19.4 C 20 8 20.5 8.5 20.5 9.1 V17.9 C 20.5 18.5 20 19 19.4 19 H4.6 C 4 19 3.5 18.5 3.5 17.9 V9.1 C 3.5 8.5 4 8 4.6 8 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="13.4" r="3.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; white-space: nowrap">Photograph the list</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">📸 Log a bottle</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M10.6 2.8 H13.4 V7.4 C 13.4 9 15.7 9.9 15.7 12.3 V20.2 C 15.7 20.75 15.25 21.2 14.7 21.2 H9.3 C 8.75 21.2 8.3 20.75 8.3 20.2 V12.3 C 8.3 9.9 10.6 9 10.6 7.4 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 5 H13.4 M8.3 13.8 H15.7 M8.3 18 H15.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; white-space: nowrap">Log a bottle</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🖼 Upload a picture</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><rect x="3.5" y="5.5" width="17" height="13" rx="1.4" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16.4 L9 11.6 L12.4 15 L14.9 12.8 L20 17.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="15.6" cy="9.3" r="1.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; white-space: nowrap">Upload a picture</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🔗 Paste a link</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(-45 12 12)"><rect x="2.4" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="10.6" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; white-space: nowrap">Paste a link</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🔍 Search</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 15 L20.2 20.2" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px; white-space: nowrap">Search</span></span>
+        </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">In place</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">The entry's circle, the running head and the service bar.</p>
+        </div>
+        <div style="display: flex; flex-direction: column">
+          <div style="display: flex; align-items: center; gap: 10px; min-height: 56px; border-top: 1px solid rgba(27,61,47,0.2)">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 20px; font-weight: 600; white-space: nowrap">Match the wine list</span>
+            <span style="flex-grow: 1; border-bottom: 1.5px dotted rgba(27,61,47,0.45); transform: translateY(-4px)"></span>
+            <span style="width: 34px; height: 34px; border-radius: 50%; background: #8B2332; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.2 3.5 H16.8 C 17.2 3.5 17.5 3.8 17.5 4.2 V19.8 C 17.5 20.2 17.2 20.5 16.8 20.5 H7.2 C 6.8 20.5 6.5 20.2 6.5 19.8 V4.2 C 6.5 3.8 6.8 3.5 7.2 3.5 Z" fill="none" stroke="#F5F0E8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 8 H14.8 M9.2 11.6 H14.8 M9.2 15.2 H12.6" fill="none" stroke="#F5F0E8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; min-height: 56px; border-top: 1px dotted rgba(27,61,47,0.3)">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 20px; white-space: nowrap">Upload a picture</span>
+            <span style="flex-grow: 1; border-bottom: 1.5px dotted rgba(27,61,47,0.45); transform: translateY(-4px)"></span>
+            <span style="width: 34px; height: 34px; border-radius: 50%; border: 1.3px solid #8B2332; box-sizing: border-box; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><rect x="3.5" y="5.5" width="17" height="13" rx="1.4" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16.4 L9 11.6 L12.4 15 L14.9 12.8 L20 17.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="15.6" cy="9.3" r="1.3" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; min-height: 56px; border-top: 1px dotted rgba(27,61,47,0.3)">
+            <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 20px; white-space: nowrap">Paste a link</span>
+            <span style="flex-grow: 1; border-bottom: 1.5px dotted rgba(27,61,47,0.45); transform: translateY(-4px)"></span>
+            <span style="width: 34px; height: 34px; border-radius: 50%; border: 1.3px solid #8B2332; box-sizing: border-box; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(-45 12 12)"><rect x="2.4" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><rect x="10.6" y="9.3" width="11" height="5.4" rx="2.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></g></svg></span>
+          </div>
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); align-items: center; min-height: 56px; margin-top: 14px; border-top: 1px solid rgba(27,61,47,0.2); border-bottom: 1px solid rgba(27,61,47,0.2)">
+            <a href="#" style="display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600; text-decoration: none"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.2 3.5 H16.8 C 17.2 3.5 17.5 3.8 17.5 4.2 V19.8 C 17.5 20.2 17.2 20.5 16.8 20.5 H7.2 C 6.8 20.5 6.5 20.2 6.5 19.8 V4.2 C 6.5 3.8 6.8 3.5 7.2 3.5 Z" fill="none" stroke="#8B2332" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 8 H14.8 M9.2 11.6 H14.8 M9.2 15.2 H12.6" fill="none" stroke="#8B2332" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Match a list</a>
+            <span style="height: 24px; background: rgba(27,61,47,0.2)"></span>
+            <a href="#" style="display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600; text-decoration: none; color: #1B3D2F"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M10.6 2.8 H13.4 V7.4 C 13.4 9 15.7 9.9 15.7 12.3 V20.2 C 15.7 20.75 15.25 21.2 14.7 21.2 H9.3 C 8.75 21.2 8.3 20.75 8.3 20.2 V12.3 C 8.3 9.9 10.6 9 10.6 7.4 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 5 H13.4 M8.3 13.8 H15.7 M8.3 18 H15.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Log a bottle</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div style="display: flex; flex-direction: column; gap: 22px">
+      <h2 style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: rgba(27,61,47,0.75)">Flags and moments</h2>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">Flags</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">Staying as they are: the one place emoji remain.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; border-bottom: 1px solid rgba(27,61,47,0.2)">
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🇿🇦 South Africa</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span aria-hidden="true" style="font-size: 16px">🇿🇦</span><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px">South Africa</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🇫🇷 France</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><span aria-hidden="true" style="font-size: 16px">🇫🇷</span><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 16px">France</span></span>
+        </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">Moments</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">Your palate's history, in a proofreader's pencil: added, struck, became, began.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; border-bottom: 1px solid rgba(27,61,47,0.2)">
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🧬 … joined your DNA</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 5.4 C 12.2 9 11.8 15 12.1 18.7 M5.3 12.2 C 9 11.8 15 12.3 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 15px;  white-space: nowrap">Chenin Blanc joined your DNA</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🍂 … left your DNA</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M5.3 12.2 C 9 11.6 15 12.5 18.8 11.9" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 15px;  white-space: nowrap">Merlot left your DNA</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">✨ You became …</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M4.4 12.3 C 9 11.8 14 12.4 19.2 12 M14.2 7.4 C 15.8 9.3 17.5 10.8 19.4 12 C 17.6 13.3 16 14.9 14.5 16.8" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 15px; font-weight: 600; white-space: nowrap">You became The Mosel Purist</span></span>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 0.9fr) 18px minmax(0, 1.1fr); align-items: center; gap: 8px; min-height: 32px; border-top: 1px dotted rgba(27,61,47,0.3)">
+          <span style="font-size: 14px; color: rgba(27,61,47,0.75); white-space: nowrap">🎉 Your palate began</span>
+          <span aria-hidden="true" style="font-size: 13px; color: rgba(27,61,47,0.75)">→</span>
+          <span style="display: flex; align-items: center; gap: 8px; min-width: 0"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M12 9.6 C 13.5 9.5 14.5 10.7 14.4 12.1 C 14.3 13.6 13.1 14.5 11.8 14.4 C 10.4 14.3 9.5 13.1 9.6 11.8 C 9.7 10.5 10.7 9.6 12 9.6 Z" fill="#8B2332"/></svg><span style="font-family: 'Playfair Display',Georgia,serif; font-size: 15px;  white-space: nowrap">Your palate began</span></span>
+        </div>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 17px; font-weight: 600">The big moment</h3>
+          <p style="margin: 0; font-size: 13px; line-height: 1.4; color: rgba(27,61,47,0.75)">No icon. The bloom is the picture; the pencil underlines the news.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid rgba(27,61,47,0.2); padding-top: 14px">
+          <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332">Your DNA just grew</span>
+          <p style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 24px; font-weight: 700; line-height: 1.25"><span style="position: relative; display: inline-block">Meerlust<svg viewBox="0 0 200 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: -2px; bottom: -5px; width: calc(100% + 4px); height: 7px; overflow: visible"><path d="M2 4.5 C 40 1.5 80 6.5 120 3.5 C 150 1.5 180 5.5 198 3" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span> just joined your DNA</p>
+          <p style="margin: 0; font-size: 14px; line-height: 1.45; color: rgba(27,61,47,0.75)">Two loved bottles made the case. We’ll look for it on every list you scan.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></section><section><h2>The journal (settled: no penciling on arrival)</h2><div style="width: 390px; height: 844px; box-sizing: border-box; background: #F5F0E8; color: #1B3D2F; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; display: flex; flex-direction: column; overflow: hidden">
+  <div style="flex-grow: 1; padding: 20px 28px 0; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; align-items: center; min-height: 44px; border-bottom: 1px solid rgba(27,61,47,0.2)">
+      <a href="#" style="font-size: 15px; color: #1B3D2F; text-decoration: none; min-height: 44px; display: flex; align-items: center">‹ Home</a>
+      <span style="flex-grow: 1; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase">Journal</span>
+      <button type="button" aria-label="Search" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: flex-end; background: none; border: none; padding: 0; cursor: pointer"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex-shrink: 0; display: block"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 15 L20.2 20.2" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <h1 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 34px; font-weight: 700; line-height: 1.1">Journal</h1>
+    <div style="display: flex; gap: 22px; border-bottom: 1px solid rgba(27,61,47,0.2)"><a href="#" style="font-size: 15px; font-weight: 600; color: #8B2332; border-bottom: 2px solid #8B2332; text-decoration: none; min-height: 44px; display: flex; align-items: center">Tried 5</a><a href="#" style="font-size: 15px; color: #1B3D2F; text-decoration: none; min-height: 44px; display: flex; align-items: center">Want 4</a><a href="#" style="font-size: 15px; color: #1B3D2F; text-decoration: none; min-height: 44px; display: flex; align-items: center">Passed 2</a><a href="#" style="font-size: 15px; color: #1B3D2F; text-decoration: none; min-height: 44px; display: flex; align-items: center">Timeline</a></div>
+    <div style="display: flex; flex-direction: column">
+      <h2 style="margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(27,61,47,0.75)">November</h2>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; min-height: 60px; border-top: 1px solid rgba(27,61,47,0.2); text-decoration: none; color: #1B3D2F">
+      <span style="width: 32px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+        <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 17px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Meerlust Rubicon 2019<svg viewBox="0 0 200 8" preserveAspectRatio="none" aria-hidden="true" style="position: absolute; left: -2px; bottom: -5px; width: calc(100% + 4px); height: 7px; overflow: visible"><path d="M2 4.5 C 40 1.5 80 6.5 120 3.5 C 150 1.5 180 5.5 198 3" fill="none" stroke="#8B2332" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg></span></span>
+        <span style="font-size: 13px; color: rgba(27,61,47,0.75)">Loved it · Stellenbosch · Nov 8</span>
+      </span>
+    </a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; min-height: 60px; border-top: 1px dotted rgba(27,61,47,0.3); text-decoration: none; color: #1B3D2F">
+      <span style="width: 32px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50 M7.57 9.65 L8.64 8.70 M9.82 8.69 L7.94 10.42 M8.45 11.05 L10.86 8.87 M11.78 8.85 L9.18 11.45 M9.73 12.03 L13.06 8.77 M14.13 8.88 L10.54 12.34 M11.42 12.61 L15.26 8.87 M16.25 9.03 L12.71 12.58 M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+        <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 17px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Ken Forrester Old Vine Chenin</span></span>
+        <span style="font-size: 13px; color: rgba(27,61,47,0.75)">Liked it · Stellenbosch · Nov 2</span>
+      </span>
+    </a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; min-height: 60px; border-top: 1px dotted rgba(27,61,47,0.3); border-bottom: 1px solid rgba(27,61,47,0.2); text-decoration: none; color: #1B3D2F">
+      <span style="width: 32px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+        <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 17px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Kanonkop Kadette Cape Blend</span></span>
+        <span style="font-size: 13px; color: #8B2332">Verdict pending · how was it?</span>
+      </span>
+    </a>
+    </div>
+    <div style="display: flex; flex-direction: column">
+      <h2 style="margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(27,61,47,0.75)">October</h2>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; min-height: 60px; border-top: 1px solid rgba(27,61,47,0.2); text-decoration: none; color: #1B3D2F">
+      <span style="width: 32px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70 M8.90 11.66 L9.56 10.94 M10.78 11.19 L9.82 11.97 M10.59 12.20 L11.79 10.97 M12.87 11.14 L11.39 12.52 M12.73 12.63 L14.08 11.13 M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+        <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 17px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Zenato Valpolicella Superiore</span></span>
+        <span style="font-size: 13px; color: rgba(27,61,47,0.75)">It was fine · Veneto · Oct 28</span>
+      </span>
+    </a>
+    <a href="#" style="display: flex; align-items: center; gap: 12px; min-height: 60px; border-top: 1px dotted rgba(27,61,47,0.3); border-bottom: 1px solid rgba(27,61,47,0.2); text-decoration: none; color: #1B3D2F">
+      <span style="width: 32px; display: flex; justify-content: center; flex-shrink: 0"><svg viewBox="2 1.85 20 20" width="30" height="30" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(180 12 11.85)"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></g></svg></span>
+      <span style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+        <span style="font-family: 'Playfair Display',Georgia,serif; font-size: 17px; line-height: 1.25"><span style="position: relative; display: inline-block; ">Newton Unfiltered Chardonnay</span></span>
+        <span style="font-size: 13px; color: rgba(27,61,47,0.75)">Not for me · Napa Valley · Oct 19</span>
+      </span>
+    </a>
+    </div>
+  </div>
+  <nav aria-label="Quick actions" style="display: grid; grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr); align-items: center; padding: 6px 16px 14px; border-top: 1px solid rgba(27,61,47,0.14)">
+    <a href="#" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600; text-decoration: none"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.2 3.5 H16.8 C 17.2 3.5 17.5 3.8 17.5 4.2 V19.8 C 17.5 20.2 17.2 20.5 16.8 20.5 H7.2 C 6.8 20.5 6.5 20.2 6.5 19.8 V4.2 C 6.5 3.8 6.8 3.5 7.2 3.5 Z" fill="none" stroke="#8B2332" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2 8 H14.8 M9.2 11.6 H14.8 M9.2 15.2 H12.6" fill="none" stroke="#8B2332" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Match a list</a>
+    <span style="height: 24px; background: rgba(27,61,47,0.14)"></span>
+    <a href="#" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 48px; font-family: 'Playfair Display',Georgia,serif; font-size: 16px; font-weight: 600; text-decoration: none; color: #1B3D2F"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M10.6 2.8 H13.4 V7.4 C 13.4 9 15.7 9.9 15.7 12.3 V20.2 C 15.7 20.75 15.25 21.2 14.7 21.2 H9.3 C 8.75 21.2 8.3 20.75 8.3 20.2 V12.3 C 8.3 9.9 10.6 9 10.6 7.4 Z" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 5 H13.4 M8.3 13.8 H15.7 M8.3 18 H15.7" fill="none" stroke="#1B3D2F" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>Log a bottle</a>
+  </nav>
+</div></section>
+<section><h2>Rating: where the pencil is drawn (tap a glass)</h2><div style="width: 390px; box-sizing: border-box; padding: 24px 28px; background: #F5F0E8; color: #1B3D2F; font-family: 'Source Sans 3','Source Sans Pro',-apple-system,sans-serif; display: flex; flex-direction: column; gap: 16px">
+  <h3 style="margin: 0; font-family: 'Playfair Display',Georgia,serif; font-size: 24px">Kanonkop Kadette Cape Blend</h3>
+  <p style="margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #8B2332">How was it?</p>
+  <div class="tiles">
+    <button type="button" class="tile" data-key="loved"><span class="on"><svg viewBox="2 1.85 20 20" width="48" height="48" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" opacity="0.22"/><path class="pen" pathLength="1" d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.05s; animation-duration: 0.36s"/><path class="pen" pathLength="1" d="M7.81 6.46 L8.35 5.80" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.37s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M9.60 5.60 L7.59 7.79" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.45s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M7.35 8.90 L10.79 5.73" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.52s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M11.92 5.83 L7.60 9.99" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.59s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M7.88 10.65 L12.81 5.65" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.67s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M13.93 5.71 L8.51 11.32" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.74s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M9.27 11.64 L15.32 5.59" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.82s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M16.12 6.12 L9.92 12.21" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.90s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M10.66 12.35 L16.02 7.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.97s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M16.64 7.65 L11.87 12.56" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.04s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M12.69 12.70 L16.59 8.88" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.12s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 1.19s; animation-duration: 0.2s"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="off"><svg viewBox="2 1.85 20 20" width="48" height="48" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.90 5.42 C 10.50 5.08 13.50 5.60 16.10 5.30 M7.81 6.46 L8.35 5.80 M9.60 5.60 L7.59 7.79 M7.35 8.90 L10.79 5.73 M11.92 5.83 L7.60 9.99 M7.88 10.65 L12.81 5.65 M13.93 5.71 L8.51 11.32 M9.27 11.64 L15.32 5.59 M16.12 6.12 L9.92 12.21 M10.66 12.35 L16.02 7.06 M16.64 7.65 L11.87 12.56 M12.69 12.70 L16.59 8.88 M16.22 10.19 L14.43 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" opacity="0.22"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Loved it</span></button>
+    <button type="button" class="tile" data-key="liked"><span class="on"><svg viewBox="2 1.85 20 20" width="48" height="48" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50 M7.57 9.65 L8.64 8.70 M9.82 8.69 L7.94 10.42 M8.45 11.05 L10.86 8.87 M11.78 8.85 L9.18 11.45 M9.73 12.03 L13.06 8.77 M14.13 8.88 L10.54 12.34 M11.42 12.61 L15.26 8.87 M16.25 9.03 L12.71 12.58 M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" opacity="0.22"/><path class="pen" pathLength="1" d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.05s; animation-duration: 0.36s"/><path class="pen" pathLength="1" d="M7.57 9.65 L8.64 8.70" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.37s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M9.82 8.69 L7.94 10.42" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.45s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M8.45 11.05 L10.86 8.87" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.52s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M11.78 8.85 L9.18 11.45" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.59s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M9.73 12.03 L13.06 8.77" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.67s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M14.13 8.88 L10.54 12.34" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.74s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M11.42 12.61 L15.26 8.87" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.82s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M16.25 9.03 L12.71 12.58" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.90s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.97s; animation-duration: 0.2s"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="off"><svg viewBox="2 1.85 20 20" width="48" height="48" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.21 8.62 C 10.50 8.28 13.50 8.80 16.79 8.50 M7.57 9.65 L8.64 8.70 M9.82 8.69 L7.94 10.42 M8.45 11.05 L10.86 8.87 M11.78 8.85 L9.18 11.45 M9.73 12.03 L13.06 8.77 M14.13 8.88 L10.54 12.34 M11.42 12.61 L15.26 8.87 M16.25 9.03 L12.71 12.58 M13.98 12.20 L16.47 9.82" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" opacity="0.22"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Liked it</span></button>
+    <button type="button" class="tile" data-key="fine"><span class="on"><svg viewBox="2 1.85 20 20" width="48" height="48" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70 M8.90 11.66 L9.56 10.94 M10.78 11.19 L9.82 11.97 M10.59 12.20 L11.79 10.97 M12.87 11.14 L11.39 12.52 M12.73 12.63 L14.08 11.13 M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" opacity="0.22"/><path class="pen" pathLength="1" d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.05s; animation-duration: 0.36s"/><path class="pen" pathLength="1" d="M8.90 11.66 L9.56 10.94" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.37s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M10.78 11.19 L9.82 11.97" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.45s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M10.59 12.20 L11.79 10.97" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.52s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M12.87 11.14 L11.39 12.52" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.59s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M12.73 12.63 L14.08 11.13" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.67s; animation-duration: 0.2s"/><path class="pen" pathLength="1" d="M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" style="animation-delay: 0.74s; animation-duration: 0.2s"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="off"><svg viewBox="2 1.85 20 20" width="48" height="48" aria-hidden="true" style="flex-shrink: 0; display: block"><path d="M7.66 10.82 C 10.50 10.48 13.50 11.00 16.34 10.70 M8.90 11.66 L9.56 10.94 M10.78 11.19 L9.82 11.97 M10.59 12.20 L11.79 10.97 M12.87 11.14 L11.39 12.52 M12.73 12.63 L14.08 11.13 M15.12 11.09 L14.10 12.06" fill="none" stroke="#8B2332" stroke-width="0.62" stroke-linecap="round" opacity="0.22"/><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>It was fine</span></button>
+    <button type="button" class="tile" data-key="not_for_me"><span class="on"><svg class="flip" viewBox="2 1.85 20 20" width="48" height="48" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(180 12 11.85)"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></g></svg></span><span class="off"><svg viewBox="2 1.85 20 20" width="48" height="48" aria-hidden="true" style="flex-shrink: 0; display: block"><g transform="rotate(180 12 11.85)"><path d="M8.1 3 C 7.1 5.4 6.5 7 6.5 8.7 C 6.5 11.5 8.9 13.5 12 13.5 C 15.1 13.5 17.5 11.5 17.5 8.7 C 17.5 7 16.9 5.4 15.9 3 Z" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 13.5 V20.1 M8.5 20.6 C 10 20.3 14 20.3 15.5 20.6" fill="none" stroke="#1B3D2F" stroke-width="1.08" stroke-linecap="round" stroke-linejoin="round"/></g></svg></span><span>Not for me</span></button>
+  </div>
+  <p id="said" style="margin: 0; font-size: 14px; color: rgba(27,61,47,0.75)">Tap a glass to pencil it in. Tap it again to rub it out.</p>
+</div></section>
+</main>
+<script>
+document.querySelectorAll('.tile').forEach(function (t) {
+  t.addEventListener('click', function () {
+    var was = t.classList.contains('picked');
+    document.querySelectorAll('.tile').forEach(function (o) { o.classList.remove('picked'); });
+    if (!was) t.classList.add('picked');
+  });
+});
+</script>
+</body>
+</html>
