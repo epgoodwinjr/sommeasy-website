@@ -45,6 +45,7 @@ async function test(name, fn) {
     console.log(`  ✗ ${name}\n    ${err.message}`);
   }
 }
+function assert(cond, msg) { if (!cond) throw new Error("ASSERT FAILED: " + msg); }
 function assertEq(actual, expected, msg) {
   const a = JSON.stringify(actual), e = JSON.stringify(expected);
   if (a !== e) throw new Error(`ASSERT FAILED: ${msg} — expected ${e}, got ${a}`);
@@ -52,6 +53,7 @@ function assertEq(actual, expected, msg) {
 
 async function main() {
   const copy = await import("../houseCopy.js");
+  const await_marks = await import("../../components/house/marks.js");
   const { PROMOTION_THRESHOLDS, RATING_POINTS, CONFIDENCE_GATE } = await import("../dnaThresholds.js");
   const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
   const toPromote = (dim) => Math.ceil(PROMOTION_THRESHOLDS[dim] / RATING_POINTS.loved);
@@ -139,12 +141,12 @@ async function main() {
   await test("a promotion is the first consequence", () => {
     assertEq(
       copy.verdictReply({ rating: "loved", promotions: [{ displayName: "Hemel-en-Aarde" }] }),
-      "❤️ Loved it — noted. Hemel-en-Aarde just joined your DNA.",
+      "Loved it — noted. Hemel-en-Aarde just joined your DNA.",
       "promotion line",
     );
     assertEq(
       copy.verdictReply({ rating: "liked", promotions: [{ displayName: "Chenin Blanc" }] }),
-      "👍 Liked it — noted. Chenin Blanc just joined your DNA.",
+      "Liked it — noted. Chenin Blanc just joined your DNA.",
       "any rating that promotes",
     );
   });
@@ -152,25 +154,25 @@ async function main() {
   await test("a loved bottle names its nearest dimension, in words", () => {
     assertEq(
       copy.verdictReply({ rating: "loved", promotions: [], nearest: { name: "Hemel-en-Aarde", n: 2 } }),
-      "❤️ Loved it — noted. Hemel-en-Aarde is now two loved bottles from joining your DNA.",
+      "Loved it — noted. Hemel-en-Aarde is now two loved bottles from joining your DNA.",
       "plural",
     );
     assertEq(
       copy.verdictReply({ rating: "loved", nearest: { name: "Raats", n: 1 } }),
-      "❤️ Loved it — noted. Raats is now one loved bottle from joining your DNA.",
+      "Loved it — noted. Raats is now one loved bottle from joining your DNA.",
       "singular",
     );
   });
 
   await test("otherwise, the rating's own line", () => {
     assertEq(copy.verdictReply({ rating: "loved" }),
-      "❤️ Loved it — noted. Loved bottles pull hardest — your next picks will lean its way.", "loved");
+      "Loved it — noted. Loved bottles pull hardest — your next picks will lean its way.", "loved");
     assertEq(copy.verdictReply({ rating: "liked", nearest: { name: "X", n: 1 } }),
-      "👍 Liked it — noted. A gentle nudge — your DNA leans a little its way.", "nearest is for loved only");
+      "Liked it — noted. A gentle nudge — your DNA leans a little its way.", "nearest is for loved only");
     assertEq(copy.verdictReply({ rating: "fine" }),
-      "😐 It was fine — noted. We’ll weigh it lightly next time.", "fine");
+      "It was fine — noted. We’ll weigh it lightly next time.", "fine");
     assertEq(copy.verdictReply({ rating: "not_for_me" }),
-      "👎 Not for me — noted. We’ll steer you around it next time.", "not for me");
+      "Not for me — noted. We’ll steer you around it next time.", "not for me");
   });
 
   await test("an unknown rating is silence", () => {
@@ -182,8 +184,8 @@ async function main() {
   // tap is read when the line takes focus; what the engine adds is spoken by
   // a status region that holds nothing else.
   await test("the noted line is what is known at the tap — and every reply opens with it", () => {
-    assertEq(copy.verdictNoted("loved"), "❤️ Loved it — noted.", "loved");
-    assertEq(copy.verdictNoted("not_for_me"), "👎 Not for me — noted.", "not for me");
+    assertEq(copy.verdictNoted("loved"), "Loved it — noted.", "loved");
+    assertEq(copy.verdictNoted("not_for_me"), "Not for me — noted.", "not for me");
     assertEq(copy.verdictNoted("meh"), null, "junk rating");
     for (const rating of ["loved", "liked", "fine", "not_for_me"]) {
       const reply = copy.verdictReply({ rating, promotions: [{ displayName: "Raats" }] });
@@ -217,23 +219,28 @@ async function main() {
 
   await test("a shift takes the eyebrow, the headline and the sub", () => {
     assertEq(copy.savedCopy({ rating: "loved", promotions: [], shift, isFirst: false }), {
-      eyebrow: "✨ Your palate shifted",
+      eyebrow: "Your palate shifted",
+      glass: null,
       headline: "You became The Mosel Purist",
+      emphasis: null,
       sub: "Slate, sugar and patience",
       lines: [],
-    }, "shift");
+    }, "shift: plain small caps, no glass — the bloom is the picture");
   });
 
   await test("promotions a shift pushed aside become lines under the recap", () => {
     const out = copy.savedCopy({ rating: "loved", promotions: [{ displayName: "Ken Forrester", dimension: "estate" }], shift });
     assertEq(out.headline, "You became The Mosel Purist", "shift keeps the headline");
-    assertEq(out.lines, ["🧬 Ken Forrester joined your DNA"], "promotion line");
+    assertEq(out.lines, [{ mark: "plus", text: "Ken Forrester joined your DNA" }], "promotion line, a pencilled plus");
+    assertEq(out.emphasis, null, "the title headlines — nothing in it is underlined");
   });
 
   await test("a promotion says how many loved bottles made the case", () => {
     assertEq(copy.savedCopy({ rating: "loved", promotions: [{ displayName: "Ken Forrester", dimension: "estate" }] }), {
-      eyebrow: "🧬 Your DNA just grew",
+      eyebrow: "Your DNA just grew",
+      glass: null,
       headline: "Ken Forrester just joined your DNA",
+      emphasis: "Ken Forrester",
       sub: `${cap(WORDS[toPromote("estate")])} loved bottles made the case — we’ll look for it on every list you scan.`,
       lines: [],
     }, "estate");
@@ -247,18 +254,22 @@ async function main() {
       promotions: [{ displayName: "Ken Forrester", dimension: "estate" }, { displayName: "Stellenbosch", dimension: "region" }],
     });
     assertEq(out.headline, "Ken Forrester just joined your DNA", "first promotion headlines");
-    assertEq(out.lines, ["🧬 Stellenbosch joined your DNA"], "the roll-up is a line");
+    assertEq(out.lines, [{ mark: "plus", text: "Stellenbosch joined your DNA" }], "the roll-up is a line");
+    assertEq(out.emphasis, "Ken Forrester", "the pencil underlines what headlined");
+    assert(out.headline.startsWith(out.emphasis), "the emphasis is part of the headline, as written");
   });
 
   await test("demotions are reported under the recap", () => {
     const out = copy.savedCopy({ rating: "not_for_me", demotions: [{ displayName: "Pinotage" }] });
-    assertEq(out.lines, ["🍂 Pinotage left your DNA"], "demotion line");
+    assertEq(out.lines, [{ mark: "minus", text: "Pinotage left your DNA" }], "demotion line, a pencilled minus");
   });
 
   await test("the first rated bottle ever gets its own headline", () => {
     assertEq(copy.savedCopy({ rating: "fine", promotions: [], isFirst: true }), {
-      eyebrow: "😐 It was fine",
+      eyebrow: "It was fine",
+      glass: "fine",
       headline: "Your first entry is in",
+      emphasis: null,
       sub: "The Somm just rewrote your list around it — two more selections are open.",
       lines: [],
     }, "first");
@@ -266,8 +277,10 @@ async function main() {
 
   await test("otherwise: the rating, noted, and its line", () => {
     assertEq(copy.savedCopy({ rating: "liked", promotions: [] }), {
-      eyebrow: "👍 Liked it",
+      eyebrow: "Liked it",
+      glass: "liked",
       headline: "Noted in your journal",
+      emphasis: null,
       sub: "A gentle nudge — your DNA leans a little its way.",
       lines: [],
     }, "liked");
@@ -290,9 +303,9 @@ async function main() {
     const now = new Date("2026-10-30T12:00:00Z").getTime();
     const day = 24 * 60 * 60 * 1000;
     assertEq(copy.whisperLine({ event_type: "promoted", display_name: "Chenin Blanc", event_at: new Date(now - 3 * day).toISOString() }, now),
-      "🧬 Chenin Blanc just joined your DNA", "promotion");
+      "Chenin Blanc just joined your DNA", "promotion");
     assertEq(copy.whisperLine({ event_type: "shifted", display_name: "The Mosel Purist", event_at: new Date(now - day).toISOString() }, now),
-      "✨ You became The Mosel Purist", "shift");
+      "You became The Mosel Purist", "shift");
     assertEq(copy.whisperLine({ event_type: "promoted", display_name: "Old News", event_at: new Date(now - 31 * day).toISOString() }, now),
       null, "too old");
     assertEq(copy.whisperLine({ event_type: "demoted", display_name: "X", event_at: new Date(now).toISOString() }, now),
@@ -333,9 +346,10 @@ async function main() {
   });
 
   await test("done lines after a rec action", () => {
-    assertEq(copy.REC_DONE.want, "📌 On your want list — we’ll flag it when it turns up on a menu.", "want");
-    assertEq(copy.REC_DONE.skip, "👋 Struck from your list.", "skip");
-    assertEq(copy.ratedDoneLine("fine"), "😐 It was fine — noted in your journal.", "rated");
+    assertEq(copy.REC_DONE.want, { mark: "star", text: "On your want list — we’ll flag it when it turns up on a menu." }, "want: starred");
+    assertEq(copy.REC_DONE.skip, { mark: null, text: "Struck from your list." }, "skip: no mark — the name is struck");
+    assert(Object.isFrozen(copy.REC_DONE) && Object.isFrozen(copy.REC_DONE.want) && Object.isFrozen(copy.REC_DONE.skip), "frozen through");
+    assertEq(copy.ratedDoneLine("fine"), "It was fine — noted in your journal.", "rated");
     assertEq(copy.ratedDoneLine("junk"), null, "junk");
   });
 
@@ -392,15 +406,15 @@ async function main() {
   await test("a pick the user rated wears the rating and the month", () => {
     const now = new Date("2026-10-30T12:00:00Z");
     assertEq(copy.pickFlag({ interaction_type: "had", rating: "loved", updated_at: "2026-08-15T12:00:00Z" }, now),
-      "❤️ Loved it in August", "this year");
+      { mark: "glass-loved", text: "Loved it in August" }, "this year");
     assertEq(copy.pickFlag({ interaction_type: "had", rating: "not_for_me", updated_at: "2025-03-15T12:00:00Z" }, now),
-      "👎 Not for me in March 2025", "another year names it");
+      { mark: "glass-down", text: "Not for me in March 2025" }, "another year names it");
     assertEq(copy.pickFlag({ interaction_type: "had", rating: "liked", updated_at: "junk" }, now),
-      "👍 Liked it", "an unreadable date drops the month");
+      { mark: "glass-liked", text: "Liked it" }, "an unreadable date drops the month");
   });
 
   await test("a want flags the pick; a pass or an unrated had doesn't", () => {
-    assertEq(copy.pickFlag({ interaction_type: "want", rating: null }), "📌 On your want list", "want");
+    assertEq(copy.pickFlag({ interaction_type: "want", rating: null }), { mark: "star", text: "On your want list" }, "want");
     assertEq(copy.pickFlag({ interaction_type: "skip", rating: null }), null, "a pass");
     assertEq(copy.pickFlag({ interaction_type: "had", rating: null }), null, "legacy had, no rating");
     assertEq(copy.pickFlag(null), null, "no row");
@@ -734,7 +748,7 @@ async function main() {
 
   await test("timeline lines: joined, left, became — one copy for the journal and the wine page", () => {
     assertEq(copy.timelineLine({ event_type: "promoted", dimension: "varietal", display_name: "Chenin Blanc" }),
-      { emoji: "🧬", text: "Chenin Blanc joined your DNA", strong: false }, "a grape");
+      { mark: "plus", text: "Chenin Blanc joined your DNA", strong: false }, "a grape");
     assertEq(copy.timelineLine({ event_type: "promoted", dimension: "estate", display_name: "Domaine Dujac" }).text,
       "Domaine Dujac joined your estates", "an estate");
     assertEq(copy.timelineLine({ event_type: "promoted", dimension: "region", display_name: "Swartland" }).text,
@@ -742,18 +756,20 @@ async function main() {
     assertEq(copy.timelineLine({ event_type: "promoted", dimension: "country", display_name: "France" }).text,
       "France joined your DNA", "a country");
     assertEq(copy.timelineLine({ event_type: "demoted", dimension: "estate", display_name: "Domaine Dujac" }),
-      { emoji: "🍂", text: "Domaine Dujac left your estates", strong: false }, "a demotion");
+      { mark: "minus", text: "Domaine Dujac left your estates", strong: false }, "a demotion");
     const shift = (from, to) => ({
       event_type: "shifted", dimension: "identity", display_name: to.title,
       dimension_value: JSON.stringify({ from, to }),
     });
     assertEq(copy.timelineLine(shift({ title: "The South African Curator" }, { title: "The Stellenbosch Loyalist", epithet: "e" })),
-      { emoji: "✨", text: "You became The Stellenbosch Loyalist", strong: true }, "a retitle");
+      { mark: "arrow", text: "You became The Stellenbosch Loyalist", strong: true }, "a retitle");
     assertEq(copy.timelineLine(shift({ title: "The Mosel Purist", epithet: "a" }, { title: "The Mosel Purist", epithet: "estate-loyal, Old World" })).text,
       "Your signature shifted — estate-loyal, Old World", "only the epithet moved");
     assertEq(copy.timelineLine({ event_type: "shifted", display_name: "The Mosel Purist", dimension_value: "{junk" }).text,
       "You became The Mosel Purist", "junk before→after falls back to the title");
-    assertEq(copy.FOUNDING_LINE.text, "Your palate began — quiz complete", "the founding row");
+    assertEq(copy.FOUNDING_LINE, { mark: "dot", text: "Your palate began — quiz complete", strong: false }, "the founding row");
+    const signature = copy.timelineLine(shift({ title: "The Mosel Purist", epithet: "a" }, { title: "The Mosel Purist", epithet: "b" }));
+    assertEq([signature.mark, signature.strong], ["arrow", true], "a signature shift is still a became");
     assertEq(copy.timelineLine({ event_type: "promoted", dimension: "varietal" }), null, "no name");
     assertEq(copy.timelineLine({ event_type: "exploded", display_name: "X" }), null, "unknown type");
     assertEq(copy.timelineLine(null), null, "junk");
@@ -767,7 +783,7 @@ async function main() {
     assertEq(copy.verdictWhere({ place: "out", somm_pick_role: "top" }), "Out", "a place beats provenance");
     assertEq(copy.verdictWhere({ somm_pick_role: "top" }), "From the list at dinner", "a Somm pick");
     assertEq(copy.verdictWhere({}), "", "nothing known");
-    assertEq(copy.keepLabel("loved"), "Keep ❤️ Loved it", "keep");
+    assertEq(copy.keepLabel("loved"), "Keep Loved it", "keep");
     assertEq(copy.keepLabel("junk"), null, "junk");
   });
 
@@ -792,12 +808,78 @@ async function main() {
     assertEq(copy.journalRowMeta(null, now), { meta: "", right: "", accent: false }, "junk");
   });
 
-  await test("a row's mark: the rating, a verdict pending, a want, a pass", () => {
-    assertEq(copy.journalMark({ interaction_type: "had", rating: "liked" }), "👍", "rated");
-    assertEq(copy.journalMark({ interaction_type: "had", rating: null }), "🥂", "had, verdict pending");
-    assertEq(copy.journalMark({ interaction_type: "want" }), "📌", "want");
-    assertEq(copy.journalMark({ interaction_type: "skip" }), "👋", "pass");
+  await test("a row's mark: the rating's glass, the empty glass for a verdict pending, a star for a want, nothing for a pass", () => {
+    assertEq(copy.journalMark({ interaction_type: "had", rating: "liked" }), "glass-liked", "rated");
+    assertEq(copy.journalMark({ interaction_type: "had", rating: "loved" }), "glass-loved", "loved");
+    assertEq(copy.journalMark({ interaction_type: "had", rating: "fine" }), "glass-fine", "fine");
+    assertEq(copy.journalMark({ interaction_type: "had", rating: "not_for_me" }), "glass-down", "not for me: turned down");
+    assertEq(copy.journalMark({ interaction_type: "had", rating: null }), "glass-empty", "had, verdict pending");
+    assertEq(copy.journalMark({ interaction_type: "want" }), "star", "want");
+    assertEq(copy.journalMark({ interaction_type: "skip" }), null, "pass: no mark — its name is struck");
     assertEq(copy.journalMark(null), null, "no row");
+  });
+
+  await test("the pencil over a row's name: a strike through a pass, an underline under a loved bottle — in the journal only", () => {
+    assertEq(copy.journalGesture({ interaction_type: "skip", rating: null }), "strike", "a pass");
+    assertEq(copy.journalGesture({ interaction_type: "skip" }, { underline: false }), "strike", "a pass is struck wherever it shows");
+    assertEq(copy.journalGesture({ interaction_type: "had", rating: "loved" }), "underline", "a loved bottle, in the journal");
+    assertEq(copy.journalGesture({ interaction_type: "had", rating: "loved" }, { underline: false }), null, "…and nowhere else");
+    for (const rating of ["liked", "fine", "not_for_me", null]) {
+      assertEq(copy.journalGesture({ interaction_type: "had", rating }), null, `had, ${rating}`);
+    }
+    assertEq(copy.journalGesture({ interaction_type: "want", rating: null }), null, "a want is starred, not underlined");
+    for (const junk of [null, undefined, "row", 3]) assertEq(copy.journalGesture(junk), null, `junk ${JSON.stringify(junk)}`);
+    // Every row wears at most one of the two: a mark, or a strike
+    for (const row of [{ interaction_type: "skip" }, { interaction_type: "want" }, { interaction_type: "had", rating: "fine" }, { interaction_type: "had" }]) {
+      assert(!(copy.journalMark(row) && copy.journalGesture(row) === "strike"), `${JSON.stringify(row)}: a mark AND a strike`);
+    }
+  });
+
+  await test("House & Hand: no line a rating, a want, a pass or a moment writes carries an emoji — the mark rides beside the words", () => {
+    const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{FE0F}]/u;
+    const said = [];
+    const say = (v) => {
+      if (typeof v === "string") said.push(v);
+      else if (Array.isArray(v)) v.forEach(say);
+      else if (v && typeof v === "object") Object.values(v).forEach(say);
+    };
+    const promo = [{ displayName: "Raats", dimension: "estate" }, { displayName: "Stellenbosch", dimension: "region" }];
+    const shifted = { shifted: true, title: "The Mosel Purist", epithet: "Slate" };
+    for (const rating of ["loved", "liked", "fine", "not_for_me"]) {
+      say(copy.verdictNoted(rating));
+      say(copy.verdictReply({ rating, promotions: promo }));
+      say(copy.verdictReply({ rating, nearest: { name: "Raats", n: 2 } }));
+      say(copy.ratedDoneLine(rating));
+      say(copy.keepLabel(rating));
+      say(copy.pickFlag({ interaction_type: "had", rating, updated_at: "2026-08-15T12:00:00Z" }));
+      say(copy.savedCopy({ rating }));
+      say(copy.savedCopy({ rating, isFirst: true }));
+      say(copy.savedCopy({ rating, promotions: promo, demotions: [{ displayName: "Pinotage" }] }));
+      say(copy.savedCopy({ rating, promotions: promo, shift: shifted }));
+    }
+    say(copy.REC_DONE);
+    say(copy.pickFlag({ interaction_type: "want" }));
+    say(copy.FOUNDING_LINE);
+    for (const event_type of ["promoted", "demoted", "shifted"]) {
+      const event = { event_type, dimension: "estate", display_name: "Raats", event_at: new Date().toISOString() };
+      say(copy.timelineLine(event));
+      say(copy.whisperLine(event));
+    }
+    assert(said.length > 60, `the sweep saw the lines (${said.length})`);
+    const offenders = said.filter((line) => emoji.test(line));
+    assertEq(offenders, [], "a mark is a named mark beside plain words, never a character in the string");
+    // Every mark these hand back is a mark ID the set knows
+    const marks = await_marks;
+    const ids = [
+      ...["loved", "liked", "fine", "not_for_me"].map((rating) => copy.pickFlag({ interaction_type: "had", rating }).mark),
+      copy.pickFlag({ interaction_type: "want" }).mark, copy.REC_DONE.want.mark, copy.FOUNDING_LINE.mark,
+      copy.timelineLine({ event_type: "promoted", display_name: "X" }).mark,
+      copy.timelineLine({ event_type: "demoted", display_name: "X" }).mark,
+      copy.timelineLine({ event_type: "shifted", display_name: "X" }).mark,
+      copy.journalMark({ interaction_type: "had" }), copy.journalMark({ interaction_type: "want" }),
+      ...copy.savedCopy({ rating: "loved", promotions: promo, demotions: [{ displayName: "P" }], shift: shifted }).lines.map((l) => l.mark),
+    ];
+    for (const id of ids) assert(marks.MARK_IDS.includes(id), `"${id}" is not a mark in the set`);
   });
 
   await test("the wine page's meta line and particulars: only what's known, region with its province", () => {

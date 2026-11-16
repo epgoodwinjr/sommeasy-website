@@ -33,6 +33,7 @@ import TextAction from "@/components/house/TextAction";
 import EmptyState from "@/components/house/EmptyState";
 import Enter from "@/components/house/Enter";
 import SwapLine from "@/components/house/SwapLine";
+import PencilGlass from "@/components/house/PencilGlass";
 import WriteIn from "@/components/house/WriteIn";
 import useStagger from "@/components/house/useStagger";
 import { HOME, ROW_STEP, prefersReducedMotion } from "@/components/house/motion";
@@ -85,6 +86,8 @@ const smallCaps = {
 const replyLine = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5, color: BURGUNDY, marginTop: 12,
 };
+// The reply's glass sits in its first line, printed in ink
+const replyGlass = { verticalAlign: "-4px", marginRight: 7, color: INK };
 const footerLink = {
   fontFamily: SANS, fontSize: "13px", fontWeight: 600, lineHeight: "20px", color: BURGUNDY,
   padding: "12px 0", textDecoration: "none", whiteSpace: "nowrap",
@@ -101,9 +104,11 @@ const sameWine = (a, b) =>
 
 const VERDICT_SAVE_FAILED = "Couldn’t save — try again from your journal.";
 
-/** From last night's reply, written in: "❤️ Loved it — noted." at once, and
+/** From last night's reply, written in: "Loved it — noted." at once, and
  *  what the rating did written after it when the engine answers. The line's
- *  text is the reply's, whole, at every moment.
+ *  text is the reply's, whole, at every moment. The rating's glass is set
+ *  before it, pencilled in as the reply arrives (House & Hand, H3) — a
+ *  sibling of the written words, never inside them.
  *
  *  It is SAID once (docs/motion README §15.2). The noted line is read when
  *  the reply takes focus. What arrives after that — `more` — is hidden from
@@ -470,7 +475,12 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           <p ref={replyRef} tabIndex={-1} data-testid="verdict-reply" style={{ ...replyLine, outline: "none" }}>
             {failed
               ? <span aria-hidden="true">{VERDICT_SAVE_FAILED}</span>
-              : <WrittenReply {...replyParts(verdictNoted(rating), reply)} />}
+              : (
+                <>
+                  <PencilGlass rating={rating} size={20} draw="line" style={replyGlass} />
+                  <WrittenReply {...replyParts(verdictNoted(rating), reply)} />
+                </>
+              )}
           </p>
         ) : (
           <Enter kind="fade" delay={at + HOME.follow + ROW_STEP}>

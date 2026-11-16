@@ -203,7 +203,7 @@ test.describe("Evidence ledger — /recommend rating feeds DNA (hard-fail)", () 
     // (which retired the "Rating saved!" toast)
     await card.getByRole("button", { name: "Had it? Rate it" }).click();
     await card.getByTestId("rating-tile-loved").click();
-    await expect(card).toContainText("❤️ Loved it — noted in your journal.");
+    await expect(card).toContainText("Loved it — noted in your journal.");
 
     // The interaction row lands AND resolution stamps it — the metadata
     // write happens inside resolveAndAccumulate a beat after the upsert,

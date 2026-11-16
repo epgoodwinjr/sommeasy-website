@@ -23,6 +23,8 @@ import {
   BURGUNDY, COLUMN, CREAM, GRADIENT, GUTTER, INK, SANS, SERIF, TYPE, ink,
 } from "@/components/house/tokens";
 import { numeralCounter } from "@/lib/numerals";
+import { savedCopy } from "@/lib/houseCopy";
+import SavedStep from "@/app/log/SavedStep";
 import { RATINGS } from "@/lib/ratings";
 
 const TOOLS = [
@@ -258,6 +260,32 @@ function Gestures() {
   );
 }
 
+// Log's saved step on a promotion with no shift — the one path a test
+// account can't reach on demand (Session 2): the eyebrow in plain small
+// caps, the news underlined once the headline is written, a second
+// promotion and a demotion as pencilled lines. Sample content; no bloom.
+const MOMENT = {
+  name: "Meerlust Rubicon 2019", rating: "loved", meta: "Stellenbosch · Bordeaux blend",
+  genome: null, genomeBefore: null, moment: null,
+  copy: savedCopy({
+    rating: "loved",
+    promotions: [{ displayName: "Meerlust", dimension: "estate" }, { displayName: "Stellenbosch", dimension: "region" }],
+    demotions: [{ displayName: "Merlot" }],
+  }),
+};
+
+function Moment() {
+  const [plays, setPlays] = useState(0);
+  return (
+    <>
+      <div data-testid="specimen-moment">
+        <SavedStep key={plays} saved={MOMENT} onLogAnother={() => setPlays((n) => n + 1)} />
+      </div>
+      <p style={caption}>Log’s saved step when something joins your DNA. “Log another bottle” plays it again.</p>
+    </>
+  );
+}
+
 export default function MarksSpecimen() {
   // Hydrated: e2e/marks.spec.ts waits for this before it taps
   const [ready, setReady] = useState(false);
@@ -280,7 +308,9 @@ export default function MarksSpecimen() {
         <SectionHead numeral={numeral()} label="Pencilled in" style={head} />
         <Rating />
         <SectionHead numeral={numeral()} label="Over a name" style={head} />
-        <Gestures />
+        <div data-testid="specimen-gestures"><Gestures /></div>
+        <SectionHead numeral={numeral()} label="The big moment" style={head} />
+        <Moment />
       </div>
     </main>
   );

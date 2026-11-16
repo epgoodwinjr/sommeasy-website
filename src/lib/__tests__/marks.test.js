@@ -23,6 +23,10 @@
 //      source's loopPath value for value, deterministic, "" for a box that
 //      isn't one, every coordinate inside its box, and corners that keep
 //      one radius however tall the name is.
+//   8. SOURCE SCANS for Session 2: where the pencil plays (H3) — a glass is
+//      pencilled in only on a tile, a done line, home's reply, the wine
+//      page's verdict and Log's saved eyebrow; a gesture only where the user
+//      makes it — and no mark rides inside a written line.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -120,6 +124,8 @@ async function main() {
       assert(renderMark(RATING_MARKS[r.id]) !== "", `${r.id}'s glass renders`);
     }
     assertEq(new Set(Object.values(RATING_MARKS)).size, RATINGS.length, "four ratings, four glasses");
+    // THE rating vocabulary names the same glass (Session 2: `mark` replaced `emoji`)
+    for (const r of RATINGS) assertEq(r.mark, RATING_MARKS[r.id], `ratings.js: ${r.id}'s mark`);
   });
 
   await test("renderMark is deterministic", () => {
@@ -434,6 +440,57 @@ async function main() {
       .filter((path) => /0\.55 \* r|h \/ 2 - 1, w \/ 4/.test(readFileSync(path, "utf-8")))
       .map((path) => relative(SRC, path));
     assertEq(offenders, [], "call loopPath from @/components/house/marks");
+  });
+
+  console.log("\n═══ 8. Where the pencil plays (README §7, H3) ═══");
+
+  const SPECIMEN = join("app", "marks-specimen", "page.js"); // deleted in Session 3
+  const using = (pattern) => sourceFiles(SRC)
+    .filter((path) => pattern.test(readFileSync(path, "utf-8").replace(/^\s*(\/\/|\*|\/\*).*$/gm, "")))
+    .map((path) => relative(SRC, path))
+    .filter((path) => path !== SPECIMEN)
+    .sort();
+
+  await test("SOURCE SCAN: a glass is pencilled in only when you rate — the tile, the done line, home's reply, the wine page's verdict, Log's saved eyebrow", () => {
+    assertEq(using(/draw=\{[^}]*"tile"/), [join("components", "house", "RatingTiles.js")], 'draw "tile": the tapped tile, nowhere else');
+    assertEq(using(/draw=("line"|\{[^}]*"line")/), [
+      join("app", "log", "SavedStep.js"), join("app", "page.js"), join("app", "wine", "WinePage.js"),
+      join("components", "house", "RatingTiles.js"),
+    ].sort(), 'draw "line": that rating\'s done line, and the three surfaces that have no DoneLine');
+    // Every other glass is a settled Mark or PencilGlass: no draw at all
+    const tiles = readFileSync(join(SRC, "components", "house", "RatingTiles.js"), "utf-8");
+    assert(/<PencilGlass rating=\{rating\.id\} size=\{v\.glass\} guide draw=\{chosen \? "tile" : false\}/.test(tiles), "a tile: its guide at rest, drawn when it is the answer");
+    const list = readFileSync(join(SRC, "components", "house", "RatingList.js"), "utf-8");
+    assert(!/PencilGlass|draw=/.test(list), "Log's rating list shows settled glasses: choosing a line isn't rating yet");
+  });
+
+  await test("SOURCE SCAN: a gesture is pencilled in only where the user makes it — a pick chosen, a rec passed on, the saved step's news", () => {
+    assertEq(using(/<NameGesture[^>]*\bdraw\b/), [
+      join("app", "log", "SavedStep.js"), join("app", "recommend", "PickEntry.js"), join("components", "house", "WineRow.js"),
+    ].sort(), "NameGesture draw");
+    // WineRow only draws when its caller says the mark was just made
+    assertEq(using(/\bdrawGesture\b/), [join("components", "WineRecList.js"), join("components", "house", "WineRow.js")].sort(), "drawGesture");
+    const pick = readFileSync(join(SRC, "app", "recommend", "PickEntry.js"), "utf-8");
+    assert(/draw=\{chosenHere\.current\}/.test(pick), "a pick's circle is drawn only when it was chosen here");
+  });
+
+  await test("SOURCE SCAN: a mark is never inside a written line (README §12) — DoneLine sets it beside the words", () => {
+    const tiles = readFileSync(join(SRC, "components", "house", "RatingTiles.js"), "utf-8");
+    const done = tiles.slice(tiles.indexOf("export function DoneLine"));
+    assert(/<WriteIn text=\{children\} data-done-text=""/.test(done), "the written part is the words alone");
+    assert(done.indexOf("<PencilGlass") < done.indexOf("<WriteIn text={children} data-done-text"), "the glass comes before the words, a sibling");
+    // No file hands WriteIn anything but text
+    const offenders = sourceFiles(SRC).filter((path) => readFileSync(path, "utf-8").includes("</WriteIn>")).map((path) => relative(SRC, path));
+    assertEq(offenders, [], "WriteIn takes `text`, never children");
+  });
+
+  await test("SOURCE SCAN: no component reads a rating's emoji — the vocabulary names a mark", () => {
+    const offenders = sourceFiles(SRC)
+      .filter((path) => /\b(rated|rating|r)\??\.emoji\b|ratingFor\([^)]*\)\??\.emoji/.test(readFileSync(path, "utf-8")))
+      .map((path) => relative(SRC, path));
+    assertEq(offenders, [], "use the rating's `mark` with <Mark> or <PencilGlass>");
+    const ratings = readFileSync(join(SRC, "lib", "ratings.js"), "utf-8");
+    assert(!/emoji:/.test(ratings), "ratings.js declares no emoji");
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

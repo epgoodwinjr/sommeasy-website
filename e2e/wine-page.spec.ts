@@ -113,11 +113,13 @@ test.describe("A wine's page — verdicts, notes, removal (hard-fail)", () => {
 
     // Had it → a tile: the verdict lands in place
     touched = await snapshot(supabase, userId, wine);
-    await winePage.getByRole("button", { name: "🍷 Had it" }).click();
+    await winePage.getByRole("button", { name: "Had it", exact: true }).click();
     await winePage.getByTestId("rating-tile-fine").click();
     const verdict = winePage.getByTestId("wine-verdict");
-    await expect(verdict).toContainText("😐 It was fine");
+    await expect(verdict).toContainText("It was fine");
     await expect(verdict).toContainText("Today");
+    // The verdict wears that rating's glass — a sip — beside its words
+    await expect(verdict.locator('svg[data-mark="glass-fine"]')).toHaveCount(1);
     await expect(winePage).toContainText("The Somm said");
     await expect
       .poll(async () => { const r = await readRow(supabase, userId, wine); return r ? `${r.interaction_type}:${r.rating}` : "none"; },
@@ -141,12 +143,14 @@ test.describe("A wine's page — verdicts, notes, removal (hard-fail)", () => {
     // Change → Keep cancels, the verdict untouched…
     await page.getByTestId("wine-change").click();
     await expect(page.getByRole("group", { name: "Change your verdict" })).toBeVisible();
-    await page.getByRole("button", { name: "Keep 😐 It was fine" }).click();
-    await expect(page.getByTestId("wine-verdict")).toContainText("😐 It was fine");
+    const keep = page.getByRole("button", { name: "Keep It was fine" });
+    await expect(keep.locator('svg[data-mark="glass-fine"]')).toHaveCount(1); // the glass before the label
+    await keep.click();
+    await expect(page.getByTestId("wine-verdict")).toContainText("It was fine");
     // …and Change → a tile re-rates through the journal path, old → new
     await page.getByTestId("wine-change").click();
     await page.getByTestId("rating-tile-fine").click();
-    await expect(page.getByTestId("wine-verdict")).toContainText("😐 It was fine");
+    await expect(page.getByTestId("wine-verdict")).toContainText("It was fine");
     await expect
       .poll(async () => countEvents(supabase, userId, "journal_rerated"), { timeout: 15_000 })
       .toBe(reratedBefore + 1);
@@ -196,11 +200,12 @@ test.describe("A wine's page — verdicts, notes, removal (hard-fail)", () => {
     // The deep link works on its own, too
     await page.goto(wineHref(wine));
     const winePage = page.getByTestId("wine-page");
-    await expect(winePage.getByRole("button", { name: "📌 Want it" })).toBeVisible({ timeout: 15_000 });
+    await expect(winePage.getByRole("button", { name: "Want it", exact: true })).toBeVisible({ timeout: 15_000 });
 
     touched = await snapshot(supabase, userId, wine);
-    await winePage.getByRole("button", { name: "📌 Want it" }).click();
-    await expect(winePage).toContainText("📌 On your want list");
+    await winePage.getByRole("button", { name: "Want it", exact: true }).click();
+    await expect(winePage.getByTestId("wine-want")).toContainText("On your want list");
+    await expect(winePage.getByTestId("wine-want").locator('svg[data-mark="star"]')).toHaveCount(1);
     await expect(winePage).toContainText("Saved Today");
     await expect
       .poll(async () => { const r = await readRow(supabase, userId, wine); return r ? `${r.interaction_type}:${r.rating}` : "none"; },
@@ -215,12 +220,13 @@ test.describe("A wine's page — verdicts, notes, removal (hard-fail)", () => {
 
     // Durable: still wanted after a reload — no note on a bottle not yet had
     await page.reload();
-    await expect(page.getByTestId("wine-page")).toContainText("📌 On your want list", { timeout: 15_000 });
+    await expect(page.getByTestId("wine-want")).toContainText("On your want list", { timeout: 15_000 });
+    await expect(page.getByTestId("wine-want").locator('svg[data-mark="star"]')).toHaveCount(1);
     await expect(page.getByTestId("wine-note")).toHaveCount(0);
 
     // Remove: off the list, back to the not-yet-tried actions
     await page.getByRole("button", { name: "Remove", exact: true }).click();
-    await expect(page.getByRole("button", { name: "📌 Want it" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Want it", exact: true })).toBeVisible();
     await expect.poll(async () => readRow(supabase, userId, wine), { timeout: 15_000 }).toBeNull();
     await expect
       .poll(async () => countEvents(supabase, userId, "journal_deleted"), { timeout: 15_000 })
@@ -238,7 +244,7 @@ test.describe("A wine's page — verdicts, notes, removal (hard-fail)", () => {
     await expect(winePage).toContainText("It may have left your journal.");
     await expect(winePage.getByRole("link", { name: "Back to your list" })).toHaveAttribute("href", "/");
     // Nothing to act on — no verdict, no actions
-    await expect(winePage.getByRole("button", { name: "🍷 Had it" })).toHaveCount(0);
+    await expect(winePage.getByRole("button", { name: "Had it", exact: true })).toHaveCount(0);
   });
 });
 
@@ -250,6 +256,32 @@ test.describe("The journal — tabs, rows, the timeline (hard-fail)", () => {
     await expect(page.getByRole("tab", { name: /^Tried, \d+$/ })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByTestId("service-bar")).toBeVisible();
 
+    // House & Hand: every Tried row wears its own rating's glass (the empty
+    // glass while a verdict is pending), and a loved bottle's name — only a
+    // loved bottle's — is underlined in pencil. Read against the journal
+    // itself, row by row.
+    const { supabase, userId } = await testDb();
+    const { data: had } = await supabase
+      .from("wine_interactions").select("wine_name, rating").eq("user_id", userId).eq("interaction_type", "had");
+    expect((had ?? []).length, "the rich account keeps tried rows").toBeGreaterThan(0);
+    const GLASS: Record<string, string> = { loved: "glass-loved", liked: "glass-liked", fine: "glass-fine", not_for_me: "glass-down" };
+    const expected = Object.fromEntries((had ?? []).map((r) => [r.wine_name, {
+      mark: GLASS[r.rating as string] ?? "glass-empty", gesture: r.rating === "loved" ? "underline" : null,
+    }]));
+    await expect(page.getByTestId("journal-row")).toHaveCount((had ?? []).length, { timeout: 15_000 });
+    const shown = await page.getByTestId("journal-row").evaluateAll((rows) => Object.fromEntries(rows.map((row) => [
+      row.getAttribute("data-wine"),
+      {
+        mark: row.querySelector("svg[data-mark]")?.getAttribute("data-mark") ?? null,
+        gesture: row.querySelector("[data-gesture]")?.getAttribute("data-gesture") ?? null,
+      },
+    ])));
+    expect(shown).toEqual(expected);
+    expect(Object.values(expected).some((e) => e.gesture === "underline"), "premise: the fixture holds a loved bottle").toBe(true);
+    expect(Object.values(expected).some((e) => e.gesture === null), "premise: …and one that isn't").toBe(true);
+    // Settled on arrival: nothing is pencilled in on a journal row (H3)
+    expect(await page.getByTestId("journal-row").evaluateAll((rows) => rows.reduce((n, row) => n + row.querySelectorAll("[pathLength], [stroke-dasharray]").length, 0))).toBe(0);
+
     // Premise: the rich account's seeded want rows
     await page.getByRole("tab", { name: /^Want, \d+$/ }).click();
     await expect(page).toHaveURL(/[?&]tab=want/);
@@ -257,11 +289,11 @@ test.describe("The journal — tabs, rows, the timeline (hard-fail)", () => {
     await expect(want).toBeVisible();
     const wantName = (await want.getAttribute("data-wine")) ?? "";
     expect(wantName.length, "the rich account keeps want rows").toBeGreaterThan(0);
-    await expect(want).toContainText("📌");
+    await expect(want.locator('svg[data-mark="star"]')).toHaveCount(1);
 
     // A row opens its wine; back comes home to the Want tab
     await want.click();
-    await expect(page.getByTestId("wine-page")).toContainText("📌 On your want list", { timeout: 15_000 });
+    await expect(page.getByTestId("wine-want")).toContainText("On your want list", { timeout: 15_000 });
     await expect(page.getByTestId("running-head-back")).toContainText("Journal");
     await page.getByTestId("running-head-back").click();
     await expect(page.getByRole("tab", { name: /^Want, \d+$/ })).toHaveAttribute("aria-selected", "true", { timeout: 15_000 });
@@ -272,6 +304,13 @@ test.describe("The journal — tabs, rows, the timeline (hard-fail)", () => {
     await page.goto("/journal?tab=timeline");
     await expect(page.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-selected", "true", { timeout: 15_000 });
     await expect(page.getByText("Your palate began — quiz complete")).toBeVisible();
+    // Moments wear a proofreader's pencil: the founding row its dot, and
+    // every other row a plus, a minus or an arrow — never anything else
+    const founding = page.getByRole("link", { name: "Your palate began — quiz complete" });
+    await expect(founding.locator('svg[data-mark="dot"]')).toHaveCount(1);
+    const momentMarks = await page.getByRole("tabpanel").locator("a svg[data-mark]").evaluateAll((svgs) => svgs.map((s) => s.getAttribute("data-mark")));
+    expect(momentMarks.length).toBeGreaterThan(0);
+    expect(momentMarks.every((m) => ["plus", "minus", "arrow", "dot"].includes(m!)), JSON.stringify(momentMarks)).toBe(true);
     await expect(page.getByRole("link", { name: /See what’s building in your palate/ })).toHaveAttribute("href", "/palate");
   });
 });

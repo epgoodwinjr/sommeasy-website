@@ -236,10 +236,10 @@ async function main() {
       { id: "c", event_type: "promoted", dimension: "varietal", display_name: "Chenin Blanc", event_at: at(7, 1) },
       { id: "d", event_type: "demoted", dimension: "estate", display_name: "Kanonkop", event_at: at(6, 3) },
     ], { now });
-    assertEq(rows.map((r) => [r.key, r.line.emoji, r.line.text, r.line.strong, r.date]), [
-      ["a", "🧬", "Swartland joined your regions", false, "Sep 12"],
-      ["b", "✨", "You became The Stellenbosch Loyalist", true, "Aug 1"],
-      ["c", "🧬", "Chenin Blanc joined your DNA", false, "Aug 1"],
+    assertEq(rows.map((r) => [r.key, r.line.mark, r.line.text, r.line.strong, r.date]), [
+      ["a", "plus", "Swartland joined your regions", false, "Sep 12"],
+      ["b", "arrow", "You became The Stellenbosch Loyalist", true, "Aug 1"],
+      ["c", "plus", "Chenin Blanc joined your DNA", false, "Aug 1"],
     ], "junk dropped, three at most, newest first as read");
     assertEq(rows.map((r) => r.href), [wineHref("Mullineux Old Vines White 2021"), "/journal?tab=timeline", "/journal?tab=timeline"],
       "a named wine opens its page; the rest open the full history");

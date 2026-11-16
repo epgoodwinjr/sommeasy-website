@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase";
 import { wineHref } from "@/lib/navTrail";
 import {
-  FOUNDING_LINE, bottleCount, journalMark, journalRowMeta, journalStats, shortDate, timelineLine,
+  FOUNDING_LINE, bottleCount, journalGesture, journalMark, journalRowMeta, journalStats, shortDate, timelineLine,
 } from "@/lib/houseCopy";
 import { groupByMonth } from "@/lib/journalView";
 import RunningHead from "@/components/house/RunningHead";
@@ -54,7 +54,7 @@ const EMPTY = {
   want: {
     emoji: "📌",
     title: "Nothing waiting yet",
-    sub: "Tap 📌 Want it on any pick and it waits here. We’ll flag it when it turns up on a menu.",
+    sub: "Tap Want it on any pick and it waits here. We’ll flag it when it turns up on a menu.",
   },
   skipped: {
     emoji: "👋",
@@ -76,6 +76,7 @@ function JournalRow({ row, now }) {
       meta={meta || undefined}
       metaRight={right || undefined}
       metaTone={accent ? "accent" : "quiet"}
+      gesture={journalGesture(row)}
       struck={row.interaction_type === "skip"}
       struckOpacity={0.55}
       href={wineHref(row.wine_name)}

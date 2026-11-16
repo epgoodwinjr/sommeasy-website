@@ -3,7 +3,13 @@
 // RatingTiles — THE quick rating control (README §7.9; it retires
 // RatingModal):
 //
-//   How was it?        [❤️] [👍] [😐] [👎]
+//   How was it?        [full] [half] [a sip] [turned down]
+//
+// Each tile holds the printed glass (House & Hand, H2–H3): at rest its level
+// shows as a faint guide, and the tile you tap is pencilled in — the wine's
+// surface, then the hatching, stroke by stroke inside the press hold ("Not
+// for me" turns its glass over instead). The glass is the whole control, so
+// each tile carries its label as aria-label and title.
 //
 // Tapping a tile rates at once — no confirm. Variants by surface:
 //   row     — rec rows and picks: 42px tiles, 14px prompt at 0.7
@@ -25,14 +31,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RATINGS } from "@/lib/ratings";
+import Mark from "./Mark";
+import PencilGlass from "./PencilGlass";
 import WriteIn from "./WriteIn";
 import { PRESS, PRESS_KEYFRAMES, prefersReducedMotion } from "./motion";
 import { BURGUNDY, INK, SANS, SERIF, TRANSITION, ink } from "./tokens";
 
 const VARIANTS = {
-  row: { tile: 42, emoji: "18px", rest: "rgba(255,255,255,0.55)", prompt: "14px", promptAlpha: 0.7 },
-  verdict: { tile: 46, emoji: "19px", rest: "rgba(255,255,255,0.5)", prompt: "16px", promptAlpha: 0.75 },
-  page: { tile: 46, emoji: "19px", rest: "rgba(255,255,255,0.5)", prompt: "17px", promptAlpha: 1 },
+  row: { tile: 42, glass: 28, rest: "rgba(255,255,255,0.55)", prompt: "14px", promptAlpha: 0.7 },
+  verdict: { tile: 46, glass: 30, rest: "rgba(255,255,255,0.5)", prompt: "16px", promptAlpha: 0.75 },
+  page: { tile: 46, glass: 30, rest: "rgba(255,255,255,0.5)", prompt: "17px", promptAlpha: 1 },
 };
 
 function isFocusVisible(el) {
@@ -80,12 +88,12 @@ function Tile({ rating, v, onRate, disabled, autoFocus, chosen, aside }) {
         display: "flex", alignItems: "center", justifyContent: "center",
         border: `1px solid ${chosen ? "rgba(139,35,50,0.45)" : lit ? "rgba(139,35,50,0.3)" : ink(0.12)}`,
         background: chosen ? "rgba(139,35,50,0.09)" : lit ? "rgba(139,35,50,0.05)" : v.rest,
-        fontSize: v.emoji, lineHeight: 1,
+        color: INK, lineHeight: 0,
         cursor: disabled || answered ? "default" : "pointer",
         opacity: chosen ? 1 : aside ? PRESS.rest : disabled ? 0.5 : 1,
         transition: aside ? `opacity ${PRESS.restMs}ms ease` : TRANSITION,
       }}
-    >{rating.emoji}</button>
+    ><PencilGlass rating={rating.id} size={v.glass} guide draw={chosen ? "tile" : false} /></button>
   );
 }
 
@@ -134,13 +142,23 @@ export function usePressHold() {
   return [held, press];
 }
 
+// The done line's mark hangs before its first line, printed in ink
+const DONE_MARK = { flexShrink: 0, color: INK, marginTop: -1 };
+
 /** The done line that replaces a rec's or pick's actions once acted on
- *  (§7.9): "❤️ Loved it — noted in your journal." It is written in, word by
+ *  (§7.9): "Loved it — noted in your journal." It is written in, word by
  *  word (docs/motion §8.4), and settles into the plain line it always was.
  *  With `autoFocus` it takes focus as it replaces the tapped control, so
  *  keyboard and screen-reader users hear it and keep their place (no ring —
- *  it isn't a control). */
-export function DoneLine({ children, autoFocus = false, style }) {
+ *  it isn't a control).
+ *
+ *  The user's mark rides before the words, never inside them (House & Hand
+ *  §8.1, §12 — a mark inside a written line would be split into word
+ *  spans): `rating` sets that rating's glass and pencils it in, once, as
+ *  the line arrives (H3); `mark` sets a settled mark (a want's star). The
+ *  words are then a span of their own — `data-done-text`, the part that is
+ *  written — and the line's textContent is still exactly the words. */
+export function DoneLine({ children, rating = null, mark = null, autoFocus = false, style }) {
   const ref = useRef(null);
   useEffect(() => {
     if (autoFocus) ref.current?.focus({ preventScroll: true });
@@ -150,7 +168,18 @@ export function DoneLine({ children, autoFocus = false, style }) {
     color: BURGUNDY, marginTop: 10, outline: "none", ...style,
   };
   const tabIndex = autoFocus ? -1 : undefined;
-  return typeof children === "string"
-    ? <WriteIn as="p" ref={ref} tabIndex={tabIndex} text={children} style={line} />
-    : <p ref={ref} tabIndex={tabIndex} style={line}>{children}</p>;
+  const written = typeof children === "string";
+  if (!rating && !mark) {
+    return written
+      ? <WriteIn as="p" ref={ref} tabIndex={tabIndex} text={children} style={line} />
+      : <p ref={ref} tabIndex={tabIndex} style={line}>{children}</p>;
+  }
+  return (
+    <p ref={ref} tabIndex={tabIndex} style={{ ...line, display: "flex", alignItems: "flex-start", gap: 7 }}>
+      {rating
+        ? <PencilGlass rating={rating} size={20} draw="line" style={DONE_MARK} />
+        : <Mark id={mark} size={18} style={DONE_MARK} />}
+      {written ? <WriteIn text={children} data-done-text="" /> : <span data-done-text="">{children}</span>}
+    </p>
+  );
 }

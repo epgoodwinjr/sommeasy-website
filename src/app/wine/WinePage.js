@@ -53,6 +53,9 @@ import Toast, { carryToasts, useToast } from "@/components/house/Toast";
 import Divider from "@/components/house/Divider";
 import SectionHead from "@/components/house/SectionHead";
 import WineRow from "@/components/house/WineRow";
+import Mark from "@/components/house/Mark";
+import PencilGlass from "@/components/house/PencilGlass";
+import { TimelineMark } from "@/components/house/TimelineRow";
 import { FactRow } from "@/components/house/SettingRow";
 import RuledField from "@/components/house/RuledField";
 import RatingTiles, { usePressHold } from "@/components/house/RatingTiles";
@@ -146,6 +149,10 @@ export default function WinePage({ name }) {
   // would rebuild them, and the press would have nothing to play on
   const [held, press] = usePressHold();
   const heldView = useRef(null);
+  // The verdict's glass is pencilled in when it takes the tiles' place after
+  // a rating made HERE (it is that rating's done line — House & Hand, H3);
+  // a verdict the page arrives with, or goes back to, is settled
+  const ratedHere = useRef(false);
   const { toasts, showToast } = useToast({ receivesCarried: true });
   const goBack = useGoBack();
   const standingRef = useRef(null);
@@ -306,7 +313,10 @@ export default function WinePage({ name }) {
   const rate = async (rating) => {
     if (pending) return;
     const before = row;
-    heldView.current = wineStanding(before) === "rated" && tilesOpen ? { keep: keepLabel(before.rating) } : null;
+    heldView.current = wineStanding(before) === "rated" && tilesOpen
+      ? { keep: keepLabel(before.rating), rating: before.rating }
+      : null;
+    ratedHere.current = true;
     press(rating);
     placeRow(edited({ interaction_type: "had", rating }));
     setTilesOpen(false);
@@ -321,6 +331,7 @@ export default function WinePage({ name }) {
     });
     setPending(false);
     if (error) {
+      ratedHere.current = false;
       placeRow(before);
       setTilesOpen(true);
       setActionError(SAVE_FAILED);
@@ -439,6 +450,7 @@ export default function WinePage({ name }) {
   };
 
   const openTiles = () => {
+    ratedHere.current = false;
     setActionError("");
     setTilesOpen(true);
   };
@@ -541,6 +553,10 @@ export default function WinePage({ name }) {
         <>
           {tiles("Change your verdict")}
           <TextAction tone="quiet" size={12} opacity={0.5} disabled={Boolean(held)} onClick={keepVerdict} style={{ marginTop: 4 }}>
+            <Mark
+              id={ratingFor(held ? heldView.current.rating : row.rating)?.mark} size={16}
+              style={{ verticalAlign: "-3px", marginRight: 5 }}
+            />
             {held ? heldView.current.keep : keepLabel(row.rating)}
           </TextAction>
         </>
@@ -555,8 +571,12 @@ export default function WinePage({ name }) {
           <div style={{ ...eyebrow, opacity: 0.45 }}>Your verdict</div>
           <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginTop: 8 }}>
             <span style={{
+              display: "flex", alignItems: "center", gap: 9,
               fontFamily: SERIF, fontSize: "22px", fontWeight: 600, lineHeight: 1.2, color: INK, whiteSpace: "nowrap",
-            }}>{rated.emoji} {rated.label}</span>
+            }}>
+              <PencilGlass rating={rated.id} size={28} draw={ratedHere.current ? "line" : false} style={{ flexShrink: 0 }} />
+              {rated.label}
+            </span>
             <span aria-hidden="true" style={leaderLine} />
             <span style={{ ...standingDate, fontSize: "15px" }}>{shortDate(row.updated_at)}</span>
           </div>
@@ -571,15 +591,19 @@ export default function WinePage({ name }) {
     if (standing === "want") {
       return (
         <>
-          <div style={standingLine}>
-            <span style={{ fontFamily: SERIF, fontSize: "20px", fontWeight: 600, lineHeight: 1.2, color: INK, whiteSpace: "nowrap" }}>
-              📌 On your want list
+          <div data-testid="wine-want" style={standingLine}>
+            <span style={{
+              display: "flex", alignItems: "center", gap: 8,
+              fontFamily: SERIF, fontSize: "20px", fontWeight: 600, lineHeight: 1.2, color: INK, whiteSpace: "nowrap",
+            }}>
+              <Mark id="star" size={22} style={{ flexShrink: 0 }} />
+              On your want list
             </span>
             <span aria-hidden="true" style={leaderLine} />
             <span style={standingDate}>Saved {shortDate(row.updated_at)}</span>
           </div>
           <TextActions gap={22} style={{ marginTop: 4 }}>
-            <TextAction disabled={pending} onClick={openTiles}>🍷 Had it</TextAction>
+            <TextAction disabled={pending} onClick={openTiles}>Had it</TextAction>
             <TextAction tone="quiet" opacity={0.5} disabled={pending} onClick={() => remove()}>Remove</TextAction>
           </TextActions>
         </>
@@ -588,9 +612,9 @@ export default function WinePage({ name }) {
     if (standing === "passed") {
       return (
         <>
-          <div style={standingLine}>
+          <div data-testid="wine-passed" style={standingLine}>
             <span style={{ fontFamily: SERIF, fontSize: "20px", fontWeight: 600, lineHeight: 1.2, color: INK, whiteSpace: "nowrap" }}>
-              👋 Passed
+              Passed
             </span>
             <span aria-hidden="true" style={leaderLine} />
             <span style={standingDate}>{shortDate(row.updated_at)}</span>
@@ -601,9 +625,9 @@ export default function WinePage({ name }) {
     }
     return (
       <TextActions centered gap={24} style={{ marginTop: 10 }}>
-        <TextAction disabled={pending} onClick={openTiles}>🍷 Had it</TextAction>
-        <TextAction tone="secondary" disabled={pending} onClick={() => mark("want")}>📌 Want it</TextAction>
-        <TextAction tone="quiet" disabled={pending} onClick={() => mark("skip")}>👋 Pass</TextAction>
+        <TextAction disabled={pending} onClick={openTiles}>Had it</TextAction>
+        <TextAction tone="secondary" disabled={pending} onClick={() => mark("want")}>Want it</TextAction>
+        <TextAction tone="quiet" disabled={pending} onClick={() => mark("skip")}>Pass</TextAction>
       </TextActions>
     );
   };
@@ -681,7 +705,7 @@ export default function WinePage({ name }) {
           <SectionHead numeral={next()} label="What it did to your palate" style={{ margin: "30px 0 2px" }} />
           {lines.map(({ id, line }) => (
             <div key={id} style={{ display: "flex", gap: 10, padding: "12px 0", borderBottom: `1px solid ${ink(0.07)}` }}>
-              <span aria-hidden="true" style={{ fontSize: "15px", width: 22, flexShrink: 0, lineHeight: 1.4 }}>{line.emoji}</span>
+              <TimelineMark id={line.mark} />
               <span style={{ fontFamily: SERIF, fontSize: "16px", lineHeight: 1.4, color: INK }}>{line.text}</span>
             </div>
           ))}
@@ -700,14 +724,13 @@ export default function WinePage({ name }) {
           <SectionHead numeral={next()} label="In the same vein" style={{ margin: "30px 0 2px" }} />
           {vein.map((v) => {
             const split = splitVintage(v.name);
-            const mark = journalMark(v.row);
             return (
               <WineRow
                 key={v.name}
                 name={split.base}
                 vintage={split.vintage}
+                mark={journalMark(v.row) || undefined}
                 meta={metaLine(placeName(v.region), v.grape) || undefined}
-                metaRight={mark ? <span style={{ fontSize: "13px", letterSpacing: 0 }}>{mark}</span> : undefined}
                 href={wineHref(v.name)}
               />
             );

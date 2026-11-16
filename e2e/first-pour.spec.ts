@@ -171,7 +171,7 @@ test.describe.serial("The First Pour — fresh account (hard-fail)", () => {
     expect(wineName.length).toBeGreaterThan(0);
     await card.getByRole("button", { name: /Had it/ }).click();
     await card.getByTestId("rating-tile-fine").click();
-    await expect(card).toContainText("😐 It was fine — noted in your journal.");
+    await expect(card).toContainText("It was fine — noted in your journal.");
 
     // The first rating opens the Reserved rows in place — and section II
     // stays put until the next load

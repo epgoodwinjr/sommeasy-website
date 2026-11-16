@@ -123,11 +123,16 @@ test.describe("Quiz completion — The Reveal (hard-fail guard)", () => {
     await firstCard.getByRole("button", { name: /Had it/ }).click();
     ratedWine = wineName;
     await firstCard.getByTestId("rating-tile-fine").click();
-    await expect(firstCard).toContainText("😐 It was fine — noted in your journal.");
+    await expect(firstCard).toContainText("It was fine — noted in your journal.");
     await expect(firstCard.getByRole("button", { name: /Had it/ })).toHaveCount(0);
     // Focus lands on the done line — keyboard and screen-reader users keep
     // their place instead of falling back to the top of the page
-    await expect(firstCard.getByText("😐 It was fine — noted in your journal.")).toBeFocused();
+    // (the line itself: its words are a span beside the pencilled glass)
+    const doneLine = firstCard.locator('p[tabindex="-1"]', { hasText: "It was fine — noted in your journal." });
+    await expect(doneLine).toBeFocused();
+    await expect(doneLine).toHaveText("It was fine — noted in your journal.");
+    // …and the mark the user just made: that rating's glass, beside the words
+    await expect(doneLine.locator('svg[data-mark="glass-fine"]')).toHaveCount(1);
     await expect
       .poll(async () => {
         const { data } = await supabase

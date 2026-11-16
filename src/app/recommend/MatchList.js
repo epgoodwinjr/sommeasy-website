@@ -15,8 +15,9 @@
 //     was, with no Somm call and no ledger row. A newer list supersedes an
 //     older one the same way: a stale response is ignored when it lands.
 //   - Tonight's terms start from wine_profiles.preferences (decision D8).
-//   - A pick the user already knows wears a flag ("❤️ Loved it in August",
-//     "📌 On your want list"), matched to the journal by normalized name;
+//   - A pick the user already knows wears a flag (its glass and "Loved it in
+//     August", a star and "On your want list"), matched to the journal by
+//     normalized name;
 //     an already-rated pick offers only the choose action.
 //   - Rating a pick opens RatingTiles in place, and a done line replaces the
 //     "Rating saved!" toast. Evolution and shift toasts stay (house Toast).
@@ -923,7 +924,7 @@ export default function MatchList({ isMobile = false }) {
     setChosenWine(pick.name);
     setChanging(false);
     setBypassState(null);
-    showToast("🥂 Noted — enjoy it");
+    showToast("Noted — enjoy it");
 
     recordEvent(supabase, user.id, "pick_chosen", pickChosenPayload({
       wine: pick.name,

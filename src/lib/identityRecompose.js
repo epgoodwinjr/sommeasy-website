@@ -51,9 +51,9 @@ export const RECOMPOSE_RATED_INTERVAL = 5;
 /** Somm-voice toast for a celebrated shift — one copy for every surface. */
 export function shiftToastMessage(shift) {
   if (shift.titleChanged) {
-    return `🧬 Your DNA has shifted: you're now ${shift.title}`;
+    return `Your DNA has shifted: you're now ${shift.title}`;
   }
-  return `🧬 Your DNA has shifted: ${shift.epithet}`;
+  return `Your DNA has shifted: ${shift.epithet}`;
 }
 
 /** Live rated-bottle count — the milestone baseline's unit. Shared with

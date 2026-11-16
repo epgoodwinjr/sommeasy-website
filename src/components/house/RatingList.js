@@ -3,12 +3,17 @@
 // RatingList — Log a bottle's rating picker (README §7.10). Four full-width
 // lines, one chosen, saved separately by "Save to journal":
 //
-//   ❤️   Loved it ························ (✓)
+//   (glass)  Loved it ····················· (✓)
 //
 // role="radiogroup" of role="radio" lines; arrows move and select. The
-// ratings come from RATINGS (@/lib/ratings).
+// ratings come from RATINGS (@/lib/ratings). Each line opens with its glass,
+// settled — full, half, a sip, turned down — beside the label that says it.
+// Nothing is pencilled in here: choosing a line isn't rating yet ("Save to
+// journal" is), and the saved step's eyebrow is where that glass is drawn
+// (House & Hand, H3).
 
 import { RATINGS } from "@/lib/ratings";
+import Mark from "./Mark";
 import { choiceKeyDown, tabStop } from "./radio";
 import { BURGUNDY, CREAM, INK, SANS, SERIF, TRANSITION, ink, leader } from "./tokens";
 
@@ -42,8 +47,8 @@ export default function RatingList({ value, onChange, label = "How was it?", sty
             }}
           >
             <span aria-hidden="true" style={{
-              width: 26, flexShrink: 0, textAlign: "center", fontSize: "19px", lineHeight: 1,
-            }}>{r.emoji}</span>
+              width: 26, flexShrink: 0, display: "flex", justifyContent: "center", color: INK, lineHeight: 0,
+            }}><Mark id={r.mark} size={26} /></span>
             <span style={{
               fontFamily: SERIF, fontSize: "19px", lineHeight: 1.3, whiteSpace: "nowrap",
               color: on ? BURGUNDY : INK, fontWeight: on ? 600 : 400, transition: TRANSITION,

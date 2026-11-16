@@ -17,7 +17,7 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  * 3. A pick the user already knows wears its flag, matched to the journal
  *    by name: a rated wine shows "{emoji} {label} in {Month}" and offers
  *    ONLY the choose action (it can't be rated again here); a want shows
- *    "📌 On your want list" and keeps both actions.
+ *    the star and "On your want list" and keeps both actions.
  *
  * Every test blackholes the Somm, so this file makes no Claude calls, and
  * nothing here chooses or rates — the only writes are menu_analyzed events.
@@ -101,12 +101,14 @@ test.describe("Match & picks — reading, fallback, flags (hard-fail)", () => {
     await expect(recPage.resultsHeading).toHaveText("Your picks", { timeout: 15_000 });
 
     const roulot = recPage.pickCards.filter({ hasText: /Roulot/i }).first();
-    await expect(roulot).toContainText(/👍 Liked it in [A-Z][a-z]+/);
+    await expect(roulot.getByTestId("pick-flag")).toHaveText(/^Liked it in [A-Z][a-z]+( \d{4})?$/);
+    await expect(roulot.getByTestId("pick-flag").locator('svg[data-mark="glass-liked"]')).toHaveCount(1);
     await expect(roulot.getByTestId("choose-pick")).toBeVisible();
     await expect(roulot.getByRole("button", { name: "Had it? Rate it" })).toHaveCount(0);
 
     const kanonkop = recPage.pickCards.filter({ hasText: /Paul Sauer/i }).first();
-    await expect(kanonkop).toContainText("📌 On your want list");
+    await expect(kanonkop.getByTestId("pick-flag")).toHaveText("On your want list");
+    await expect(kanonkop.getByTestId("pick-flag").locator('svg[data-mark="star"]')).toHaveCount(1);
     await expect(kanonkop.getByTestId("choose-pick")).toBeVisible();
     await expect(kanonkop.getByRole("button", { name: "Had it? Rate it" })).toBeVisible();
     // The engine's estate note names the producer as Your palate does —

@@ -72,7 +72,7 @@ test.describe("Event ledger — fire-and-forget (hard-fail guard)", () => {
     await firstCard.getByRole("button", { name: /Had it/ }).click();
     ratedWine = wineName;
     await firstCard.getByTestId("rating-tile-fine").click();
-    await expect(firstCard).toContainText("😐 It was fine — noted in your journal.");
+    await expect(firstCard).toContainText("It was fine — noted in your journal.");
     await expect(firstCard.getByRole("button", { name: /Had it/ })).toHaveCount(0);
 
     // Journal delete (journal_deleted blocked underneath) — still works

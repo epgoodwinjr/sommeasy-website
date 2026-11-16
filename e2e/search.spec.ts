@@ -81,7 +81,8 @@ test.describe("Search (hard-fail guard)", () => {
     // exactly the rows it holds
     const journalHit = results.locator('[data-testid="search-journal-row"][data-wine="Kanonkop, Paul Sauer"]');
     await expect(journalHit).toBeVisible();
-    await expect(journalHit).toContainText("📌");
+    // (a want's mark is the pencilled star: a named mark beside the name)
+    await expect(journalHit.locator('svg[data-mark="star"]')).toHaveCount(1);
     const hits = await results.getByTestId("search-journal-row").count();
     await expect(results.getByRole("heading", { name: `In your journal · ${hits}` })).toBeVisible();
     // The DNA: the quiz's estate, with its kind and count line

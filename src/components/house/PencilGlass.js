@@ -24,6 +24,10 @@
 // nothing: on a tile the glass turns over (PENCIL.flipMs); on a line it is
 // simply there.
 //
+// `delay` (ms) holds the draw back — for a glass inside a line that itself
+// arrives later (Log's saved-step eyebrow): the strokes wait undrawn, then
+// go in at their own pace.
+//
 // Nothing is left behind: the dash (pathLength, stroke-dasharray) goes on a
 // stroke for its draw and comes off when the stroke lands or is cancelled,
 // so a drawn glass ends on its settled markup. Under reduced motion nothing
@@ -64,7 +68,7 @@ function drawStroke(path, timing) {
   };
 }
 
-export default function PencilGlass({ rating, size = 20, draw = false, guide = false, style }) {
+export default function PencilGlass({ rating, size = 20, draw = false, guide = false, delay = 0, style }) {
   const glass = glassFor(rating);
   const svg = useRef(null);
   const strokes = useRef([]);
@@ -78,8 +82,9 @@ export default function PencilGlass({ rating, size = 20, draw = false, guide = f
       const flip = playPencil(svg.current, GLASS_FLIP, { duration: PENCIL.flipMs, easing: SOFT_OUT });
       return () => flip?.cancel();
     }
+    const wait = Math.max(0, Number(delay) || 0);
     const plan = pencilStrokes(glass.shade.length, draw);
-    const drawn = plan.map((timing, i) => drawStroke(strokes.current[i], timing));
+    const drawn = plan.map((timing, i) => drawStroke(strokes.current[i], { ...timing, delay: timing.delay + wait }));
     return () => drawn.forEach((cancel) => cancel());
     // Once per change of `draw` (or of the glass): a re-render never redraws
     // eslint-disable-next-line react-hooks/exhaustive-deps

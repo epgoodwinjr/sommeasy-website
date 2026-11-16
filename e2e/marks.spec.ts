@@ -28,7 +28,8 @@ import { RATINGS } from "../src/lib/ratings.js";
  *      loop is re-made when the name is re-measured.
  */
 
-const GESTURE_COUNT = 10; // three on one line, three wrapped, four looped
+const GESTURE_COUNT = 10; // in the gestures section: three on one line, three wrapped, four looped
+const GESTURES_SECTION = '[data-testid="specimen-gestures"]';
 
 const SPECIMEN = "/marks-specimen";
 
@@ -125,7 +126,7 @@ test.describe("House & Hand — the marks (specimen, Session 1)", () => {
 
     // Gestures, pencilled again: simply there
     await page.getByTestId("specimen-pencil-again").click();
-    await expect(page.locator("[data-gesture]")).toHaveCount(GESTURE_COUNT);
+    await expect(page.locator(`${GESTURES_SECTION} [data-gesture]`)).toHaveCount(GESTURE_COUNT);
 
     expect(await pencilled(), "no stroke, flip or wipe ever started").toBe(0);
     // The tiles' and text actions' own 150ms tap states are CSS transitions, not marks
@@ -236,12 +237,12 @@ test.describe("House & Hand — the marks (specimen, Session 1)", () => {
 
     test("a gesture is wiped in from the left, once, while its name stays whole — and leaves nothing behind", async ({ page }) => {
       await open(page);
-      await expect(page.locator("[data-gesture] svg")).toHaveCount(GESTURE_COUNT);
-      expect(await page.locator("main").evaluate((el) => el.getAnimations({ subtree: true }).length), "settled until pencilled").toBe(0);
+      await expect(page.locator(`${GESTURES_SECTION} [data-gesture] svg`)).toHaveCount(GESTURE_COUNT);
+      expect(await page.locator(GESTURES_SECTION).evaluate((el) => el.getAnimations({ subtree: true }).length), "settled until pencilled").toBe(0);
       const wipes = await page.evaluate(async () => {
         (document.querySelector('[data-testid="specimen-pencil-again"]') as HTMLButtonElement).click();
         await new Promise((r) => requestAnimationFrame(r)); // the gestures remount, pencilled
-        return [...document.querySelectorAll("[data-gesture]")].map((wrap) => {
+        return [...document.querySelectorAll('[data-testid="specimen-gestures"] [data-gesture]')].map((wrap) => {
           const svg = wrap.querySelector("svg") as SVGSVGElement;
           return {
             text: wrap.textContent,
@@ -430,5 +431,68 @@ test.describe("House & Hand — the marks (specimen, Session 1)", () => {
     expect(after.lines, "narrower: more lines").toBeGreaterThan(before.lines);
     expect(after.d, "a new loop for the new box").not.toBe(before.d);
     expect(after.text).toBe("Kanonkop Paul Sauer");
+  });
+  // Log's saved step when something joins the DNA and the title holds — the
+  // one saved-step path no test account reaches on demand (a real promotion
+  // shifts the strand: identity-shift.spec.ts). Sample content, the real
+  // SavedStep and houseCopy's savedCopy.
+  test("the saved step's news: a plain eyebrow, the headline whole, its news underlined in pencil, the lines a proofreader's plus and minus", async ({ page }) => {
+    await open(page);
+    const moment = page.getByTestId("specimen-moment");
+    const saved = moment.getByTestId("log-saved");
+    // Reduced motion (the suite's default): settled in the commit it arrives
+    await expect(saved.getByTestId("saved-eyebrow")).toHaveText("Your DNA just grew");
+    await expect(saved.getByTestId("saved-eyebrow").locator("svg")).toHaveCount(0); // a moment's eyebrow is type
+    const h1 = saved.locator("h1");
+    await expect(h1).toHaveText("Meerlust just joined your DNA");
+    const news = h1.locator('[data-gesture="underline"]');
+    await expect(news).toHaveText("Meerlust");
+    expect(await news.locator("svg path").getAttribute("d")).toBe(GESTURES.underline.d);
+    expect(await h1.evaluate((el) => el.getAnimations({ subtree: true }).length), "nothing wipes under reduced motion").toBe(0);
+    // The recap's bottle wears its glass; what else moved is pencilled
+    await expect(saved.locator('svg[data-mark="glass-loved"]')).toHaveCount(1);
+    const lines = await saved.locator("p").filter({ has: page.locator('svg[data-mark="plus"], svg[data-mark="minus"]') })
+      .evaluateAll((ps) => ps.map((p) => [p.querySelector("svg")?.getAttribute("data-mark"), p.textContent]));
+    expect(lines).toEqual([["plus", "Stellenbosch joined your DNA"], ["minus", "Merlot left your DNA"]]);
+  });
+
+  test.describe("the saved step's news, with motion on", () => {
+    test.use({ contextOptions: { reducedMotion: "no-preference" } });
+
+    test("the headline is written whole, THEN the pencil underlines the news — once, and nothing is left behind", async ({ page }) => {
+      await page.addInitScript(() => {
+        const seen = { texts: [] as string[], wordSpans: 0, underlinedWhileWriting: false, wipes: 0 };
+        (window as unknown as { __news: typeof seen }).__news = seen;
+        const animate = Element.prototype.animate;
+        Element.prototype.animate = function (keyframes, options) {
+          if (/inset\(-200%/.test(JSON.stringify(keyframes)) && this.closest?.('[data-testid="specimen-moment"] h1')) seen.wipes += 1;
+          return animate.call(this, keyframes, options);
+        };
+        const read = () => {
+          const h1 = document.querySelector('[data-testid="specimen-moment"] h1');
+          if (!h1) return;
+          const text = h1.textContent || "";
+          if (!seen.texts.includes(text)) seen.texts.push(text);
+          const spans = h1.querySelectorAll("[data-word]").length;
+          seen.wordSpans = Math.max(seen.wordSpans, spans);
+          if (spans && h1.querySelector("[data-gesture]")) seen.underlinedWhileWriting = true;
+        };
+        new MutationObserver(read).observe(document, { childList: true, subtree: true, characterData: true, attributes: true });
+      });
+      await open(page);
+      const h1 = page.getByTestId("specimen-moment").locator("h1");
+      const news = h1.locator('[data-gesture="underline"]');
+      await expect(news).toHaveText("Meerlust", { timeout: 15_000 });
+      await settle(page, '[data-testid="specimen-moment"]');
+      const seen = await page.evaluate(() => (window as unknown as { __news: { texts: string[]; wordSpans: number; underlinedWhileWriting: boolean; wipes: number } }).__news);
+      expect(seen.texts, "the headline's text is whole at every moment").toEqual(["Meerlust just joined your DNA"]);
+      expect(seen.wordSpans, "it was written word by word").toBeGreaterThanOrEqual(5);
+      expect(seen.underlinedWhileWriting, "the pencil waits for the last word").toBe(false);
+      // React's dev double-effect starts the wipe, cancels it and starts it again: one underline, drawn
+      expect(seen.wipes).toBeGreaterThanOrEqual(1);
+      expect(await h1.locator("svg").count()).toBe(1);
+      await expect(h1).toHaveText("Meerlust just joined your DNA");
+      expect(await leftBehind(page, '[data-testid="specimen-moment"] h1')).toEqual({ dashed: 0, running: 0, transform: "", clipped: 0 });
+    });
   });
 });

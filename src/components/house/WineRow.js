@@ -4,17 +4,27 @@
 // the journal, search, Log's lists, the same vein.
 //
 //   Raats Original Chenin Blanc ··············· 2022
-//   STELLENBOSCH · CHENIN BLANC      📍 REGION + GRAPE
+//   STELLENBOSCH · CHENIN BLANC         REGION + GRAPE
 //
-// The end slot holds any of, in this order: `vintage` (italic), `mark` (a
-// rating or 📌/👋), `action` ("Log it ›"), `chevron`. A leader only renders
-// when something sits at its end. With href/onClick and no children the
-// whole row is the link or button; a row that carries its own actions
-// (children: a rec row's note and Had it / Want it / Pass) links its name
-// block only — a link can't hold buttons. `numeral` is home's numbered
-// variant; `struck` the passed variant (struckOpacity 0.4 on home, 0.55 on
-// the journal's Passed tab). Link hrefs come from wineHref() in
-// @/lib/navTrail. Any other prop (data-wine, aria-*) lands on the row.
+// The end slot holds any of, in this order: `vintage` (italic), `mark`,
+// `action` ("Log it ›"), `chevron`. A leader only renders when something
+// sits at its end. With href/onClick and no children the whole row is the
+// link or button; a row that carries its own actions (children: a rec row's
+// note and Had it / Want it / Pass) links its name block only — a link
+// can't hold buttons. `numeral` is home's numbered variant. Link hrefs come
+// from wineHref() in @/lib/navTrail. Any other prop (data-wine, aria-*)
+// lands on the row.
+//
+// The user's marks (House & Hand, docs/marks/README.md §8.1). `mark` is a
+// mark ID — houseCopy's journalMark: the rating's glass, the empty glass, a
+// star — drawn by Mark, settled, decorative: the row's words say the same
+// thing. `gesture` is the pencil over the NAME: "underline" under a bottle
+// you loved (the journal's Tried rows), "strike" through one you passed on.
+// `struck` is the passed variant — the strike, and the row stepped back
+// (struckOpacity 0.4 on home, 0.55 on the journal's Passed tab, 1 where a
+// pass sits among live results). `drawGesture` pencils the gesture in at the
+// moment the user makes it (passing on a rec); everywhere else it arrives
+// settled. The name's text and flow are untouched either way.
 //
 // Given `enterDelay` (ms), the row arrives in ink: it rises as one, its
 // leader draws, and what sits at the leader's end follows — a mark lands,
@@ -24,6 +34,8 @@
 import Link from "next/link";
 import { useRef } from "react";
 import LeaderDraw from "./LeaderDraw";
+import Mark from "./Mark";
+import NameGesture from "./NameGesture";
 import useEntrance, { withEntrance } from "./useEntrance";
 import { ROW_ENTER } from "./motion";
 import { BURGUNDY, INK, SANS, SERIF, ink, leader } from "./tokens";
@@ -34,14 +46,18 @@ const numeralStyle = {
 };
 
 const endText = { flexShrink: 0, whiteSpace: "nowrap", lineHeight: 1.35 };
+// A glass, told apart at row size (README §10): as tall as the name's line
+const ROW_MARK = 22;
 
 export default function WineRow({
   name, vintage, mark, action, chevron = false,
   meta, metaRight, metaTone = "quiet",
-  numeral, struck = false, struckOpacity = 0.4,
+  numeral, struck = false, struckOpacity = 0.4, gesture = null, drawGesture = false,
   href, onClick, testId, children, style, enterDelay, ...rest
 }) {
   const hasEnd = Boolean(vintage || mark || action || chevron);
+  // The pencil over the name: a passed row is struck, whatever else was asked
+  const pencil = struck ? "strike" : gesture;
   const interactive = Boolean(href || onClick);
 
   const rowRef = useRef(null);
@@ -63,8 +79,7 @@ export default function WineRow({
         <span style={{
           fontFamily: SERIF, fontSize: "17px", lineHeight: 1.35, color: INK,
           minWidth: 0, overflowWrap: "anywhere",
-          textDecoration: struck ? "line-through" : "none",
-        }}>{name}</span>
+        }}>{pencil ? <NameGesture gesture={pencil} draw={drawGesture}>{name}</NameGesture> : name}</span>
         {hasEnd && (
           <LeaderDraw
             enterDelay={play ? enterDelay + ROW_ENTER.leader : undefined}
@@ -74,7 +89,11 @@ export default function WineRow({
         {vintage && (
           <span ref={vintageRef} style={withEntrance({ ...endText, fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", color: ink(0.7) }, vintageEntering)}>{vintage}</span>
         )}
-        {mark && <span ref={markRef} style={withEntrance({ ...endText, fontSize: "15px" }, markEntering)}>{mark}</span>}
+        {mark && (
+          <span ref={markRef} style={withEntrance({ ...endText, display: "flex", lineHeight: 0 }, markEntering)}>
+            <Mark id={mark} size={ROW_MARK} />
+          </span>
+        )}
         {action && (
           <span ref={actionRef} style={withEntrance({ ...endText, fontFamily: SANS, fontSize: "12px", fontWeight: 700, color: BURGUNDY }, actionEntering)}>{action}</span>
         )}

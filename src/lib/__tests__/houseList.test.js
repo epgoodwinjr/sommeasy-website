@@ -69,12 +69,13 @@ async function main() {
   console.log("\n═══ Suite 1: one rating vocabulary ═══");
 
   await test("RATINGS is the four ratings, warmest first, with the house copy", () => {
-    assertEq(RATINGS.map((r) => [r.id, r.emoji, r.label]), [
-      ["loved", "❤️", "Loved it"],
-      ["liked", "👍", "Liked it"],
-      ["fine", "😐", "It was fine"],
-      ["not_for_me", "👎", "Not for me"],
-    ], "catalog");
+    assertEq(RATINGS.map((r) => [r.id, r.mark, r.label]), [
+      ["loved", "glass-loved", "Loved it"],
+      ["liked", "glass-liked", "Liked it"],
+      ["fine", "glass-fine", "It was fine"],
+      ["not_for_me", "glass-down", "Not for me"],
+    ], "catalog: each rating names its glass (House & Hand, H2)");
+    assert(RATINGS.every((r) => !("emoji" in r)), "the emoji have left the vocabulary");
   });
 
   await test("the ids are exactly the engine's scoring vocabulary", () => {
@@ -89,7 +90,7 @@ async function main() {
   });
 
   await test("ratingFor finds by id; anything else is null", () => {
-    assertEq(ratingFor("fine"), { id: "fine", emoji: "😐", label: "It was fine" }, "fine");
+    assertEq(ratingFor("fine"), { id: "fine", mark: "glass-fine", label: "It was fine" }, "fine");
     for (const junk of ["meh", null, undefined, 2, ""]) {
       assert(ratingFor(junk) === null, `junk ${JSON.stringify(junk)} → null`);
     }

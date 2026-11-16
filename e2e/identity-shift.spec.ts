@@ -311,7 +311,7 @@ test.describe("Identity shift — a milestone earned in the real UI moves the st
     // (which retired the "Rating saved!" toast)
     await card.getByRole("button", { name: "Had it? Rate it" }).click();
     await card.getByTestId("rating-tile-loved").click();
-    await expect(card).toContainText("❤️ Loved it — noted in your journal.");
+    await expect(card).toContainText("Loved it — noted in your journal.");
 
     // ── The celebrated surface: promotion toast, then the shift toast ──
     await expect(page.getByText(/Domaine Dujac added to your estates/))
@@ -509,7 +509,7 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     await expect(page.getByTestId("wine-growth")).toHaveCount(0);
     await watchBloom(page, '[data-testid="wine-growth"] [data-testid="palate-mark"]');
     await watchToasts(page);
-    await wine.getByRole("button", { name: "🍷 Had it" }).click();
+    await wine.getByRole("button", { name: "Had it", exact: true }).click();
     await wine.getByTestId("rating-tile-loved").click();
     // The tiles hold, pressed, then the verdict takes their place
     await expect(page.getByTestId("wine-verdict")).toContainText("Loved it", { timeout: 10_000 });
@@ -557,7 +557,7 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     await watchToasts(page);
     await ask.getByTestId("rating-tile-loved").click();
     // The reply names what the rating did
-    await expect(ask).toContainText("❤️ Loved it — noted. Domaine Dujac just joined your DNA.", { timeout: 30_000 });
+    await expect(ask).toContainText("Loved it — noted. Domaine Dujac just joined your DNA.", { timeout: 30_000 });
     askOpen = false; // rated: the ledger resolves the ask
 
     const after = await shifted(supabase, userId, before);
@@ -680,10 +680,10 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     expect(words.spans).toBeGreaterThan(0);
 
     // The words are houseCopy's: the shift takes the headline, the promotion its line
-    await expect(saved).toContainText("✨ Your palate shifted");
+    await expect(saved).toContainText("Your palate shifted");
     await expect(saved.locator("h1")).toHaveText(`You became ${after.archetype}`);
     await expect(saved).toContainText(after.identity.epithet);
-    await expect(saved).toContainText("🧬 Domaine Dujac joined your DNA");
+    await expect(saved).toContainText("Domaine Dujac joined your DNA");
     await expect(saved).toContainText("Domaine Dujac Clos de la Roche");
     await expect(saved.getByRole("link", { name: "See it in your palate" })).toBeVisible();
     for (const way of ["Log another bottle", "Back to your list"]) await expect(saved.getByText(way)).toBeVisible();

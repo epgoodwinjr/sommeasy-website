@@ -22,7 +22,7 @@
 // name byte for byte unless it's edited, so logging a want row turns that
 // SAME journal row into a "had" — and when the name IS edited, the unrated
 // row it was picked from moves to the new name (renamedFrom) instead of
-// staying behind as a 📌 beside the bottle just logged.
+// staying behind as a want beside the bottle just logged.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
@@ -187,7 +187,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     .filter((r) => r.interaction_type === "want")
     .map((r) => {
       const meta = metaLine(r.resolved_region, r.resolved_varietal) || confidentMeta(resolveWine(r.wine_name));
-      return { name: r.wine_name, meta: meta ? `📌 ${meta}` : undefined };
+      return { name: r.wine_name, meta: meta || undefined };
     }), [journal]);
 
   const results = useMemo(
@@ -531,7 +531,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
           <>
             <SectionHead numeral={next()} label="From your want list" style={{ margin: "34px 0 2px" }} />
             {wants.map((w) => (
-              <WineRow key={w.name} name={w.name} action="Log it ›" meta={w.meta}
+              <WineRow key={w.name} name={w.name} mark="star" action="Log it ›" meta={w.meta}
                 onClick={() => rateByName("want", w.name)} />
             ))}
           </>
@@ -565,7 +565,8 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         )}
         {typed && catalog !== null && (results.length > 0 ? (
           results.map((r) => (
-            <WineRow key={r.key} name={r.name} mark={r.mark} chevron meta={r.meta}
+            <WineRow key={r.key} name={r.name} mark={r.mark || undefined} chevron meta={r.meta}
+              struck={r.gesture === "strike"} struckOpacity={1}
               onClick={() => rateByName("search", r.logName)} />
           ))
         ) : (

@@ -165,9 +165,17 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await expect(card).toContainText(/Ken Forrester/);
 
     // The declaration: visually unmistakable on the card afterwards
+    // (House & Hand: no pick is circled until one is chosen)
+    await expect(page.locator('[data-testid="pick-card"] h3 [data-gesture="circle"]')).toHaveCount(0);
+    const nameBefore = await card.locator("h3").textContent();
     await card.getByTestId("choose-pick").click();
     await expect(card.getByTestId("chosen-banner")).toBeVisible();
-    await expect(card.getByTestId("chosen-banner")).toContainText(/On the table/i);
+    await expect(card.getByTestId("chosen-banner")).toHaveText(/^On the table tonight\s*Change$/);
+    // The user's mark: a pencil circle round the chosen pick's name — and
+    // only its name, whose words are untouched
+    await expect(card.locator('h3 [data-gesture="circle"] svg')).toHaveCount(1);
+    await expect(page.locator('[data-testid="pick-card"] h3 [data-gesture="circle"]')).toHaveCount(1);
+    expect(await card.locator("h3").textContent()).toBe(nameBefore);
 
     // The ledger record (fire-and-forget → poll for the landing)
     await expect
@@ -236,7 +244,7 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await ask.getByTestId("rating-tile-fine").click();
     tapped();
     await expect(ask.getByTestId("rating-tile-fine")).toHaveCount(0);
-    await expect(ask).toContainText("😐 It was fine — noted.");
+    await expect(ask).toContainText("It was fine — noted.");
     // The reply takes focus (announced, and the user keeps their place)
     const reply = ask.getByTestId("verdict-reply");
     await expect(reply).toBeFocused();
@@ -259,9 +267,9 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
       copy.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
       return copy.textContent;
     });
-    expect(heard).toBe("😐 It was fine — noted.");
+    expect(heard).toBe("It was fine — noted.");
     // On screen the reply is still one whole line
-    await expect(reply).toHaveText("😐 It was fine — noted. We’ll weigh it lightly next time.");
+    await expect(reply).toHaveText("It was fine — noted. We’ll weigh it lightly next time.");
 
     // The real rate flow: the wishlist row became a rated journal row…
     await expect
@@ -395,6 +403,9 @@ test.describe.serial("The Table Verdict — chosen, funneled, bypassed (hard-fai
     await cardQ.getByTestId("choose-pick").click();
     await expect(cardQ.getByTestId("chosen-banner")).toBeVisible();
     await expect(cardP.getByTestId("chosen-banner")).toBeHidden();
+    // The circle moves with the choice: one pick is circled, the new one
+    await expect(cardQ.locator('h3 [data-gesture="circle"] svg')).toHaveCount(1);
+    await expect(cardP.locator('h3 [data-gesture="circle"]')).toHaveCount(0);
     await expect
       .poll(async () => countEvents(supabase, userId, "pick_chosen"), { timeout: 15_000 })
       .toBe(chosenBefore + 2);

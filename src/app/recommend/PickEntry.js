@@ -6,9 +6,16 @@
 //   I. 🏆 TOP PICK ——————————————————————————————
 //   Newton Johnson Chardonnay 2023 ··········· $78
 //   HEMEL-EN-AARDE · CHARDONNAY
-//   ❤️ LOVED IT IN AUGUST
+//   (glass) LOVED IT IN AUGUST
 //   “With the roast chicken, this is the bottle…”
-//   🥂 This one’s on the table     Had it? Rate it
+//   This one’s on the table     Had it? Rate it
+//
+// The user's marks are pencil (House & Hand §8.1): a known pick's `flag` is
+// houseCopy's pickFlag — { mark, text }, the rating's glass or a want's
+// star before plain words, settled; choosing a pick draws a circle round
+// its name, at the tap and never on arrival (a wrapped name gets the loop);
+// a rating's done line pencils its glass in. The house's own controls stay
+// type.
 //
 // Presentation only: the page decides what's chosen, quiet, ratable and
 // rated, and owns every write. On the chosen pick the actions become the
@@ -35,6 +42,8 @@ import { romanNumeral } from "@/lib/numerals";
 import { ratedDoneLine } from "@/lib/houseCopy";
 import SectionHead from "@/components/house/SectionHead";
 import LeaderDraw from "@/components/house/LeaderDraw";
+import Mark from "@/components/house/Mark";
+import NameGesture from "@/components/house/NameGesture";
 import RatingTiles, { DoneLine, usePressHold } from "@/components/house/RatingTiles";
 import TextAction, { TextActions } from "@/components/house/TextAction";
 import WriteIn from "@/components/house/WriteIn";
@@ -44,9 +53,12 @@ import { PICKS, SOMM } from "@/components/house/motion";
 import { BURGUNDY, CREAM, GRADIENT, INK, PILL_SHADOW, SANS, SERIF, TYPE, ink, leader } from "@/components/house/tokens";
 
 const flagStyle = {
+  display: "flex", alignItems: "center", gap: 7,
   fontFamily: SANS, fontSize: "10px", fontWeight: 700, lineHeight: 1.4, textTransform: "uppercase",
   letterSpacing: "0.14em", color: BURGUNDY, marginTop: 6,
 };
+// The flag's mark: a glass prints in ink beside its burgundy words
+const flagMark = { flexShrink: 0, color: INK };
 const noteStyle = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "14.5px", lineHeight: 1.55, color: ink(0.75), marginTop: 10,
 };
@@ -66,7 +78,7 @@ function ChosenPill({ changing, onChange }) {
       background: GRADIENT, boxShadow: PILL_SHADOW,
     }}>
       <span style={{ fontFamily: SANS, fontSize: "13px", fontWeight: 700, lineHeight: 1.4, color: CREAM }}>
-        🥂 On the table tonight
+        On the table tonight
       </span>
       {/* 40px hit area, cancelled by margin so the pill keeps its height */}
       <button type="button" aria-pressed={changing} onClick={onChange} style={{
@@ -112,6 +124,14 @@ export default function PickEntry({
     press(r);
     onRate?.(r);
   };
+  // The circle is pencilled in when the user chooses THIS pick here — a pick
+  // that arrives already chosen (the Somm landing, a page-two read coming
+  // back) wears it settled
+  const chosenHere = useRef(false);
+  const choose = () => {
+    chosenHere.current = true;
+    onChoose?.();
+  };
 
   const rootRef = useRef(null);
   const nameRef = useRef(null);
@@ -141,8 +161,10 @@ export default function PickEntry({
           margin: 0, minWidth: 0, overflowWrap: "anywhere",
           fontFamily: SERIF, fontSize: index === 0 ? "21px" : "19px", fontWeight: 600, lineHeight: 1.25, color: INK,
         }, nameEntering)}>
-          {name}
-          {vintage && <> <span style={{ fontStyle: "italic", fontWeight: 400 }}>{vintage}</span></>}
+          <NameGesture gesture={chosen ? "circle" : null} draw={chosenHere.current}>
+            {name}
+            {vintage && <> <span style={{ fontStyle: "italic", fontWeight: 400 }}>{vintage}</span></>}
+          </NameGesture>
         </h3>
         {price && (
           <>
@@ -157,7 +179,12 @@ export default function PickEntry({
         )}
       </div>
       {meta && <div ref={metaRef} style={withEntrance({ ...TYPE.meta, lineHeight: 1.4, marginTop: 6 }, metaEntering)}>{meta}</div>}
-      {flag && <div ref={flagRef} style={withEntrance(flagStyle, flagEntering)}>{flag}</div>}
+      {flag && (
+        <div ref={flagRef} data-testid="pick-flag" style={withEntrance(flagStyle, flagEntering)}>
+          <Mark id={flag.mark} size={20} style={flagMark} />
+          <span>{flag.text}</span>
+        </div>
+      )}
       <PickNote engine={note} somm={sommNote} sommDelay={sommDelay} enterDelay={at(PICKS.pick.note)} />
 
       <div ref={actionsRef} style={actionsEntering || undefined}>
@@ -165,12 +192,12 @@ export default function PickEntry({
           <ChosenPill changing={changing} onChange={onChange} />
         ) : (canChoose || canRate) && (
           <TextActions style={{ marginTop: 4 }}>
-            {canChoose && <TextAction testId="choose-pick" onClick={onChoose}>🥂 This one’s on the table</TextAction>}
+            {canChoose && <TextAction testId="choose-pick" onClick={choose}>This one’s on the table</TextAction>}
             {canRate && <TextAction tone="secondary" opacity={0.55} onClick={onOpenRate}>Had it? Rate it</TextAction>}
           </TextActions>
         )}
         {(tilesOpen || held) && <RatingTiles autoFocus onRate={rate} rated={held} style={{ marginTop: 8 }} />}
-        {rating && !held && <DoneLine autoFocus>{ratedDoneLine(rating)}</DoneLine>}
+        {rating && !held && <DoneLine autoFocus rating={rating}>{ratedDoneLine(rating)}</DoneLine>}
       </div>
     </div>
   );

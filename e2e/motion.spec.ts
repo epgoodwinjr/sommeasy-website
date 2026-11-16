@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { composeIdentity } from "../src/lib/identityEngine.js";
 import { MARK_MOTION, renderPalateMark } from "../src/lib/palateMark.js";
-import { PRESS } from "../src/components/house/motion.js";
+import { PENCIL, PRESS, pencilStrokes } from "../src/components/house/motion.js";
+import { SHADE, renderMark } from "../src/components/house/marks.js";
 import { countEvents, latestEvent, testDb } from "./fixtures/test-db";
 import { BottleLogPage, RecommendPage } from "./fixtures/sommeasy-page";
 
@@ -1096,7 +1097,36 @@ async function eraseFootprint(page: Page) {
   if (profile) await supabase.from("wine_profiles").update(profile).eq("user_id", userId);
 }
 
-const FINE_DONE = "😐 It was fine — noted in your journal.";
+const FINE_DONE = "It was fine — noted in your journal.";
+
+/** Every pencil animation a page starts — a stroke's dash, the glass's
+ *  flip, a gesture's wipe — recorded from before the page loads. */
+async function watchPencil(page: Page) {
+  await page.addInitScript(() => {
+    const record: string[] = [];
+    (window as any).__pencil = record;
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (keyframes, options) {
+      const keys = JSON.stringify(keyframes);
+      if (/strokeDashoffset|rotate\(|inset\(-200%/.test(keys)) record.push(keys);
+      return animate.call(this, keyframes, options);
+    };
+  });
+}
+
+/** A line's glass at rest: its markup as the mark set draws it (the style
+ *  that places it taken off), what is still dashed, and that it is
+ *  decorative. */
+const settledGlass = (line: ReturnType<Page["locator"]>) =>
+  line.locator("svg[data-mark]").first().evaluate((svg) => {
+    const copy = svg.cloneNode(true) as Element;
+    copy.removeAttribute("style");
+    return {
+      html: copy.outerHTML,
+      dashed: svg.querySelectorAll("[pathLength], [stroke-dasharray]").length,
+      hidden: svg.getAttribute("aria-hidden") === "true",
+    };
+  });
 
 /** Home's first recommendation, ready to rate: its row, and its wine marked
  *  as this test's footprint. */
@@ -1115,7 +1145,7 @@ test.describe("The rewards — motion on", () => {
   test.use({ contextOptions: { reducedMotion: "no-preference" } });
   test.afterEach(async ({ page }) => { await eraseFootprint(page); });
 
-  test("a rating tile answers its tap and holds; then the done line is written — whole throughout — and takes focus", async ({ page }) => {
+  test("a rating tile answers its tap, is pencilled in stroke by stroke, and holds; then the done line is written — whole throughout — beside its pencilled glass, and takes focus", async ({ page }) => {
     // A real row: home's first recommendation, rated "It was fine" (0
     // points — the DNA never moves), its footprint erased in afterEach
     await watchMotion(page);
@@ -1123,8 +1153,26 @@ test.describe("The rewards — motion on", () => {
     const ratedBefore = await countEvents(supabase, userId, "rec_rated");
     // Home has arrived before the tap
     await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0);
-    await row.getByRole("button", { name: "🍷 Had it" }).click();
+    await row.getByRole("button", { name: "Had it", exact: true }).click();
     await expect(row.getByTestId("rating-tile-fine")).toBeEnabled();
+
+    // At rest a tile shows its level only as the faint guide (House & Hand
+    // §11.2): no firm shading until it is tapped — and a tile is its glass,
+    // named by its label
+    const atRest = await row.evaluate((host) => Array.from(host.querySelectorAll('[data-testid^="rating-tile-"]')).map((tile) => ({
+      id: tile.getAttribute("data-testid"),
+      label: tile.getAttribute("aria-label"),
+      mark: tile.querySelector("svg")?.getAttribute("data-mark"),
+      guides: Array.from(tile.querySelectorAll("svg [data-guide]")).map((g) => g.getAttribute("opacity")),
+      firm: tile.querySelectorAll("svg > g:not([stroke='currentColor']) > path").length,
+      text: tile.textContent,
+    })));
+    expect(atRest).toEqual([
+      { id: "rating-tile-loved", label: "Loved it", mark: "glass-loved", guides: [String(PENCIL.guide)], firm: 0, text: "" },
+      { id: "rating-tile-liked", label: "Liked it", mark: "glass-liked", guides: [String(PENCIL.guide)], firm: 0, text: "" },
+      { id: "rating-tile-fine", label: "It was fine", mark: "glass-fine", guides: [String(PENCIL.guide)], firm: 0, text: "" },
+      { id: "rating-tile-not_for_me", label: "Not for me", mark: "glass-down", guides: [], firm: 0, text: "" },
+    ]);
 
     const seen = await row.evaluate(async (host) => {
       const tile = host.querySelector('[data-testid="rating-tile-fine"]') as HTMLButtonElement;
@@ -1147,6 +1195,28 @@ test.describe("The rewards — motion on", () => {
       tile.click();
       const pressing = tile.getAnimations().length; // the press starts on the tap itself
       await frame();
+      // The tapped tile's shading, pencilled in: one <path> per stroke, each
+      // with a draw of its own (README §7) — read on the first frame after
+      // the tap, then followed frame by frame for as long as the tile stays
+      const shading = () => Array.from(tile.querySelectorAll("svg > g:not([stroke='currentColor']) > path"));
+      const strokes = shading().map((p) => {
+        const animations = p.getAnimations();
+        const t = animations[0]?.effect?.getTiming();
+        return {
+          animations: animations.length, delay: t?.delay, duration: t?.duration, fill: t?.fill,
+          dashed: p.getAttribute("pathLength") === "1" && p.getAttribute("stroke-dasharray") === "1",
+        };
+      });
+      const strokeFrames: (number | null)[][] = [];
+      const followStrokes = () => {
+        if (!host.contains(tile)) return;
+        strokeFrames.push(shading().map((p) => {
+          const a = p.getAnimations()[0];
+          return a ? (a.effect?.getComputedTiming().progress ?? null) : null;
+        }));
+        requestAnimationFrame(followStrokes);
+      };
+      followStrokes();
       await frame();
       const held = {
         tilesStill: host.contains(tile),
@@ -1161,7 +1231,15 @@ test.describe("The rewards — motion on", () => {
         if (host.contains(other)) otherLowest = Math.min(otherLowest, Number(getComputedStyle(other).opacity));
         await frame();
       }
-      return { pressing, held, otherLowest, heldFor: write.doneAt - tappedAt };
+      // The done line's own glass, on the frame the line arrives: it is
+      // pencilled in at the line's pace (its surface takes 360ms, so a frame
+      // or two late still finds every stroke in flight)
+      const lineGlass = Array.from(doneLine()?.querySelectorAll("svg > g:not([stroke='currentColor']) > path") ?? []).map((p) => {
+        const t = p.getAnimations()[0]?.effect?.getTiming();
+        const dashed = p.getAttribute("pathLength") === "1" && p.getAttribute("stroke-dasharray") === "1";
+        return t ? { delay: t.delay, duration: t.duration, dashed } : null;
+      });
+      return { pressing, held, otherLowest, heldFor: write.doneAt - tappedAt, strokes, strokeFrames, lineGlass };
     });
 
     expect(seen.pressing).toBeGreaterThan(0);
@@ -1170,17 +1248,45 @@ test.describe("The rewards — motion on", () => {
     // A floor, never a ceiling: the done line does not cut the press short
     expect(seen.heldFor).toBeGreaterThanOrEqual(PRESS.holdMs - 40);
 
+    // Pencilled in, stroke by stroke: the surface, then the hatching, each
+    // its own path with its own draw — the tile's plan, inside the hold
+    expect(seen.strokes).toHaveLength(SHADE.fine.length);
+    expect(seen.strokes.every((s) => s.animations === 1 && s.fill === "backwards" && s.dashed), JSON.stringify(seen.strokes)).toBe(true);
+    expect(seen.strokes.map(({ delay, duration }) => ({ delay, duration }))).toEqual(pencilStrokes(SHADE.fine.length, "tile"));
+    expect(Math.max(...seen.strokes.map((s) => (s.delay ?? 0) + (s.duration ?? 0)))).toBeLessThanOrEqual(PRESS.holdMs - PENCIL.tile.beforeHold);
+    // …and never all at once: a stroke is mid-flight while a later one still
+    // waits, the surface has landed while the hatching draws, and more than
+    // one stroke was caught mid-flight, at different moments
+    const mid = (p: number | null) => p !== null && p > 0 && p < 1;
+    expect(seen.strokeFrames.some((f) => f.some(mid) && f.some((p, i) => p === 0 && i > f.findIndex(mid))), "a stroke drawing while a later one waits").toBe(true);
+    expect(seen.strokeFrames.some((f) => f[0] === null && f.some((p) => p !== null)), "the surface landed while the hatching draws").toBe(true);
+    const midFlight = seen.strokeFrames.map((f) => f.map((p, i) => (mid(p) ? i : -1)).filter((i) => i >= 0));
+    expect(new Set(midFlight.flat()).size, "more than one stroke was seen mid-flight").toBeGreaterThan(1);
+    expect(new Set(midFlight.map((f) => f.join(","))).size, "…at different moments").toBeGreaterThan(1);
+    // The done line's glass: the same rating, drawn at the table's pace
+    expect(seen.lineGlass).toEqual(pencilStrokes(SHADE.fine.length, "line").map((t) => ({ ...t, dashed: true })));
+
     // The done line: written word by word, its text whole at every moment
     // of the write, then one plain text node — and it has the focus
+    // (the words are the line's written part — a span beside the glass,
+    // which is never inside the written text: README §12)
     const line = row.locator('p[tabindex="-1"]');
     await expect(line).toHaveText(FINE_DONE);
-    await expect.poll(() => line.evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE), { timeout: 10_000 }).toBe(true);
+    const words = line.locator("[data-done-text]");
+    await expect.poll(() => words.evaluate((el) => el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE), { timeout: 10_000 }).toBe(true);
+    expect(await line.evaluate((el) => Array.from(el.children).map((c) => c.tagName.toLowerCase()))).toEqual(["svg", "span"]);
     const write = await page.evaluate(() => (window as any).__doneWrite as { wordSpans: number; texts: string[] });
     expect(write.wordSpans).toBeGreaterThanOrEqual(7);
     expect(write.texts).toEqual([FINE_DONE]);
     expect(await line.textContent()).toBe(FINE_DONE);
     expect(await line.evaluate((el) => el === document.activeElement)).toBe(true);
     await expect(row.getByTestId("rating-tile-fine")).toHaveCount(0);
+    // The glass ends on its settled drawing — exactly the mark — with no
+    // dash, draw or clip left behind
+    await expect.poll(() => line.evaluate((el) => el.getAnimations({ subtree: true }).length), { timeout: 10_000 }).toBe(0);
+    expect(await settledGlass(line)).toEqual({
+      html: await asBrowser(page, renderMark("glass-fine", { size: 20 })), dashed: 0, hidden: true,
+    });
 
     // The one rating path: a journal row and its ledger event
     await expect.poll(() => countEvents(supabase, userId, "rec_rated"), { timeout: 15_000 }).toBe(ratedBefore + 1);
@@ -1219,7 +1325,7 @@ test.describe("The rewards — motion on", () => {
     const saved = page.getByTestId("log-saved");
     await expect(saved).toBeVisible({ timeout: 30_000 });
     await expect(saved).toHaveAttribute("data-moment", "quiet");
-    await expect(saved).toContainText("😐 It was fine");
+    await expect(saved).toContainText("It was fine");
     await expect(saved.locator("h1")).toHaveText("Noted in your journal");
     await expect.poll(async () => (await restOf(page, '[data-testid="log-saved"]')).running, { timeout: 15_000 }).toBe(0);
     expect(await restOf(page, '[data-testid="log-saved"]')).toEqual({ running: 0, invisible: [], clipped: 0, inline: 0, wordSpans: 0 });
@@ -1358,7 +1464,7 @@ test.describe("The rewards — a verdict changed on the wine page (motion on)", 
     });
     expect(seen).toEqual({
       sameTile: true, pressed: true, pressing: true, prompt: "Change your verdict",
-      keepStays: true, keepDisabled: true, keepSays: "Keep 😐 It was fine",
+      keepStays: true, keepDisabled: true, keepSays: "Keep It was fine",
     });
 
     // Then the verdict takes the tiles' place, as it always did
@@ -1372,28 +1478,197 @@ test.describe("The rewards — reduced motion", () => {
   test.use({ contextOptions: { reducedMotion: "reduce" } });
   test.afterEach(async ({ page }) => { await eraseFootprint(page); });
 
-  test("a tap is answered at once: no hold, no press, no word spans — the done line takes the tiles' place", async ({ page }) => {
+  test("a tap is answered at once: no hold, no press, no word spans, no penciling — the done line takes the tiles' place, its glass settled", async ({ page }) => {
     await watchMotion(page);
+    await watchPencil(page);
     const { row } = await homeRec(page);
-    await row.getByRole("button", { name: "🍷 Had it" }).click();
+    await row.getByRole("button", { name: "Had it", exact: true }).click();
     await expect(row.getByTestId("rating-tile-fine")).toBeEnabled();
     const swapped = await row.evaluate(async (host) => {
       const tile = host.querySelector('[data-testid="rating-tile-fine"]') as HTMLButtonElement;
       tile.click();
       const pressing = tile.getAnimations().length;
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const glass = host.querySelector('p[tabindex="-1"] svg');
       return {
         pressing,
         tilesGone: !host.querySelector('[data-testid^="rating-tile"]'),
         line: host.querySelector('p[tabindex="-1"]')?.textContent,
+        // Settled from its first frame: every stroke there, none dashed
+        glassStrokes: glass?.querySelectorAll("g:not([stroke='currentColor']) > path").length,
+        glassDashed: glass?.querySelectorAll("[pathLength], [stroke-dasharray]").length,
       };
     });
-    expect(swapped).toEqual({ pressing: 0, tilesGone: true, line: FINE_DONE });
+    expect(swapped).toEqual({
+      pressing: 0, tilesGone: true, line: FINE_DONE, glassStrokes: SHADE.fine.length, glassDashed: 0,
+    });
+    expect(await settledGlass(row.locator('p[tabindex="-1"]'))).toEqual({
+      html: await asBrowser(page, renderMark("glass-fine", { size: 20 })), dashed: 0, hidden: true,
+    });
+    expect(await page.evaluate(() => (window as any).__pencil.length), "no stroke, flip or wipe was ever started").toBe(0);
     expect(await row.locator('p[tabindex="-1"]').evaluate((el) => el === document.activeElement)).toBe(true);
     await expect.poll(() => page.evaluate(() => document.getAnimations().length), { timeout: 10_000 }).toBe(0);
     expect((await motionSeen(page)).wordSpans).toBe(0);
     // (The saved step's bloom, already in its new shape on a promotion:
     // identity-shift.spec.ts, earned through the real /log)
+  });
+});
+
+// ─── House & Hand: the pencil at the moment a mark is made (docs/marks §7) ───
+
+test.describe("The pencil — choosing a pick (motion on)", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+  test.afterEach(async ({ page }) => { await eraseFootprint(page); });
+
+  test("choosing a pick circles its name in pencil — at the tap, once, the name's words untouched — and leaves nothing behind", async ({ page }) => {
+    // The Somm blocked: the picks on screen are the engine's own, no Claude
+    // call. Choosing writes a want row (erased in afterEach) and a
+    // pick_chosen event (append-forever; nothing here reads it).
+    const LONG = "Hamilton Russell Vineyards Chardonnay, Hemel-en-Aarde Valley 2022";
+    const SHORT = "Raats Original Chenin Blanc, Stellenbosch 2022";
+    await markFootprint([LONG, SHORT]);
+    await watchPencil(page);
+    await page.setViewportSize({ width: 390, height: 844 }); // a phone: the long name wraps
+    await page.route("**/api/somm-picks", (route) => route.abort());
+    const recPage = new RecommendPage(page);
+    await recPage.goto();
+    await recPage.pasteAndAnalyze(`${LONG}...$78\n${SHORT}...$48\nMullineux Syrah, Swartland 2020...$72`);
+    await expect(recPage.resultsHeading).toHaveText("Your picks", { timeout: 20_000 });
+    await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0); // the picks have arrived
+
+    const long = recPage.pickCards.filter({ hasText: /Hamilton Russell/ }).first();
+    const short = recPage.pickCards.filter({ hasText: /Raats/ }).first();
+    const wipes = () => page.evaluate(() => ((window as any).__pencil as string[]).filter((k) => /inset\(-200%/.test(k)).length);
+    // Arriving, nothing is circled and nothing was pencilled
+    await expect(page.locator('[data-testid="pick-card"] [data-gesture]')).toHaveCount(0);
+    expect(await wipes()).toBe(0);
+
+    const circleOf = (card: typeof long) => card.locator("h3").evaluate((h3) => {
+      const wrap = h3.querySelector("[data-gesture]");
+      const svg = wrap?.querySelector("svg");
+      const range = document.createRange();
+      range.selectNodeContents(h3);
+      const tops = new Set(Array.from(range.getClientRects()).filter((r) => r.width >= 1).map((r) => Math.round(r.top)));
+      return {
+        gesture: wrap?.getAttribute("data-gesture") ?? null,
+        loop: svg?.hasAttribute("data-loop") ?? null,
+        lines: tops.size,
+        wiping: svg ? svg.getAnimations().length : 0,
+        text: h3.textContent,
+      };
+    });
+    const longName = await long.locator("h3").textContent();
+
+    // The tap: the circle is wiped in, once — the loop, because the name wraps
+    await long.getByTestId("choose-pick").click();
+    await expect(long.getByTestId("chosen-banner")).toBeVisible();
+    const drawn = await circleOf(long);
+    expect(drawn.lines, "the long name wraps at a phone's width (the premise)").toBeGreaterThan(1);
+    expect(drawn).toMatchObject({ gesture: "circle", loop: true, text: longName });
+    expect(await wipes(), "one circle, pencilled once").toBe(1);
+    await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
+    expect(await long.evaluate((card) => ({
+      clipped: Array.from(card.querySelectorAll("svg")).filter((svg) => getComputedStyle(svg).clipPath !== "none").length,
+      dashed: card.querySelectorAll("[pathLength], [stroke-dasharray]").length,
+    }))).toEqual({ clipped: 0, dashed: 0 });
+
+    // A change of mind: the circle leaves the first pick and is pencilled
+    // round the second — a name on one line keeps the approved circle
+    await long.getByTestId("chosen-banner").getByRole("button", { name: "Change" }).click();
+    await short.getByTestId("choose-pick").click();
+    await expect(short.getByTestId("chosen-banner")).toBeVisible();
+    await expect(long.locator("[data-gesture]")).toHaveCount(0);
+    const second = await circleOf(short);
+    expect(second.gesture).toBe("circle");
+    expect(second.loop, "one line: the approved circle; wrapped: the loop").toBe(second.lines > 1);
+    expect(await wipes()).toBe(2);
+    await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
+
+    // A pick that ARRIVES chosen wears its circle settled (README §7: the
+    // pencil plays at the moment the mark is made, nowhere else). Another
+    // page is read and fails — scripted, no Claude call — so Your picks
+    // leaves for the reading and comes back: the same pick is still circled,
+    // and nothing was pencilled again.
+    await page.route("**/api/parse-wine-list", (route) => route.fulfill({ json: { error: "We couldn’t read that page — try a clearer photo." } }));
+    await page.getByTestId("file-input-add-page").setInputFiles("e2e/fixtures/images/label-test-02.jpg");
+    await expect(page.getByTestId("add-page-error")).toBeVisible({ timeout: 20_000 });
+    await expect(short.getByTestId("chosen-banner")).toBeVisible();
+    expect(await circleOf(short)).toMatchObject({ gesture: "circle", wiping: 0 });
+    await expect(page.locator('[data-testid="pick-card"] [data-gesture]')).toHaveCount(1);
+    expect(await wipes(), "a circle that arrives is not drawn again").toBe(2);
+  });
+});
+
+test.describe("The pencil — a rec passed on, a rec wanted (motion on)", () => {
+  test.use({ contextOptions: { reducedMotion: "no-preference" } });
+  test.afterEach(async ({ page }) => { await eraseFootprint(page); });
+
+  test("Pass strikes the rec's name in pencil at the tap, with no mark; Want it stars its done line — the words plain, the row's name whole", async ({ page }) => {
+    // Two real home recs: a pass and a want move no DNA; their rows are
+    // erased in afterEach, their wine_skipped / wine_wanted events read by delta
+    await watchPencil(page);
+    await page.goto("/");
+    const cards = page.getByTestId("rec-card");
+    await expect(cards.nth(1)).toBeVisible({ timeout: 20_000 });
+    const wines = [(await cards.nth(0).getAttribute("data-wine"))!, (await cards.nth(1).getAttribute("data-wine"))!];
+    const { supabase, userId } = await markFootprint(wines);
+    const skippedBefore = await countEvents(supabase, userId, "wine_skipped");
+    const wantedBefore = await countEvents(supabase, userId, "wine_wanted");
+    const rowOf = (wine: string) => page.locator(`[data-testid="rec-card"][data-wine="${wine.replace(/"/g, '\\"')}"]`);
+    const [passed, wanted] = wines.map(rowOf);
+    await expect.poll(() => finiteAnimations(page), { timeout: 20_000 }).toBe(0); // home has arrived
+    const wipes = () => page.evaluate(() => ((window as any).__pencil as string[]).filter((k) => /inset\(-200%/.test(k)).length);
+    const strokes = () => page.evaluate(() => ((window as any).__pencil as string[]).filter((k) => /strokeDashoffset/.test(k)).length);
+    await expect(page.locator('[data-testid="rec-card"] [data-gesture]')).toHaveCount(0);
+    // The house's controls are type: no mark inside them
+    expect(await passed.getByRole("button").evaluateAll((buttons) => buttons.map((b) => [b.textContent, b.querySelectorAll("svg").length])))
+      .toEqual([["Had it", 0], ["Want it", 0], ["Pass", 0]]);
+    // The name's own words (the vintage sits apart, at the leader's end)
+    const nameOf = (row: typeof passed) => row.evaluate((el) => el.querySelector("a span span")?.textContent ?? null);
+    const nameBefore = await nameOf(passed);
+    expect(nameBefore && wines[0].startsWith(nameBefore), `the row's name ("${nameBefore}")`).toBe(true);
+
+    // Pass: the name is struck through — pencilled at the tap, once — and
+    // the row wears no mark; its done line is plain words, focused
+    await passed.getByRole("button", { name: "Pass", exact: true }).click();
+    const passedLine = passed.locator('p[tabindex="-1"]');
+    await expect(passedLine).toHaveText("Struck from your list.");
+    await expect(passedLine).toBeFocused();
+    await expect(passed.locator('[data-gesture="strike"] svg')).toHaveCount(1);
+    await expect(passed.locator("svg[data-mark]")).toHaveCount(0);
+    // (the strike MOUNTS with the pass, and `next dev` runs a mount's effects
+    // twice: the wipe is started, cancelled and started again — one strike,
+    // one wipe in play at most)
+    const afterPass = await wipes();
+    expect(afterPass, "the strike was pencilled in").toBeGreaterThanOrEqual(1);
+    expect(afterPass).toBeLessThanOrEqual(2);
+    expect(await passed.locator('[data-gesture="strike"] svg').evaluate((svg) => svg.getAnimations().length)).toBeLessThanOrEqual(1);
+    expect(await passed.locator('[data-gesture="strike"]').textContent()).toBe(nameBefore);
+    expect(await passed.evaluate((el) => getComputedStyle(el.querySelector("a span span") as Element).textDecorationLine), "the strike is the pencil's, not a text decoration").toBe("none");
+
+    // Want it: a star before the done line — settled, nothing drawn — and
+    // the name untouched
+    await wanted.getByRole("button", { name: "Want it", exact: true }).click();
+    const wantedLine = wanted.locator('p[tabindex="-1"]');
+    await expect(wantedLine).toHaveText("On your want list — we’ll flag it when it turns up on a menu.");
+    await expect(wantedLine).toBeFocused();
+    expect(await wantedLine.evaluate((el) => Array.from(el.children).map((c) => c.getAttribute("data-mark") ?? c.tagName.toLowerCase()))).toEqual(["star", "span"]);
+    await expect(wanted.locator("[data-gesture]")).toHaveCount(0);
+    expect(await wipes(), "a want pencils no gesture").toBe(afterPass);
+    expect(await strokes(), "no glass was pencilled: nothing was rated").toBe(0);
+
+    // Settled, with nothing left behind — and the rows are in the journal
+    await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
+    for (const row of [passed, wanted]) {
+      expect(await row.evaluate((el) => ({
+        clipped: Array.from(el.querySelectorAll("svg")).filter((svg) => getComputedStyle(svg).clipPath !== "none").length,
+        wordSpans: el.querySelectorAll("[data-word]").length,
+      }))).toEqual({ clipped: 0, wordSpans: 0 });
+    }
+    await expect.poll(() => countEvents(supabase, userId, "wine_skipped"), { timeout: 15_000 }).toBe(skippedBefore + 1);
+    await expect.poll(() => countEvents(supabase, userId, "wine_wanted"), { timeout: 15_000 }).toBe(wantedBefore + 1);
+    const { data: rows } = await supabase.from("wine_interactions").select("wine_name, interaction_type, rating").eq("user_id", userId).in("wine_name", wines);
+    expect(Object.fromEntries((rows ?? []).map((r) => [r.wine_name, `${r.interaction_type}:${r.rating}`]))).toEqual({ [wines[0]]: "skip:null", [wines[1]]: "want:null" });
   });
 });
 
