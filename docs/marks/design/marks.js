@@ -117,8 +117,8 @@ export function markBody(id) {
   if (id === "glass-down") return { viewBox: GLASS_VIEWBOX, body: glass(` transform="${GLASS.turnedDown}"`) };
   if (id === "glass-empty") return { viewBox: GLASS_VIEWBOX, body: glass() };
   if (id === "dot") return { viewBox: "0 0 24 24", body: `<path d="${PENCIL.dot}" fill="${MARK_COLORS.pencil}"/>` };
-  if (PENCIL[id]) return { viewBox: "0 0 24 24", body: `<path d="${PENCIL[id]}" ${pencilAttrs} stroke-width="${MARK_WEIGHTS.pencil}"/>` };
-  if (TOOLS[id]) {
+  if (Object.hasOwn(PENCIL, id)) return { viewBox: "0 0 24 24", body: `<path d="${PENCIL[id]}" ${pencilAttrs} stroke-width="${MARK_WEIGHTS.pencil}"/>` };
+  if (Object.hasOwn(TOOLS, id)) {
     return {
       viewBox: "0 0 24 24",
       body: `<g fill="none" stroke="currentColor" stroke-width="${MARK_WEIGHTS.hairline}" stroke-linecap="round" stroke-linejoin="round">${TOOLS[id]}</g>`,
@@ -140,3 +140,37 @@ export const MARK_IDS = [
   "star", "loop", "plus", "minus", "arrow", "dot",
   "list", "camera", "bottle", "picture", "link", "loupe",
 ];
+
+// ── added Nov 15, 2026, after Session 1 (README §13.1) ─────────────────
+// The circle for a WRAPPED name: a pencil loop built in pixels for the box it
+// goes round, so its corners keep one radius however tall the name is. (The
+// stretched GESTURES.circle turns into a tall ellipse on a wrapped name and
+// cuts across the corners of the first and last lines.) Pure: the same box
+// gives the same path. w, h are the loop's own box in px (the name's block
+// plus its padding); the path starts top-centre, runs anticlockwise and
+// overlaps its start, as the approved one-line circle does.
+export function loopPath(w, h) {
+  if (!(w > 0) || !(h > 0)) return "";
+  const r = Math.min(18, h / 2 - 1, w / 4);
+  const k = 0.55 * r;
+  const f = (n) => String(Math.round(n * 100) / 100);
+  const p = (x, y) => `${f(x)} ${f(y)}`;
+  // an edge with a slight wobble: a hand never draws a ruler line
+  const edge = (x1, y1, x2, y2, wob) => {
+    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / len) * wob, ny = (dx / len) * wob;
+    return `C ${p(x1 + dx / 3 + nx, y1 + dy / 3 + ny)} ${p(x1 + (2 * dx) / 3 - nx, y1 + (2 * dy) / 3 - ny)} ${p(x2, y2)}`;
+  };
+  return [
+    `M ${p(w * 0.5, 2)}`,
+    edge(w * 0.5, 2, r + 1, 1.4, 0.9),
+    `C ${p(r + 1 - k, 1.4)} ${p(1.4, r + 1 - k)} ${p(1.4, r + 1)}`,
+    edge(1.4, r + 1, 2.2, h - r - 1, 1.1),
+    `C ${p(2.2, h - r - 1 + k)} ${p(r + 1 - k, h - 1.6)} ${p(r + 1, h - 1.6)}`,
+    edge(r + 1, h - 1.6, w - r - 1, h - 2.4, 1.2),
+    `C ${p(w - r - 1 + k, h - 2.4)} ${p(w - 1.4, h - r - 1 + k)} ${p(w - 1.4, h - r - 1)}`,
+    edge(w - 1.4, h - r - 1, w - 2.4, r + 1, 1.1),
+    `C ${p(w - 2.4, r + 1 - k)} ${p(w - r - 1 + k, 2.6)} ${p(w - r - 1, 2.6)}`,
+    edge(w - r - 1, 2.6, w * 0.4, 4.6, 0.9),
+  ].join(" ");
+}

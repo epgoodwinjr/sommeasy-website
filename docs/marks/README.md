@@ -14,7 +14,7 @@ No engine, ledger, schema or API changes. The rating path, `wine_events`, the id
 ## 2. How to use this package
 
 1. This folder lives in the repo as `docs/marks/` (this README plus `design/`).
-2. Create the branch `marks` from `main`. Nothing merges until Ed has walked the preview after the last session.
+2. The branch is `marks`, cut from `loose-ends` on Nov 15, 2026 (so it carries `loose-ends` and `sparkling-words` until they reach `main`). Nothing merges until Ed has walked the preview after the last session.
 3. Start each Claude Code session with:
 
 > Read CLAUDE.md, then docs/marks/README.md. We're building House & Hand on the `marks` branch, one session per run. Do Session N now. The decisions in §3 are final, so don't re-ask them. Anything marked "for Ed's review": build it as written and list it in your session summary. End with the summary CLAUDE.md asks for, plus what I should check on the preview deploy.
@@ -68,7 +68,7 @@ Build beside it, one file each:
 
 - **`Mark`**: `<Mark id="star" size={20} />`. Renders the settled mark, `aria-hidden`, `data-mark={id}`. An unknown id renders nothing.
 - **`PencilGlass`**: the glass for a rating id. Props: `rating`, `size`, `draw` (false: settled; `"tile"` or `"line"`: pencilled in, §7), `guide` (the faint shading a tile shows at rest). Renders each shading stroke as its own `<path>` so strokes can be drawn in turn. At rest its markup equals `Mark`'s for the same rating.
-- **`NameGesture`**: wraps a name and draws `circle`, `underline` or `strike` over it. An absolutely positioned `<svg>` with `preserveAspectRatio="none"` and `vector-effect="non-scaling-stroke"`, `aria-hidden`, pointer-events none. The wrapped text and its DOM are unchanged. For a name that wraps to two lines, size the underline and the strike to the **last line** (`getClientRects()`), and the circle to the whole block.
+- **`NameGesture`**: wraps a name and draws `circle`, `underline` or `strike` over it. An absolutely positioned `<svg>` with `preserveAspectRatio="none"` and `vector-effect="non-scaling-stroke"`, `aria-hidden`, pointer-events none. The wrapped text and its DOM are unchanged. For a name that wraps, size the underline and the strike to the **last line** (`getClientRects()`). The circle goes round the whole block; on a wrapped name it is the generated loop of §13, not the stretched drawing.
 
 Also in Session 1: `/marks-specimen`, an unlinked page showing every mark and primitive for the preview. It is deleted in Session 3.
 
@@ -87,7 +87,7 @@ Add to `motion.js`:
 
 - **A stroke is drawn** with `pathLength="1"`, `stroke-dasharray: 1` and `stroke-dashoffset` from 1 to 0, filling backwards. **One `<path>` per stroke.** A single path holding every stroke does not work: each subpath is dashed on its own, so they all appear together at the end. That was the bug in the first study.
 - **Order:** surface line, then the hatching in array order. The strokes already alternate direction, so it reads as a hand shading back and forth.
-- **`draw="line"`** uses the table as written (a full glass takes about 1.3s).
+- **`draw="line"`** uses the table as written: the hatching starts as the surface line ends, so a full glass is finished at about 1.5s.
 - **`draw="tile"`** must finish inside the press hold. Keep `surfaceMs` at 140 and `strokeMs` at 90, and derive the step so the last stroke ends 20ms before `PRESS.holdMs`. Do not lengthen the hold.
 - **"Not for me" draws nothing.** On its tile the glass turns over: the SVG rotates from −180° to none over `flipMs`.
 - **Gestures** are revealed with a `clip-path` wipe from the left. Do not dash them: dash lengths and a non-scaling stroke do not agree across browsers.
@@ -188,3 +188,25 @@ After Session 3: full test run, Ed walks the preview on a phone, one merge.
 - **The glass sits in a 20-unit frame.** Its hairline is 1.08, not 1.3, so that it prints at the tools' weight. Do not "fix" it to match.
 - **`WriteIn` and marks.** A mark inside a written line would be split into word spans. Keep the mark a sibling of the written text.
 - **The design system's README** on claude.ai still says emoji are the icon system. It is updated outside the repo, after the merge.
+
+## 13. Settled in Session 1 (Nov 15, 2026)
+
+Session 1 shipped the foundations on `marks` (66eff27, 83b55b3, 4dab15a). These choices are now part of the spec; later sessions build on them and do not reopen them.
+
+- **Stroke easing is `ease-out`** (`PENCIL.easing`).
+- **`PENCIL_MARKS`** is the production name for the pencil paths, because `motion.js` owns `PENCIL` for the timings. The design module keeps `PENCIL`.
+- **Junk ids draw nothing**, including inherited names like `"toString"`. The design module had that bug; it is fixed there too.
+- **`guide`**: a tile at rest shows only the faint shading; the firm shading goes in when it is tapped.
+- **`NameGesture`'s wrapper stays inline**, so a long name wraps exactly where it did before.
+- **`e2e/marks.spec.ts`** drives the specimen and is deleted with it in Session 3. Anything it proves that still matters moves onto a real page first.
+
+### 13.1 Open for Session 2, do this first: the circle on a wrapped name
+
+The stretched `GESTURES.circle` becomes a tall ellipse on a wrapped name and cuts across the corners of its first and last lines. Pick names wrap often on a phone, and the circle lands on a pick in this session, so fix it before using it.
+
+- **One line: unchanged.** The approved `GESTURES.circle`, stretched, exactly as built.
+- **More than one line: the loop.** `design/marks.js` now exports `loopPath(w, h)`: a pencil loop built in pixels for its box, whose corners keep one radius however tall the name is. Port it to production `marks.js` value for value and extend the parity test to it. Render it in an `<svg>` whose viewBox is `0 0 w h` (no `preserveAspectRatio="none"`), over the same padded box the circle uses today, with the same wipe. It is re-made whenever the name is re-measured.
+- **Unit tests:** deterministic; "" for a box that isn't one; every coordinate inside the box; the corner radius does not grow with the height (compare h = 60, 120 and 240).
+- **Browser test** (specimen): on each wrapped name, all four corners of its first and last line boxes lie inside the loop (`isPointInFill` on a filled copy of the path); a one-line name still draws `GESTURES.circle`.
+- **For Ed's review:** how the loop looks on the specimen's wrapped names.
+
