@@ -164,6 +164,10 @@ export const PRESS_KEYFRAMES = [
  *                         PRESS.holdMs. The hold itself is never lengthened
  *   guide                 the opacity of a tile's resting shading
  *   gestureMs             a circle, underline or strike, SOFT_OUT
+ *   gestureLineMs,        an underline or strike over a name that WRAPS is
+ *   gestureStepMs         one stroke per line: each wiped in over
+ *                         gestureLineMs, gestureStepMs after the line above
+ *                         (gestureWipes). A one-line name keeps gestureMs
  *   flipMs                "Not for me" draws nothing: on its tile the glass
  *                         turns over, SOFT_OUT
  *   easing                one stroke (the approved reference's)
@@ -175,6 +179,7 @@ export const PRESS_KEYFRAMES = [
  */
 export const PENCIL = {
   surfaceMs: 360, strokeMs: 200, stepMs: 85, guide: 0.22, gestureMs: 800, flipMs: 600,
+  gestureLineMs: 520, gestureStepMs: 260,
   tile: { surfaceMs: 140, strokeMs: 90, beforeHold: 20 },
   easing: "ease-out",
 };
@@ -190,6 +195,19 @@ export const GESTURE_WIPE = [
   { offset: 0, clipPath: "inset(-200% 100% -200% 0)" },
   { offset: 1, clipPath: "inset(-200% -5% -200% -5%)" },
 ];
+
+/**
+ * When each stroke of a gesture is wiped in, top line first, as
+ * { delay, duration } from the draw's start (docs/marks/README.md §14.1). One
+ * stroke — a circle, or an underline or strike on one line — takes
+ * gestureMs. A name that wraps has a stroke per line: each takes
+ * gestureLineMs and starts gestureStepMs after the one above. Junk → [].
+ */
+export function gestureWipes(count) {
+  if (!Number.isInteger(count) || count < 1) return [];
+  if (count === 1) return [{ delay: 0, duration: PENCIL.gestureMs }];
+  return Array.from({ length: count }, (_, i) => ({ delay: i * PENCIL.gestureStepMs, duration: PENCIL.gestureLineMs }));
+}
 
 /**
  * When each stroke of a glass's shading is drawn, in drawing order — stroke

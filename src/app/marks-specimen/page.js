@@ -55,13 +55,21 @@ const GESTURE_NAMES = [
   { kind: "strike", name: "Constantia Glen Five", says: "Struck: a bottle you passed on" },
 ];
 const LONG_NAME = "Domaine Huet Le Haut-Lieu Vouvray Sec 2021";
-// The loop (README §13.1): circled names that wrap to two, three and four
-// lines, a short last line, and a pick's name at a phone's width
+// Circled names that wrap to two, three and four lines, a short last line,
+// and a pick's name at a phone's width: the one stretched drawing, always
+// (README §14.1)
 const LOOPED = [
   { name: "Kanonkop Paul Sauer", width: 150 },
   { name: "Château de Beaucastel Châteauneuf-du-Pape Rouge 2019", width: 250 },
   { name: LONG_NAME, width: 130 },
   { name: "Hamilton Russell Vineyards Chardonnay, Hemel-en-Aarde Valley 2022", width: 303, size: "21px" },
+];
+
+// Underlined and struck on every line (README §14.1): three lines and more
+const LINED = [
+  { kind: "underline", name: "Château de Beaucastel Châteauneuf-du-Pape Rouge 2019", width: 180 },
+  { kind: "strike", name: LONG_NAME, width: 130 },
+  { kind: "strike", name: "Hamilton Russell Vineyards Chardonnay, Hemel-en-Aarde Valley 2022", width: 303, size: "21px" },
 ];
 
 const page = { maxWidth: COLUMN, margin: "0 auto", padding: `40px ${GUTTER}px 80px`, color: INK };
@@ -244,7 +252,15 @@ function Gestures() {
           </p>
         ))}
       </div>
-      <p style={caption}>A name that wraps: underlined and struck on its last line, circled whole</p>
+      <p style={caption}>A name that wraps: underlined and struck on every line, circled whole</p>
+      <div style={{ display: "flex", gap: "28px 30px", flexWrap: "wrap", alignItems: "flex-start", marginTop: 30 }}>
+        {LINED.map((l, i) => (
+          <p key={l.kind + l.width} style={{ ...nameStyle, width: l.width, fontSize: l.size || nameStyle.fontSize }} data-testid={`specimen-lined-${i}`}>
+            <NameGesture key={plays} gesture={l.kind} draw={plays > 0}>{l.name}</NameGesture>
+          </p>
+        ))}
+      </div>
+      <p style={caption}>One stroke per line, top line first; no two neighbouring lines share a drawing</p>
       <div style={{ display: "flex", gap: "28px 30px", flexWrap: "wrap", alignItems: "flex-start", marginTop: 30 }}>
         {LOOPED.map((l, i) => (
           <p key={l.name + l.width} style={{ ...nameStyle, width: l.width, fontSize: l.size || nameStyle.fontSize }} data-testid={`specimen-loop-${i}`}>
@@ -252,7 +268,7 @@ function Gestures() {
           </p>
         ))}
       </div>
-      <p style={caption}>The loop: round a wrapped name the circle keeps one corner radius, however tall the name is</p>
+      <p style={caption}>The circle is one drawing, stretched round the whole name, on one line or four</p>
       <TextActions style={{ marginTop: 6 }}>
         <TextAction testId="specimen-pencil-again" onClick={() => setPlays((n) => n + 1)}>Pencil them in</TextAction>
       </TextActions>

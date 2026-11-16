@@ -24,11 +24,9 @@
 // strike over a name). Every mark is aria-hidden: the words beside it say
 // the same thing and are its accessible name.
 //
-// Two departures from the design source, neither in a path: its PENCIL (the
+// One departure from the design source, and not in a path: its PENCIL (the
 // pencil marks) is PENCIL_MARKS here, because PENCIL in motion.js is the
-// penciling's timing; and loopPath asks for a FINITE box (the design source
-// would draw "Infinity" for an endless one). Every box a name can make gives
-// the design source's path, value for value.
+// penciling's timing.
 
 export const MARK_COLORS = { ink: "#1B3D2F", pencil: "#8B2332", cream: "#F5F0E8" };
 export const MARK_WEIGHTS = { hairline: 1.3, glassHairline: 1.08, pencil: 1.6, shade: 0.62 };
@@ -100,8 +98,19 @@ export const PENCIL_MARKS = {
 // path, so the line keeps its weight at any width (NameGesture).
 export const GESTURES = {
   circle: { viewBox: "0 0 200 40", d: "M96 3 C 40 1 4 8 4 20 C 4 33 50 38 104 37 C 160 36 197 30 196 18 C 195 7 150 1 78 6" }, // the pick on the table
-  underline: { viewBox: "0 0 200 8", d: "M2 4.5 C 40 1.5 80 6.5 120 3.5 C 150 1.5 180 5.5 198 3" }, // a bottle you loved
-  strike: { viewBox: "0 0 200 8", d: "M2 5 C 50 2 110 6.5 198 2.5" }, // a bottle you passed on
+  // a bottle you loved. On a wrapped name every line is underlined: line i
+  // takes drawing i mod 3, `d` being drawing 0 (README §14.1)
+  underline: {
+    viewBox: "0 0 200 8",
+    d: "M2 4.5 C 40 1.5 80 6.5 120 3.5 C 150 1.5 180 5.5 198 3",
+    more: ["M2 3.5 C 36 6 84 1.5 124 4.5 C 152 6 182 2 198 4", "M3 4 C 50 5.8 96 2.2 140 4.2 C 165 5.2 185 3 197 4.6"],
+  },
+  // a bottle you passed on: every line struck, drawings chosen the same way
+  strike: {
+    viewBox: "0 0 200 8",
+    d: "M2 5 C 50 2 110 6.5 198 2.5",
+    more: ["M2 3.2 C 60 5.8 120 2 198 4.6", "M3 4.6 C 70 2.4 130 5.6 197 3.4"],
+  },
 };
 
 // ── the printed tools ───────────────────────────────────────────────────
@@ -235,14 +244,16 @@ export function nameLines(rects) {
 }
 
 /**
- * Where a gesture goes over a name that has been measured, in px from
- * `origin` (the top left its <svg> is positioned from). The circle goes
- * round the whole name; the underline and the strike go on its LAST line,
- * so a name that wraps is underlined or struck where it ends. Null for an
- * unknown gesture or a name with no lines.
+ * Where a gesture goes over a name that has been measured: its boxes, in px
+ * from `origin` (the top left each <svg> is positioned from), top line first
+ * (README §14.1). The circle is ONE box round the whole name, one line or
+ * four. The underline and the strike are one box PER LINE, each sized to its
+ * own line with the reach and drop a single line has — on the last line
+ * alone they read as marking only those words. Nothing ([]) for an unknown
+ * gesture or a name with no lines.
  */
-export function gestureBox(kind, lines, origin) {
-  if (!owns(GESTURE_FIT, kind) || !Array.isArray(lines) || !lines.length || !lines.every(isRect)) return null;
+export function gestureBoxes(kind, lines, origin) {
+  if (!owns(GESTURE_FIT, kind) || !Array.isArray(lines) || !lines.length || !lines.every(isRect)) return [];
   const o = { x: finite(origin?.left) ? origin.left : 0, y: finite(origin?.top) ? origin.top : 0 };
   const fit = GESTURE_FIT[kind];
   if (kind === "circle") {
@@ -250,52 +261,31 @@ export function gestureBox(kind, lines, origin) {
     const right = Math.max(...lines.map((l) => l.right));
     const top = Math.min(...lines.map((l) => l.top));
     const bottom = Math.max(...lines.map((l) => l.bottom));
-    return {
+    return [{
       left: left - fit.reach - o.x, top: top - fit.rise - o.y,
       width: right - left + 2 * fit.reach, height: bottom - top + 2 * fit.rise,
-    };
+    }];
   }
-  const last = lines[lines.length - 1];
-  const top = kind === "underline"
-    ? last.bottom + fit.drop - fit.height
-    : last.top + (last.bottom - last.top) * fit.at;
-  return {
-    left: last.left - fit.reach - o.x, top: top - o.y,
-    width: last.right - last.left + 2 * fit.reach, height: fit.height,
-  };
+  return lines.map((line) => {
+    const top = kind === "underline"
+      ? line.bottom + fit.drop - fit.height
+      : line.top + (line.bottom - line.top) * fit.at;
+    return {
+      left: line.left - fit.reach - o.x, top: top - o.y,
+      width: line.right - line.left + 2 * fit.reach, height: fit.height,
+    };
+  });
 }
 
-// ── the loop: the circle round a WRAPPED name (README §13.1) ────────────
-// GESTURES.circle, stretched, is right for a name on one line. Over a name
-// that wraps it becomes a tall ellipse and cuts across the corners of the
-// first and last lines. The loop is built in pixels for the box it goes
-// round, so its corners keep one radius however tall the name is. Pure: the
-// same box gives the same path. w, h are the loop's own box in px (the
-// name's block plus the circle's padding — gestureBox("circle", …)); the
-// path starts top-centre, runs anticlockwise and overlaps its start, as the
-// approved one-line circle does. "" for a box that isn't one.
-export function loopPath(w, h) {
-  if (!finite(w) || !finite(h) || !(w > 0) || !(h > 0)) return "";
-  const r = Math.min(18, h / 2 - 1, w / 4);
-  const k = 0.55 * r;
-  const f = (n) => String(Math.round(n * 100) / 100);
-  const p = (x, y) => `${f(x)} ${f(y)}`;
-  // an edge with a slight wobble: a hand never draws a ruler line
-  const edge = (x1, y1, x2, y2, wob) => {
-    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
-    const nx = (-dy / len) * wob, ny = (dx / len) * wob;
-    return `C ${p(x1 + dx / 3 + nx, y1 + dy / 3 + ny)} ${p(x1 + (2 * dx) / 3 - nx, y1 + (2 * dy) / 3 - ny)} ${p(x2, y2)}`;
-  };
-  return [
-    `M ${p(w * 0.5, 2)}`,
-    edge(w * 0.5, 2, r + 1, 1.4, 0.9),
-    `C ${p(r + 1 - k, 1.4)} ${p(1.4, r + 1 - k)} ${p(1.4, r + 1)}`,
-    edge(1.4, r + 1, 2.2, h - r - 1, 1.1),
-    `C ${p(2.2, h - r - 1 + k)} ${p(r + 1 - k, h - 1.6)} ${p(r + 1, h - 1.6)}`,
-    edge(r + 1, h - 1.6, w - r - 1, h - 2.4, 1.2),
-    `C ${p(w - r - 1 + k, h - 2.4)} ${p(w - 1.4, h - r - 1 + k)} ${p(w - 1.4, h - r - 1)}`,
-    edge(w - 1.4, h - r - 1, w - 2.4, r + 1, 1.1),
-    `C ${p(w - 2.4, r + 1 - k)} ${p(w - r - 1 + k, 2.6)} ${p(w - r - 1, 2.6)}`,
-    edge(w - r - 1, 2.6, w * 0.4, 4.6, 0.9),
-  ].join(" ");
+/**
+ * The drawing for line `line` of a gesture (0 = the first, or only, line).
+ * No two neighbouring lines share one: line i takes drawing i mod 3, the
+ * approved `d` being drawing 0 — so a one-line name draws exactly what it
+ * always drew. The circle has one drawing. "" for an unknown gesture.
+ */
+export function gestureDrawing(kind, line = 0) {
+  if (!owns(GESTURES, kind)) return "";
+  const g = GESTURES[kind];
+  const drawings = [g.d, ...(Array.isArray(g.more) ? g.more : [])];
+  return drawings[Number.isInteger(line) && line > 0 ? line % drawings.length : 0];
 }

@@ -15,14 +15,13 @@
 //      the tools'. The shading arrays are non-empty, stroke 0 is the wine's
 //      surface and the rest are single hatching strokes.
 //   4. glassFor: a rating's glass, its shading and whether it is turned down.
-//   5. A gesture over a name: the CSS box for one line, lines merged from
-//      client rects, the circle round the whole name and the underline and
-//      strike on its LAST line.
+//   5. A gesture over a name (README §14.1): the CSS box for one line, lines
+//      merged from client rects, the circle ONE box round the whole name,
+//      and the underline and strike one box PER LINE, in order, each on its
+//      own line — with no two neighbouring lines sharing a drawing.
 //   6. SOURCE SCAN: no other file under src/ declares a mark's path data.
-//   7. The loop — the circle round a WRAPPED name (README §13.1): the design
-//      source's loopPath value for value, deterministic, "" for a box that
-//      isn't one, every coordinate inside its box, and corners that keep
-//      one radius however tall the name is.
+//   7. The loop is gone (README §14.1): the circle is the one stretched
+//      drawing, and nothing under src/ builds another.
 //   8. SOURCE SCANS for Session 2: where the pencil plays (H3) — a glass is
 //      pencilled in only on a tile, a done line, home's reply, the wine
 //      page's verdict and Log's saved eyebrow; a gesture only where the user
@@ -73,7 +72,7 @@ async function main() {
   const { RATINGS } = await import("../ratings.js");
   const {
     MARK_COLORS, MARK_WEIGHTS, GLASS_VIEWBOX, GLASS, SHADE, PENCIL_MARKS, GESTURES, TOOLS, RATING_MARKS, MARK_IDS,
-    GESTURE_FIT, markBody, renderMark, markSize, glassFor, gestureStyle, nameLines, gestureBox, loopPath,
+    GESTURE_FIT, markBody, renderMark, markSize, glassFor, gestureStyle, nameLines, gestureBoxes, gestureDrawing,
   } = marks;
 
   console.log("\n═══ 1. The paths are exact — the design source, value for value ═══");
@@ -85,7 +84,13 @@ async function main() {
     assertEq(GLASS, design.GLASS, "GLASS");
     assertEq(SHADE, design.SHADE, "SHADE");
     assertEq(PENCIL_MARKS, design.PENCIL, "the pencil marks");
-    assertEq(GESTURES, design.GESTURES, "GESTURES");
+    assertEq(GESTURES, design.GESTURES, "GESTURES — `more`, the further drawings for a wrapped name, included");
+    for (const kind of ["underline", "strike"]) {
+      assertEq(GESTURES[kind].more.length, 2, `${kind}: two further drawings (§14.1)`);
+      assertEq(GESTURES[kind].more, design.GESTURES[kind].more, `${kind}.more`);
+    }
+    assert(!("more" in GESTURES.circle), "the circle is one drawing, always");
+    assert(!("loopPath" in design) && !("loopPath" in marks), "no loop: neither module builds one (§14.1)");
     assertEq(TOOLS, design.TOOLS, "TOOLS");
     assertEq(RATING_MARKS, design.RATING_MARKS, "RATING_MARKS");
     assertEq(MARK_IDS, design.MARK_IDS, "MARK_IDS");
@@ -280,38 +285,109 @@ async function main() {
     assertEq(nameLines({ length: 1, 0: rect(0, 0, 50, 20) }), [{ left: 0, top: 0, right: 50, bottom: 20 }], "array-like");
   });
 
-  await test("one line: the measured box is the CSS box, in px", () => {
+  await test("one line: one box, the CSS box in px — and the approved drawing, unchanged", () => {
     const line = [{ left: 100, top: 200, right: 300, bottom: 224 }];
     const origin = { left: 100, top: 200 };
-    assertEq(gestureBox("circle", line, origin), { left: -12, top: -7, width: 224, height: 38 }, "circle");
-    assertEq(gestureBox("underline", line, origin), { left: -2, top: 22, width: 204, height: 7 }, "underline: its bottom 5px under");
-    assertEq(gestureBox("strike", line, origin), { left: -3, top: 12, width: 206, height: 7 }, "strike: from the middle");
+    assertEq(gestureBoxes("circle", line, origin), [{ left: -12, top: -7, width: 224, height: 38 }], "circle");
+    assertEq(gestureBoxes("underline", line, origin), [{ left: -2, top: 22, width: 204, height: 7 }], "underline: its bottom 5px under");
+    assertEq(gestureBoxes("strike", line, origin), [{ left: -3, top: 12, width: 206, height: 7 }], "strike: from the middle");
+    for (const kind of ["circle", "underline", "strike"]) {
+      assertEq(gestureDrawing(kind), GESTURES[kind].d, `${kind}: a one-line name draws what it always drew`);
+      assertEq(gestureDrawing(kind, 0), GESTURES[kind].d, `${kind}, line 0`);
+    }
   });
 
-  await test("a wrapped name: circled whole, underlined and struck on its LAST line", () => {
-    const lines = [
-      { left: 20, top: 100, right: 210, bottom: 124 }, // "Domaine Huet Le Haut-Lieu"
-      { left: 20, top: 124, right: 132, bottom: 148 }, // "Vouvray Sec 2021"
-    ];
+  const WRAPPED = [
+    { left: 20, top: 100, right: 210, bottom: 124 }, // "Domaine Huet Le Haut-Lieu"
+    { left: 20, top: 128, right: 132, bottom: 152 }, // "Vouvray Sec 2021"
+  ];
+
+  await test("a wrapped name is circled whole: ONE box, the one stretched drawing (§14.1)", () => {
     const origin = { left: 20, top: 100 }; // the first line's top left, as an inline box's origin usually is
-    assertEq(gestureBox("circle", lines, origin), { left: -12, top: -7, width: 214, height: 62 }, "circle: the whole block");
-    assertEq(gestureBox("underline", lines, origin), { left: -2, top: 46, width: 116, height: 7 }, "underline: under the last line");
-    assertEq(gestureBox("strike", lines, origin), { left: -3, top: 36, width: 118, height: 7 }, "strike: through the last line");
-    // An engine that puts an inline box's origin elsewhere only moves the frame of reference
-    const elsewhere = { left: 0, top: 90 };
-    assertEq(gestureBox("underline", lines, elsewhere), { left: 18, top: 56, width: 116, height: 7 }, "measured from the origin given");
-    // A last line wider than the first still decides the line
+    assertEq(gestureBoxes("circle", WRAPPED, origin), [{ left: -12, top: -7, width: 214, height: 66 }], "circle: the whole block");
     const wider = [{ left: 60, top: 0, right: 120, bottom: 20 }, { left: 0, top: 20, right: 200, bottom: 40 }];
-    assertEq(gestureBox("strike", wider, { left: 0, top: 0 }), { left: -3, top: 30, width: 206, height: 7 }, "the last line");
-    assertEq(gestureBox("circle", wider, { left: 0, top: 0 }), { left: -12, top: -7, width: 224, height: 54 }, "the union");
+    assertEq(gestureBoxes("circle", wider, { left: 0, top: 0 }), [{ left: -12, top: -7, width: 224, height: 54 }], "the union");
+    const four = [0, 1, 2, 3].map((i) => ({ left: 0, top: i * 26, right: 100 + i, bottom: i * 26 + 22 }));
+    assertEq(gestureBoxes("circle", four, null).length, 1, "four lines, still one circle");
+    for (const line of [1, 2, 3, 7]) assertEq(gestureDrawing("circle", line), GESTURES.circle.d, `the circle has one drawing (line ${line})`);
   });
 
-  await test("gestureBox: an unknown gesture, no lines or junk → null; a missing origin is 0,0", () => {
+  await test("a wrapped name is underlined and struck on EVERY line: one box per line, in order, each on its own line", () => {
+    const origin = { left: 20, top: 100 };
+    assertEq(gestureBoxes("underline", WRAPPED, origin), [
+      { left: -2, top: 22, width: 194, height: 7 },
+      { left: -2, top: 50, width: 116, height: 7 },
+    ], "underline: under each line, each its own width");
+    assertEq(gestureBoxes("strike", WRAPPED, origin), [
+      { left: -3, top: 12, width: 196, height: 7 },
+      { left: -3, top: 40, width: 118, height: 7 },
+    ], "strike: through each line");
+    // An engine that puts an inline box's origin elsewhere only moves the frame of reference
+    assertEq(gestureBoxes("underline", WRAPPED, { left: 0, top: 90 }), [
+      { left: 18, top: 32, width: 194, height: 7 },
+      { left: 18, top: 60, width: 116, height: 7 },
+    ], "measured from the origin given");
+    // Any number of lines, ragged widths, a last line wider than the first:
+    // box i belongs to line i — inside its vertical band (the underline's
+    // drop under it aside) and exactly as wide as that line plus its reach
+    const ragged = [
+      { left: 60, top: 0, right: 120, bottom: 22 }, { left: 0, top: 26, right: 200, bottom: 48 },
+      { left: 0, top: 52, right: 90, bottom: 74 }, { left: 0, top: 78, right: 143.5, bottom: 100 },
+    ];
+    for (const kind of ["underline", "strike"]) {
+      const fit = GESTURE_FIT[kind];
+      const boxes = gestureBoxes(kind, ragged, { left: 0, top: 0 });
+      assertEq(boxes.length, ragged.length, `${kind}: as many boxes as lines`);
+      boxes.forEach((box, i) => {
+        const line = ragged[i];
+        assert(box.top >= line.top && box.top <= line.bottom, `${kind} ${i}: starts inside its own line (${box.top})`);
+        assert(box.top + box.height <= line.bottom + (kind === "underline" ? fit.drop : 0), `${kind} ${i}: ends with its own line`);
+        if (ragged[i + 1]) assert(box.top + box.height <= ragged[i + 1].top + (kind === "underline" ? fit.drop : 0), `${kind} ${i}: clear of the next line's words`);
+        assertEq(box.left, line.left - fit.reach, `${kind} ${i}: its own line's left`);
+        assertEq(box.width, line.right - line.left + 2 * fit.reach, `${kind} ${i}: its own line's width`);
+        assertEq(box.height, fit.height, `${kind} ${i}: a single line's height`);
+        if (i) assert(box.top > boxes[i - 1].top, `${kind}: top line first`);
+      });
+    }
+  });
+
+  await test("no two neighbouring lines share a drawing: line i takes drawing i mod 3, the approved d first", () => {
+    for (const kind of ["underline", "strike"]) {
+      const drawings = [GESTURES[kind].d, ...GESTURES[kind].more];
+      assertEq(new Set(drawings).size, 3, `${kind}: three different drawings`);
+      for (let i = 0; i < 9; i++) {
+        assertEq(gestureDrawing(kind, i), drawings[i % 3], `${kind}, line ${i}`);
+        assert(gestureDrawing(kind, i) !== gestureDrawing(kind, i + 1), `${kind}: lines ${i} and ${i + 1} differ`);
+      }
+      // Every drawing runs the box's width, left to right, inside the 200 × 8 frame
+      for (const d of drawings) {
+        const n = d.match(/-?\d+(?:\.\d+)?/g).map(Number);
+        const xs = n.filter((_, i) => i % 2 === 0), ys = n.filter((_, i) => i % 2 === 1);
+        assert(xs[0] <= 3 && xs[xs.length - 1] >= 197, `${kind}: "${d}" spans its line`);
+        assert(xs.every((x) => x >= 0 && x <= 200) && ys.every((y) => y >= 0 && y <= 8), `${kind}: "${d}" stays in its frame`);
+        assert(/^M[\d.]+ [\d.]+( C( [\d.]+){6})+$/.test(d), `${kind}: one stroke`);
+      }
+    }
+  });
+
+  await test("junk gives nothing: an unknown gesture, no lines or junk lines → []; a missing origin is 0,0", () => {
     const line = [{ left: 0, top: 0, right: 10, bottom: 10 }];
-    for (const kind of [undefined, null, "", "star", "toString"]) assertEq(gestureBox(kind, line, { left: 0, top: 0 }), null, `kind ${JSON.stringify(kind)}`);
-    for (const lines of [undefined, null, [], "lines", [null], [{ left: 0 }]]) assertEq(gestureBox("circle", lines, { left: 0, top: 0 }), null, `lines ${JSON.stringify(lines)}`);
-    assertEq(gestureBox("underline", line, undefined), { left: -2, top: 8, width: 14, height: 7 }, "no origin");
-    assertEq(gestureBox("underline", line, { left: NaN, top: "x" }), { left: -2, top: 8, width: 14, height: 7 }, "a junk origin");
+    for (const kind of [undefined, null, "", "star", "toString", "more"]) {
+      assertEq(gestureBoxes(kind, line, { left: 0, top: 0 }), [], `kind ${JSON.stringify(kind)}`);
+      assertEq(gestureDrawing(kind), "", `gestureDrawing(${JSON.stringify(kind)})`);
+      assertEq(gestureDrawing(kind, 2), "", `gestureDrawing(${JSON.stringify(kind)}, 2)`);
+    }
+    for (const kind of ["circle", "underline", "strike"]) {
+      for (const lines of [undefined, null, [], "lines", [null], [{ left: 0 }], [line[0], null]]) {
+        assertEq(gestureBoxes(kind, lines, { left: 0, top: 0 }), [], `${kind}: lines ${JSON.stringify(lines)}`);
+      }
+      // A junk line number is the first line's drawing, never undefined
+      for (const junk of [undefined, null, -1, 1.5, NaN, Infinity, "2", {}]) {
+        assertEq(gestureDrawing(kind, junk), GESTURES[kind].d, `${kind}: gestureDrawing(${String(junk)})`);
+      }
+    }
+    assertEq(gestureBoxes("underline", line, undefined), [{ left: -2, top: 8, width: 14, height: 7 }], "no origin");
+    assertEq(gestureBoxes("underline", line, { left: NaN, top: "x" }), [{ left: -2, top: 8, width: 14, height: 7 }], "a junk origin");
   });
 
   console.log("\n═══ 6. SOURCE SCAN ═══");
@@ -321,7 +397,7 @@ async function main() {
     // drifted at its end is still a second copy
     const all = [
       GLASS.bowl, GLASS.stemAndFoot, ...Object.values(SHADE).flat(), ...Object.values(PENCIL_MARKS),
-      ...Object.values(GESTURES).map((g) => g.d), ...Object.values(TOOLS).flatMap(pathsIn),
+      ...Object.values(GESTURES).flatMap((g) => [g.d, ...(g.more || [])]), ...Object.values(TOOLS).flatMap(pathsIn),
     ];
     assert(all.length > 40, "the scan knows the paths");
     const openings = [...new Set(all.map((d) => d.slice(0, 14)))];
@@ -342,104 +418,16 @@ async function main() {
     assert(designSource.includes(SHADE.loved[3].slice(0, 14)), "and the shading");
   });
 
-  console.log("\n═══ 7. The loop: the circle round a wrapped name (§13.1) ═══");
+  console.log("\n═══ 7. The loop is gone (§14.1) ═══");
 
-  /** Every number in a path, as x,y pairs in order. */
-  const pointsIn = (d) => {
-    const n = (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
-    const pts = [];
-    for (let i = 0; i + 1 < n.length; i += 2) pts.push({ x: n[i], y: n[i + 1] });
-    return pts;
-  };
-  /** The four corners' radii, read off the path itself: each corner is the
-   *  one curve between two edges, and its radius is how far it travels. */
-  const cornerRadii = (d) => {
-    // M start, then C×(edge, corner)×4, then the closing edge: 10 segments
-    const segs = d.split(/\s(?=C )/).map(pointsIn);
-    const end = (i) => segs[i][segs[i].length - 1];
-    return [2, 4, 6, 8].map((i) => {
-      const from = end(i - 1), to = end(i);
-      const px = (n) => Math.round(Math.abs(n) * 100) / 100; // the path's own two decimals
-      return { dx: px(to.x - from.x), dy: px(to.y - from.y) };
-    });
-  };
-  const BOXES = [];
-  for (const w of [60, 96, 150, 214, 302.5, 420]) for (const h of [40, 52, 62, 86.5, 110, 134, 240]) BOXES.push([w, h]);
-
-  await test("loopPath is the design source's, value for value, over every box a name could make", () => {
-    assert(typeof loopPath === "function", "marks.js exports loopPath");
-    for (const [w, h] of BOXES) assertEq(loopPath(w, h), design.loopPath(w, h), `loopPath(${w}, ${h})`);
-    // Narrow, short and odd boxes are still the same drawing
-    for (const [w, h] of [[30, 30], [44, 61.3], [1000, 62], [213.71, 61.94], [24, 300]]) {
-      assertEq(loopPath(w, h), design.loopPath(w, h), `loopPath(${w}, ${h})`);
-    }
-  });
-
-  await test("deterministic: the same box gives the same path — and a different box a different one", () => {
-    for (const [w, h] of BOXES) assert(loopPath(w, h) === loopPath(w, h), `${w}×${h} twice`);
-    assert(loopPath(214, 62) !== loopPath(214, 86), "a taller box");
-    assert(loopPath(214, 62) !== loopPath(180, 62), "a narrower box");
-  });
-
-  await test("a box that isn't one draws nothing, and never throws", () => {
-    const junk = [
-      [0, 62], [214, 0], [-214, 62], [214, -62], [NaN, 62], [214, NaN], [undefined, 62], [214, undefined],
-      [null, null], [Infinity, 62], [214, Infinity], ["214", "62"], [{}, []], [],
-    ];
-    for (const args of junk) assertEq(loopPath(...args), "", `loopPath(${args.map(String).join(", ")})`);
-    assertEq(loopPath(), "", "no box at all");
-  });
-
-  await test("one stroke: it starts top-centre, runs anticlockwise through four corners and overlaps its start", () => {
-    for (const [w, h] of BOXES) {
-      const d = loopPath(w, h);
-      assert(/^M [\d.]+ [\d.]+( C( -?[\d.]+){6}){9}$/.test(d), `${w}×${h}: one M and nine curves, nothing else — "${d}"`);
-      assert(!/NaN|Infinity|undefined|e[+-]/.test(d), `${w}×${h} leaks a junk value`);
-      const pts = pointsIn(d);
-      const start = pts[0], end = pts[pts.length - 1];
-      assert(Math.abs(start.x - w / 2) < 0.01 && start.y === 2, `${w}×${h} starts top-centre`);
-      // …and ends past its start, a little lower: the pencil overlaps, as the approved circle does
-      assert(end.x < start.x && end.y > start.y, `${w}×${h} overlaps its start`);
-      // Anticlockwise on screen: left edge next (x falls), then down, then right, then up
-      const segs = d.split(/\s(?=C )/).map(pointsIn);
-      const at = (i) => segs[i][segs[i].length - 1];
-      assert(at(1).x < start.x && at(3).y > at(2).y && at(5).x > at(4).x && at(7).y < at(6).y, `${w}×${h} runs anticlockwise`);
-    }
-  });
-
-  await test("every coordinate sits inside the loop's own box", () => {
-    for (const [w, h] of BOXES) {
-      for (const p of pointsIn(loopPath(w, h))) {
-        assert(p.x >= 0 && p.x <= w && p.y >= 0 && p.y <= h, `${w}×${h}: (${p.x}, ${p.y}) is outside`);
-      }
-    }
-  });
-
-  await test("the corner radius does not grow with the height: 60, 120 and 240 keep one radius", () => {
-    for (const w of [150, 214, 420]) {
-      const radii = [60, 120, 240].map((h) => cornerRadii(loopPath(w, h)));
-      assertEq(radii[1], radii[0], `w ${w}: h 120 turns as h 60 does`);
-      assertEq(radii[2], radii[0], `w ${w}: h 240 turns as h 60 does`);
-      for (const c of radii[0]) {
-        assert(c.dx > 8 && c.dy > 8, `w ${w}: a corner is a corner (${c.dx}, ${c.dy})`);
-        assert(c.dx <= 19.5 && c.dy <= 19.5, `w ${w}: a corner never passes 18px and its wobble (${c.dx}, ${c.dy})`);
-      }
-    }
-    // The stretched drawing is what this replaces: at h 240 its "corner" would be most of the box
-    const tall = cornerRadii(loopPath(214, 240));
-    assert(tall.every((c) => c.dy < 240 / 4), "a tall name's corners stay corners");
-    // A short or narrow box tightens the radius rather than overrunning it
-    for (const [w, h] of [[214, 30], [40, 120]]) {
-      for (const c of cornerRadii(loopPath(w, h))) assert(c.dx <= w / 2 && c.dy <= h / 2, `${w}×${h}: corners fit`);
-    }
-  });
-
-  await test("SOURCE SCAN: the loop's arithmetic lives in marks.js only", () => {
+  await test("SOURCE SCAN: the circle is the one stretched drawing — nothing under src/ builds a loop", () => {
     const offenders = sourceFiles(SRC)
-      .filter((path) => path !== MODULE)
-      .filter((path) => /0\.55 \* r|h \/ 2 - 1, w \/ 4/.test(readFileSync(path, "utf-8")))
+      .filter((path) => /\bloopPath\b|data-loop|0\.55 \* r|h \/ 2 - 1, w \/ 4/.test(readFileSync(path, "utf-8")))
       .map((path) => relative(SRC, path));
-    assertEq(offenders, [], "call loopPath from @/components/house/marks");
+    assertEq(offenders, [], "a wrapped name's circle is GESTURES.circle, stretched");
+    const gesture = readFileSync(join(SRC, "components", "house", "NameGesture.js"), "utf-8");
+    assert(/viewBox=\{GESTURES\[kind\]\.viewBox\} preserveAspectRatio="none"/.test(gesture), "every stroke is stretched over its own box");
+    assert(/d=\{gestureDrawing\(kind, line\)\}/.test(gesture) && /gestureBoxes\(kind,/.test(gesture), "one <svg> per box, its drawing chosen by its line");
   });
 
   console.log("\n═══ 8. Where the pencil plays (README §7, H3) ═══");

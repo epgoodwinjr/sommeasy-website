@@ -733,7 +733,7 @@ async function main() {
   console.log("\n═══ 6. Penciling — House & Hand (docs/marks/README.md §7) ═══");
 
   const { SHADE } = await import("../../components/house/marks.js");
-  const { PENCIL, PENCIL_STROKE, GLASS_FLIP, GESTURE_WIPE, pencilStrokes, playPencil } = motion;
+  const { PENCIL, PENCIL_STROKE, GLASS_FLIP, GESTURE_WIPE, pencilStrokes, gestureWipes, playPencil } = motion;
   const ends = (plan) => Math.max(...plan.map((s) => s.delay + s.duration));
 
   await test("PENCIL is §7's table, value for value — and the tile's numbers beside it", () => {
@@ -745,6 +745,19 @@ async function main() {
     assertEq(PENCIL.tile, { surfaceMs: 140, strokeMs: 90, beforeHold: 20 }, "the tile: surface 140, stroke 90, done 20ms before the hold");
     assertEq(PENCIL.easing, "ease-out", "one stroke's curve (the approved reference's)");
     assertEq(PRESS.holdMs, 430, "the hold is never lengthened for the pencil");
+    assertEq({ gestureLineMs: PENCIL.gestureLineMs, gestureStepMs: PENCIL.gestureStepMs }, { gestureLineMs: 520, gestureStepMs: 260 }, "a wrapped name's strokes (marks README §14.1)");
+  });
+
+  await test("gestureWipes: one stroke keeps gestureMs; a wrapped name is drawn top line first, 520ms each, 260ms apart", () => {
+    assertEq(gestureWipes(1), [{ delay: 0, duration: 800 }], "one line, or a circle: exactly as before");
+    assertEq(gestureWipes(2), [{ delay: 0, duration: 520 }, { delay: 260, duration: 520 }], "two lines");
+    assertEq(gestureWipes(4), [0, 260, 520, 780].map((delay) => ({ delay, duration: 520 })), "four lines");
+    const plan = gestureWipes(3);
+    for (let i = 1; i < plan.length; i++) {
+      assert(plan[i].delay > plan[i - 1].delay, "top line first");
+      assert(plan[i].delay < plan[i - 1].delay + plan[i - 1].duration, "the next line starts while the one above is still drawing");
+    }
+    for (const junk of [0, -1, 1.5, NaN, undefined, null, "3", Infinity]) assertEq(gestureWipes(junk), [], `gestureWipes(${String(junk)})`);
   });
 
   await test("a done line: the surface, then each hatching stroke a step after the last — the table as written", () => {
@@ -830,14 +843,15 @@ async function main() {
     }
     const glass = codeOf(join(HOUSE, "PencilGlass.js"));
     const gesture = codeOf(join(HOUSE, "NameGesture.js"));
-    const table = [PENCIL.surfaceMs, PENCIL.strokeMs, PENCIL.stepMs, PENCIL.gestureMs, PENCIL.flipMs, PENCIL.tile.surfaceMs, PENCIL.tile.strokeMs];
+    const table = [PENCIL.surfaceMs, PENCIL.strokeMs, PENCIL.stepMs, PENCIL.gestureMs, PENCIL.gestureLineMs, PENCIL.gestureStepMs, PENCIL.flipMs, PENCIL.tile.surfaceMs, PENCIL.tile.strokeMs];
     for (const [name, code] of [["PencilGlass.js", glass], ["NameGesture.js", gesture]]) {
       for (const ms of table) assert(!types(code, ms), `${name} types ${ms} — it belongs in motion.js`);
       assert(!/0?\.22\b/.test(code), `${name} types the guide's opacity`);
       assert(!/fill:\s*["'](both|forwards)["']/.test(code), `${name} holds an animation's end state`);
     }
     assert(/pencilStrokes\(/.test(glass) && /PENCIL\.flipMs/.test(glass) && /PENCIL\.guide/.test(glass), "PencilGlass takes its timing from PENCIL");
-    assert(/PENCIL\.gestureMs/.test(gesture) && /GESTURE_WIPE/.test(gesture), "NameGesture takes its wipe from PENCIL");
+    assert(/gestureWipes\(strokes\.length\)/.test(gesture) && /GESTURE_WIPE/.test(gesture), "NameGesture takes its wipes from motion.js, a stroke per line");
+    assert(!/PENCIL\./.test(gesture), "…and does no timing arithmetic of its own");
   });
 
   await test("SOURCE SCAN: one <path> per stroke — the shading is never one path while it draws", () => {

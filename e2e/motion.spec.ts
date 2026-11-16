@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { composeIdentity } from "../src/lib/identityEngine.js";
 import { MARK_MOTION, renderPalateMark } from "../src/lib/palateMark.js";
 import { PENCIL, PRESS, pencilStrokes } from "../src/components/house/motion.js";
-import { SHADE, renderMark } from "../src/components/house/marks.js";
+import { GESTURES, SHADE, renderMark } from "../src/components/house/marks.js";
 import { countEvents, latestEvent, testDb } from "./fixtures/test-db";
 import { BottleLogPage, RecommendPage } from "./fixtures/sommeasy-page";
 
@@ -1551,7 +1551,9 @@ test.describe("The pencil — choosing a pick (motion on)", () => {
       const tops = new Set(Array.from(range.getClientRects()).filter((r) => r.width >= 1).map((r) => Math.round(r.top)));
       return {
         gesture: wrap?.getAttribute("data-gesture") ?? null,
-        loop: svg?.hasAttribute("data-loop") ?? null,
+        strokes: wrap ? wrap.querySelectorAll("svg").length : 0,
+        d: svg?.querySelector("path")?.getAttribute("d") ?? null,
+        stretched: svg?.getAttribute("preserveAspectRatio") === "none",
         lines: tops.size,
         wiping: svg ? svg.getAnimations().length : 0,
         text: h3.textContent,
@@ -1559,12 +1561,12 @@ test.describe("The pencil — choosing a pick (motion on)", () => {
     });
     const longName = await long.locator("h3").textContent();
 
-    // The tap: the circle is wiped in, once — the loop, because the name wraps
+    // The tap: the circle is wiped in, once — the ONE stretched drawing, though the name wraps
     await long.getByTestId("choose-pick").click();
     await expect(long.getByTestId("chosen-banner")).toBeVisible();
     const drawn = await circleOf(long);
     expect(drawn.lines, "the long name wraps at a phone's width (the premise)").toBeGreaterThan(1);
-    expect(drawn).toMatchObject({ gesture: "circle", loop: true, text: longName });
+    expect(drawn).toMatchObject({ gesture: "circle", strokes: 1, d: GESTURES.circle.d, stretched: true, text: longName });
     expect(await wipes(), "one circle, pencilled once").toBe(1);
     await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
     expect(await long.evaluate((card) => ({
@@ -1580,7 +1582,7 @@ test.describe("The pencil — choosing a pick (motion on)", () => {
     await expect(long.locator("[data-gesture]")).toHaveCount(0);
     const second = await circleOf(short);
     expect(second.gesture).toBe("circle");
-    expect(second.loop, "one line: the approved circle; wrapped: the loop").toBe(second.lines > 1);
+    expect(second, "one line or several: the same approved circle").toMatchObject({ strokes: 1, d: GESTURES.circle.d, stretched: true });
     expect(await wipes()).toBe(2);
     await expect.poll(() => finiteAnimations(page), { timeout: 10_000 }).toBe(0);
 

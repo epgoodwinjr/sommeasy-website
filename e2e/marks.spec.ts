@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { GESTURES, MARK_IDS, RATING_MARKS, SHADE, loopPath, renderMark } from "../src/components/house/marks.js";
-import { PENCIL, PRESS, pencilStrokes } from "../src/components/house/motion.js";
+import { GESTURES, GESTURE_FIT, MARK_IDS, RATING_MARKS, SHADE, gestureDrawing, renderMark } from "../src/components/house/marks.js";
+import { PENCIL, PRESS, gestureWipes, pencilStrokes } from "../src/components/house/motion.js";
 import { RATINGS } from "../src/lib/ratings.js";
 
 /**
@@ -19,16 +19,16 @@ import { RATINGS } from "../src/lib/ratings.js";
  *      ends on its settled markup; "Not for me" turns over instead; the done
  *      line draws at the table's pace; a gesture is wiped in from the left.
  *      Nothing is left behind.
- *   4. A gesture over a name leaves the name alone, sits where the reference
- *      puts it, goes on the LAST line of a wrapped name (the circle round
- *      all of it), and follows the name when it re-wraps.
- *   5. The circle round a WRAPPED name is the loop (README §13.1): made for
- *      its own box, every corner of the first and last lines inside it; a
- *      one-line name still draws the approved circle, stretched; and the
- *      loop is re-made when the name is re-measured.
+ *   4. A gesture over a name leaves the name alone and sits where the
+ *      reference puts it. On a wrapped name (README §14.1) the underline and
+ *      the strike go on EVERY line — as many strokes as lines, each spanning
+ *      its own line, no two neighbours sharing a drawing — and follow the
+ *      name when it re-wraps.
+ *   5. The circle is the one stretched drawing, always: one <svg> round the
+ *      whole name, GESTURES.circle, on one line or four.
  */
 
-const GESTURE_COUNT = 10; // in the gestures section: three on one line, three wrapped, four looped
+const GESTURE_COUNT = 13; // in the gestures section: three on one line, three wrapped, three lined, four circled
 const GESTURES_SECTION = '[data-testid="specimen-gestures"]';
 
 const SPECIMEN = "/marks-specimen";
@@ -237,201 +237,174 @@ test.describe("House & Hand — the marks (specimen, Session 1)", () => {
 
     test("a gesture is wiped in from the left, once, while its name stays whole — and leaves nothing behind", async ({ page }) => {
       await open(page);
-      await expect(page.locator(`${GESTURES_SECTION} [data-gesture] svg`)).toHaveCount(GESTURE_COUNT);
+      await expect(page.locator(`${GESTURES_SECTION} [data-gesture]`)).toHaveCount(GESTURE_COUNT);
       expect(await page.locator(GESTURES_SECTION).evaluate((el) => el.getAnimations({ subtree: true }).length), "settled until pencilled").toBe(0);
       const wipes = await page.evaluate(async () => {
         (document.querySelector('[data-testid="specimen-pencil-again"]') as HTMLButtonElement).click();
         await new Promise((r) => requestAnimationFrame(r)); // the gestures remount, pencilled
-        return [...document.querySelectorAll('[data-testid="specimen-gestures"] [data-gesture]')].map((wrap) => {
-          const svg = wrap.querySelector("svg") as SVGSVGElement;
-          return {
-            text: wrap.textContent,
-            wipes: svg.getAnimations().map((a) => ({
-              clip: (a.effect as KeyframeEffect).getKeyframes().map((k) => k.clipPath),
-              duration: a.effect?.getTiming().duration,
-            })),
-          };
-        });
+        return [...document.querySelectorAll('[data-testid="specimen-gestures"] [data-gesture]')].map((wrap) => ({
+          text: wrap.textContent,
+          kind: wrap.getAttribute("data-gesture"),
+          // one stroke per <svg>, top line first
+          strokes: [...wrap.querySelectorAll("svg")].map((svg) => svg.getAnimations().map((a) => ({
+            clip: (a.effect as KeyframeEffect).getKeyframes().map((k) => k.clipPath),
+            delay: a.effect?.getTiming().delay,
+            duration: a.effect?.getTiming().duration,
+            fill: a.effect?.getTiming().fill,
+          }))),
+        }));
       });
       expect(wipes).toHaveLength(GESTURE_COUNT);
+      const strokeCounts = new Set<number>();
       for (const w of wipes) {
-        expect(w.wipes).toHaveLength(1);
-        expect(w.wipes[0].duration).toBe(PENCIL.gestureMs);
-        expect(w.wipes[0].clip[0]).toMatch(/^inset\(-200% 100% -200% 0(px)?\)$/); // from the left
-        expect(w.wipes[0].clip[1]).toMatch(/^inset\(-200% -5%( -200% -5%)?\)$/); // Chromium serializes it short
+        if (w.kind === "circle") expect(w.strokes, `${w.text}: a circle is one stroke`).toHaveLength(1);
+        strokeCounts.add(w.strokes.length);
+        // One wipe per stroke. A single stroke takes gestureMs; a wrapped
+        // name's are drawn top line first, 520ms each, 260ms apart (§14.1)
+        const plan = gestureWipes(w.strokes.length);
+        w.strokes.forEach((own, i) => {
+          expect(own, `${w.text}, stroke ${i}`).toHaveLength(1);
+          expect({ delay: own[0].delay, duration: own[0].duration }, `${w.text}, stroke ${i}`).toEqual(plan[i]);
+          expect(own[0].fill).toBe("backwards"); // hidden until its turn, nothing left after
+          expect(own[0].clip[0]).toMatch(/^inset\(-200% 100% -200% 0(px)?\)$/); // from the left
+          expect(own[0].clip[1]).toMatch(/^inset\(-200% -5%( -200% -5%)?\)$/); // Chromium serializes it short
+        });
         expect([
           "Kanonkop Pinotage 2020", "Meerlust Rubicon 2019", "Constantia Glen Five", "Domaine Huet Le Haut-Lieu Vouvray Sec 2021",
           "Kanonkop Paul Sauer", "Château de Beaucastel Châteauneuf-du-Pape Rouge 2019",
           "Hamilton Russell Vineyards Chardonnay, Hemel-en-Aarde Valley 2022",
         ]).toContain(w.text);
       }
+      expect(strokeCounts.has(1) && Math.max(...strokeCounts) >= 3, `one-line and three-line names were both pencilled: ${[...strokeCounts]}`).toBe(true);
       await settle(page, "main");
       expect(await leftBehind(page, "main")).toEqual({ dashed: 0, running: 0, transform: "", clipped: 0 });
     });
   });
 
-  test("a gesture leaves its name alone and sits on it: the reference's placement, the LAST line of a wrapped name", async ({ page }) => {
-    await open(page);
-
-    /** The name's lines (its text only), the pencil's box, and how it is wrapped. */
-    const measure = (testId: string) => page.getByTestId(testId).evaluate((p) => {
-      const wrap = p.querySelector("[data-gesture]") as HTMLElement;
-      const text = wrap.firstChild as Text;
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      const rects = [...range.getClientRects()].filter((r) => r.width >= 1);
-      const lines: { left: number; right: number; top: number; bottom: number }[] = [];
-      for (const r of rects) {
-        const last = lines[lines.length - 1];
-        if (last && Math.abs(last.top - r.top) < r.height / 2) {
-          last.left = Math.min(last.left, r.left); last.right = Math.max(last.right, r.right);
-        } else lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
-      }
-      const svg = wrap.querySelector("svg") as SVGSVGElement;
+  /** A gestured name under a test id: its lines (its text only) and every
+   *  pencil stroke over it, top to bottom. */
+  const measure = (page: Page, testId: string) => page.getByTestId(testId).evaluate((p) => {
+    const wrap = p.querySelector("[data-gesture]") as HTMLElement;
+    const text = wrap.firstChild as Text;
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    const lines: { left: number; right: number; top: number; bottom: number }[] = [];
+    for (const r of [...range.getClientRects()].filter((x) => x.width >= 1)) {
+      const last = lines[lines.length - 1];
+      if (last && Math.abs(last.top - r.top) < r.height / 2) {
+        last.left = Math.min(last.left, r.left); last.right = Math.max(last.right, r.right);
+      } else lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+    }
+    const strokes = [...wrap.querySelectorAll("svg")].map((svg) => {
       const box = svg.getBoundingClientRect();
       return {
-        lines,
-        box: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
-        firstChildIsText: text.nodeType === Node.TEXT_NODE,
-        text: wrap.textContent,
+        left: box.left, right: box.right, top: box.top, bottom: box.bottom,
+        d: svg.querySelector("path")?.getAttribute("d") ?? null,
+        paths: svg.querySelectorAll("path").length,
+        viewBox: svg.getAttribute("viewBox"),
+        line: svg.getAttribute("data-line"),
         decorative: svg.getAttribute("aria-hidden") === "true" && getComputedStyle(svg).pointerEvents === "none",
         nonScaling: svg.querySelector("path")?.getAttribute("vector-effect") === "non-scaling-stroke",
         stretched: svg.getAttribute("preserveAspectRatio") === "none",
       };
     });
-    const near = (actual: number, expected: number, what: string) => expect(Math.abs(actual - expected), `${what}: ${actual} vs ${expected}`).toBeLessThanOrEqual(1);
-    const check = (kind: string, m: Awaited<ReturnType<typeof measure>>) => {
-      const last = m.lines[m.lines.length - 1];
-      if (kind === "circle") {
-        near(m.box.left, Math.min(...m.lines.map((l) => l.left)) - 12, "circle left");
-        near(m.box.right, Math.max(...m.lines.map((l) => l.right)) + 12, "circle right");
-        near(m.box.top, m.lines[0].top - 7, "circle top");
-        near(m.box.bottom, last.bottom + 7, "circle bottom");
-      } else {
-        near(m.box.left, last.left - (kind === "underline" ? 2 : 3), `${kind} left`);
-        near(m.box.right, last.right + (kind === "underline" ? 2 : 3), `${kind} right`);
-        near(m.box.bottom - m.box.top, 7, `${kind} height`);
-        if (kind === "underline") near(m.box.bottom, last.bottom + 5, "underline: 5px under the last line");
-        else near(m.box.top, (last.top + last.bottom) / 2, "strike: from the last line's middle");
-      }
-    };
+    return { lines, strokes, firstChildIsText: text.nodeType === Node.TEXT_NODE, text: wrap.textContent, kind: wrap.getAttribute("data-gesture") };
+  });
+  type Measured = Awaited<ReturnType<typeof measure>>;
+  const near = (actual: number, expected: number, what: string) => expect(Math.abs(actual - expected), `${what}: ${actual} vs ${expected}`).toBeLessThanOrEqual(1);
+  /** The reference's placement — the circle round the whole name; an
+   *  underline or strike on each line, spanning that line, in its own drawing. */
+  const check = (what: string, m: Measured) => {
+    const kind = m.kind as "circle" | "underline" | "strike";
+    for (const s of m.strokes) expect(s, what).toMatchObject({ decorative: true, nonScaling: true, stretched: true, paths: 1, viewBox: GESTURES[kind].viewBox });
+    if (kind === "circle") {
+      const fit = GESTURE_FIT.circle;
+      expect(m.strokes, `${what}: ONE circle, however many lines`).toHaveLength(1);
+      expect(m.strokes[0].d, `${what}: the one approved drawing`).toBe(GESTURES.circle.d);
+      near(m.strokes[0].left, Math.min(...m.lines.map((l) => l.left)) - fit.reach, `${what} left`);
+      near(m.strokes[0].right, Math.max(...m.lines.map((l) => l.right)) + fit.reach, `${what} right`);
+      near(m.strokes[0].top, m.lines[0].top - fit.rise, `${what} top`);
+      near(m.strokes[0].bottom, m.lines[m.lines.length - 1].bottom + fit.rise, `${what} bottom`);
+      return;
+    }
+    const fit = GESTURE_FIT[kind];
+    expect(m.strokes, `${what}: as many strokes as lines`).toHaveLength(m.lines.length);
+    m.strokes.forEach((s, i) => {
+      const line = m.lines[i];
+      expect(s.line, `${what}: stroke ${i} is line ${i}'s`).toBe(String(i));
+      near(s.left, line.left - fit.reach, `${what} stroke ${i} left`);
+      near(s.right, line.right + fit.reach, `${what} stroke ${i} right`);
+      near(s.bottom - s.top, fit.height, `${what} stroke ${i} height`);
+      if (kind === "underline") near(s.bottom, line.bottom + GESTURE_FIT.underline.drop, `${what} stroke ${i}: 5px under its line`);
+      else near(s.top, (line.top + line.bottom) / 2, `${what} stroke ${i}: from its line's middle`);
+      expect(s.d, `${what}: line ${i} takes drawing ${i % 3}`).toBe(gestureDrawing(kind, i));
+      if (i) expect(s.d, `${what}: lines ${i - 1} and ${i} don't share a drawing`).not.toBe(m.strokes[i - 1].d);
+    });
+  };
 
+  test("a gesture leaves its name alone and sits on it — an underline or a strike on EVERY line of a wrapped name, each spanning its own line", async ({ page }) => {
+    await open(page);
     for (const kind of ["circle", "underline", "strike"]) {
-      const one = await measure(`specimen-gesture-${kind}`);
+      const one = await measure(page, `specimen-gesture-${kind}`);
       expect(one.lines, `${kind}: the name is on one line`).toHaveLength(1);
-      expect(one).toMatchObject({ firstChildIsText: true, decorative: true, nonScaling: true, stretched: true });
+      expect(one.firstChildIsText).toBe(true);
+      expect(one.strokes, `${kind}: one line, one stroke`).toHaveLength(1);
+      expect(one.strokes[0].d, `${kind}: a one-line name draws what it always drew`).toBe(GESTURES[kind as keyof typeof GESTURES].d);
       check(kind, one);
 
-      const wrapped = await measure(`specimen-wrapped-${kind}`);
+      const wrapped = await measure(page, `specimen-wrapped-${kind}`);
       expect(wrapped.lines.length, `${kind}: the long name wraps (the premise)`).toBeGreaterThan(1);
       expect(wrapped.text).toBe("Domaine Huet Le Haut-Lieu Vouvray Sec 2021");
-      expect(wrapped).toMatchObject({ firstChildIsText: true, decorative: true });
-      check(kind, wrapped);
+      expect(wrapped.firstChildIsText).toBe(true);
+      check(`wrapped ${kind}`, wrapped);
     }
+    // Three lines and more: every line marked, the drawings coming round again
+    const lineCounts: number[] = [];
+    for (const id of ["specimen-lined-0", "specimen-lined-1", "specimen-lined-2"]) {
+      const m = await measure(page, id);
+      lineCounts.push(m.lines.length);
+      check(id, m);
+    }
+    expect(Math.min(...lineCounts), `each runs to three lines or more: ${lineCounts}`).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...lineCounts), `one runs to four, so drawing 0 comes round again: ${lineCounts}`).toBeGreaterThanOrEqual(4);
 
-    // The name re-wraps when its block widens: the pencil follows it
-    await page.getByTestId("specimen-wrapped-underline").evaluate((p) => { (p as HTMLElement).style.width = "520px"; });
-    await expect.poll(async () => (await measure("specimen-wrapped-underline")).lines.length).toBe(1);
-    await expect.poll(async () => {
-      const m = await measure("specimen-wrapped-underline");
-      return Math.abs(m.box.right - (m.lines[0].right + 2)) <= 1 && Math.abs(m.box.bottom - (m.lines[0].bottom + 5)) <= 1;
-    }).toBe(true);
+    // The name re-wraps when its block changes width: the pencil follows it,
+    // one stroke per line at every width
+    const block = page.getByTestId("specimen-wrapped-underline");
+    await block.evaluate((p) => { (p as HTMLElement).style.width = "520px"; });
+    await expect.poll(async () => (await measure(page, "specimen-wrapped-underline")).lines.length).toBe(1);
+    await expect.poll(async () => (await measure(page, "specimen-wrapped-underline")).strokes.length).toBe(1);
+    check("widened", await measure(page, "specimen-wrapped-underline"));
+    await block.evaluate((p) => { (p as HTMLElement).style.width = "110px"; });
+    await expect.poll(async () => (await measure(page, "specimen-wrapped-underline")).lines.length).toBeGreaterThanOrEqual(3);
+    await expect.poll(async () => { const m = await measure(page, "specimen-wrapped-underline"); return m.strokes.length === m.lines.length; }).toBe(true);
+    check("narrowed", await measure(page, "specimen-wrapped-underline"));
   });
-  test("the circle round a wrapped name is the loop: every corner of its first and last lines inside it; one line keeps the approved circle", async ({ page }) => {
+
+  test("the circle is the one stretched drawing, always: round a name on one line, two, three or four", async ({ page }) => {
     await open(page);
-
-    /** The circled name under a test id: its lines, its pencil, and whether
-     *  the corners of its first and last lines lie inside the drawn path. */
-    const read = (testId: string) => page.getByTestId(testId).evaluate((p) => {
-      const wrap = p.querySelector("[data-gesture]") as HTMLElement;
-      const range = document.createRange();
-      range.selectNodeContents(wrap.firstChild as Text);
-      const lines: { left: number; right: number; top: number; bottom: number }[] = [];
-      for (const r of [...range.getClientRects()].filter((x) => x.width >= 1)) {
-        const last = lines[lines.length - 1];
-        if (last && Math.abs(last.top - r.top) < r.height / 2) {
-          last.left = Math.min(last.left, r.left); last.right = Math.max(last.right, r.right);
-        } else lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
-      }
-      const svg = wrap.querySelector("svg") as SVGSVGElement;
-      const path = svg.querySelector("path") as SVGPathElement;
-      const box = svg.getBoundingClientRect();
-      // A filled copy of the path, in the same <svg>: is each corner inside it?
-      const filled = path.cloneNode() as SVGPathElement;
-      filled.setAttribute("fill", "#000");
-      filled.removeAttribute("vector-effect");
-      svg.appendChild(filled);
-      const view = svg.viewBox.baseVal;
-      const inside = (x: number, y: number) => filled.isPointInFill(new DOMPoint(
-        view.x + ((x - box.left) / box.width) * view.width, view.y + ((y - box.top) / box.height) * view.height,
-      ));
-      const corners = (l: { left: number; right: number; top: number; bottom: number }) =>
-        [inside(l.left, l.top), inside(l.right, l.top), inside(l.left, l.bottom), inside(l.right, l.bottom)];
-      const result = {
-        lines: lines.length,
-        first: corners(lines[0]),
-        last: corners(lines[lines.length - 1]),
-        d: path.getAttribute("d"),
-        viewBox: svg.getAttribute("viewBox"),
-        aspect: svg.getAttribute("preserveAspectRatio"),
-        loop: svg.hasAttribute("data-loop"),
-        width: box.width, height: box.height,
-        text: wrap.textContent,
-        svgs: wrap.querySelectorAll("svg").length,
-      };
-      filled.remove();
-      return result;
-    });
-    const all = [true, true, true, true];
-
-    // Every wrapped, circled name on the page: two, three and four lines
-    const wrapped = ["specimen-wrapped-circle", "specimen-loop-0", "specimen-loop-1", "specimen-loop-2", "specimen-loop-3"];
     const lineCounts = new Set<number>();
-    for (const id of wrapped) {
-      const m = await read(id);
-      expect(m.lines, `${id} wraps (the premise)`).toBeGreaterThan(1);
-      lineCounts.add(m.lines);
-      expect(m.svgs, `${id}: one pencil`).toBe(1);
-      expect(m.loop, `${id} draws the loop`).toBe(true);
-      expect(m.aspect, `${id}: the loop is not stretched`).toBeNull();
-      // Made for its own box, in px: the viewBox IS the box, the path is loopPath's
-      const [, , w, h] = (m.viewBox || "").split(" ").map(Number);
-      expect(Math.abs(w - m.width), `${id}: viewBox width ${w} vs box ${m.width}`).toBeLessThan(0.01);
-      expect(Math.abs(h - m.height), `${id}: viewBox height ${h} vs box ${m.height}`).toBeLessThan(0.01);
-      expect(m.viewBox?.startsWith("0 0 "), id).toBe(true);
-      expect(m.d, `${id}: the path is loopPath(${w}, ${h})`).toBe(loopPath(w, h));
-      expect(m.first, `${id}: the first line's corners are inside the loop`).toEqual(all);
-      expect(m.last, `${id}: the last line's corners are inside the loop`).toEqual(all);
+    for (const id of ["specimen-gesture-circle", "specimen-wrapped-circle", "specimen-loop-0", "specimen-loop-1", "specimen-loop-2", "specimen-loop-3"]) {
+      const m = await measure(page, id);
+      lineCounts.add(m.lines.length);
+      check(id, m); // one <svg>, GESTURES.circle, stretched over the whole name plus its reach and rise
     }
-    expect(lineCounts.size, "names of different heights were checked").toBeGreaterThan(1);
-    expect(Math.max(...lineCounts), "one of them runs to three lines or more").toBeGreaterThanOrEqual(3);
+    expect(lineCounts.has(1) && Math.max(...lineCounts) >= 4, `one line through four were circled: ${[...lineCounts]}`).toBe(true);
+    // Nothing builds a loop for a wrapped name any more
+    await expect(page.locator("[data-loop]")).toHaveCount(0);
 
-    // A name on one line: the approved circle, stretched, exactly as built
-    const one = await read("specimen-gesture-circle");
-    expect(one.lines).toBe(1);
-    expect(one).toMatchObject({ loop: false, aspect: "none", viewBox: GESTURES.circle.viewBox, d: GESTURES.circle.d, svgs: 1 });
-
-    // Re-measured, re-made: widen the block until the name sits on one line
-    // and it is the approved circle again; narrow it and the loop is made
-    // anew for the new box
+    // Re-measured: still the one drawing, stretched over the new box
     const block = page.getByTestId("specimen-loop-0");
-    const before = await read("specimen-loop-0");
-    await block.evaluate((p) => { (p as HTMLElement).style.width = "420px"; });
-    await expect.poll(async () => (await read("specimen-loop-0")).lines).toBe(1);
-    await expect.poll(async () => (await read("specimen-loop-0")).d).toBe(GESTURES.circle.d);
-    expect(await read("specimen-loop-0")).toMatchObject({ loop: false, aspect: "none", viewBox: GESTURES.circle.viewBox });
+    const before = await measure(page, "specimen-loop-0");
     await block.evaluate((p) => { (p as HTMLElement).style.width = "70px"; });
-    await expect.poll(async () => (await read("specimen-loop-0")).loop).toBe(true);
-    await expect.poll(async () => {
-      const m = await read("specimen-loop-0");
-      const [, , w, h] = (m.viewBox || "").split(" ").map(Number);
-      return m.d === loopPath(w, h) && Math.abs(h - m.height) < 0.01 && m.first.every(Boolean) && m.last.every(Boolean);
-    }).toBe(true);
-    const after = await read("specimen-loop-0");
-    expect(after.lines, "narrower: more lines").toBeGreaterThan(before.lines);
-    expect(after.d, "a new loop for the new box").not.toBe(before.d);
+    await expect.poll(async () => (await measure(page, "specimen-loop-0")).lines.length).toBeGreaterThan(before.lines.length);
+    await expect.poll(async () => { const m = await measure(page, "specimen-loop-0"); return Math.abs(m.strokes[0].bottom - (m.lines[m.lines.length - 1].bottom + GESTURE_FIT.circle.rise)) <= 1; }).toBe(true);
+    const after = await measure(page, "specimen-loop-0");
+    check("narrowed", after);
+    expect(after.strokes[0].bottom - after.strokes[0].top, "a taller circle for a taller name").toBeGreaterThan(before.strokes[0].bottom - before.strokes[0].top);
     expect(after.text).toBe("Kanonkop Paul Sauer");
   });
+
   // Log's saved step when something joins the DNA and the title holds — the
   // one saved-step path no test account reaches on demand (a real promotion
   // shifts the strand: identity-shift.spec.ts). Sample content, the real
