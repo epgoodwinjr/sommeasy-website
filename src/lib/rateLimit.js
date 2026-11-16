@@ -76,24 +76,58 @@ export function checkRateLimit(route, ip) {
 }
 
 /**
- * The one price table (Sonnet-class: $3/MTok in, $15/MTok out) — shared by
- * the live log line and the durable wine_events cost records so the two can
- * never disagree.
+ * The one price table (Sonnet 4.6, $/MTok: $3 in, $15 out; a five-minute
+ * prompt-cache write is 1.25× the input price and a cache read a tenth of
+ * it) — shared by the live log line and the durable wine_events cost records
+ * so the two can never disagree.
  */
-export function estimateClaudeCostUSD(inputTokens, outputTokens) {
-  return Math.round(((inputTokens || 0) * 3 + (outputTokens || 0) * 15) / 1e6 * 1e6) / 1e6;
+const PRICE_PER_MTOK = { input: 3, output: 15, cacheWrite: 3.75, cacheRead: 0.3 };
+
+/**
+ * `inputTokens` is ALL the input a call processed — uncached, written to the
+ * prompt cache and read from it (`claudeInputTokens` adds up the three parts
+ * the API reports apart); the cache parts are priced at their own rates.
+ * Called with two arguments it is the table it always was.
+ */
+export function estimateClaudeCostUSD(inputTokens, outputTokens, cacheReadTokens = 0, cacheWriteTokens = 0) {
+  const read = cacheReadTokens || 0;
+  const write = cacheWriteTokens || 0;
+  const uncached = Math.max(0, (inputTokens || 0) - read - write);
+  const usd = (
+    uncached * PRICE_PER_MTOK.input +
+    write * PRICE_PER_MTOK.cacheWrite +
+    read * PRICE_PER_MTOK.cacheRead +
+    (outputTokens || 0) * PRICE_PER_MTOK.output
+  ) / 1e6;
+  return Math.round(usd * 1e6) / 1e6;
+}
+
+/**
+ * The input one call processed. With prompt caching the API reports it in
+ * three parts — `input_tokens` is only what came AFTER the last cache
+ * breakpoint — so `total` adds them back up: the number every cost record
+ * has always called input, comparable across the change.
+ */
+export function claudeInputTokens(usage) {
+  const n = (v) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  const cacheRead = n(usage?.cache_read_input_tokens);
+  const cacheWrite = n(usage?.cache_creation_input_tokens);
+  return { total: n(usage?.input_tokens) + cacheRead + cacheWrite, cacheRead, cacheWrite };
 }
 
 /**
  * One structured log line per Claude call — the live-debugging view of cost
  * (wine_events.somm_curation / narrative_regenerated are the durable one).
+ * `cacheReadTokens` / `cacheWriteTokens` say whether the prompt cache
+ * engaged: both 0 on a route that asked for it means it didn't (the API
+ * caches nothing under its minimum length and says nothing about it).
  */
 export function logClaudeUsage(route, usage, ms) {
   if (!usage) return;
-  const inputTokens = usage.input_tokens || 0;
+  const { total: inputTokens, cacheRead: cacheReadTokens, cacheWrite: cacheWriteTokens } = claudeInputTokens(usage);
   const outputTokens = usage.output_tokens || 0;
-  const estCostUSD = estimateClaudeCostUSD(inputTokens, outputTokens);
+  const estCostUSD = estimateClaudeCostUSD(inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens);
   console.log(
-    JSON.stringify({ type: "claude_usage", route, inputTokens, outputTokens, estCostUSD, ms })
+    JSON.stringify({ type: "claude_usage", route, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, estCostUSD, ms })
   );
 }

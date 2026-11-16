@@ -15,8 +15,16 @@ if (!beforePath || !afterPath) {
 const before = JSON.parse(readFileSync(beforePath, "utf8"));
 const after = JSON.parse(readFileSync(afterPath, "utf8"));
 
-const PRICE = { in: 3, out: 15 }; // $/MTok — rateLimit.js's table, for a number to compare, not a bill
-const cost = (rs) => rs.reduce((s, r) => s + (r.tokens.in * PRICE.in + r.tokens.out * PRICE.out) / 1e6, 0);
+// $/MTok — rateLimit.js's table, for a number to compare, not a bill. A run's
+// `in` is ALL its input; since Nov 15, 2026 a run also says how much of it
+// was read from the prompt cache and written to it (older baselines: none)
+const PRICE = { in: 3, out: 15, cacheWrite: 3.75, cacheRead: 0.3 };
+const runCost = ({ tokens: t }) => {
+  const read = t.cacheRead || 0, write = t.cacheWrite || 0;
+  return ((t.in - read - write) * PRICE.in + write * PRICE.cacheWrite + read * PRICE.cacheRead + t.out * PRICE.out) / 1e6;
+};
+const cost = (rs) => rs.reduce((s, r) => s + runCost(r), 0);
+const cached = (rs, k) => rs.reduce((s, r) => s + (r.tokens[k] || 0), 0);
 
 const kind = (r) =>
   /^pick count/.test(r) ? "pick count N < asked"
@@ -58,6 +66,7 @@ for (const [name, rs] of [["BEFORE", before], ["AFTER", after]]) {
   for (const r of rs) for (const c of r.replyStarts || []) starts[c || "∅"] = (starts[c || "∅"] || 0) + 1;
   console.log(`\n${name}: ${rs.length} runs — ${OUTCOMES.map((o) => `${o} ${t[o]}`).join(" · ")}`);
   console.log(`  median ${(median(rs) / 1000).toFixed(1)}s · slowest ${(slowest(rs) / 1000).toFixed(1)}s · $${(cost(rs) / rs.length).toFixed(4)} a run · ${rs.reduce((s, r) => s + r.calls, 0)} calls`);
+  console.log(`  input ${cached(rs, "in")} tokens — ${cached(rs, "cacheRead")} read from the prompt cache, ${cached(rs, "cacheWrite")} written to it`);
   console.log("  1st rejection:", first);
   console.log("  2nd rejection:", second);
   console.log("  replies beginning with:", starts, "· models:", [...new Set(rs.map((r) => r.model).filter(Boolean))]);
