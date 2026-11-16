@@ -42,7 +42,7 @@ export function nameToSave(entry) {
 /** The journal row this save takes over when the name was edited: the row
  *  stored under the picked name, while it carries no verdict (a want, a
  *  pass, a had never rated). Saving under the edited name and leaving that
- *  row behind would fork the bottle — the 📌 entry lingering beside the
+ *  row behind would fork the bottle — the starred want lingering beside the
  *  logged one — so the caller renames it instead. A rated row stays put:
  *  another name is another bottle, and its evidence never moves on its own.
  *  Null when there's nothing to take over. */

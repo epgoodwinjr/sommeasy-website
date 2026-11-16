@@ -321,11 +321,11 @@ async function main() {
   console.log("\n═══ Suite 6: rec rows, the verdict row, Reserved ═══");
 
   await test("match tags by matchType", () => {
-    assertEq(copy.matchTag("region + grape"), "📍 Region + grape", "both");
-    assertEq(copy.matchTag("grape"), "🍇 Grape match", "grape");
-    assertEq(copy.matchTag("region"), "📍 Region match", "region");
-    assertEq(copy.matchTag("discovery"), "🧭 Discovery", "discovery");
-    assertEq(copy.matchTag(undefined), "🧭 Discovery", "missing");
+    assertEq(copy.matchTag("region + grape"), "Region + grape", "both");
+    assertEq(copy.matchTag("grape"), "Grape match", "grape");
+    assertEq(copy.matchTag("region"), "Region match", "region");
+    assertEq(copy.matchTag("discovery"), "Discovery", "discovery");
+    assertEq(copy.matchTag(undefined), "Discovery", "missing");
   });
 
   await test("meta lines join what's known with a middle dot", () => {
@@ -776,8 +776,8 @@ async function main() {
   });
 
   await test("the Somm's role tag, where it was drunk, and the cancel label", () => {
-    assertEq(copy.sommRoleTag("value"), "💰 Great Value", "value");
-    assertEq(copy.sommRoleTag("top"), "🏆 Top Pick", "top");
+    assertEq(copy.sommRoleTag("value"), "Great Value", "value");
+    assertEq(copy.sommRoleTag("top"), "Top Pick", "top");
     assertEq(copy.sommRoleTag("mystery"), null, "unknown role");
     assertEq(copy.verdictWhere({ place: "home" }), "At home", "home");
     assertEq(copy.verdictWhere({ place: "out", somm_pick_role: "top" }), "Out", "a place beats provenance");
@@ -796,7 +796,7 @@ async function main() {
     }, now), { meta: "Stellenbosch · Chenin Blanc", right: "Aug 29", accent: false }, "a tried row");
     assertEq(copy.journalRowMeta({
       interaction_type: "had", rating: "loved", resolved_region: "swartland", somm_pick_role: "value", updated_at: at(8, 12),
-    }, now), { meta: "Swartland", right: "🍷 Somm pick · Sep 12", accent: true }, "a Somm pick");
+    }, now), { meta: "Swartland", right: "Somm pick · Sep 12", accent: true }, "a Somm pick");
     assertEq(copy.journalRowMeta({
       interaction_type: "had", rating: null, resolved_region: "hemel-en-aarde", updated_at: at(9, 30),
     }, now).meta, "Hemel-en-Aarde · Verdict pending", "a verdict pending");

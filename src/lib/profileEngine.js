@@ -114,14 +114,14 @@ export function generateDNAProfile(answers) {
   const whites = varietals.filter(id => VARIETALS.find(v => v.id === id)?.color === "white");
 
   // ─── Compose the identity strand (Act III — the archetype engine is
-  // retired; the title lives in the archetype column, the emoji column
-  // carries a neutral 🧬 until surfaces stop reading it) ───
+  // retired; the title lives in the archetype column. No surface reads the
+  // archetype_emoji column any more — House & Hand writes it empty) ───
   const identity = composeIdentity({
     countries, regions, estates, varietals,
     specificWines: specificWines || [],
   });
   const archetype = identity.title;
-  const archetypeEmoji = "🧬";
+  const archetypeEmoji = "";
   const narrative = identity.narrative;
 
   // ─── Build recommendations ───

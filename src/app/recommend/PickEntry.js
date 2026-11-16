@@ -3,7 +3,7 @@
 // One pick on Your picks (The House List §8.3), set like a list's
 // by-the-bottle page:
 //
-//   I. 🏆 TOP PICK ——————————————————————————————
+//   I. TOP PICK ——————————————————————————————
 //   Newton Johnson Chardonnay 2023 ··········· $78
 //   HEMEL-EN-AARDE · CHARDONNAY
 //   (glass) LOVED IT IN AUGUST

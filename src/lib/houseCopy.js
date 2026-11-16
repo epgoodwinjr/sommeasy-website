@@ -232,10 +232,10 @@ export function journalLinkLabel(hadCount) {
 
 /** A rec row's match tag, from the profile engine's matchType. */
 export function matchTag(matchType) {
-  if (matchType === "region + grape") return "📍 Region + grape";
-  if (matchType === "grape") return "🍇 Grape match";
-  if (matchType === "region") return "📍 Region match";
-  return "🧭 Discovery";
+  if (matchType === "region + grape") return "Region + grape";
+  if (matchType === "grape") return "Grape match";
+  if (matchType === "region") return "Region match";
+  return "Discovery";
 }
 
 /** "Stellenbosch · Chenin Blanc" — whatever's known, in order. */
@@ -581,14 +581,14 @@ export const FOUNDING_LINE = Object.freeze({ mark: "dot", text: "Your palate beg
 // kept here so this module stays dependency-light (matchEngine drags the
 // 2.9MB wineUnified.json behind it)
 const SOMM_ROLE_TAGS = {
-  top: "🏆 Top Pick",
-  splurge: "✨ Splurge",
-  value: "💰 Great Value",
-  adventure: "🧭 Adventure",
-  wildcard: "🍷 Worth Trying",
+  top: "Top Pick",
+  splurge: "Splurge",
+  value: "Great Value",
+  adventure: "Adventure",
+  wildcard: "Worth Trying",
 };
 
-/** The role the Somm gave a pick ("💰 Great Value"), or null. */
+/** The role the Somm gave a pick ("Great Value"), or null. */
 export function sommRoleTag(role) {
   return SOMM_ROLE_TAGS[role] || null;
 }
@@ -635,7 +635,7 @@ export function keepLabel(rating) {
 /**
  * A journal row's meta line: left "REGION · GRAPE" from the stored
  * resolution ("REGION · VERDICT PENDING" for a had with no rating), right
- * the date — "🍷 SOMM PICK · AUG 1" (accent) on a Somm pick, "SAVED …" on a
+ * the date — "SOMM PICK · AUG 1" (accent) on a Somm pick, "SAVED …" on a
  * want. Tried rows sit under month heads, so their dates skip the year.
  * Uppercased by CSS. → { meta, right, accent }
  */
@@ -649,7 +649,7 @@ export function journalRowMeta(row, now = new Date()) {
       : metaLine(region, "Verdict pending");
     const date = shortDate(at, now, { year: false });
     return row.somm_pick_role
-      ? { meta, right: metaLine("🍷 Somm pick", date), accent: true }
+      ? { meta, right: metaLine("Somm pick", date), accent: true }
       : { meta, right: date, accent: false };
   }
   const meta = metaLine(region, row.resolved_varietal);

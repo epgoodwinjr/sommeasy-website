@@ -31,6 +31,7 @@ import RuledField from "@/components/house/RuledField";
 import RatingTiles, { usePressHold } from "@/components/house/RatingTiles";
 import TextAction from "@/components/house/TextAction";
 import EmptyState from "@/components/house/EmptyState";
+import Mark from "@/components/house/Mark";
 import Enter from "@/components/house/Enter";
 import SwapLine from "@/components/house/SwapLine";
 import PencilGlass from "@/components/house/PencilGlass";
@@ -502,7 +503,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
     }}>
       {/* Masthead: search · the wordmark · account */}
       <div style={{ display: "grid", gridTemplateColumns: "44px minmax(0,1fr) 44px", alignItems: "center", margin: "0 -10px" }}>
-        <Link href="/search" aria-label="Search" style={{ ...mastCell, fontSize: "16px", textDecoration: "none" }}>🔍</Link>
+        <Link href="/search" aria-label="Search" style={{ ...mastCell, color: INK, textDecoration: "none" }}><Mark id="loupe" size={20} /></Link>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <img src="/protea-icon.png" alt="" style={{ height: 22, width: "auto" }} />
           <span style={wordmark}>Sommeasy</span>
@@ -561,7 +562,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
         <>
           <SectionHead numeral={next()} label="Tonight, out" enterDelay={out} style={{ margin: "22px 0 16px" }} />
           <LeaderEntry
-            tone="filled" mark="📋" label="Match the wine list" href="/recommend" subGap={8}
+            tone="filled" mark="list" label="Match the wine list" href="/recommend" subGap={8}
             enterDelay={out + HOME.follow}
             sub={isNew
               ? "Photo, paste or link — we’ll pick a top bottle, a value and an adventure."
@@ -594,7 +595,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 {/* Inline in the sentence, its hit area padded past the line */}
                 <Link href="/log" data-testid="first-entry-snap" style={{
                   color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "12px 0",
-                }}>📸 snap tonight’s label</Link>
+                }}>snap tonight’s label</Link>
                 <span style={{ color: ink(0.55) }}>. One rating and the Somm rewrites this list around you.</span>
               </p>
               </Enter>
@@ -603,7 +604,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
             <>
               <SectionHead numeral={next()} label="Tonight, in" enterDelay={second} style={{ margin: "32px 0 16px" }} />
               <LeaderEntry
-                mark="📸" label="Log a bottle" href="/log" subGap={8}
+                mark="bottle" label="Log a bottle" href="/log" subGap={8}
                 enterDelay={second + HOME.follow}
                 sub="Snap the label and rate it — every rating sharpens your DNA."
               />
@@ -634,10 +635,9 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 showToast={showToast}
                 emptyState={
                   <EmptyState
-                    emoji="🎉"
                     title="You’ve reviewed all your wines"
                     sub="Your best picks now come from real menus — share a wine list and we’ll match it to your palate."
-                    action="📋 Match a wine list"
+                    action="Match a wine list"
                     href="/recommend"
                   >
                     <div style={{ marginTop: 6 }}>

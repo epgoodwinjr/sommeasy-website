@@ -26,8 +26,12 @@
 //      pencilled in only on a tile, a done line, home's reply, the wine
 //      page's verdict and Log's saved eyebrow; a gesture only where the user
 //      makes it — and no mark rides inside a written line.
+//   9. THE EMOJI SCAN (Session 3, README §10): no file under src/, comments
+//      and tests included, contains an emoji other than a country's flag —
+//      written out or as an escape — and the house's furniture names its
+//      printed tools by id.
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join, relative } from "node:path";
 
@@ -432,12 +436,17 @@ async function main() {
 
   console.log("\n═══ 8. Where the pencil plays (README §7, H3) ═══");
 
-  const SPECIMEN = join("app", "marks-specimen", "page.js"); // deleted in Session 3
   const using = (pattern) => sourceFiles(SRC)
     .filter((path) => pattern.test(readFileSync(path, "utf-8").replace(/^\s*(\/\/|\*|\/\*).*$/gm, "")))
     .map((path) => relative(SRC, path))
-    .filter((path) => path !== SPECIMEN)
     .sort();
+
+  await test("the specimen is gone: nothing under src/ or e2e/ is a marks specimen (Session 3)", () => {
+    assert(!existsSync(join(SRC, "app", "marks-specimen")), "src/app/marks-specimen is deleted");
+    assert(!existsSync(join(REPO, "e2e", "marks.spec.ts")), "e2e/marks.spec.ts went with it");
+    const offenders = sourceFiles(SRC).filter((path) => /marks-specimen/.test(readFileSync(path, "utf-8"))).map((path) => relative(SRC, path));
+    assertEq(offenders, [], "nothing links to it");
+  });
 
   await test("SOURCE SCAN: a glass is pencilled in only when you rate — the tile, the done line, home's reply, the wine page's verdict, Log's saved eyebrow", () => {
     assertEq(using(/draw=\{[^}]*"tile"/), [join("components", "house", "RatingTiles.js")], 'draw "tile": the tapped tile, nowhere else');
@@ -479,6 +488,121 @@ async function main() {
     assertEq(offenders, [], "use the rating's `mark` with <Mark> or <PencilGlass>");
     const ratings = readFileSync(join(SRC, "lib", "ratings.js"), "utf-8");
     assert(!/emoji:/.test(ratings), "ratings.js declares no emoji");
+  });
+
+  console.log("\n═══ 9. The emoji leave (README §8, §10, H9) ═══");
+
+  // What counts as an emoji: anything Unicode draws as a picture
+  // (Extended_Pictographic), the selector that turns a text glyph into one
+  // (U+FE0F), a skin tone, a joiner or a keycap. What doesn't: a flag — two
+  // regional indicators, the one emoji that stays (H9) — and type: the
+  // glyphs below are Extended_Pictographic by the standard but are set as
+  // text here and never carry U+FE0F. The scan's own pattern is written in
+  // escapes, so this file passes it too.
+  const TYPE_GLYPHS = new Set(["©", "®", "™", "↔", "↗", "↘"]); // © ® ™ ↔ ↗ ↘
+  const PICTURE = /\p{Extended_Pictographic}|[\u{FE0F}\u{200D}\u{20E3}\u{1F3FB}-\u{1F3FF}]/gu;
+  const emojiIn = (text) => (text.match(PICTURE) || []).filter((c) => !TYPE_GLYPHS.has(c));
+  // …and the same thing spelled as an escape, in source that ships (a test
+  // may need one to say what it forbids): a surrogate pair, a braced code
+  // point, a bare sparkle or selector, an HTML entity
+  const ESCAPED = /\\u(?:[dD]8[3-9a-fA-F][0-9a-fA-F]|[dD][c-fC-F][0-9a-fA-F]{2}|2728|2[bB]50|[fF][eE]0[fF]|200[dD])|\\u\{1[fF][0-9a-fA-F]{3}\}|&#x1[fF][0-9a-fA-F]{3};/g;
+  const everyFile = (dir) => readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return everyFile(path);
+    return /\.(js|jsx|mjs|ts|tsx|css|json|svg|html|md|txt)$/.test(name) ? [path] : [];
+  });
+
+  await test("the scan sees an emoji however it is written, and lets flags and type through", () => {
+    const glass = String.fromCodePoint(0x1F377), heart = String.fromCodePoint(0x2764, 0xFE0F), sparkles = String.fromCodePoint(0x2728);
+    const pin = String.fromCodePoint(0x1F4CC), dna = String.fromCodePoint(0x1F9EC), frame = String.fromCodePoint(0x1F5BC);
+    for (const e of [glass, heart, sparkles, pin, dna, frame]) assert(emojiIn(`Loved it ${e}`).length > 0, `the scan misses U+${e.codePointAt(0).toString(16)}`);
+    assert(emojiIn(`a bare ${String.fromCodePoint(0xFE0F)} selector`).length === 1, "a variation selector alone is caught");
+    const southAfrica = String.fromCodePoint(0x1F1FF, 0x1F1E6), france = String.fromCodePoint(0x1F1EB, 0x1F1F7);
+    assertEq(emojiIn(`${southAfrica} South Africa · ${france} France`), [], "flags stay (H9)");
+    assertEq(emojiIn("✦ ‹ › → ✓ ✗ × · … — “ ↔ ©"), [], "type is type (README §5)");
+    for (const escaped of ["\\uD83C\\uDF77", "\\u{1F377}", "\\u2728", "\\uFE0F", "&#x1F377;"]) {
+      ESCAPED.lastIndex = 0;
+      assert(ESCAPED.test(escaped), `the escape scan misses ${escaped}`);
+    }
+    ESCAPED.lastIndex = 0;
+    assert(!ESCAPED.test("\\u00A0 \\u2014 \\u2192 \\u2717 \\u{FE0F0}"), "ordinary escapes pass");
+  });
+
+  await test("THE EMOJI SCAN: no file under src/ contains an emoji other than a flag — comments and tests included", () => {
+    const files = everyFile(SRC);
+    assert(files.length > 150, `the scan reads the whole of src/ (${files.length} files)`);
+    assert(files.some((f) => f.endsWith("wineUnified.json")), "…the data included");
+    const offenders = [];
+    for (const path of files) {
+      const source = readFileSync(path, "utf-8");
+      source.split("\n").forEach((line, i) => {
+        const found = emojiIn(line);
+        if (found.length) offenders.push(`${relative(SRC, path)}:${i + 1} ${found.map((c) => "U+" + c.codePointAt(0).toString(16).toUpperCase()).join(" ")}`);
+      });
+      if (path.includes(`${join("lib", "__tests__")}`)) continue;
+      ESCAPED.lastIndex = 0;
+      const escaped = source.match(ESCAPED);
+      if (escaped) offenders.push(`${relative(SRC, path)} escapes ${[...new Set(escaped)].join(" ")}`);
+    }
+    assertEq(offenders, [], "the house prints a Mark or sets type; the user pencils (docs/marks/README.md §8)");
+  });
+
+  await test("the flags are still there: every country in the data keeps its emoji flag (H9)", () => {
+    const data = JSON.parse(readFileSync(join(SRC, "lib", "wineUnified.json"), "utf-8"));
+    assert(Array.isArray(data.countries) && data.countries.length > 10, "the countries");
+    for (const c of data.countries) {
+      const points = [...(c.emoji || "")].map((ch) => ch.codePointAt(0));
+      assert(points.length >= 2 && points.slice(0, 2).every((cp) => cp >= 0x1F1E6 && cp <= 0x1F1FF), `${c.name}'s flag is "${c.emoji}"`);
+    }
+  });
+
+  await test("SOURCE SCAN: the furniture names its tools by id — a LeaderEntry mark is a printed tool or the arrow, an EmptyState mark a printed tool", () => {
+    const tools = Object.keys(TOOLS);
+    const seen = { entry: new Set(), empty: new Set() };
+    for (const path of sourceFiles(SRC)) {
+      const source = readFileSync(path, "utf-8");
+      for (const m of source.matchAll(/<LeaderEntry\b[^>]*?\bmark=("([^"]*)"|\{[^}]*\})/gs)) {
+        assert(m[2] !== undefined, `${relative(SRC, path)}: a LeaderEntry mark is a literal id (${m[1]})`);
+        assert(m[2] === "→" || tools.includes(m[2]), `${relative(SRC, path)}: LeaderEntry mark "${m[2]}" is not a tool`);
+        seen.entry.add(m[2]);
+      }
+      for (const m of source.matchAll(/<EmptyState\b[^>]*?\bmark="([^"]*)"/gs)) {
+        assert(tools.includes(m[1]), `${relative(SRC, path)}: EmptyState mark "${m[1]}" is not a tool`);
+        seen.empty.add(m[1]);
+      }
+      assert(!/<EmptyState\b[^>]*?\bemoji=/s.test(source), `${relative(SRC, path)}: EmptyState takes \`mark\`, not \`emoji\``);
+    }
+    // H8: six tools, each in use; the bottle is Log a bottle's, the camera only ever a photograph
+    assertEq([...seen.entry].filter((id) => id !== "→").sort(), [...tools].sort(), "every tool heads an entry somewhere");
+    assertEq([...seen.empty].sort(), ["camera", "list", "loupe"], "empty states: the list, the loupe, the camera — nothing else (§8.4)");
+    const home = readFileSync(join(SRC, "app", "page.js"), "utf-8");
+    assert(/mark="bottle" label="Log a bottle"/.test(home) && /mark="list" label="Match the wine list"/.test(home), "home: the list and the bottle");
+    const bar = readFileSync(join(SRC, "components", "house", "ServiceBar.js"), "utf-8");
+    assert(/<Mark id="list"[^>]*\/>Match a list/.test(bar) && /<Mark id="bottle"[^>]*\/>Log a bottle/.test(bar), "the service bar: the list and the bottle");
+    for (const m of sourceFiles(SRC).flatMap((path) => [...readFileSync(path, "utf-8").matchAll(/mark="camera" label="([^"]+)"/g)])) {
+      assert(/Photograph|Snap/.test(m[1]), `the camera only ever means a photograph ("${m[1]}")`);
+    }
+  });
+
+  await test("SOURCE SCAN: the house never picks up the pencil — no pencil mark on a tool slot, a pick role, a Somm line or an empty state", () => {
+    const pencil = Object.keys(PENCIL_MARKS).concat(GLASS_IDS);
+    const entry = readFileSync(join(SRC, "components", "house", "LeaderEntry.js"), "utf-8");
+    const empty = readFileSync(join(SRC, "components", "house", "EmptyState.js"), "utf-8");
+    assert(/<Mark id=\{mark\}/.test(entry) && /<Mark id=\{mark\}/.test(empty), "both render their mark through Mark");
+    for (const path of sourceFiles(SRC)) {
+      const source = readFileSync(path, "utf-8");
+      for (const m of source.matchAll(/<(?:LeaderEntry|EmptyState)\b[^>]*?\bmark="([^"]*)"/gs)) {
+        assert(!pencil.includes(m[1]), `${relative(SRC, path)}: the pencil mark "${m[1]}" on the house's furniture`);
+      }
+    }
+    // H6, H7: roles and tags are type; the Somm's one mark is a glyph
+    const somm = readFileSync(join(SRC, "app", "recommend", "SommSays.js"), "utf-8");
+    assert(/aria-hidden="true" data-testid="somm-quote"[^>]*>“<\/span>The Somm says/.test(somm), "The Somm says, behind one hanging quotation mark");
+    assert(!/<Mark\b|<svg\b|PencilGlass|NameGesture/.test(somm), "…a glyph, not a drawing");
+    const pick = readFileSync(join(SRC, "app", "recommend", "PickEntry.js"), "utf-8");
+    assert(!/<Mark[^>]*id=\{?role/.test(pick), "a pick's role is type only (H6)");
+    const reading = readFileSync(join(SRC, "components", "ReadingView.js"), "utf-8");
+    assert(!/PencilGlass|NameGesture/.test(reading), "the reading view is the house's");
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

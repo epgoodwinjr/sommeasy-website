@@ -1,5 +1,6 @@
 // ServiceBar — the two standing orders at the foot of inner pages
-// (README §7.12): 📋 Match a list | 📸 Log a bottle.
+// (README §7.12): Match a list | Log a bottle, each behind its printed tool
+// (the list, the bottle — docs/marks/README.md §8.4).
 //
 // Fixed and frosted, full-bleed, its grid set in the 560px column. Shown on
 // /journal, /wine, /search, /palate and /account only (decision D1) — never
@@ -8,6 +9,7 @@
 // Toasts on these pages sit above it (<Toast aboveServiceBar />).
 
 import Link from "next/link";
+import Mark from "./Mark";
 import { BURGUNDY, COLUMN, INK, SERIF, ink } from "./tokens";
 
 const order = (color) => ({
@@ -31,11 +33,11 @@ export default function ServiceBar() {
           maxWidth: COLUMN, margin: "0 auto", padding: "6px 16px calc(env(safe-area-inset-bottom) + 8px)",
         }}>
           <Link href="/recommend" style={order(BURGUNDY)}>
-            <span aria-hidden="true" style={{ fontSize: "16px" }}>📋</span>Match a list
+            <Mark id="list" size={20} style={{ flexShrink: 0 }} />Match a list
           </Link>
           <div aria-hidden="true" style={{ height: 24, background: ink(0.14) }} />
           <Link href="/log" style={order(INK)}>
-            <span aria-hidden="true" style={{ fontSize: "16px" }}>📸</span>Log a bottle
+            <Mark id="bottle" size={20} style={{ flexShrink: 0 }} />Log a bottle
           </Link>
         </div>
       </nav>

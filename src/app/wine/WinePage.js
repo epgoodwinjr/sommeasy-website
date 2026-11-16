@@ -482,7 +482,7 @@ export default function WinePage({ name }) {
     return (
       <main style={column}>
         <EmptyState
-          emoji="🍷"
+          
           title="Sign in to see this bottle"
           sub="Your verdicts, your notes and every bottle you’ve rated live with your account."
           action="Sign in"
@@ -504,7 +504,7 @@ export default function WinePage({ name }) {
   if (readFailed) {
     return page(
       <EmptyState
-        emoji="🍷"
+        
         title="We couldn’t open this bottle just now"
         sub="Your journal didn’t answer — give it a moment and try again."
         action="Try again"
@@ -515,7 +515,7 @@ export default function WinePage({ name }) {
 
   if (!name || (!known && !row)) {
     return page(
-      <EmptyState emoji="🍷" title="We couldn’t find that bottle" sub="It may have left your journal.">
+      <EmptyState title="We couldn’t find that bottle" sub="It may have left your journal.">
         <div style={{ marginTop: 10 }}>
           <TextAction href="/">Back to your list</TextAction>
         </div>

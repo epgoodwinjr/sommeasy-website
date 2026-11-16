@@ -1085,7 +1085,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     return (
       <main style={column}>
         <EmptyState
-          emoji="📋"
+          mark="list"
           title="Sign in to continue"
           sub="You need an account and a Wine DNA profile to get restaurant recommendations."
           action="Sign in"
@@ -1100,7 +1100,6 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     return (
       <main style={column}>
         <EmptyState
-          emoji="🧬"
           title="Build your Wine DNA first"
           sub="Take the quick quiz to tell us what wines you love, then come back here to get personalized picks from any restaurant wine list."
           action="Take the quiz"
@@ -1133,19 +1132,19 @@ Barolo, Giacomo Conterno 2018.........................$210`);
         <SectionHead numeral={next()} label="Bring the list" style={{ margin: "30px 0 16px" }} />
         {/* On a phone the camera opens straight away; elsewhere the picker */}
         <LeaderEntry
-          tone="filled" size={22} mark="📸" label="Photograph the list"
+          tone="filled" size={22} mark="camera" label="Photograph the list"
           sub="Take a photo of the wine list."
           onClick={() => (isMobile ? cameraInputRef : fileInputRef).current?.click()}
           testId="scan-button"
         />
         <LeaderEntry
-          size={22} mark="🖼" label="Upload a picture"
+          size={22} mark="picture" label="Upload a picture"
           sub="A screenshot of an online list works too."
           onClick={() => fileInputRef.current?.click()}
           style={{ marginTop: 22 }}
         />
         <LeaderEntry
-          size={22} mark="🔗" label="Paste a link"
+          size={22} mark="link" label="Paste a link"
           sub={linkOpen ? undefined : "Got a link to the wine list? Drop it here."}
           expanded={linkOpen}
           onClick={() => setLinkOpen((open) => !open)}
@@ -1187,7 +1186,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
           <Enter {...QUICK_RISE} style={{ marginTop: 4 }}>
             {extractedFrom && wineListText && (
               <p style={{ fontFamily: SANS, fontSize: "12px", lineHeight: 1.5, color: ink(0.6), marginBottom: 4 }}>
-                {extractedFrom === "scan" ? "📸 Extracted from your photo" : "🔗 Extracted from the link"} — review and edit if needed.
+                {extractedFrom === "scan" ? "Extracted from your photo" : "Extracted from the link"} — review and edit if needed.
               </p>
             )}
             <PasteField value={wineListText} onChange={(e) => setWineListText(e.target.value)} />
@@ -1214,7 +1213,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
     <ReadingView
       testId="processing-spinner"
       genome={profile.identity?.genome}
-      eyebrow="🍷 The Somm is reading"
+      eyebrow="The Somm is reading"
       line={reading.line}
       progress={reading.progress}
       barMs={reading.progress >= 1 ? 500 : 2300}
@@ -1306,7 +1305,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             <TonightsTerms {...termsProps} steerId="steer-input-results" />
             {askAgainVisible && (
               <TextAction weight={700} testId="ask-somm-again" onClick={askAgain} style={{ marginTop: 8 }}>
-                🍷 Ask the Somm again
+                Ask the Somm again
               </TextAction>
             )}
           </Enter>
@@ -1346,7 +1345,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
                   key={key}
                   index={i}
                   wine={pick.name}
-                  role={`${typeInfo.emoji} ${typeInfo.label}`}
+                  role={typeInfo.label}
                   name={facts.name}
                   vintage={facts.vintage}
                   price={pick.price != null ? `$${pick.price}` : null}
@@ -1403,7 +1402,7 @@ Barolo, Giacomo Conterno 2018.........................$210`);
               marginTop: 20, textWrap: "pretty",
             }}>Fair enough — the table calls it. Log what you drank and your palate still gets the night.</p>
             <TextActions centered gap={28} style={{ marginTop: 4 }}>
-              <TextAction weight={700} href="/log" testId="bypass-log-link">📸 Log what you drank</TextAction>
+              <TextAction weight={700} href="/log" testId="bypass-log-link">Log what you drank</TextAction>
               <TextAction tone="quiet" testId="bypass-skip" onClick={() => setBypassState("dismissed")}>Skip</TextAction>
             </TextActions>
           </Enter>
@@ -1425,9 +1424,9 @@ Barolo, Giacomo Conterno 2018.........................$210`);
             <TextAction tone="secondary" onClick={() => {
               setErrorMsg(""); // a new attempt starts clean
               addPageInputRef.current?.click();
-            }}>📸 Add another page</TextAction>
+            }}>Add another page</TextAction>
           )}
-          <TextAction testId="scan-again-button" onClick={handleReset}>📋 Scan another list</TextAction>
+          <TextAction testId="scan-again-button" onClick={handleReset}>Scan another list</TextAction>
         </div>
         </Enter>
       </div>

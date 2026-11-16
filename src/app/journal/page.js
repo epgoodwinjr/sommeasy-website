@@ -45,19 +45,16 @@ const smallCaps = {
 
 const EMPTY = {
   tried: {
-    emoji: "🍷",
     title: "The first page is always blank",
     sub: "Rate a bottle you know and it starts here — every rating sharpens your DNA.",
-    action: "📸 Log a bottle",
+    action: "Log a bottle",
     href: "/log",
   },
   want: {
-    emoji: "📌",
     title: "Nothing waiting yet",
     sub: "Tap Want it on any pick and it waits here. We’ll flag it when it turns up on a menu.",
   },
   skipped: {
-    emoji: "👋",
     title: "Nothing struck off",
     sub: "Pass on a pick and it lands here, so the Somm knows to steer around it.",
   },
@@ -155,7 +152,6 @@ export default function JournalPage() {
     return (
       <main style={column}>
         <EmptyState
-          emoji="🍷"
           title="Sign in to view your journal"
           sub="Every bottle you rate makes your next recommendation sharper. Your journal is where that history lives."
           action="Sign in"
@@ -175,7 +171,6 @@ export default function JournalPage() {
     if (readFailed) {
       return (
         <EmptyState
-          emoji="🍷"
           title="We couldn’t open your journal just now"
           sub="Your bottles are safe — give it a moment and try again."
           action="Try again"
@@ -214,7 +209,6 @@ export default function JournalPage() {
     if (timelineFailed) {
       return (
         <EmptyState
-          emoji="🧬"
           title="We couldn’t read your timeline just now"
           sub="Give it a moment and try again."
           action="Try again"
@@ -231,7 +225,6 @@ export default function JournalPage() {
     if (entries.length === 0) {
       return (
         <EmptyState
-          emoji="🎉"
           title="Your palate hasn’t begun yet"
           sub="Two minutes of telling us what you love, and your timeline starts here."
           action="Build my palate"
@@ -246,7 +239,7 @@ export default function JournalPage() {
           <TimelineRow key={e.key} line={e.line} date={e.date} href={e.wine ? wineHref(e.wine) : "/palate"} />
         ))}
         <div style={{ textAlign: "center", marginTop: 16 }}>
-          <TextAction href="/palate">🧬 See what’s building in your palate →</TextAction>
+          <TextAction href="/palate">See what’s building in your palate →</TextAction>
         </div>
       </>
     );

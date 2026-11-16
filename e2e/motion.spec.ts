@@ -1,8 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { composeIdentity } from "../src/lib/identityEngine.js";
 import { MARK_MOTION, renderPalateMark } from "../src/lib/palateMark.js";
-import { PENCIL, PRESS, pencilStrokes } from "../src/components/house/motion.js";
-import { GESTURES, SHADE, renderMark } from "../src/components/house/marks.js";
+import { PENCIL, PRESS, gestureWipes, pencilStrokes } from "../src/components/house/motion.js";
+import { GESTURES, GESTURE_FIT, SHADE, gestureDrawing, renderMark } from "../src/components/house/marks.js";
 import { countEvents, latestEvent, testDb } from "./fixtures/test-db";
 import { BottleLogPage, RecommendPage } from "./fixtures/sommeasy-page";
 
@@ -1105,10 +1105,16 @@ async function watchPencil(page: Page) {
   await page.addInitScript(() => {
     const record: string[] = [];
     (window as any).__pencil = record;
+    // …and, for a gesture's wipe, which line's stroke it is and when it plays
+    const wipes: { line: string | null; delay: number; duration: number }[] = [];
+    (window as any).__wipes = wipes;
     const animate = Element.prototype.animate;
     Element.prototype.animate = function (keyframes, options) {
       const keys = JSON.stringify(keyframes);
       if (/strokeDashoffset|rotate\(|inset\(-200%/.test(keys)) record.push(keys);
+      if (/inset\(-200%/.test(keys) && options && typeof options === "object") {
+        wipes.push({ line: this.getAttribute("data-line"), delay: Number(options.delay ?? 0), duration: Number(options.duration) });
+      }
       return animate.call(this, keyframes, options);
     };
   });
@@ -1472,6 +1478,87 @@ test.describe("The rewards — a verdict changed on the wine page (motion on)", 
     await expect(wine.getByTestId("rating-tile-fine")).toHaveCount(0);
     await expect(page.getByTestId("wine-growth")).toHaveCount(0); // no moment, no bloom
   });
+
+  test("Not for me draws nothing: on its tile the glass turns over — and the verdict rests turned down", async ({ page }) => {
+    // The same row, re-rated fine → not for me. It resolves to nothing, so
+    // no DNA moves (asserted: every accumulation row is as it was)
+    const { supabase, userId } = await testDb();
+    await supabase.from("wine_interactions").delete().eq("user_id", userId).eq("wine_name", WINE);
+    const { data: identity } = await supabase
+      .from("wine_profiles").select("archetype, identity, red_count, white_count").eq("user_id", userId).single();
+    const { data: events } = await supabase.from("dna_timeline").select("id").eq("user_id", userId);
+    restore = { identity, eventIds: new Set((events ?? []).map((e) => e.id)) };
+    const accumulation = async () => JSON.stringify(((await supabase
+      .from("dna_accumulation").select("dimension, dimension_value, points, interaction_count, promoted")
+      .eq("user_id", userId).order("dimension").order("dimension_value")).data ?? []));
+    const dnaBefore = await accumulation();
+    await supabase.from("wine_interactions").insert({
+      user_id: userId, wine_name: WINE, interaction_type: "had", rating: "fine", source_url: "e2e_press",
+    });
+    const reratedBefore = await countEvents(supabase, userId, "journal_rerated");
+    await watchPencil(page);
+
+    await page.goto(`/wine?name=${encodeURIComponent(WINE)}`);
+    const wine = page.getByTestId("wine-page");
+    await expect(page.getByTestId("wine-verdict")).toContainText("It was fine", { timeout: 20_000 });
+    await page.getByTestId("wine-change").click();
+    const tile = wine.getByTestId("rating-tile-not_for_me");
+    await expect(tile).toBeVisible();
+    // At rest the turned glass is already turned: there is no level to guide
+    expect(await tile.locator("svg").evaluate((svg) => ({
+      guides: svg.querySelectorAll("[data-guide]").length,
+      turned: svg.querySelector("g[transform]")?.getAttribute("transform") ?? null,
+    }))).toEqual({ guides: 0, turned: "rotate(180 12 11.85)" });
+
+    const flip = await page.evaluate(async () => {
+      const host = document.querySelector('[data-testid="wine-page"]')!;
+      const button = host.querySelector('[data-testid="rating-tile-not_for_me"]') as HTMLButtonElement;
+      button.click();
+      await new Promise((r) => requestAnimationFrame(r)); // React commits the tap in a microtask
+      const svg = button.querySelector("svg") as SVGSVGElement;
+      return {
+        own: svg.getAnimations().map((a) => ({
+          keyframes: (a.effect as KeyframeEffect).getKeyframes().map((k) => k.transform),
+          duration: a.effect?.getTiming().duration,
+          fill: a.effect?.getTiming().fill,
+        })),
+        strokes: svg.querySelectorAll("path[pathLength], path[stroke-dasharray]").length,
+        pressed: button.hasAttribute("data-pressed"),
+      };
+    });
+    // The glass turns over, from upright to turned down, and nothing is drawn
+    expect(flip.strokes, "not for me has no shading to pencil").toBe(0);
+    expect(flip.pressed).toBe(true);
+    expect(flip.own, JSON.stringify(flip.own)).toHaveLength(1);
+    expect(flip.own[0].duration).toBe(PENCIL.flipMs);
+    expect(flip.own[0].fill).toBe("backwards");
+    expect(flip.own[0].keyframes[0]).toMatch(/^rotate\(-180deg\)$/);
+    expect(flip.own[0].keyframes[1]).toBe("none");
+
+    // The verdict takes the tiles' place: the glass turned down, settled —
+    // on a line the turned glass is never animated (README §7)
+    const verdict = page.getByTestId("wine-verdict");
+    await expect(verdict).toContainText("Not for me", { timeout: 10_000 });
+    await expect(wine.getByTestId("rating-tile-not_for_me")).toHaveCount(0);
+    const glass = verdict.locator('svg[data-mark="glass-down"]');
+    await expect(glass).toHaveCount(1);
+    expect(await glass.evaluate((svg) => {
+      const copy = svg.cloneNode(true) as Element;
+      copy.removeAttribute("style");
+      return { html: copy.outerHTML, moving: svg.getAnimations({ subtree: true }).length, dashed: svg.querySelectorAll("[pathLength], [stroke-dasharray]").length };
+    })).toEqual({ html: await asBrowser(page, renderMark("glass-down", { size: await glass.evaluate((svg) => Number(svg.getAttribute("width"))) })), moving: 0, dashed: 0 });
+    // Across the whole page: one flip (twice at most, should a commit restart it), no stroke, no wipe
+    const pencil = await page.evaluate(() => (window as any).__pencil as string[]);
+    expect(pencil.filter((k) => /strokeDashoffset|inset\(-200%/.test(k)), "nothing was drawn").toEqual([]);
+    expect(pencil.filter((k) => /rotate\(/.test(k)).length).toBeGreaterThanOrEqual(1);
+
+    // The rating is real — and moved no DNA
+    await expect.poll(() => countEvents(supabase, userId, "journal_rerated"), { timeout: 15_000 }).toBe(reratedBefore + 1);
+    const { data: row } = await supabase.from("wine_interactions").select("rating").eq("user_id", userId).eq("wine_name", WINE).single();
+    expect(row?.rating).toBe("not_for_me");
+    expect(await accumulation(), "a bottle that resolves to nothing moves no DNA").toBe(dnaBefore);
+    await expect(page.getByTestId("wine-growth")).toHaveCount(0);
+  });
 });
 
 test.describe("The rewards — reduced motion", () => {
@@ -1630,21 +1717,65 @@ test.describe("The pencil — a rec passed on, a rec wanted (motion on)", () => 
     const nameBefore = await nameOf(passed);
     expect(nameBefore && wines[0].startsWith(nameBefore), `the row's name ("${nameBefore}")`).toBe(true);
 
-    // Pass: the name is struck through — pencilled at the tap, once — and
-    // the row wears no mark; its done line is plain words, focused
+    // The name is made to WRAP — its own block narrowed, as a long name on a
+    // narrow phone is — so the strike has every line to answer for (§14.1)
+    await passed.evaluate((el) => { (el.querySelector("a span span") as HTMLElement).style.maxWidth = "86px"; });
+    const struckName = () => passed.evaluate((el) => {
+      const name = el.querySelector("a span span") as HTMLElement;
+      const text = document.createTreeWalker(name, NodeFilter.SHOW_TEXT).nextNode() as Text;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const lines: { left: number; right: number; top: number; bottom: number }[] = [];
+      for (const r of Array.from(range.getClientRects()).filter((x) => x.width >= 1)) {
+        const last = lines[lines.length - 1];
+        if (last && Math.abs(last.top - r.top) < r.height / 2) {
+          last.left = Math.min(last.left, r.left); last.right = Math.max(last.right, r.right);
+        } else lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+      }
+      const strokes = Array.from(name.querySelectorAll("[data-gesture] svg")).map((svg) => {
+        const box = svg.getBoundingClientRect();
+        return { left: box.left, right: box.right, top: box.top, line: svg.getAttribute("data-line"), d: svg.querySelector("path")?.getAttribute("d") ?? null, moving: svg.getAnimations().length };
+      });
+      return { lines, strokes };
+    });
+    const lineCount = (await struckName()).lines.length;
+    expect(lineCount, "the narrowed name wraps (the premise)").toBeGreaterThanOrEqual(2);
+
+    // Pass: the name is struck through — every line of it, pencilled at the
+    // tap, top line first — and the row wears no mark; its done line is plain
+    // words, focused
     await passed.getByRole("button", { name: "Pass", exact: true }).click();
     const passedLine = passed.locator('p[tabindex="-1"]');
     await expect(passedLine).toHaveText("Struck from your list.");
     await expect(passedLine).toBeFocused();
-    await expect(passed.locator('[data-gesture="strike"] svg')).toHaveCount(1);
+    await expect(passed.locator('[data-gesture="strike"] svg')).toHaveCount(lineCount);
     await expect(passed.locator("svg[data-mark]")).toHaveCount(0);
-    // (the strike MOUNTS with the pass, and `next dev` runs a mount's effects
-    // twice: the wipe is started, cancelled and started again — one strike,
-    // one wipe in play at most)
+    const struck = await struckName();
+    expect(struck.lines.length, "the name wraps as it did").toBe(lineCount);
+    struck.strokes.forEach((s, i) => {
+      const line = struck.lines[i];
+      expect(s.line, `stroke ${i} is line ${i}'s`).toBe(String(i));
+      expect(s.d, `line ${i} takes drawing ${i % 3}`).toBe(gestureDrawing("strike", i));
+      expect(Math.abs(s.left - (line.left - GESTURE_FIT.strike.reach)), `stroke ${i}: its own line's left`).toBeLessThanOrEqual(1);
+      expect(Math.abs(s.right - (line.right + GESTURE_FIT.strike.reach)), `stroke ${i}: its own line's right`).toBeLessThanOrEqual(1);
+      expect(Math.abs(s.top - (line.top + line.bottom) / 2), `stroke ${i}: through its own line's middle`).toBeLessThanOrEqual(1);
+      expect(s.moving, `stroke ${i}: one wipe in play at most`).toBeLessThanOrEqual(1);
+    });
+    expect(struck.strokes[0].d).toBe(GESTURES.strike.d);
+    // The plan: each line's stroke wiped in over gestureLineMs, gestureStepMs
+    // after the one above. (The strike MOUNTS with the pass, and `next dev`
+    // runs a mount's effects twice — a plan may be started, cancelled and
+    // started again, but it is always the same plan.)
     const afterPass = await wipes();
-    expect(afterPass, "the strike was pencilled in").toBeGreaterThanOrEqual(1);
-    expect(afterPass).toBeLessThanOrEqual(2);
-    expect(await passed.locator('[data-gesture="strike"] svg').evaluate((svg) => svg.getAnimations().length)).toBeLessThanOrEqual(1);
+    expect(afterPass, "every line's stroke was pencilled in").toBeGreaterThanOrEqual(lineCount);
+    expect(afterPass).toBeLessThanOrEqual(2 * lineCount);
+    const planned = await page.evaluate(() => (window as any).__wipes as { line: string | null; delay: number; duration: number }[]);
+    // (written from the tokens, not from gestureWipes: the plan function is
+    // what is under test here)
+    const plan = Array.from({ length: lineCount }, (_, i) => ({ line: String(i), delay: i * PENCIL.gestureStepMs, duration: PENCIL.gestureLineMs }));
+    expect([...new Set(planned.map((w) => JSON.stringify(w)))].sort(), "top line first, 520ms each, 260ms apart")
+      .toEqual(plan.map((w) => JSON.stringify(w)).sort());
+    expect(plan.map(({ delay, duration }) => ({ delay, duration })), "…which is the plan motion.js makes").toEqual(gestureWipes(lineCount));
     expect(await passed.locator('[data-gesture="strike"]').textContent()).toBe(nameBefore);
     expect(await passed.evaluate((el) => getComputedStyle(el.querySelector("a span span") as Element).textDecorationLine), "the strike is the pencil's, not a text decoration").toBe("none");
 

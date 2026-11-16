@@ -11,7 +11,7 @@ import { testDb, ensureEarnedFixture, EARNED_FIXTURE } from "./fixtures/test-db"
  *    (?q= rides the URL), and the search waits under Recent.
  * 3. Nothing found says so — never a blank page — and offers the label
  *    camera.
- * 4. The 🔍 on home and on an inner page's running head both open Search.
+ * 4. The loupe on home and on an inner page's running head both open Search.
  *
  * Do NOT make these outcome-tolerant: Search is the way back to any bottle
  * the journal holds, and the masthead's only door to it.
@@ -35,7 +35,7 @@ test.describe("Search (hard-fail guard)", () => {
     await expect(browse).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("search-input")).toBeFocused();
 
-    // An inner page (decision D1) whose own 🔍 is hidden: out of the
+    // An inner page (decision D1) whose own loupe is hidden: out of the
     // accessibility tree, the head's grid kept balanced
     const head = page.getByTestId("running-head");
     await expect(head).toBeVisible();
@@ -120,11 +120,11 @@ test.describe("Search (hard-fail guard)", () => {
     await expect(input).toHaveValue("qwxzq vvq", { timeout: 15_000 });
     await expect(page.getByText("Nothing for “qwxzq vvq” on our list yet.")).toBeVisible();
     await expect(page.getByText("Try a grape, a region or a producer.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "📸 Snap the label instead" })).toHaveAttribute("href", "/log");
+    await expect(page.getByRole("link", { name: "Snap the label instead" })).toHaveAttribute("href", "/log");
     await expect(input).not.toBeFocused();
   });
 
-  test("the 🔍 on home and on an inner page's running head opens Search", async ({ page }) => {
+  test("the loupe on home and on an inner page's running head opens Search", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByTestId("palate-strip")).toBeVisible({ timeout: 15_000 });
     await page.getByRole("link", { name: "Search", exact: true }).click();

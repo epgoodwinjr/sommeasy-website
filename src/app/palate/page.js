@@ -91,7 +91,7 @@ export default function PalatePage() {
     return (
       <main style={column}>
         <EmptyState
-          emoji="🧬"
+          
           title="Your palate is waiting"
           sub="Sign in to see what Sommeasy knows about your taste — and watch it grow with every bottle."
           action="Sign in"
@@ -113,7 +113,7 @@ export default function PalatePage() {
   if (readFailed) {
     return page(
       <EmptyState
-        emoji="🧬"
+        
         title="We couldn’t open your palate just now"
         sub="Your palate is safe — give it a moment and try again."
         action="Try again"
@@ -125,7 +125,7 @@ export default function PalatePage() {
   if (!profile) {
     return page(
       <EmptyState
-        emoji="🧬"
+        
         title="No palate here yet"
         sub="Two minutes of telling us what you love, and this page becomes yours."
         action="Build my palate"
