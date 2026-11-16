@@ -84,8 +84,19 @@ export const PENCIL = {
 // path, so the line keeps its weight at any width.
 export const GESTURES = {
   circle: { viewBox: "0 0 200 40", d: "M96 3 C 40 1 4 8 4 20 C 4 33 50 38 104 37 C 160 36 197 30 196 18 C 195 7 150 1 78 6" }, // the pick on the table
-  underline: { viewBox: "0 0 200 8", d: "M2 4.5 C 40 1.5 80 6.5 120 3.5 C 150 1.5 180 5.5 198 3" }, // a bottle you loved
-  strike: { viewBox: "0 0 200 8", d: "M2 5 C 50 2 110 6.5 198 2.5" }, // a bottle you passed on
+  // a bottle you loved. On a wrapped name every line is underlined: line i
+  // takes drawing i mod 3, `d` being drawing 0 (README §13.1)
+  underline: {
+    viewBox: "0 0 200 8",
+    d: "M2 4.5 C 40 1.5 80 6.5 120 3.5 C 150 1.5 180 5.5 198 3",
+    more: ["M2 3.5 C 36 6 84 1.5 124 4.5 C 152 6 182 2 198 4", "M3 4 C 50 5.8 96 2.2 140 4.2 C 165 5.2 185 3 197 4.6"],
+  },
+  // a bottle you passed on: every line struck, drawings chosen the same way
+  strike: {
+    viewBox: "0 0 200 8",
+    d: "M2 5 C 50 2 110 6.5 198 2.5",
+    more: ["M2 3.2 C 60 5.8 120 2 198 4.6", "M3 4.6 C 70 2.4 130 5.6 197 3.4"],
+  },
 };
 
 // ── the printed tools ───────────────────────────────────────────────────
@@ -140,37 +151,3 @@ export const MARK_IDS = [
   "star", "loop", "plus", "minus", "arrow", "dot",
   "list", "camera", "bottle", "picture", "link", "loupe",
 ];
-
-// ── added Nov 15, 2026, after Session 1 (README §13.1) ─────────────────
-// The circle for a WRAPPED name: a pencil loop built in pixels for the box it
-// goes round, so its corners keep one radius however tall the name is. (The
-// stretched GESTURES.circle turns into a tall ellipse on a wrapped name and
-// cuts across the corners of the first and last lines.) Pure: the same box
-// gives the same path. w, h are the loop's own box in px (the name's block
-// plus its padding); the path starts top-centre, runs anticlockwise and
-// overlaps its start, as the approved one-line circle does.
-export function loopPath(w, h) {
-  if (!(w > 0) || !(h > 0)) return "";
-  const r = Math.min(18, h / 2 - 1, w / 4);
-  const k = 0.55 * r;
-  const f = (n) => String(Math.round(n * 100) / 100);
-  const p = (x, y) => `${f(x)} ${f(y)}`;
-  // an edge with a slight wobble: a hand never draws a ruler line
-  const edge = (x1, y1, x2, y2, wob) => {
-    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
-    const nx = (-dy / len) * wob, ny = (dx / len) * wob;
-    return `C ${p(x1 + dx / 3 + nx, y1 + dy / 3 + ny)} ${p(x1 + (2 * dx) / 3 - nx, y1 + (2 * dy) / 3 - ny)} ${p(x2, y2)}`;
-  };
-  return [
-    `M ${p(w * 0.5, 2)}`,
-    edge(w * 0.5, 2, r + 1, 1.4, 0.9),
-    `C ${p(r + 1 - k, 1.4)} ${p(1.4, r + 1 - k)} ${p(1.4, r + 1)}`,
-    edge(1.4, r + 1, 2.2, h - r - 1, 1.1),
-    `C ${p(2.2, h - r - 1 + k)} ${p(r + 1 - k, h - 1.6)} ${p(r + 1, h - 1.6)}`,
-    edge(r + 1, h - 1.6, w - r - 1, h - 2.4, 1.2),
-    `C ${p(w - r - 1 + k, h - 2.4)} ${p(w - 1.4, h - r - 1 + k)} ${p(w - 1.4, h - r - 1)}`,
-    edge(w - 1.4, h - r - 1, w - 2.4, r + 1, 1.1),
-    `C ${p(w - 2.4, r + 1 - k)} ${p(w - r - 1 + k, 2.6)} ${p(w - r - 1, 2.6)}`,
-    edge(w - r - 1, 2.6, w * 0.4, 4.6, 0.9),
-  ].join(" ");
-}

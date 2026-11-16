@@ -68,7 +68,7 @@ Build beside it, one file each:
 
 - **`Mark`**: `<Mark id="star" size={20} />`. Renders the settled mark, `aria-hidden`, `data-mark={id}`. An unknown id renders nothing.
 - **`PencilGlass`**: the glass for a rating id. Props: `rating`, `size`, `draw` (false: settled; `"tile"` or `"line"`: pencilled in, §7), `guide` (the faint shading a tile shows at rest). Renders each shading stroke as its own `<path>` so strokes can be drawn in turn. At rest its markup equals `Mark`'s for the same rating.
-- **`NameGesture`**: wraps a name and draws `circle`, `underline` or `strike` over it. An absolutely positioned `<svg>` with `preserveAspectRatio="none"` and `vector-effect="non-scaling-stroke"`, `aria-hidden`, pointer-events none. The wrapped text and its DOM are unchanged. For a name that wraps, size the underline and the strike to the **last line** (`getClientRects()`). The circle goes round the whole block; on a wrapped name it is the generated loop of §13, not the stretched drawing.
+- **`NameGesture`**: wraps a name and draws `circle`, `underline` or `strike` over it. An absolutely positioned `<svg>` with `preserveAspectRatio="none"` and `vector-effect="non-scaling-stroke"`, `aria-hidden`, pointer-events none. The wrapped text and its DOM are unchanged. For a name that wraps, the underline and the strike are drawn on **every line**, one stroke per line box (`getClientRects()`), each sized to its own line (§13.1). The circle goes round the whole block, stretched, on one line or several.
 
 Also in Session 1: `/marks-specimen`, an unlinked page showing every mark and primitive for the preview. It is deleted in Session 3.
 
@@ -200,13 +200,39 @@ Session 1 shipped the foundations on `marks` (66eff27, 83b55b3, 4dab15a). These 
 - **`NameGesture`'s wrapper stays inline**, so a long name wraps exactly where it did before.
 - **`e2e/marks.spec.ts`** drives the specimen and is deleted with it in Session 3. Anything it proves that still matters moves onto a real page first.
 
-### 13.1 Open for Session 2, do this first: the circle on a wrapped name
+### 13.1 The circle on a wrapped name: superseded by §14.1
 
-The stretched `GESTURES.circle` becomes a tall ellipse on a wrapped name and cuts across the corners of its first and last lines. Pick names wrap often on a phone, and the circle lands on a pick in this session, so fix it before using it.
+An earlier draft of this section replaced the circle on a wrapped name with a generated loop (`loopPath`). Ed ruled against it the same afternoon, but the corrected text never reached the repo, so Session 2 built the loop in good faith (d78f290). §14.1 undoes it.
 
-- **One line: unchanged.** The approved `GESTURES.circle`, stretched, exactly as built.
-- **More than one line: the loop.** `design/marks.js` now exports `loopPath(w, h)`: a pencil loop built in pixels for its box, whose corners keep one radius however tall the name is. Port it to production `marks.js` value for value and extend the parity test to it. Render it in an `<svg>` whose viewBox is `0 0 w h` (no `preserveAspectRatio="none"`), over the same padded box the circle uses today, with the same wipe. It is re-made whenever the name is re-measured.
-- **Unit tests:** deterministic; "" for a box that isn't one; every coordinate inside the box; the corner radius does not grow with the height (compare h = 60, 120 and 240).
-- **Browser test** (specimen): on each wrapped name, all four corners of its first and last line boxes lie inside the loop (`isPointInFill` on a filled copy of the path); a one-line name still draws `GESTURES.circle`.
-- **For Ed's review:** how the loop looks on the specimen's wrapped names.
+## 14. Settled in Session 2 (Nov 15, 2026)
 
+Session 2 shipped your marks and moments on `marks` (64cb712, d78f290, 6c4cce5). These readings are now part of the spec:
+
+- **The saved-step underline** goes under the thing that joined the DNA (`emphasis`), not the bottle's recap row.
+- **A wine's page:** the verdict's glass is pencilled in when it replaces the tiles after a rating made on that page, and is settled on arrival. "Passed" there is plain words; the title is not struck.
+- **Log's rating list:** settled glasses, no guide, nothing drawn. Choosing a line isn't rating yet.
+- **A want's star** arrives settled.
+- **Row marks** sit at the end of the name's line at 22px, in `WineRow`'s existing end slot. The reference's left column was the reference's layout, not the app's.
+- **A pick's flag** keeps its 10px small caps, with a 20px glass.
+- **Search and Log's search:** a passed row is struck; loved rows are not underlined there.
+- **Same-vein rows** carry their mark at the end of the row.
+
+### 14.1 Open for Session 3, do this first: the gestures on a wrapped name
+
+Ed's ruling on the specimen (Nov 15), in full:
+
+- **The circle is the one stretched drawing, always.** One line or four, it is `GESTURES.circle` stretched round the whole name, crossing the corners of the first and last lines. Ed likes exactly that; it reads as a quick hand-drawn loop. **Remove `loopPath`** from production `marks.js`, from `NameGesture`, and from the tests (it is already gone from `design/marks.js`). The loop's corner check goes with it; in its place assert that a wrapped name's circle is one stretched `GESTURES.circle`.
+- **Underline and strike go on every line.** On the last line alone they read as marking only those words ("Sec 2021" struck, the rest standing).
+  - **One stroke per line.** `gestureBox` gives way to one box per line for `underline` and `strike`. `NameGesture` renders one `<svg>` per line, each sized to its own line's width with the reach and drop a single line has today.
+  - **No two neighbouring lines share a drawing.** `design/marks.js` gives `GESTURES.underline` and `GESTURES.strike` a `more` array of two further drawings. Line *i* uses drawing *i* mod 3, counting the approved `d` as drawing 0. A one-line name therefore draws exactly what it draws today.
+  - **Drawn in, top line first.** Add `PENCIL.gestureLineMs: 520` and `PENCIL.gestureStepMs: 260`: on a wrapped name each line's stroke is wiped in over 520ms, 260ms after the one above. A one-line name keeps `gestureMs`. Settled, and under reduced motion, every line is simply there.
+- **Unit tests:** one box per line, in order, each inside its own line's vertical band; a one-line name's box and drawing are unchanged; junk gives nothing. Extend the parity test to `more`, and drop `loopPath` from it.
+- **Browser tests:** each wrapped name has as many underline or strike strokes as it has lines, each spanning its own line. Prove it on the specimen now and on a real page (a struck pass or an underlined loved row with a long name) before the specimen is deleted.
+
+### 14.2 What Session 3 moves off the specimen before deleting it
+
+"Not for me" turning over, the underlined news on the saved step, and the per-line strokes of §14.1. The loop's corner check is not moved; it is deleted.
+
+### 14.3 One more for §8.3
+
+The journal Timeline's "🧬 See what's building in your palate →" becomes plain words. The strict scan would catch it; it is named here so it isn't a surprise.
