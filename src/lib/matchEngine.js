@@ -1429,12 +1429,12 @@ export function matchWinesAgainstDNA(entries, dnaProfile, feedbackSignals) {
 
 export function getPickTypeInfo(pickType) {
   switch (pickType) {
-    case "top": return { label: "Top Pick", emoji: "\uD83C\uDFC6", color: "#8B2332", bg: "rgba(139,35,50,0.1)" };
-    case "splurge": return { label: "Splurge", emoji: "\u2728", color: "#1B3D2F", bg: "rgba(27,61,47,0.08)" };
-    case "value": return { label: "Great Value", emoji: "\uD83D\uDCB0", color: "#6B8F5E", bg: "rgba(107,143,94,0.1)" };
-    case "adventure": return { label: "Adventure", emoji: "\uD83E\uDDED", color: "#8B6914", bg: "rgba(139,105,20,0.08)" };
-    case "wildcard": return { label: "Worth Trying", emoji: "\uD83C\uDF77", color: "#1B3D2F", bg: "rgba(27,61,47,0.05)" };
-    default: return { label: "Match", emoji: "\uD83C\uDF77", color: "#1B3D2F", bg: "rgba(27,61,47,0.05)" };
+    case "top": return { label: "Top Pick", color: "#8B2332", bg: "rgba(139,35,50,0.1)" };
+    case "splurge": return { label: "Splurge", color: "#1B3D2F", bg: "rgba(27,61,47,0.08)" };
+    case "value": return { label: "Great Value", color: "#6B8F5E", bg: "rgba(107,143,94,0.1)" };
+    case "adventure": return { label: "Adventure", color: "#8B6914", bg: "rgba(139,105,20,0.08)" };
+    case "wildcard": return { label: "Worth Trying", color: "#1B3D2F", bg: "rgba(27,61,47,0.05)" };
+    default: return { label: "Match", color: "#1B3D2F", bg: "rgba(27,61,47,0.05)" };
   }
 }
 

@@ -5,7 +5,7 @@
 // and Log's "Reading the label". Full screen, no running head.
 //
 //   (the bloom, breathing)
-//   🍷 THE SOMM IS READING
+//   THE SOMM IS READING
 //   Reading forty-two wines…
 //   ━━━━━━━━━━──
 //   CLOUDY BAY SAUVIGNON BLANC          ← the ticker, only while there are names
@@ -15,7 +15,7 @@
 // `line`, the bar's `progress`, and — once a list has really been parsed —
 // the `names` on it. Then:
 //   · the palate mark breathes (§7.5). No genome → `fallback` ({ mark,
-//     eyebrow }: Log's 📸 over "Reading the label", as it was), or nothing.
+//     eyebrow }: Log's printed camera over "Reading the label"), or nothing.
 //   · the line cross-fades when it changes (SwapLine). It is the view's one
 //     live region, as it always was.
 //   · the ticker flicks through `names`, one at a time, for as long as it is
@@ -28,6 +28,7 @@
 import { useEffect, useRef, useState } from "react";
 import { markParams } from "@/lib/palateMark";
 import PalateMarkLive from "@/components/PalateMarkLive";
+import Mark from "@/components/house/Mark";
 import ProgressLine from "@/components/house/ProgressLine";
 import SwapLine from "@/components/house/SwapLine";
 import TextAction from "@/components/house/TextAction";
@@ -120,7 +121,7 @@ export default function ReadingView({
     }}>
       {drawn
         ? <PalateMarkLive genome={genome} size={MARK} breathing />
-        : fallback && <div aria-hidden="true" style={{ fontSize: "34px", lineHeight: 1 }}>{fallback.mark}</div>}
+        : fallback && <div aria-hidden="true" style={{ height: 34, color: INK }}><Mark id={fallback.mark} size={34} /></div>}
       <div style={{ ...TYPE.eyebrow, letterSpacing: "0.24em", marginTop: drawn || !fallback ? 28 : 22 }}>
         {drawn || !fallback ? eyebrow : fallback.eyebrow}
       </div>

@@ -729,6 +729,156 @@ async function main() {
     }
   });
 
+
+  console.log("\n═══ 6. Penciling — House & Hand (docs/marks/README.md §7) ═══");
+
+  const { SHADE } = await import("../../components/house/marks.js");
+  const { PENCIL, PENCIL_STROKE, GLASS_FLIP, GESTURE_WIPE, pencilStrokes, gestureWipes, playPencil } = motion;
+  const ends = (plan) => Math.max(...plan.map((s) => s.delay + s.duration));
+
+  await test("PENCIL is §7's table, value for value — and the tile's numbers beside it", () => {
+    assertEq(
+      { surfaceMs: PENCIL.surfaceMs, strokeMs: PENCIL.strokeMs, stepMs: PENCIL.stepMs, guide: PENCIL.guide, gestureMs: PENCIL.gestureMs, flipMs: PENCIL.flipMs },
+      { surfaceMs: 360, strokeMs: 200, stepMs: 85, guide: 0.22, gestureMs: 800, flipMs: 600 },
+      "the table",
+    );
+    assertEq(PENCIL.tile, { surfaceMs: 140, strokeMs: 90, beforeHold: 20 }, "the tile: surface 140, stroke 90, done 20ms before the hold");
+    assertEq(PENCIL.easing, "ease-out", "one stroke's curve (the approved reference's)");
+    assertEq(PRESS.holdMs, 430, "the hold is never lengthened for the pencil");
+    assertEq({ gestureLineMs: PENCIL.gestureLineMs, gestureStepMs: PENCIL.gestureStepMs }, { gestureLineMs: 520, gestureStepMs: 260 }, "a wrapped name's strokes (marks README §14.1)");
+  });
+
+  await test("gestureWipes: one stroke keeps gestureMs; a wrapped name is drawn top line first, 520ms each, 260ms apart", () => {
+    assertEq(gestureWipes(1), [{ delay: 0, duration: 800 }], "one line, or a circle: exactly as before");
+    assertEq(gestureWipes(2), [{ delay: 0, duration: 520 }, { delay: 260, duration: 520 }], "two lines");
+    assertEq(gestureWipes(4), [0, 260, 520, 780].map((delay) => ({ delay, duration: 520 })), "four lines");
+    const plan = gestureWipes(3);
+    for (let i = 1; i < plan.length; i++) {
+      assert(plan[i].delay > plan[i - 1].delay, "top line first");
+      assert(plan[i].delay < plan[i - 1].delay + plan[i - 1].duration, "the next line starts while the one above is still drawing");
+    }
+    for (const junk of [0, -1, 1.5, NaN, undefined, null, "3", Infinity]) assertEq(gestureWipes(junk), [], `gestureWipes(${String(junk)})`);
+  });
+
+  await test("a done line: the surface, then each hatching stroke a step after the last — the table as written", () => {
+    for (const [level, strokes] of Object.entries(SHADE)) {
+      const plan = pencilStrokes(strokes.length, "line");
+      assertEq(plan.length, strokes.length, `${level}: one entry per stroke`);
+      assertEq(plan[0], { delay: 0, duration: 360 }, `${level}: stroke 0 is the surface`);
+      plan.slice(1).forEach((s, k) => assertEq(s, { delay: 360 + 85 * k, duration: 200 }, `${level}: hatching stroke ${k + 1}`));
+    }
+    assertEq(ends(pencilStrokes(SHADE.loved.length, "line")), 1495, "a full glass: its last stroke starts at 1.3s and lands at 1.5s");
+    assertEq(pencilStrokes(SHADE.fine.length), pencilStrokes(SHADE.fine.length, "line"), "line is the default");
+  });
+
+  await test("a tile: every glass is pencilled in inside the press hold, ending 20ms before it", () => {
+    for (const [level, strokes] of Object.entries(SHADE)) {
+      const plan = pencilStrokes(strokes.length, "tile");
+      assertEq(plan.length, strokes.length, `${level}: one entry per stroke`);
+      assertEq(plan[0], { delay: 0, duration: 140 }, `${level}: the surface first`);
+      assert(plan.slice(1).every((s) => s.duration === 90), `${level}: each hatching stroke takes 90ms`);
+      assertEq(plan[1].delay, 140, `${level}: the hatching starts as the surface lands`);
+      assertEq(ends(plan), PRESS.holdMs - PENCIL.tile.beforeHold, `${level}: done 20ms before the hold`);
+      for (let k = 2; k < plan.length; k++) {
+        assert(plan[k].delay > plan[k - 1].delay, `${level}: stroke ${k} starts after stroke ${k - 1}`);
+        // Back and forth, one after another — but never all at once: the
+        // step is shorter than a stroke, so several are mid-flight together
+        assert(plan[k].delay < plan[k - 1].delay + plan[k - 1].duration, `${level}: strokes ${k - 1} and ${k} overlap`);
+      }
+      const steps = plan.slice(2).map((s, k) => s.delay - plan[k + 1].delay);
+      assert(steps.every((s) => Math.abs(s - steps[0]) < 1e-9), `${level}: an even step`);
+    }
+  });
+
+  await test("pencilStrokes: one stroke is just the surface, two lands the hatch in the hold, junk draws nothing", () => {
+    assertEq(pencilStrokes(1, "tile"), [{ delay: 0, duration: 140 }], "a surface alone");
+    assertEq(pencilStrokes(2, "tile"), [{ delay: 0, duration: 140 }, { delay: 320, duration: 90 }], "one hatch, ending 20ms before the hold");
+    assertEq(pencilStrokes(1, "line"), [{ delay: 0, duration: 360 }], "a line's surface alone");
+    for (const junk of [0, -3, 1.5, NaN, Infinity, "13", null, undefined, {}]) {
+      assertEq(pencilStrokes(junk, "tile"), [], `pencilStrokes(${String(junk)})`);
+    }
+    assertEq(pencilStrokes(4, "nonsense"), pencilStrokes(4, "line"), "an unknown mode draws at a line's pace");
+  });
+
+  await test("what animates: a stroke its dash offset (1 → 0), the flip its transform, a gesture its clip-path", () => {
+    assertEq(PENCIL_STROKE, [{ offset: 0, strokeDashoffset: "1" }, { offset: 1, strokeDashoffset: "0" }], "a stroke");
+    assertEq(GLASS_FLIP, [{ offset: 0, transform: "rotate(-180deg)" }, { offset: 1, transform: "none" }], "the glass turns over, ending on none");
+    assertEq(GESTURE_WIPE, [
+      { offset: 0, clipPath: "inset(-200% 100% -200% 0)" },
+      { offset: 1, clipPath: "inset(-200% -5% -200% -5%)" },
+    ], "a gesture is wiped in from the left");
+    const props = (frames) => [...new Set(frames.flatMap((f) => Object.keys(f).filter((k) => k !== "offset")))];
+    assertEq(props(PENCIL_STROKE), ["strokeDashoffset"], "the one property beyond the three, and only on a stroke");
+    assertEq(props(GLASS_FLIP), ["transform"], "the flip");
+    assertEq(props(GESTURE_WIPE), ["clipPath"], "the wipe — never a dash");
+  });
+
+  await test("playPencil: fills backwards with the timing asked; nothing under reduced motion, nothing it can't run", () => {
+    withMotionPreference(false, () => {
+      const el = fakeElement();
+      playPencil(el, PENCIL_STROKE, { delay: 445, duration: 200 });
+      assertEq(el.calls[0], { keyframes: PENCIL_STROKE, timing: { delay: 445, duration: 200, easing: "ease-out", fill: "backwards" } }, "a stroke");
+      const flip = fakeElement();
+      playPencil(flip, GLASS_FLIP, { duration: PENCIL.flipMs, easing: SOFT_OUT });
+      assertEq(flip.calls[0].timing, { delay: 0, duration: 600, easing: SOFT_OUT, fill: "backwards" }, "the flip");
+      for (const junk of [-50, NaN, "soon", null]) {
+        const j = fakeElement();
+        playPencil(j, PENCIL_STROKE, { delay: junk, duration: 90 });
+        assertEq(j.calls[0].timing.delay, 0, `a junk delay (${String(junk)}) is no delay`);
+      }
+      assertEq(playPencil(null, PENCIL_STROKE), null, "no element");
+      assertEq(playPencil({}, PENCIL_STROKE), null, "an element that can't animate");
+      assertEq(playPencil({ animate() { throw new Error("NotSupportedError"); } }, PENCIL_STROKE), null, "a browser that refuses");
+    });
+    withMotionPreference(true, () => {
+      const el = fakeElement();
+      assertEq(playPencil(el, PENCIL_STROKE, { duration: 200 }), null, "reduced motion: settled at once");
+      assertEq(el.calls.length, 0, "…and nothing asked of the element");
+    });
+  });
+
+  await test("SOURCE SCAN: the mark primitives are one file each, and type none of the pencil's timings", () => {
+    for (const file of ["marks.js", "Mark.js", "PencilGlass.js", "NameGesture.js"]) {
+      assert(existsSync(join(HOUSE, file)), `src/components/house/${file} is missing`);
+    }
+    const glass = codeOf(join(HOUSE, "PencilGlass.js"));
+    const gesture = codeOf(join(HOUSE, "NameGesture.js"));
+    const table = [PENCIL.surfaceMs, PENCIL.strokeMs, PENCIL.stepMs, PENCIL.gestureMs, PENCIL.gestureLineMs, PENCIL.gestureStepMs, PENCIL.flipMs, PENCIL.tile.surfaceMs, PENCIL.tile.strokeMs];
+    for (const [name, code] of [["PencilGlass.js", glass], ["NameGesture.js", gesture]]) {
+      for (const ms of table) assert(!types(code, ms), `${name} types ${ms} — it belongs in motion.js`);
+      assert(!/0?\.22\b/.test(code), `${name} types the guide's opacity`);
+      assert(!/fill:\s*["'](both|forwards)["']/.test(code), `${name} holds an animation's end state`);
+    }
+    assert(/pencilStrokes\(/.test(glass) && /PENCIL\.flipMs/.test(glass) && /PENCIL\.guide/.test(glass), "PencilGlass takes its timing from PENCIL");
+    assert(/gestureWipes\(strokes\.length\)/.test(gesture) && /GESTURE_WIPE/.test(gesture), "NameGesture takes its wipes from motion.js, a stroke per line");
+    assert(!/PENCIL\./.test(gesture), "…and does no timing arithmetic of its own");
+  });
+
+  await test("SOURCE SCAN: one <path> per stroke — the shading is never one path while it draws", () => {
+    // The first study's bug (§7): a single path holding every stroke dashes
+    // each subpath on its own, and they all appear together at the end
+    const glass = codeOf(join(HOUSE, "PencilGlass.js"));
+    assert(/glass\.shade\.map\(\(d, i\) => \(\s*<path\b/.test(glass), "each stroke must be its own <path>");
+    const joined = glass.match(/glass\.shade\.join\(/g) || [];
+    assertEq(joined.length, 1, "the shading is joined in one place");
+    assert(/d=\{glass\.shade\.join\(" "\)\}[\s\S]{0,200}opacity=\{PENCIL\.guide\}/.test(glass), "…the resting guide, which never draws");
+  });
+
+  await test("SOURCE SCAN: a dash offset is animated in one place — a pencil stroke, played by PencilGlass", () => {
+    // The palate mark's orbit is dashed too, but drawn frame by frame: no
+    // file but motion.js names a dash offset to animate
+    const offsets = sourceFiles(SRC)
+      .filter((path) => /\.js$/.test(path) && /stroke-dashoffset|strokeDashoffset/.test(codeOf(path)))
+      .map((path) => relative(SRC, path));
+    assertEq(offsets, ["components/house/motion.js"], "who names a dash offset");
+    const players = sourceFiles(SRC)
+      .filter((path) => /\.js$/.test(path) && /\bPENCIL_STROKE\b/.test(codeOf(path)))
+      .map((path) => relative(SRC, path))
+      .sort();
+    assertEq(players, ["components/house/PencilGlass.js", "components/house/motion.js"], "who draws a stroke");
+    assert(!/dash/i.test(codeOf(join(HOUSE, "NameGesture.js"))), "a gesture is clipped, never dashed");
+  });
+
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed > 0 ? 1 : 0);
 }

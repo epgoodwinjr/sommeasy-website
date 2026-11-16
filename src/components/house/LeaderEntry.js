@@ -2,8 +2,14 @@
 
 // LeaderEntry — a primary action set as a wine-list line (README §7.3):
 //
-//   Match the wine list ················· (📋)
+//   Match the wine list ················· (list)
 //   Photo, paste or link — we'll find your bottle.
+//
+// `mark` is what the circle holds: one of the house's six printed tools by
+// id ("list", "camera", "bottle", "picture", "link", "loupe" — marks.js;
+// docs/marks/README.md §8.4), cream on the filled circle and burgundy on the
+// outline one, or the type glyph "→". It is decorative: the label is the
+// entry's name.
 //
 // A real link (href → next/link) or <button>, the whole line its hit area.
 // tone "filled" is THE primary action — one per page; "outline" marks the
@@ -28,6 +34,7 @@
 import Link from "next/link";
 import { useId, useRef } from "react";
 import LeaderDraw from "./LeaderDraw";
+import Mark from "./Mark";
 import useEntrance, { useIsoLayoutEffect, withEntrance } from "./useEntrance";
 import { ENTRY_ENTER } from "./motion";
 import { BURGUNDY, CIRCLE_SHADOW, CREAM, GRADIENT, INK, SANS, SERIF, ink, leader } from "./tokens";
@@ -38,6 +45,8 @@ const LEADER_MIN = 12;
 // The smallest a label is ever set, and how finely it steps down to fit
 const LABEL_MIN = 14;
 const LABEL_STEP = 0.5;
+// A printed tool inside the 48px circle
+const TOOL_SIZE = 26;
 
 /**
  * Set the label at `base` px — or, where the line has no room for it, at the
@@ -126,12 +135,12 @@ export default function LeaderEntry({
         <span ref={markRef} aria-hidden="true" style={withEntrance({
           width: 48, height: 48, borderRadius: "50%", flexShrink: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "20px", lineHeight: 1,
+          fontSize: "20px", lineHeight: 1, color: filled ? CREAM : BURGUNDY,
           ...(filled
             ? { background: GRADIENT, boxShadow: CIRCLE_SHADOW }
             : { border: "1.5px solid rgba(139,35,50,0.3)", background: "rgba(139,35,50,0.04)" }),
-          ...(mark === "→" && { fontFamily: SANS, color: filled ? CREAM : BURGUNDY }),
-        }, markEntering)}>{mark}</span>
+          ...(mark === "→" && { fontFamily: SANS }),
+        }, markEntering)}>{mark === "→" ? mark : <Mark id={mark} size={TOOL_SIZE} />}</span>
       )}
     </>
   );

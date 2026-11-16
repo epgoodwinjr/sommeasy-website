@@ -7,8 +7,14 @@
 // eyebrow and particulars — and since Phase 5 the palate's DNA counts and
 // Search's lines. Bottle counts
 // are computed from the engine's REAL thresholds (dnaThresholds.js) and
-// written as words — never a hardcoded "two loved bottles". Rating emoji and
+// written as words — never a hardcoded "two loved bottles". Rating marks and
 // labels come from RATINGS (ratings.js), never a local copy.
+//
+// House & Hand (docs/marks/README.md §8): a mark is never a character inside
+// a string. Where a line wears one, this module hands back the mark's ID
+// beside plain words — { mark, text } — and the component draws it (Mark,
+// PencilGlass, NameGesture). The words alone say everything: the mark is
+// decoration, aria-hidden.
 //
 // Pure and dependency-light (ratings + thresholds only) so houseCopy.test.js
 // runs the real module in plain node. Junk in → silence, never a throw.
@@ -105,7 +111,8 @@ export const RATING_CONSEQUENCE = Object.freeze({
 });
 
 /**
- * The From last night reply: "❤️ Loved it — noted. {consequence}". The
+ * The From last night reply: "Loved it — noted. {consequence}" (home sets
+ * the rating's glass before it, pencilled in — the mark is not in the words). The
  * consequence is the first that applies: a promotion, then (loved only) the
  * nearest dimension's distance, then the rating's own line.
  */
@@ -125,10 +132,10 @@ export function verdictReply({ rating, promotions = [], nearest = null } = {}) {
 }
 
 /** What the reply can say at the tap, before the engine has answered:
- *  "❤️ Loved it — noted." Every verdictReply opens with it. */
+ *  "Loved it — noted." Every verdictReply opens with it. */
 export function verdictNoted(rating) {
   const r = ratingFor(rating);
-  return r ? `${r.emoji} ${r.label} — noted.` : null;
+  return r ? `${r.label} — noted.` : null;
 }
 
 /**
@@ -147,10 +154,17 @@ export function replyParts(noted, reply) {
 }
 
 /**
- * The Log saved screen: { eyebrow, headline, sub, lines }. A shift takes
- * the headline (and the eyebrow, so they agree); a promotion headlines
- * otherwise; a first-ever rated bottle gets its own line. Promotions that
- * didn't headline and any demotions become `lines` under the recap.
+ * The Log saved screen: { eyebrow, glass, headline, emphasis, sub, lines }.
+ * A shift takes the headline (and the eyebrow, so they agree); a promotion
+ * headlines otherwise; a first-ever rated bottle gets its own line.
+ * Promotions that didn't headline and any demotions become `lines` under
+ * the recap, each { mark: "plus" | "minus", text } — a proofreader's pencil.
+ *
+ * `glass` is the rating whose glass the eyebrow wears, pencilled in — only
+ * when the eyebrow IS the rating's own label; a moment's eyebrow is plain
+ * small caps (the bloom is the picture). `emphasis` is the part of the
+ * headline the pencil underlines once it is written: what just joined the
+ * DNA. Null when nothing did.
  */
 export function savedCopy({ rating, promotions = [], demotions = [], shift = null, isFirst = false } = {}) {
   const r = ratingFor(rating);
@@ -159,28 +173,32 @@ export function savedCopy({ rating, promotions = [], demotions = [], shift = nul
   const shifted = Boolean(shift?.shifted && shift.title);
   const lines = [];
   let eyebrow, headline, sub;
+  let glass = null, emphasis = null;
+  const joined = (p) => ({ mark: "plus", text: `${p.displayName} joined your DNA` });
 
   if (shifted) {
-    eyebrow = "✨ Your palate shifted";
+    eyebrow = "Your palate shifted";
     headline = `You became ${shift.title}`;
     sub = shift.epithet || "";
-    promos.forEach((p) => lines.push(`🧬 ${p.displayName} joined your DNA`));
+    promos.forEach((p) => lines.push(joined(p)));
   } else if (promos.length > 0) {
     const [first, ...rest] = promos;
     const n = lovedBottlesToPromote(first.dimension) ?? lovedBottlesToPromote("estate");
-    eyebrow = "🧬 Your DNA just grew";
+    eyebrow = "Your DNA just grew";
     headline = `${first.displayName} just joined your DNA`;
+    emphasis = first.displayName;
     sub = `${numberWord(n, { capitalize: true })} loved bottles made the case — we’ll look for it on every list you scan.`;
-    rest.forEach((p) => lines.push(`🧬 ${p.displayName} joined your DNA`));
+    rest.forEach((p) => lines.push(joined(p)));
   } else {
-    eyebrow = r ? `${r.emoji} ${r.label}` : "";
+    eyebrow = r ? r.label : "";
+    glass = r ? r.id : null;
     headline = isFirst ? "Your first entry is in" : "Noted in your journal";
     sub = isFirst
       ? "The Somm just rewrote your list around it — two more selections are open."
       : RATING_CONSEQUENCE[rating] || "";
   }
-  demos.forEach((d) => lines.push(`🍂 ${d.displayName} left your DNA`));
-  return { eyebrow, headline, sub, lines };
+  demos.forEach((d) => lines.push({ mark: "minus", text: `${d.displayName} left your DNA` }));
+  return { eyebrow, glass, headline, emphasis, sub, lines };
 }
 
 /** The masthead initial: the name's first letter, else the email's. */
@@ -203,8 +221,8 @@ export function whisperLine(event, now = Date.now()) {
   if (!event?.display_name) return null;
   const at = new Date(event.event_at ?? NaN).getTime();
   if (Number.isNaN(at) || now - at >= WHISPER_WINDOW_MS) return null;
-  if (event.event_type === "shifted") return `✨ You became ${event.display_name}`;
-  if (event.event_type === "promoted") return `🧬 ${event.display_name} just joined your DNA`;
+  if (event.event_type === "shifted") return `You became ${event.display_name}`;
+  if (event.event_type === "promoted") return `${event.display_name} just joined your DNA`;
   return null;
 }
 
@@ -214,10 +232,10 @@ export function journalLinkLabel(hadCount) {
 
 /** A rec row's match tag, from the profile engine's matchType. */
 export function matchTag(matchType) {
-  if (matchType === "region + grape") return "📍 Region + grape";
-  if (matchType === "grape") return "🍇 Grape match";
-  if (matchType === "region") return "📍 Region match";
-  return "🧭 Discovery";
+  if (matchType === "region + grape") return "Region + grape";
+  if (matchType === "grape") return "Grape match";
+  if (matchType === "region") return "Region match";
+  return "Discovery";
 }
 
 /** "Stellenbosch · Chenin Blanc" — whatever's known, in order. */
@@ -237,15 +255,18 @@ export function verdictMeta(region) {
   return metaLine(region, "Ordered at the table");
 }
 
-/** The lines that replace a rec row's actions once acted on. */
+/** The lines that replace a rec row's actions once acted on: { mark, text }.
+ *  A want is starred; a pass wears no mark — its name is struck instead. */
 export const REC_DONE = Object.freeze({
-  want: "📌 On your want list — we’ll flag it when it turns up on a menu.",
-  skip: "👋 Struck from your list.",
+  want: Object.freeze({ mark: "star", text: "On your want list — we’ll flag it when it turns up on a menu." }),
+  skip: Object.freeze({ mark: null, text: "Struck from your list." }),
 });
 
+/** A rating's done line. The rating's glass is pencilled in before it
+ *  (DoneLine's `rating`) — the words carry no mark. */
 export function ratedDoneLine(rating) {
   const r = ratingFor(rating);
-  return r ? `${r.emoji} ${r.label} — noted in your journal.` : null;
+  return r ? `${r.label} — noted in your journal.` : null;
 }
 
 /** Under the Reserved rows: how many open after the first rating. */
@@ -292,19 +313,20 @@ export function readingLine(phase, count) {
 }
 
 /** A pick the user already knows (its journal row — matchTerms'
- *  findJournalRow): rated → "❤️ Loved it in August" (the year joins when it
- *  isn't this one); a want → "📌 On your want list". Otherwise null. */
+ *  findJournalRow), as { mark, text }: rated → its glass and "Loved it in
+ *  August" (the year joins when it isn't this one); a want → the star and
+ *  "On your want list". Otherwise null. */
 export function pickFlag(row, now = new Date()) {
   if (!row || typeof row !== "object") return null;
   const r = ratingFor(row.rating);
   if (r) {
     const at = new Date(row.updated_at ?? NaN);
-    if (Number.isNaN(at.getTime())) return `${r.emoji} ${r.label}`;
+    if (Number.isNaN(at.getTime())) return { mark: r.mark, text: r.label };
     const month = at.toLocaleDateString("en-US", { month: "long" });
     const year = at.getFullYear() !== new Date(now).getFullYear() ? ` ${at.getFullYear()}` : "";
-    return `${r.emoji} ${r.label} in ${month}${year}`;
+    return { mark: r.mark, text: `${r.label} in ${month}${year}` };
   }
-  return row.interaction_type === "want" ? "📌 On your want list" : null;
+  return row.interaction_type === "want" ? { mark: "star", text: "On your want list" } : null;
 }
 
 /** A pick's note until the Somm's lands — and when it never does: the match
@@ -531,15 +553,16 @@ export function journalStats({ tried, loved, want } = {}) {
 const TIMELINE_TARGETS = { varietal: "your DNA", estate: "your estates", region: "your regions", country: "your DNA" };
 
 /** One dna_timeline row, as the journal's Timeline and a wine's page tell
- *  it: { emoji, text, strong } — "🧬 Chenin Blanc joined your DNA", "🍂 …
- *  left your estates", "✨ You became The Mosel Purist" (strong). A shift
- *  that kept its title is the signature moving. Junk → null. */
+ *  it: { mark, text, strong }, the mark a proofreader's pencil — plus
+ *  "Chenin Blanc joined your DNA", minus "… left your estates", arrow "You
+ *  became The Mosel Purist" (strong). A shift that kept its title is the
+ *  signature moving. Junk → null. */
 export function timelineLine(entry) {
   if (!entry || typeof entry !== "object" || typeof entry.display_name !== "string" || !entry.display_name) return null;
   const name = entry.display_name;
   const target = TIMELINE_TARGETS[entry.dimension] || "your DNA";
-  if (entry.event_type === "promoted") return { emoji: "🧬", text: `${name} joined ${target}`, strong: false };
-  if (entry.event_type === "demoted") return { emoji: "🍂", text: `${name} left ${target}`, strong: false };
+  if (entry.event_type === "promoted") return { mark: "plus", text: `${name} joined ${target}`, strong: false };
+  if (entry.event_type === "demoted") return { mark: "minus", text: `${name} left ${target}`, strong: false };
   if (entry.event_type !== "shifted") return null;
   let text = `You became ${name}`;
   try {
@@ -548,40 +571,50 @@ export function timelineLine(entry) {
       text = `Your signature shifted — ${change.to.epithet}`;
     }
   } catch { /* the title line stands */ }
-  return { emoji: "✨", text, strong: true };
+  return { mark: "arrow", text, strong: true };
 }
 
 /** The Timeline's first entry, dated by the profile's creation. */
-export const FOUNDING_LINE = Object.freeze({ emoji: "🎉", text: "Your palate began — quiz complete", strong: false });
+export const FOUNDING_LINE = Object.freeze({ mark: "dot", text: "Your palate began — quiz complete", strong: false });
 
 // The pick roles' tags — a mirror of matchEngine's getPickTypeInfo labels,
 // kept here so this module stays dependency-light (matchEngine drags the
 // 2.9MB wineUnified.json behind it)
 const SOMM_ROLE_TAGS = {
-  top: "🏆 Top Pick",
-  splurge: "✨ Splurge",
-  value: "💰 Great Value",
-  adventure: "🧭 Adventure",
-  wildcard: "🍷 Worth Trying",
+  top: "Top Pick",
+  splurge: "Splurge",
+  value: "Great Value",
+  adventure: "Adventure",
+  wildcard: "Worth Trying",
 };
 
-/** The role the Somm gave a pick ("💰 Great Value"), or null. */
+/** The role the Somm gave a pick ("Great Value"), or null. */
 export function sommRoleTag(role) {
   return SOMM_ROLE_TAGS[role] || null;
 }
 
-/** The user's mark on a journal row, at the end of its line: the rating's
- *  emoji, 🥂 for a bottle had but not yet rated (its verdict pending), 📌 a
- *  want, 👋 a pass. No row → null. Log's search, the journal and a wine
- *  page's same-vein rows all wear this one. */
+/** The user's mark on a journal row, at the end of its line, as a mark ID:
+ *  the rating's glass, the empty glass for a bottle had but not yet rated
+ *  (its verdict pending), the star for a want. A pass wears NO mark — its
+ *  name is struck instead (journalGesture). No row → null. Log's search,
+ *  the journal, Search and a wine page's same-vein rows all wear this one. */
 export function journalMark(row) {
   if (!row || typeof row !== "object") return null;
   const rated = ratingFor(row.rating);
-  if (rated) return rated.emoji;
-  if (row.interaction_type === "had") return "🥂";
-  if (row.interaction_type === "want") return "📌";
-  if (row.interaction_type === "skip") return "👋";
+  if (rated) return rated.mark;
+  if (row.interaction_type === "had") return "glass-empty";
+  if (row.interaction_type === "want") return "star";
   return null;
+}
+
+/** The pencil over a journal row's NAME: "strike" through a bottle passed
+ *  on — wherever the row shows — and "underline" under one that was loved,
+ *  which only the journal's own Tried rows wear (`underline: false`
+ *  elsewhere: Search, Log's search). Otherwise null. */
+export function journalGesture(row, { underline = true } = {}) {
+  if (!row || typeof row !== "object") return null;
+  if (row.interaction_type === "skip" && !ratingFor(row.rating)) return "strike";
+  return underline && row.rating === "loved" ? "underline" : null;
 }
 
 /** Under a verdict: where the bottle was drunk — the Log's place, else a
@@ -592,16 +625,17 @@ export function verdictWhere(row) {
   return row?.somm_pick_role ? "From the list at dinner" : "";
 }
 
-/** "Keep ❤️ Loved it" — cancels a verdict change. */
+/** "Keep Loved it" — cancels a verdict change (the wine page sets the
+ *  rating's glass before it). */
 export function keepLabel(rating) {
   const r = ratingFor(rating);
-  return r ? `Keep ${r.emoji} ${r.label}` : null;
+  return r ? `Keep ${r.label}` : null;
 }
 
 /**
  * A journal row's meta line: left "REGION · GRAPE" from the stored
  * resolution ("REGION · VERDICT PENDING" for a had with no rating), right
- * the date — "🍷 SOMM PICK · AUG 1" (accent) on a Somm pick, "SAVED …" on a
+ * the date — "SOMM PICK · AUG 1" (accent) on a Somm pick, "SAVED …" on a
  * want. Tried rows sit under month heads, so their dates skip the year.
  * Uppercased by CSS. → { meta, right, accent }
  */
@@ -615,7 +649,7 @@ export function journalRowMeta(row, now = new Date()) {
       : metaLine(region, "Verdict pending");
     const date = shortDate(at, now, { year: false });
     return row.somm_pick_role
-      ? { meta, right: metaLine("🍷 Somm pick", date), accent: true }
+      ? { meta, right: metaLine("Somm pick", date), accent: true }
       : { meta, right: date, accent: false };
   }
   const meta = metaLine(region, row.resolved_varietal);

@@ -11,9 +11,13 @@
 // recompose → ledger → evolution and shift toasts. Never fork a second copy
 // of this logic.
 //
-// Rows are numbered House List WineRows. "🍷 Had it" opens the RatingTiles
-// in place — a tile rates at once, no modal — while "📌 Want it" and
-// "👋 Pass" save on the tap; a done line replaces the actions either way.
+// Rows are numbered House List WineRows. "Had it" opens the RatingTiles
+// in place — a tile rates at once, no modal — while "Want it" and "Pass"
+// save on the tap; a done line replaces the actions either way. The
+// controls are the house's, so they are type; what the user then did is
+// pencil (House & Hand §8.1): the rating's glass drawn before its done
+// line, a star before a want's, and a pass struck through the row's name
+// at the moment it is made.
 // Rows acted on stay put for the session (the list never rearranges under
 // a thumb); the next load filters them out. `holdBack` keeps the last rows
 // Reserved until the first rating (decision D6) — the parent drops it to 0
@@ -47,8 +51,8 @@ export function evolutionToastMessages(items, isDemotion = false) {
   return (items || []).map((p) => {
     const target = dimensionLabels[p.dimension] || "your DNA";
     return isDemotion
-      ? `🧬 ${p.displayName} removed from ${target}`
-      : `🧬 Your Wine DNA evolved: ${p.displayName} added to ${target}`;
+      ? `${p.displayName} removed from ${target}`
+      : `Your Wine DNA evolved: ${p.displayName} added to ${target}`;
   });
 }
 
@@ -151,6 +155,7 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate, enterDe
       metaRight={matchTag(rec.matchType)}
       metaTone="accent"
       struck={done?.kind === "skip"}
+      drawGesture
       // The signed-out teaser's bottle stays put: its wine page is a
       // sign-in wall, and leaving would lose the reveal and its gate
       href={readOnly ? undefined : wineHref(rec.wine)}
@@ -159,15 +164,15 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate, enterDe
       {rec.why && <p style={sommNote}>“{rec.why}”</p>}
       {!readOnly && !state && (
         <TextActions style={{ marginTop: 4 }}>
-          <TextAction onClick={() => onAction("rating")}>🍷 Had it</TextAction>
-          <TextAction tone="secondary" onClick={() => onAction("want")}>📌 Want it</TextAction>
-          <TextAction tone="quiet" onClick={() => onAction("skip")}>👋 Pass</TextAction>
+          <TextAction onClick={() => onAction("rating")}>Had it</TextAction>
+          <TextAction tone="secondary" onClick={() => onAction("want")}>Want it</TextAction>
+          <TextAction tone="quiet" onClick={() => onAction("skip")}>Pass</TextAction>
         </TextActions>
       )}
       {(state === "rating" || held) && <RatingTiles autoFocus onRate={rate} rated={held} style={{ marginTop: 10 }} />}
-      {done?.kind === "want" && <DoneLine autoFocus>{REC_DONE.want}</DoneLine>}
-      {done?.kind === "skip" && <DoneLine autoFocus>{REC_DONE.skip}</DoneLine>}
-      {done?.kind === "rated" && !held && <DoneLine autoFocus>{ratedDoneLine(done.rating)}</DoneLine>}
+      {done?.kind === "want" && <DoneLine autoFocus mark={REC_DONE.want.mark}>{REC_DONE.want.text}</DoneLine>}
+      {done?.kind === "skip" && <DoneLine autoFocus mark={REC_DONE.skip.mark}>{REC_DONE.skip.text}</DoneLine>}
+      {done?.kind === "rated" && !held && <DoneLine autoFocus rating={done.rating}>{ratedDoneLine(done.rating)}</DoneLine>}
     </WineRow>
   );
 }

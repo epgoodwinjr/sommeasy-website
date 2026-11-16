@@ -2,7 +2,7 @@
 //
 // Tonight's terms start from Account › At the table (wine_profiles
 // .preferences, decision D8), and a pick meets the user's journal by
-// normalized name — the match that lets a pick say "❤️ Loved it in August"
+// normalized name — the match that lets a pick say "Loved it in August"
 // and keeps an already-rated wine from being rated twice under a
 // differently-written name. Dependency-free (matchTerms.test.js runs the
 // real module); junk in → a safe default, never a throw.

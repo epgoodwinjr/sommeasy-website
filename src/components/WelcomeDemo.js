@@ -50,7 +50,7 @@ const DEMO = {
   // The three lines that match, in pick order
   matches: [2, 3, 5],
   top: {
-    numeral: "I.", role: "🏆 Top pick", name: "Newton Johnson Chardonnay", vintage: "2023", price: "$78",
+    numeral: "I.", role: "Top pick", name: "Newton Johnson Chardonnay", vintage: "2023", price: "$78",
     meta: "Hemel-en-Aarde · Chardonnay",
     note: "“Sea-cooled Chardonnay with your kind of nerve. White Burgundy that moved somewhere sunnier.”",
   },

@@ -1,7 +1,10 @@
 "use client";
 
-// SommSays — "🍷 The Somm says" over Your picks (The House List §8.3; in
-// motion since docs/motion/README.md §8.5, decision M8).
+// SommSays — "The Somm says" over Your picks (The House List §8.3; in
+// motion since docs/motion/README.md §8.5, decision M8), behind one hanging
+// quotation mark: the only mark the Somm ever wears, and a glyph, not a
+// drawing (docs/marks/README.md H7, §8.3). It hangs in the margin, so the
+// words stay centred where they were; everywhere else the Somm is type.
 //
 // Presentation only: the page says where the Somm is (`state`: "pending"
 // while it curates, "done" once it has, anything else when it never will)
@@ -28,7 +31,7 @@ import WriteIn from "@/components/house/WriteIn";
 import useEntrance, { withEntrance } from "@/components/house/useEntrance";
 import useRewrite from "@/components/house/useRewrite";
 import { SOMM } from "@/components/house/motion";
-import { INK, SERIF, TYPE, ink } from "@/components/house/tokens";
+import { BURGUNDY, INK, SERIF, TYPE, ink } from "@/components/house/tokens";
 
 const BOX = { display: "flow-root" };
 const block = { textAlign: "center", paddingTop: 28 };
@@ -38,6 +41,11 @@ const tasting = {
 const summaryLine = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "16px", lineHeight: 1.55, color: INK,
   marginTop: 10, textWrap: "pretty",
+};
+const says = { ...TYPE.eyebrow, position: "relative", display: "inline-block" };
+const quote = {
+  position: "absolute", right: "100%", top: "50%", marginRight: 8, height: 16, marginTop: -8,
+  fontFamily: SERIF, fontSize: "28px", fontWeight: 400, lineHeight: 0.8, letterSpacing: 0, color: BURGUNDY,
 };
 const hidden = (style, yes) => (yes ? { ...style, opacity: 0 } : style);
 
@@ -59,7 +67,11 @@ export default function SommSays({ state, summary, enterDelay }) {
           data-testid={kind === "thinking" ? "somm-thinking" : "somm-summary"}
           style={hidden(block, leaving && closing)}
         >
-          <div style={TYPE.eyebrow}>🍷 The Somm says</div>
+          <div>
+            <span style={says}>
+              <span aria-hidden="true" data-testid="somm-quote" style={quote}>“</span>The Somm says
+            </span>
+          </div>
           {kind === "summary" && shown.rewritten && (
             <WriteIn
               key={shown.key} ref={lineRef} as="p" text={words} step={SOMM.summaryStep}

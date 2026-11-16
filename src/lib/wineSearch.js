@@ -13,7 +13,7 @@
 // itself (queryWords + prefixMatch) is /search's too (searchView.js) — one
 // notion of "matches" across both searches.
 
-import { journalMark, metaLine } from "./houseCopy.js";
+import { journalGesture, journalMark, metaLine } from "./houseCopy.js";
 
 function fold(text) {
   return typeof text === "string"
@@ -60,7 +60,9 @@ const byTier = (a, b) => a.tier - b.tier;
 
 /**
  * searchWines("chenin", { journal, catalog }) → up to `limit` results:
- * [{ key, name, meta, mark, logName, source: "journal" | "catalog" }]
+ * [{ key, name, meta, mark, gesture, logName, source: "journal" | "catalog" }]
+ * — `mark` a mark ID (houseCopy's journalMark), `gesture` "strike" for a
+ * bottle passed on (its name is struck; it wears no mark), else null.
  */
 export function searchWines(query, { journal = [], catalog = [], limit = 6 } = {}) {
   const queryWords = words(query);
@@ -79,6 +81,7 @@ export function searchWines(query, { journal = [], catalog = [], limit = 6 } = {
       name: row.wine_name,
       meta: metaLine(row.resolved_region, row.resolved_varietal),
       mark: journalMark(row),
+      gesture: journalGesture(row, { underline: false }),
       logName: row.wine_name,
       source: "journal",
     });
@@ -100,6 +103,7 @@ export function searchWines(query, { journal = [], catalog = [], limit = 6 } = {
       name: entry.w.trim(),
       meta: metaLine(entry.r, entry.v),
       mark: null,
+      gesture: null,
       logName,
       source: "catalog",
     });

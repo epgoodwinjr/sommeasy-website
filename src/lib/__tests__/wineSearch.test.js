@@ -9,8 +9,9 @@
 //   2. The user's journal first, then the catalog (wineAutocomplete.json);
 //      inside each, name matches before region/grape matches.
 //   3. At most `limit` results (6 by default).
-//   4. A journal row wears the user's mark (rating emoji, 🥂 verdict
-//      pending, 📌 want, 👋 pass — houseCopy's journalMark, the one copy);
+//   4. A journal row wears the user's mark (the rating's glass, the empty
+//      glass for a verdict pending, a star for a want — houseCopy's
+//      journalMark, the one copy — and a pass is struck, with no mark);
 //      a catalog pick logs as "{producer} {grape}" unless the producer
 //      already says the grape, and never duplicates a journal row.
 //   5. An empty query and junk rows are silence, never a throw.
@@ -94,10 +95,12 @@ async function main() {
 
   await test("journal rows wear the user's mark and log under their own name", () => {
     const [raats] = searchWines("raats", { journal: JOURNAL });
-    assertEq([raats.mark, raats.logName, raats.meta, raats.source], ["❤️", "Raats Original Chenin Blanc 2022", "Stellenbosch · Chenin Blanc", "journal"], "rated");
-    assertEq(searchWines("sadie", { journal: JOURNAL })[0].mark, "📌", "want");
-    assertEq(searchWines("kanonkop", { journal: JOURNAL })[0].mark, "👋", "pass");
-    assertEq(searchWines("hamilton", { journal: JOURNAL })[0].mark, "🥂", "had, verdict pending (the journal's mark)");
+    assertEq([raats.mark, raats.logName, raats.meta, raats.source], ["glass-loved", "Raats Original Chenin Blanc 2022", "Stellenbosch · Chenin Blanc", "journal"], "rated");
+    assertEq(raats.gesture, null, "a loved bottle is underlined in the journal only");
+    assertEq(searchWines("sadie", { journal: JOURNAL })[0].mark, "star", "want");
+    const [passed] = searchWines("kanonkop", { journal: JOURNAL });
+    assertEq([passed.mark, passed.gesture], [null, "strike"], "pass: no mark, the name struck");
+    assertEq(searchWines("hamilton", { journal: JOURNAL })[0].mark, "glass-empty", "had, verdict pending (the journal's mark)");
   });
 
   await test("catalog picks log as producer + grape, unless the producer says it", () => {

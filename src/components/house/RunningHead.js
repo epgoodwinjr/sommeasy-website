@@ -2,7 +2,7 @@
 
 // RunningHead — the slim head on every inner page (README §7.11):
 //
-//   ‹ Journal              (protea)              🔍
+//   ‹ Journal              (protea)           (loupe)
 //
 // Sticky and frosted, full-bleed, its grid set in the 560px column. Back
 // wears the previous page's title from the nav trail (@/lib/navTrail) and
@@ -11,7 +11,7 @@
 // overrides the route's own (/recommend's results are "Your picks").
 // `backLabel` + `onBack` take over for an in-page step (Your picks →
 // "‹ Match a list" back to the input). On /search, `hideSearch` keeps the
-// 🔍 cell (the grid stays balanced) but invisible and inert.
+// loupe's cell (the grid stays balanced) but invisible and inert.
 //
 // Same-route hops don't remount the page (/wine?name=A → B), so the wine
 // page keys its head by the wine (<RunningHead key={name} />) to record the
@@ -26,8 +26,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { HOME_TITLE, backTarget, recordVisit, stepBack, titleForPath } from "@/lib/navTrail";
+import Mark from "./Mark";
 import useEntrance, { withEntrance } from "./useEntrance";
-import { BURGUNDY, COLUMN, SANS, ink } from "./tokens";
+import { BURGUNDY, COLUMN, INK, SANS, ink } from "./tokens";
 
 // Read the trail before paint on client navigations (no label flash);
 // plain useEffect on the server, where there's no trail to read.
@@ -106,10 +107,10 @@ export default function RunningHead({ title, backLabel, onBack, hideSearch = fal
             aria-hidden={hideSearch || undefined}
             tabIndex={hideSearch ? -1 : undefined}
             style={{
-              ...cell, fontSize: "16px", textDecoration: "none",
+              ...cell, color: INK, textDecoration: "none",
               opacity: hideSearch ? 0 : 1, pointerEvents: hideSearch ? "none" : "auto",
             }}
-          >🔍</Link>
+          ><Mark id="loupe" size={20} /></Link>
         </div>
       </div>
     </header>

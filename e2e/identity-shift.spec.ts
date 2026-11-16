@@ -7,6 +7,7 @@ import { testDb, ensureEarnedFixture, countEvents } from "./fixtures/test-db";
 import { composeIdentity } from "../src/lib/identityEngine.js";
 // …and the real mark, to hold the growth moment to the genomes it shows
 import { renderPalateMark } from "../src/lib/palateMark.js";
+import { GESTURES } from "../src/components/house/marks.js";
 
 /**
  * Hard-fail guard for the Living Strand (Act III, Session 3):
@@ -311,7 +312,7 @@ test.describe("Identity shift — a milestone earned in the real UI moves the st
     // (which retired the "Rating saved!" toast)
     await card.getByRole("button", { name: "Had it? Rate it" }).click();
     await card.getByTestId("rating-tile-loved").click();
-    await expect(card).toContainText("❤️ Loved it — noted in your journal.");
+    await expect(card).toContainText("Loved it — noted in your journal.");
 
     // ── The celebrated surface: promotion toast, then the shift toast ──
     await expect(page.getByText(/Domaine Dujac added to your estates/))
@@ -509,7 +510,7 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     await expect(page.getByTestId("wine-growth")).toHaveCount(0);
     await watchBloom(page, '[data-testid="wine-growth"] [data-testid="palate-mark"]');
     await watchToasts(page);
-    await wine.getByRole("button", { name: "🍷 Had it" }).click();
+    await wine.getByRole("button", { name: "Had it", exact: true }).click();
     await wine.getByTestId("rating-tile-loved").click();
     // The tiles hold, pressed, then the verdict takes their place
     await expect(page.getByTestId("wine-verdict")).toContainText("Loved it", { timeout: 10_000 });
@@ -557,7 +558,7 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     await watchToasts(page);
     await ask.getByTestId("rating-tile-loved").click();
     // The reply names what the rating did
-    await expect(ask).toContainText("❤️ Loved it — noted. Domaine Dujac just joined your DNA.", { timeout: 30_000 });
+    await expect(ask).toContainText("Loved it — noted. Domaine Dujac just joined your DNA.", { timeout: 30_000 });
     askOpen = false; // rated: the ledger resolves the ask
 
     const after = await shifted(supabase, userId, before);
@@ -680,10 +681,10 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     expect(words.spans).toBeGreaterThan(0);
 
     // The words are houseCopy's: the shift takes the headline, the promotion its line
-    await expect(saved).toContainText("✨ Your palate shifted");
+    await expect(saved).toContainText("Your palate shifted");
     await expect(saved.locator("h1")).toHaveText(`You became ${after.archetype}`);
     await expect(saved).toContainText(after.identity.epithet);
-    await expect(saved).toContainText("🧬 Domaine Dujac joined your DNA");
+    await expect(saved).toContainText("Domaine Dujac joined your DNA");
     await expect(saved).toContainText("Domaine Dujac Clos de la Roche");
     await expect(saved.getByRole("link", { name: "See it in your palate" })).toBeVisible();
     for (const way of ["Log another bottle", "Back to your list"]) await expect(saved.getByText(way)).toBeVisible();
@@ -719,6 +720,110 @@ test.describe("The growth moment — a promotion earned in the real UI grows the
     expect(await wrapperAttrs(palateMark)).toEqual(grownWrapper);
   });
 });
+
+// A promotion with NO shift is the one saved-step path the account can't
+// reach on demand: a real Dujac promotion always retitles the strand. But a
+// strand's write is a compare-and-swap, and one that LOSES (another tab got
+// there first) reports no shift — so the test answers that one PATCH as a
+// lost swap, and everything else is real: the bottle, the rating, the
+// promotion, the page. (House & Hand §14.2: this was the specimen's check.)
+for (const motion of ["on", "reduced"] as const) {
+  test.describe(`The saved step's news — a promotion, the title holding (motion ${motion}; hard-fail)`, () => {
+    test.use({ contextOptions: { reducedMotion: motion === "on" ? "no-preference" : "reduce" } });
+    test.afterEach(async ({ page }) => { await restoreBaseline(page); });
+
+    test("the eyebrow is plain, the headline is whole, and the pencil underlines what joined — once the headline is written", async ({ page }) => {
+      test.setTimeout(150_000);
+      const { supabase, userId } = await testDb();
+      await ensureEarnedFixture(supabase, userId);
+      await healStaleState(supabase, userId);
+      const { profile: before } = await captureBaseline(supabase, userId);
+      expect(before.archetype).not.toMatch(/Loyalist/);
+      const { data: eventsBefore } = await supabase.from("dna_timeline").select("id").eq("user_id", userId);
+      const known = new Set((eventsBefore ?? []).map((e) => e.id));
+
+      let swapsLost = 0;
+      await page.route("**/rest/v1/wine_profiles*", (route) => {
+        const request = route.request();
+        if (request.method() === "PATCH" && /[?&]archetype=eq\./.test(request.url())) {
+          swapsLost += 1;
+          return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+        }
+        return route.continue();
+      });
+      await page.addInitScript(() => {
+        const seen = { texts: [] as string[], wordSpans: 0, underlinedWhileWriting: false, wipes: 0 };
+        (window as any).__news = seen;
+        const animate = Element.prototype.animate;
+        Element.prototype.animate = function (keyframes, options) {
+          if (/inset\(-200%/.test(JSON.stringify(keyframes)) && this.closest?.('[data-testid="log-saved"] h1')) seen.wipes += 1;
+          return animate.call(this, keyframes, options);
+        };
+        const read = () => {
+          const h1 = document.querySelector('[data-testid="log-saved"] h1');
+          if (!h1) return;
+          const text = h1.textContent || "";
+          if (!seen.texts.includes(text)) seen.texts.push(text);
+          const spans = h1.querySelectorAll("[data-word]").length;
+          seen.wordSpans = Math.max(seen.wordSpans, spans);
+          if (spans && h1.querySelector("[data-gesture]")) seen.underlinedWhileWriting = true;
+        };
+        new MutationObserver(read).observe(document, { childList: true, subtree: true, characterData: true, attributes: true });
+      });
+
+      // ── Log the bottle as written, loved ──
+      await page.goto(`/log?q=${encodeURIComponent(LOG_WINE)}`);
+      await expect(page.getByTestId("log-search-input")).toHaveValue(LOG_WINE, { timeout: 15_000 });
+      await page.getByRole("button", { name: /as written/ }).click();
+      const rate = page.getByTestId("bottle-confirm");
+      await expect(rate).toBeVisible();
+      await rate.getByRole("radio", { name: "Loved it" }).click();
+      await page.getByTestId("log-save").click();
+
+      const saved = page.getByTestId("log-saved");
+      await expect(saved).toBeVisible({ timeout: 30_000 });
+      // The promotion is real; the strand did not move
+      const { data: eventsNow } = await supabase.from("dna_timeline").select("id, event_type, dimension, display_name").eq("user_id", userId);
+      const fresh = (eventsNow ?? []).filter((e) => !known.has(e.id));
+      const estate = fresh.find((e) => e.event_type === "promoted" && e.dimension === "estate");
+      expect(estate?.display_name, `a real estate promotion: ${JSON.stringify(fresh)}`).toBeTruthy();
+      expect(fresh.filter((e) => e.event_type === "shifted"), "no shift was written").toEqual([]);
+      expect(swapsLost, "the strand's write was answered as a lost swap").toBeGreaterThanOrEqual(1);
+      expect((await readProfile(supabase, userId)).archetype).toBe(before.archetype);
+
+      // A moment's eyebrow is type; the headline names what joined, and the
+      // pencil underlines exactly that
+      await expect(saved.getByTestId("saved-eyebrow")).toHaveText("Your DNA just grew");
+      await expect(saved.getByTestId("saved-eyebrow").locator("svg")).toHaveCount(0);
+      const h1 = saved.locator("h1");
+      const news = h1.locator('[data-gesture="underline"]');
+      await expect(news).toHaveText(estate!.display_name, { timeout: 20_000 });
+      await expect(h1).toHaveText(`${estate!.display_name} just joined your DNA`);
+      await expect.poll(() => saved.evaluate((el) => el.getAnimations({ subtree: true }).filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).length), { timeout: 20_000 }).toBe(0);
+      expect(await news.locator("svg").count(), "the news sits on one line: one stroke").toBe(1);
+      expect(await news.locator("svg path").getAttribute("d")).toBe(GESTURES.underline.d);
+      expect(await h1.evaluate((el) => ({
+        dashed: el.querySelectorAll("[pathLength], [stroke-dasharray]").length,
+        clipped: Array.from(el.querySelectorAll("svg")).filter((s) => getComputedStyle(s).clipPath !== "none").length,
+        words: el.querySelectorAll("[data-word]").length,
+      })), "nothing left behind").toEqual({ dashed: 0, clipped: 0, words: 0 });
+      // The bottle's own row wears its glass; the news is the only underline
+      await expect(saved.locator('svg[data-mark="glass-loved"]')).toHaveCount(1);
+      await expect(saved.locator("[data-gesture]")).toHaveCount(1);
+
+      const seen = await page.evaluate(() => (window as any).__news as { texts: string[]; wordSpans: number; underlinedWhileWriting: boolean; wipes: number });
+      expect(seen.texts, "the headline's text is whole at every moment").toEqual([`${estate!.display_name} just joined your DNA`]);
+      if (motion === "on") {
+        expect(seen.wordSpans, "it was written word by word").toBeGreaterThanOrEqual(4);
+        expect(seen.underlinedWhileWriting, "the pencil waits for the last word").toBe(false);
+        expect(seen.wipes, "the underline was pencilled in").toBeGreaterThanOrEqual(1);
+        expect(seen.wipes).toBeLessThanOrEqual(2); // a mount's effects run twice in dev
+      } else {
+        expect(seen, "reduced motion: settled in the commit it arrives").toMatchObject({ wordSpans: 0, wipes: 0 });
+      }
+    });
+  });
+}
 
 test.describe("The growth moment — reduced motion (hard-fail)", () => {
   // The suite's default: under reduced motion a moment is still known, and

@@ -2563,10 +2563,10 @@ async function suite13() {
 function suite8() {
   console.log("\n═══ Suite 8: UI Verification (Manual) ═══");
   console.log("  8A: Evolution toast — Log a bottle that triggers promotion");
-  console.log("       Verify: standard toast first, then 🧬 evolution toast");
+  console.log("       Verify: standard toast first, then the evolution toast");
   console.log("       Verify: #1B3D2F background, ~4s duration, sequential if multiple");
   console.log("  8B: Timeline tab — Navigate to /journal → Timeline");
-  console.log("       Verify: 4th tab, reverse chronological, 🧬 / 🍂 / ✨ lines, the 🎉 founding row last");
+  console.log("       Verify: 4th tab, reverse chronological, plus / minus / arrow lines, the founding dot last");
   console.log("       Verify: a row naming its wine opens that wine's page; others open /palate");
   console.log("  8C: Profile reflects promotions — view DNA profile after promotions");
   console.log("       Verify: new varietals/regions/countries/estates appear");

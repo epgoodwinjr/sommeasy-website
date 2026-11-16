@@ -353,7 +353,7 @@ export default function AccountPage() {
     return (
       <main style={column}>
         <EmptyState
-          emoji="🍷"
+          
           title="Sign in to see your account"
           sub="Your palate, your journal and every bottle you’ve rated live here."
           action="Sign in"

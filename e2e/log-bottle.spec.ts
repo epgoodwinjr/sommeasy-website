@@ -12,7 +12,7 @@ import { testDb, countEvents, latestEvent } from "./fixtures/test-db";
  *
  * The second block SAVES, on the RICH account only (never the zero-state
  * one): editing a want's name before saving must move that row to the new
- * name — Phase 2 left the 📌 entry behind beside the logged bottle. Its
+ * name — Phase 2 left the starred want behind beside the logged bottle. Its
  * want row is seeded under an "[e2e]" name that resolves to nothing, the
  * rating is "It was fine" (0 points), and afterEach deletes both names and
  * restores the timeline and identity fields the milestone hook may touch.
@@ -26,7 +26,8 @@ test.describe("Log a bottle — search → rate (no save)", () => {
 
     const rate = page.getByTestId("bottle-confirm");
     await expect(rate).toBeVisible();
-    await expect(rate).toContainText("🔍 As written");
+    await expect(rate.getByTestId("entry-source")).toHaveText("As written");
+    await expect(rate.getByTestId("entry-source").locator("svg")).toHaveCount(0); // provenance is type
     // The vintage is split off for display; the field holds the name
     await expect(page.getByTestId("bottle-wine-name")).toHaveValue("zzqx vintners");
     await expect(rate).toContainText("2019");
@@ -74,7 +75,7 @@ test.describe("Log a bottle — an edited want renames its row (hard-fail)", () 
     if (identity) await supabase.from("wine_profiles").update(identity).eq("user_id", userId);
   });
 
-  test("editing a want's name before saving moves that row — the 📌 never lingers", async ({ page }) => {
+  test("editing a want's name before saving moves that row — the starred want never lingers", async ({ page }) => {
     test.setTimeout(120_000);
     const { supabase, userId } = await testDb();
     await supabase.from("wine_interactions").delete().eq("user_id", userId).in("wine_name", [WANT, RENAMED]);
@@ -85,7 +86,7 @@ test.describe("Log a bottle — an edited want renames its row (hard-fail)", () 
       .single();
     const { data: events } = await supabase.from("dna_timeline").select("id").eq("user_id", userId);
     restore = { identity, eventIds: new Set((events ?? []).map((e) => e.id)) };
-    // An unrated want, the way 📌 Want it leaves one (its provenance marks it)
+    // An unrated want, the way Want it leaves one (its provenance marks it)
     await supabase.from("wine_interactions").insert({
       user_id: userId, wine_name: WANT, interaction_type: "want", source_url: "e2e_rename",
     });
@@ -95,7 +96,9 @@ test.describe("Log a bottle — an edited want renames its row (hard-fail)", () 
     await expect(page.getByTestId("log-find")).toBeVisible({ timeout: 15_000 });
     await page.getByRole("button", { name: /Zzyzx Rename Check 2020/ }).click();
     const rate = page.getByTestId("bottle-confirm");
-    await expect(rate).toContainText("📌 From your want list");
+    await expect(rate.getByTestId("entry-source")).toHaveText("From your want list");
+    // …behind the star the user pencilled when they wanted it (House & Hand §8.3)
+    await expect(rate.getByTestId("entry-source").locator('svg[data-mark="star"]')).toHaveCount(1);
     const field = page.getByTestId("bottle-wine-name");
     await expect(field).toHaveValue("[e2e] Zzyzx Rename Check");
     await field.fill("[e2e] Zzyzx Rename Checked");

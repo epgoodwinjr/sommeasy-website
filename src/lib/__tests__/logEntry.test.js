@@ -14,7 +14,7 @@
 //      SUCCEEDED — unknown ≠ empty.
 //   4. (Phase 4) Editing the name of a picked row that carries no verdict —
 //      a want, a pass, a legacy had — renames THAT row instead of forking a
-//      second one (the 📌 entry used to linger beside the logged bottle). A
+//      second one (the starred want used to linger beside the logged bottle). A
 //      rated row is never moved: another name is another bottle.
 
 let passed = 0, failed = 0;
@@ -101,7 +101,7 @@ async function main() {
     { wine_name: "Raats Original Chenin Blanc 2022", interaction_type: "had", rating: "loved" },
   ];
 
-  await test("an edited want renames that row — the 📌 entry never lingers", () => {
+  await test("an edited want renames that row — the starred want never lingers", () => {
     const e = entryFromName("want", "Sadie Family Palladius 2020");
     assertEq(renamedFrom(edit(e, "Sadie Family Palladius Blanc"), journal), want, "the want row is the one to rename");
     assertEq(renamedFrom(e, journal), null, "unedited: the upsert already lands on it");

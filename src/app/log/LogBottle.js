@@ -22,7 +22,7 @@
 // name byte for byte unless it's edited, so logging a want row turns that
 // SAME journal row into a "had" — and when the name IS edited, the unrated
 // row it was picked from moves to the new name (renamedFrom) instead of
-// staying behind as a 📌 beside the bottle just logged.
+// staying behind as a want beside the bottle just logged.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase";
@@ -46,17 +46,20 @@ import ChoiceLine from "@/components/house/ChoiceLine";
 import RatingList from "@/components/house/RatingList";
 import TextAction, { TextActions } from "@/components/house/TextAction";
 import EmptyState from "@/components/house/EmptyState";
+import Mark from "@/components/house/Mark";
 import Enter from "@/components/house/Enter";
 import ReadingView from "@/components/ReadingView";
 import { D_EXIT, EASE, EXIT, PAGE_REST, prefersReducedMotion } from "@/components/house/motion";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "@/components/house/tokens";
 
+// Where the bottle on the rate step came from. Plain words — and the star
+// the user pencilled when they wanted it (docs/marks/README.md §8.3)
 const EYEBROWS = {
-  scan: "📸 Label read",
-  photo: "🖼 Read from your photo",
-  search: "🔍 Found it",
-  want: "📌 From your want list",
-  written: "🔍 As written",
+  scan: { text: "Label read" },
+  photo: { text: "Read from your photo" },
+  search: { text: "Found it" },
+  want: { mark: "star", text: "From your want list" },
+  written: { text: "As written" },
 };
 
 const PLACES = [{ id: "home", label: "At home" }, { id: "out", label: "Out" }];
@@ -187,7 +190,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     .filter((r) => r.interaction_type === "want")
     .map((r) => {
       const meta = metaLine(r.resolved_region, r.resolved_varietal) || confidentMeta(resolveWine(r.wine_name));
-      return { name: r.wine_name, meta: meta ? `📌 ${meta}` : undefined };
+      return { name: r.wine_name, meta: meta || undefined };
     }), [journal]);
 
   const results = useMemo(
@@ -486,7 +489,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     return (
       <main style={column}>
         <EmptyState
-          emoji="📸"
+          mark="camera"
           title="Sign in to log a bottle"
           sub="Every bottle you rate sharpens your Wine DNA — sign in and we’ll keep the record."
           action="Sign in"
@@ -509,19 +512,19 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         <SectionHead numeral={next()} label="Find the bottle" style={{ margin: "30px 0 16px" }} />
         {isMobile && (
           <LeaderEntry
-            tone="filled" size={22} mark="📸" label="Snap the label"
+            tone="filled" size={22} mark="camera" label="Snap the label"
             sub="Front label, straight on — we’ll read the rest."
             onClick={() => pickPhoto(true)}
           />
         )}
         <LeaderEntry
-          size={22} mark="🔍" label="Search by name"
+          size={22} mark="loupe" label="Search by name"
           sub="Producer, grape or a few words from the label."
           onClick={() => openSearch()}
           style={{ marginTop: isMobile ? 22 : 0 }}
         />
         <LeaderEntry
-          tone={isMobile ? "outline" : "filled"} size={22} mark="🖼"
+          tone={isMobile ? "outline" : "filled"} size={22} mark="picture"
           label={isMobile ? "Choose from photos" : "Upload a label photo"}
           sub="For the bottle you photographed and never logged."
           onClick={() => pickPhoto(false)}
@@ -531,7 +534,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
           <>
             <SectionHead numeral={next()} label="From your want list" style={{ margin: "34px 0 2px" }} />
             {wants.map((w) => (
-              <WineRow key={w.name} name={w.name} action="Log it ›" meta={w.meta}
+              <WineRow key={w.name} name={w.name} mark="star" action="Log it ›" meta={w.meta}
                 onClick={() => rateByName("want", w.name)} />
             ))}
           </>
@@ -565,7 +568,8 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         )}
         {typed && catalog !== null && (results.length > 0 ? (
           results.map((r) => (
-            <WineRow key={r.key} name={r.name} mark={r.mark} chevron meta={r.meta}
+            <WineRow key={r.key} name={r.name} mark={r.mark || undefined} chevron meta={r.meta}
+              struck={r.gesture === "strike"} struckOpacity={1}
               onClick={() => rateByName("search", r.logName)} />
           ))
         ) : (
@@ -577,7 +581,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
           </>
         ))}
         <TextActions gap={24} style={{ marginTop: 18 }}>
-          <TextAction weight={700} onClick={() => pickPhoto(isMobile)}>📸 Snap the label instead</TextAction>
+          <TextAction weight={700} onClick={() => pickPhoto(isMobile)}>Snap the label instead</TextAction>
           <TextAction tone="quiet" opacity={0.5} onClick={() => setStep("find")}>Back</TextAction>
         </TextActions>
       </div>
@@ -588,8 +592,8 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     <ReadingView
       testId="bottle-processing"
       genome={profile?.identity?.genome}
-      fallback={{ mark: "📸", eyebrow: "Reading the label" }}
-      eyebrow="📸 Reading the label"
+      fallback={{ mark: "camera", eyebrow: "Reading the label" }}
+      eyebrow="Reading the label"
       line={scanLine}
       progress={scanProgress}
       barMs={scanProgress >= 1 ? 500 : 1600}
@@ -603,11 +607,15 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
     const next = numeralCounter();
     const busy = saving || leaving;
     const canSave = Boolean(rating) && Boolean(squash(entry.base)) && !busy;
+    const eyebrow = EYEBROWS[entry.source] || EYEBROWS.search;
     return (
       <div data-testid="bottle-confirm" style={leaving ? {
         ...EXIT.to, transition: `opacity ${D_EXIT}ms ${EASE}, transform ${D_EXIT}ms ${EASE}`,
       } : undefined}>
-        <div style={TYPE.eyebrow}>{EYEBROWS[entry.source] || EYEBROWS.search}</div>
+        <div data-testid="entry-source" style={{ ...TYPE.eyebrow, display: "flex", alignItems: "center", gap: 6 }}>
+          {eyebrow.mark && <Mark id={eyebrow.mark} size={16} style={{ flexShrink: 0 }} />}
+          <span>{eyebrow.text}</span>
+        </div>
         <NameField
           value={entry.base}
           vintage={entry.vintage}

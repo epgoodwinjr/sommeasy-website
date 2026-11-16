@@ -31,8 +31,10 @@ import RuledField from "@/components/house/RuledField";
 import RatingTiles, { usePressHold } from "@/components/house/RatingTiles";
 import TextAction from "@/components/house/TextAction";
 import EmptyState from "@/components/house/EmptyState";
+import Mark from "@/components/house/Mark";
 import Enter from "@/components/house/Enter";
 import SwapLine from "@/components/house/SwapLine";
+import PencilGlass from "@/components/house/PencilGlass";
 import WriteIn from "@/components/house/WriteIn";
 import useStagger from "@/components/house/useStagger";
 import { HOME, ROW_STEP, prefersReducedMotion } from "@/components/house/motion";
@@ -85,6 +87,8 @@ const smallCaps = {
 const replyLine = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", lineHeight: 1.5, color: BURGUNDY, marginTop: 12,
 };
+// The reply's glass sits in its first line, printed in ink
+const replyGlass = { verticalAlign: "-4px", marginRight: 7, color: INK };
 const footerLink = {
   fontFamily: SANS, fontSize: "13px", fontWeight: 600, lineHeight: "20px", color: BURGUNDY,
   padding: "12px 0", textDecoration: "none", whiteSpace: "nowrap",
@@ -101,9 +105,11 @@ const sameWine = (a, b) =>
 
 const VERDICT_SAVE_FAILED = "Couldn’t save — try again from your journal.";
 
-/** From last night's reply, written in: "❤️ Loved it — noted." at once, and
+/** From last night's reply, written in: "Loved it — noted." at once, and
  *  what the rating did written after it when the engine answers. The line's
- *  text is the reply's, whole, at every moment.
+ *  text is the reply's, whole, at every moment. The rating's glass is set
+ *  before it, pencilled in as the reply arrives (House & Hand, H3) — a
+ *  sibling of the written words, never inside them.
  *
  *  It is SAID once (docs/motion README §15.2). The noted line is read when
  *  the reply takes focus. What arrives after that — `more` — is hidden from
@@ -470,7 +476,12 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
           <p ref={replyRef} tabIndex={-1} data-testid="verdict-reply" style={{ ...replyLine, outline: "none" }}>
             {failed
               ? <span aria-hidden="true">{VERDICT_SAVE_FAILED}</span>
-              : <WrittenReply {...replyParts(verdictNoted(rating), reply)} />}
+              : (
+                <>
+                  <PencilGlass rating={rating} size={20} draw="line" style={replyGlass} />
+                  <WrittenReply {...replyParts(verdictNoted(rating), reply)} />
+                </>
+              )}
           </p>
         ) : (
           <Enter kind="fade" delay={at + HOME.follow + ROW_STEP}>
@@ -492,7 +503,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
     }}>
       {/* Masthead: search · the wordmark · account */}
       <div style={{ display: "grid", gridTemplateColumns: "44px minmax(0,1fr) 44px", alignItems: "center", margin: "0 -10px" }}>
-        <Link href="/search" aria-label="Search" style={{ ...mastCell, fontSize: "16px", textDecoration: "none" }}>🔍</Link>
+        <Link href="/search" aria-label="Search" style={{ ...mastCell, color: INK, textDecoration: "none" }}><Mark id="loupe" size={20} /></Link>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <img src="/protea-icon.png" alt="" style={{ height: 22, width: "auto" }} />
           <span style={wordmark}>Sommeasy</span>
@@ -551,7 +562,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
         <>
           <SectionHead numeral={next()} label="Tonight, out" enterDelay={out} style={{ margin: "22px 0 16px" }} />
           <LeaderEntry
-            tone="filled" mark="📋" label="Match the wine list" href="/recommend" subGap={8}
+            tone="filled" mark="list" label="Match the wine list" href="/recommend" subGap={8}
             enterDelay={out + HOME.follow}
             sub={isNew
               ? "Photo, paste or link — we’ll pick a top bottle, a value and an adventure."
@@ -584,7 +595,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 {/* Inline in the sentence, its hit area padded past the line */}
                 <Link href="/log" data-testid="first-entry-snap" style={{
                   color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "12px 0",
-                }}>📸 snap tonight’s label</Link>
+                }}>snap tonight’s label</Link>
                 <span style={{ color: ink(0.55) }}>. One rating and the Somm rewrites this list around you.</span>
               </p>
               </Enter>
@@ -593,7 +604,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
             <>
               <SectionHead numeral={next()} label="Tonight, in" enterDelay={second} style={{ margin: "32px 0 16px" }} />
               <LeaderEntry
-                mark="📸" label="Log a bottle" href="/log" subGap={8}
+                mark="bottle" label="Log a bottle" href="/log" subGap={8}
                 enterDelay={second + HOME.follow}
                 sub="Snap the label and rate it — every rating sharpens your DNA."
               />
@@ -624,10 +635,9 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 showToast={showToast}
                 emptyState={
                   <EmptyState
-                    emoji="🎉"
                     title="You’ve reviewed all your wines"
                     sub="Your best picks now come from real menus — share a wine list and we’ll match it to your palate."
-                    action="📋 Match a wine list"
+                    action="Match a wine list"
                     href="/recommend"
                   >
                     <div style={{ marginTop: 6 }}>

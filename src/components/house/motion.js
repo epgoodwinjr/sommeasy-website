@@ -148,6 +148,109 @@ export const PRESS_KEYFRAMES = [
 ];
 
 /**
+ * Penciling (docs/marks/README.md §7). What the user did is drawn the way a
+ * hand would draw it, and only at the moment they do it (H3): the glass's
+ * shading goes in stroke by stroke — the wine's surface, then the hatching,
+ * back and forth — on the tile they tapped and on that rating's done line,
+ * once; a circle, underline or strike is wiped across a name from the left
+ * as they make it. Everywhere else a mark arrives settled.
+ *
+ *   surfaceMs, strokeMs   a done line: the surface (stroke 0), one stroke
+ *   stepMs                of the hatching, and the gap between the starts
+ *                         of two hatching strokes (pencilStrokes)
+ *   tile                  on the tile it must end inside the press hold:
+ *                         a shorter surface and stroke, and the step derived
+ *                         so the last stroke ends `beforeHold` ahead of
+ *                         PRESS.holdMs. The hold itself is never lengthened
+ *   guide                 the opacity of a tile's resting shading
+ *   gestureMs             a circle, underline or strike, SOFT_OUT
+ *   gestureLineMs,        an underline or strike over a name that WRAPS is
+ *   gestureStepMs         one stroke per line: each wiped in over
+ *                         gestureLineMs, gestureStepMs after the line above
+ *                         (gestureWipes). A one-line name keeps gestureMs
+ *   flipMs                "Not for me" draws nothing: on its tile the glass
+ *                         turns over, SOFT_OUT
+ *   easing                one stroke (the approved reference's)
+ *
+ * A stroke animates stroke-dashoffset — the one property beyond opacity,
+ * transform and clip-path that anything animates, and only on a pencil
+ * stroke. Gestures are never dashed: dash lengths and a non-scaling stroke
+ * don't agree across browsers, so they are clipped instead.
+ */
+export const PENCIL = {
+  surfaceMs: 360, strokeMs: 200, stepMs: 85, guide: 0.22, gestureMs: 800, flipMs: 600,
+  gestureLineMs: 520, gestureStepMs: 260,
+  tile: { surfaceMs: 140, strokeMs: 90, beforeHold: 20 },
+  easing: "ease-out",
+};
+
+/** One stroke pencilled in: on its own <path>, with pathLength="1" and
+ *  stroke-dasharray 1, the dash slides in from the stroke's start. */
+export const PENCIL_STROKE = [{ offset: 0, strokeDashoffset: "1" }, { offset: 1, strokeDashoffset: "0" }];
+/** "Not for me" on its tile: the glass turns over. */
+export const GLASS_FLIP = [{ offset: 0, transform: "rotate(-180deg)" }, { offset: 1, transform: "none" }];
+/** A gesture wiped across its name from the left. The negative insets leave
+ *  room for the round caps and for a line drawn past its box. */
+export const GESTURE_WIPE = [
+  { offset: 0, clipPath: "inset(-200% 100% -200% 0)" },
+  { offset: 1, clipPath: "inset(-200% -5% -200% -5%)" },
+];
+
+/**
+ * When each stroke of a gesture is wiped in, top line first, as
+ * { delay, duration } from the draw's start (docs/marks/README.md §14.1). One
+ * stroke — a circle, or an underline or strike on one line — takes
+ * gestureMs. A name that wraps has a stroke per line: each takes
+ * gestureLineMs and starts gestureStepMs after the one above. Junk → [].
+ */
+export function gestureWipes(count) {
+  if (!Number.isInteger(count) || count < 1) return [];
+  if (count === 1) return [{ delay: 0, duration: PENCIL.gestureMs }];
+  return Array.from({ length: count }, (_, i) => ({ delay: i * PENCIL.gestureStepMs, duration: PENCIL.gestureLineMs }));
+}
+
+/**
+ * When each stroke of a glass's shading is drawn, in drawing order — stroke
+ * 0 the wine's surface, the rest the hatching — as { delay, duration } from
+ * the draw's start. "line" is the table as written; "tile" ends its last
+ * stroke `tile.beforeHold` before the press hold does, however many strokes
+ * the glass has. Nothing to draw (junk) → [].
+ */
+export function pencilStrokes(count, mode = "line") {
+  if (!Number.isInteger(count) || count < 1) return [];
+  const tile = mode === "tile";
+  const surface = tile ? PENCIL.tile.surfaceMs : PENCIL.surfaceMs;
+  const stroke = tile ? PENCIL.tile.strokeMs : PENCIL.strokeMs;
+  const hatches = count - 1;
+  // On a tile the hatching spreads from the surface's end to the last start
+  // that still lands inside the hold — never backwards
+  const lastStart = Math.max(surface, PRESS.holdMs - PENCIL.tile.beforeHold - stroke);
+  const start = (k) => {
+    if (!tile) return surface + k * PENCIL.stepMs;
+    return hatches === 1 ? lastStart : surface + ((lastStart - surface) * k) / (hatches - 1);
+  };
+  return [
+    { delay: 0, duration: surface },
+    ...Array.from({ length: hatches }, (_, k) => ({ delay: start(k), duration: stroke })),
+  ];
+}
+
+/**
+ * Play a pencil animation — a stroke, the flip, a wipe — filling backwards,
+ * so it is held on its first frame through its delay and leaves nothing
+ * behind. Null under reduced motion (the mark is simply settled, in the same
+ * commit as its cause) or where the browser can't run it.
+ */
+export function playPencil(el, keyframes, { delay = 0, duration, easing = PENCIL.easing } = {}) {
+  if (!el || typeof el.animate !== "function" || prefersReducedMotion()) return null;
+  try {
+    return el.animate(keyframes, { delay: Math.max(0, Number(delay) || 0), duration, easing, fill: "backwards" });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * A promotion or a shift (§8.4): the bloom shows in its OLD shape, and
  * `delay` after it arrives it grows into the new one (the growth itself is
  * the mark's: MARK_MOTION in src/lib/palateMark.js). `inPlace` is the size

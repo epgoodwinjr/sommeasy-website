@@ -28,7 +28,7 @@ import { readRecentSearches, rememberSearch, searchDna, searchJournal, searchRec
 import { numeralCounter } from "@/lib/numerals";
 import { wineHref } from "@/lib/navTrail";
 import {
-  dnaKindLabel, dnaResultLine, journalGroupLabel, journalMark, matchTag, metaLine, nothingFoundLine,
+  dnaKindLabel, dnaResultLine, journalGesture, journalGroupLabel, journalMark, matchTag, metaLine, nothingFoundLine,
   placeName, shortDate,
 } from "@/lib/houseCopy";
 import RunningHead from "@/components/house/RunningHead";
@@ -218,7 +218,7 @@ export default function SearchPage() {
     return (
       <main style={{ ...column, paddingTop: 22 }}>
         <EmptyState
-          emoji="🔍"
+          mark="loupe"
           title="Sign in to search your wines"
           sub="Your journal, your DNA and the Somm’s picks — one search away once you’re signed in."
           action="Sign in"
@@ -240,7 +240,7 @@ export default function SearchPage() {
   if (readFailed) {
     return page(
       <EmptyState
-        emoji="🔍"
+        mark="loupe"
         title="We couldn’t search just now"
         sub="Your wines are safe — give it a moment and try again."
         action="Try again"
@@ -345,6 +345,9 @@ export default function SearchPage() {
                   data-wine={row.wine_name}
                   name={row.wine_name}
                   mark={journalMark(row) || undefined}
+                  // A pass sits among live results: struck, not stepped back
+                  struck={journalGesture(row, { underline: false }) === "strike"}
+                  struckOpacity={1}
                   meta={metaLine(placeName(row.resolved_region), row.resolved_varietal) || undefined}
                   metaRight={shortDate(row.updated_at ?? row.created_at) || undefined}
                   href={wineHref(row.wine_name)}
@@ -407,7 +410,7 @@ export default function SearchPage() {
               <p style={{ fontFamily: SANS, fontSize: "14px", lineHeight: 1.5, color: ink(0.55), marginTop: 8 }}>
                 Try a grape, a region or a producer.
               </p>
-              <TextAction href="/log" weight={700} style={{ marginTop: 12 }}>📸 Snap the label instead</TextAction>
+              <TextAction href="/log" weight={700} style={{ marginTop: 12 }}>Snap the label instead</TextAction>
             </div>
           )}
         </div>
