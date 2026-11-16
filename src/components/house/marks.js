@@ -26,8 +26,9 @@
 //
 // Two departures from the design source, neither in a path: its PENCIL (the
 // pencil marks) is PENCIL_MARKS here, because PENCIL in motion.js is the
-// penciling's timing; and an id is looked up as the table's OWN key, so
-// "toString" or "constructor" is junk, not a path.
+// penciling's timing; and loopPath asks for a FINITE box (the design source
+// would draw "Infinity" for an endless one). Every box a name can make gives
+// the design source's path, value for value.
 
 export const MARK_COLORS = { ink: "#1B3D2F", pencil: "#8B2332", cream: "#F5F0E8" };
 export const MARK_WEIGHTS = { hairline: 1.3, glassHairline: 1.08, pencil: 1.6, shade: 0.62 };
@@ -262,4 +263,39 @@ export function gestureBox(kind, lines, origin) {
     left: last.left - fit.reach - o.x, top: top - o.y,
     width: last.right - last.left + 2 * fit.reach, height: fit.height,
   };
+}
+
+// ── the loop: the circle round a WRAPPED name (README §13.1) ────────────
+// GESTURES.circle, stretched, is right for a name on one line. Over a name
+// that wraps it becomes a tall ellipse and cuts across the corners of the
+// first and last lines. The loop is built in pixels for the box it goes
+// round, so its corners keep one radius however tall the name is. Pure: the
+// same box gives the same path. w, h are the loop's own box in px (the
+// name's block plus the circle's padding — gestureBox("circle", …)); the
+// path starts top-centre, runs anticlockwise and overlaps its start, as the
+// approved one-line circle does. "" for a box that isn't one.
+export function loopPath(w, h) {
+  if (!finite(w) || !finite(h) || !(w > 0) || !(h > 0)) return "";
+  const r = Math.min(18, h / 2 - 1, w / 4);
+  const k = 0.55 * r;
+  const f = (n) => String(Math.round(n * 100) / 100);
+  const p = (x, y) => `${f(x)} ${f(y)}`;
+  // an edge with a slight wobble: a hand never draws a ruler line
+  const edge = (x1, y1, x2, y2, wob) => {
+    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / len) * wob, ny = (dx / len) * wob;
+    return `C ${p(x1 + dx / 3 + nx, y1 + dy / 3 + ny)} ${p(x1 + (2 * dx) / 3 - nx, y1 + (2 * dy) / 3 - ny)} ${p(x2, y2)}`;
+  };
+  return [
+    `M ${p(w * 0.5, 2)}`,
+    edge(w * 0.5, 2, r + 1, 1.4, 0.9),
+    `C ${p(r + 1 - k, 1.4)} ${p(1.4, r + 1 - k)} ${p(1.4, r + 1)}`,
+    edge(1.4, r + 1, 2.2, h - r - 1, 1.1),
+    `C ${p(2.2, h - r - 1 + k)} ${p(r + 1 - k, h - 1.6)} ${p(r + 1, h - 1.6)}`,
+    edge(r + 1, h - 1.6, w - r - 1, h - 2.4, 1.2),
+    `C ${p(w - r - 1 + k, h - 2.4)} ${p(w - 1.4, h - r - 1 + k)} ${p(w - 1.4, h - r - 1)}`,
+    edge(w - 1.4, h - r - 1, w - 2.4, r + 1, 1.1),
+    `C ${p(w - 2.4, r + 1 - k)} ${p(w - r - 1 + k, 2.6)} ${p(w - r - 1, 2.6)}`,
+    edge(w - r - 1, 2.6, w * 0.4, 4.6, 0.9),
+  ].join(" ");
 }

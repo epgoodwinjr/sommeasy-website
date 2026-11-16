@@ -17,8 +17,14 @@
 // box — exact for a name on one line. Then the name is measured: the circle
 // goes round the whole name, and the underline and the strike go on its
 // LAST line, so a wrapped name is underlined or struck where it ends
-// (marks.js's gestureBox). It is measured again when its block changes
-// width or a web font lands. The origin it is measured from is a zero-size
+// (marks.js's gestureBox). A circle round a name on ONE line is the approved
+// drawing, stretched; round a name that WRAPS it is the loop (marks.js's
+// loopPath, README §13.1) — the stretched drawing turns into a tall ellipse
+// and cuts across the corners of the first and last lines, so the loop is
+// built in pixels for the same padded box, in an <svg> whose viewBox is that
+// box, and its corners keep one radius however tall the name is. The name is
+// measured again when its block changes width or a web font lands, and the
+// loop is re-made with it. The origin it is measured from is a zero-size
 // marker at the wrapper's own left/top — whatever an engine makes of an
 // inline box that spans two lines, the marker says where 0,0 is.
 //
@@ -30,7 +36,7 @@
 // blockified: still measured right, but no longer flowing with its line.
 
 import { useRef, useState } from "react";
-import { GESTURES, MARK_COLORS, MARK_WEIGHTS, gestureBox, gestureStyle, nameLines } from "./marks";
+import { GESTURES, MARK_COLORS, MARK_WEIGHTS, gestureBox, gestureStyle, loopPath, nameLines } from "./marks";
 import { GESTURE_WIPE, PENCIL, SOFT_OUT, playPencil } from "./motion";
 import { useIsoLayoutEffect } from "./useEntrance";
 
@@ -38,7 +44,7 @@ const WRAP = { position: "relative" };
 const ORIGIN = { position: "absolute", left: 0, top: 0, width: 0, height: 0 };
 const OVER = { position: "absolute", overflow: "visible", pointerEvents: "none" };
 
-const same = (a, b) => a === b || (a && b && ["left", "top", "width", "height"].every((k) => Math.abs(a[k] - b[k]) < 0.5));
+const same = (a, b) => a === b || (a && b && a.wrapped === b.wrapped && ["left", "top", "width", "height"].every((k) => Math.abs(a[k] - b[k]) < 0.5));
 
 /** The nearest ancestor that lays out a block — the box whose width decides
  *  where the name breaks. */
@@ -66,7 +72,9 @@ export default function NameGesture({ gesture = null, draw = false, children }) 
       const range = el.ownerDocument.createRange();
       range.setStart(el, 0);
       range.setEndBefore(zero); // the name, not the pencil beside it
-      const next = gestureBox(kind, nameLines(range.getClientRects()), zero.getBoundingClientRect());
+      const lines = nameLines(range.getClientRects());
+      const measured = gestureBox(kind, lines, zero.getBoundingClientRect());
+      const next = measured && { ...measured, wrapped: lines.length > 1 };
       setBox((prev) => (same(prev, next) ? prev : next));
     };
     measure();
@@ -89,18 +97,25 @@ export default function NameGesture({ gesture = null, draw = false, children }) 
     return () => wipe?.cancel();
   }, [kind, draw]);
 
-  const geometry = box || gestureStyle(kind);
+  const geometry = box
+    ? { left: box.left, top: box.top, width: box.width, height: box.height }
+    : gestureStyle(kind);
+  // The circle round a wrapped name: the loop, made for this box. One <svg>
+  // either way — only its attributes change — so a wipe that began on the
+  // first paint carries on over the loop.
+  const loop = kind === "circle" && box?.wrapped ? loopPath(box.width, box.height) : "";
   return (
     <span ref={wrap} data-gesture={kind || undefined} style={WRAP}>
       {children}
       {kind && <span ref={origin} aria-hidden="true" style={ORIGIN} />}
       {kind && (
         <svg
-          ref={svg} viewBox={GESTURES[kind].viewBox} preserveAspectRatio="none" aria-hidden="true" focusable="false"
-          style={{ ...OVER, ...geometry }}
+          ref={svg} viewBox={loop ? `0 0 ${box.width} ${box.height}` : GESTURES[kind].viewBox}
+          preserveAspectRatio={loop ? undefined : "none"} aria-hidden="true" focusable="false"
+          data-loop={loop ? "" : undefined} style={{ ...OVER, ...geometry }}
         >
           <path
-            d={GESTURES[kind].d} fill="none" stroke={MARK_COLORS.pencil} strokeWidth={MARK_WEIGHTS.pencil}
+            d={loop || GESTURES[kind].d} fill="none" stroke={MARK_COLORS.pencil} strokeWidth={MARK_WEIGHTS.pencil}
             strokeLinecap="round" vectorEffect="non-scaling-stroke"
           />
         </svg>

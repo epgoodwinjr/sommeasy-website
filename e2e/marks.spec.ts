@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MARK_IDS, RATING_MARKS, SHADE, renderMark } from "../src/components/house/marks.js";
+import { GESTURES, MARK_IDS, RATING_MARKS, SHADE, loopPath, renderMark } from "../src/components/house/marks.js";
 import { PENCIL, PRESS, pencilStrokes } from "../src/components/house/motion.js";
 import { RATINGS } from "../src/lib/ratings.js";
 
@@ -22,7 +22,13 @@ import { RATINGS } from "../src/lib/ratings.js";
  *   4. A gesture over a name leaves the name alone, sits where the reference
  *      puts it, goes on the LAST line of a wrapped name (the circle round
  *      all of it), and follows the name when it re-wraps.
+ *   5. The circle round a WRAPPED name is the loop (README §13.1): made for
+ *      its own box, every corner of the first and last lines inside it; a
+ *      one-line name still draws the approved circle, stretched; and the
+ *      loop is re-made when the name is re-measured.
  */
+
+const GESTURE_COUNT = 10; // three on one line, three wrapped, four looped
 
 const SPECIMEN = "/marks-specimen";
 
@@ -119,7 +125,7 @@ test.describe("House & Hand — the marks (specimen, Session 1)", () => {
 
     // Gestures, pencilled again: simply there
     await page.getByTestId("specimen-pencil-again").click();
-    await expect(page.locator("[data-gesture]")).toHaveCount(6);
+    await expect(page.locator("[data-gesture]")).toHaveCount(GESTURE_COUNT);
 
     expect(await pencilled(), "no stroke, flip or wipe ever started").toBe(0);
     // The tiles' and text actions' own 150ms tap states are CSS transitions, not marks
@@ -230,7 +236,7 @@ test.describe("House & Hand — the marks (specimen, Session 1)", () => {
 
     test("a gesture is wiped in from the left, once, while its name stays whole — and leaves nothing behind", async ({ page }) => {
       await open(page);
-      await expect(page.locator("[data-gesture] svg")).toHaveCount(6);
+      await expect(page.locator("[data-gesture] svg")).toHaveCount(GESTURE_COUNT);
       expect(await page.locator("main").evaluate((el) => el.getAnimations({ subtree: true }).length), "settled until pencilled").toBe(0);
       const wipes = await page.evaluate(async () => {
         (document.querySelector('[data-testid="specimen-pencil-again"]') as HTMLButtonElement).click();
@@ -246,13 +252,17 @@ test.describe("House & Hand — the marks (specimen, Session 1)", () => {
           };
         });
       });
-      expect(wipes).toHaveLength(6);
+      expect(wipes).toHaveLength(GESTURE_COUNT);
       for (const w of wipes) {
         expect(w.wipes).toHaveLength(1);
         expect(w.wipes[0].duration).toBe(PENCIL.gestureMs);
         expect(w.wipes[0].clip[0]).toMatch(/^inset\(-200% 100% -200% 0(px)?\)$/); // from the left
         expect(w.wipes[0].clip[1]).toMatch(/^inset\(-200% -5%( -200% -5%)?\)$/); // Chromium serializes it short
-        expect(["Kanonkop Pinotage 2020", "Meerlust Rubicon 2019", "Constantia Glen Five", "Domaine Huet Le Haut-Lieu Vouvray Sec 2021"]).toContain(w.text);
+        expect([
+          "Kanonkop Pinotage 2020", "Meerlust Rubicon 2019", "Constantia Glen Five", "Domaine Huet Le Haut-Lieu Vouvray Sec 2021",
+          "Kanonkop Paul Sauer", "Château de Beaucastel Châteauneuf-du-Pape Rouge 2019",
+          "Hamilton Russell Vineyards Chardonnay, Hemel-en-Aarde Valley 2022",
+        ]).toContain(w.text);
       }
       await settle(page, "main");
       expect(await leftBehind(page, "main")).toEqual({ dashed: 0, running: 0, transform: "", clipped: 0 });
@@ -325,5 +335,100 @@ test.describe("House & Hand — the marks (specimen, Session 1)", () => {
       const m = await measure("specimen-wrapped-underline");
       return Math.abs(m.box.right - (m.lines[0].right + 2)) <= 1 && Math.abs(m.box.bottom - (m.lines[0].bottom + 5)) <= 1;
     }).toBe(true);
+  });
+  test("the circle round a wrapped name is the loop: every corner of its first and last lines inside it; one line keeps the approved circle", async ({ page }) => {
+    await open(page);
+
+    /** The circled name under a test id: its lines, its pencil, and whether
+     *  the corners of its first and last lines lie inside the drawn path. */
+    const read = (testId: string) => page.getByTestId(testId).evaluate((p) => {
+      const wrap = p.querySelector("[data-gesture]") as HTMLElement;
+      const range = document.createRange();
+      range.selectNodeContents(wrap.firstChild as Text);
+      const lines: { left: number; right: number; top: number; bottom: number }[] = [];
+      for (const r of [...range.getClientRects()].filter((x) => x.width >= 1)) {
+        const last = lines[lines.length - 1];
+        if (last && Math.abs(last.top - r.top) < r.height / 2) {
+          last.left = Math.min(last.left, r.left); last.right = Math.max(last.right, r.right);
+        } else lines.push({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
+      }
+      const svg = wrap.querySelector("svg") as SVGSVGElement;
+      const path = svg.querySelector("path") as SVGPathElement;
+      const box = svg.getBoundingClientRect();
+      // A filled copy of the path, in the same <svg>: is each corner inside it?
+      const filled = path.cloneNode() as SVGPathElement;
+      filled.setAttribute("fill", "#000");
+      filled.removeAttribute("vector-effect");
+      svg.appendChild(filled);
+      const view = svg.viewBox.baseVal;
+      const inside = (x: number, y: number) => filled.isPointInFill(new DOMPoint(
+        view.x + ((x - box.left) / box.width) * view.width, view.y + ((y - box.top) / box.height) * view.height,
+      ));
+      const corners = (l: { left: number; right: number; top: number; bottom: number }) =>
+        [inside(l.left, l.top), inside(l.right, l.top), inside(l.left, l.bottom), inside(l.right, l.bottom)];
+      const result = {
+        lines: lines.length,
+        first: corners(lines[0]),
+        last: corners(lines[lines.length - 1]),
+        d: path.getAttribute("d"),
+        viewBox: svg.getAttribute("viewBox"),
+        aspect: svg.getAttribute("preserveAspectRatio"),
+        loop: svg.hasAttribute("data-loop"),
+        width: box.width, height: box.height,
+        text: wrap.textContent,
+        svgs: wrap.querySelectorAll("svg").length,
+      };
+      filled.remove();
+      return result;
+    });
+    const all = [true, true, true, true];
+
+    // Every wrapped, circled name on the page: two, three and four lines
+    const wrapped = ["specimen-wrapped-circle", "specimen-loop-0", "specimen-loop-1", "specimen-loop-2", "specimen-loop-3"];
+    const lineCounts = new Set<number>();
+    for (const id of wrapped) {
+      const m = await read(id);
+      expect(m.lines, `${id} wraps (the premise)`).toBeGreaterThan(1);
+      lineCounts.add(m.lines);
+      expect(m.svgs, `${id}: one pencil`).toBe(1);
+      expect(m.loop, `${id} draws the loop`).toBe(true);
+      expect(m.aspect, `${id}: the loop is not stretched`).toBeNull();
+      // Made for its own box, in px: the viewBox IS the box, the path is loopPath's
+      const [, , w, h] = (m.viewBox || "").split(" ").map(Number);
+      expect(Math.abs(w - m.width), `${id}: viewBox width ${w} vs box ${m.width}`).toBeLessThan(0.01);
+      expect(Math.abs(h - m.height), `${id}: viewBox height ${h} vs box ${m.height}`).toBeLessThan(0.01);
+      expect(m.viewBox?.startsWith("0 0 "), id).toBe(true);
+      expect(m.d, `${id}: the path is loopPath(${w}, ${h})`).toBe(loopPath(w, h));
+      expect(m.first, `${id}: the first line's corners are inside the loop`).toEqual(all);
+      expect(m.last, `${id}: the last line's corners are inside the loop`).toEqual(all);
+    }
+    expect(lineCounts.size, "names of different heights were checked").toBeGreaterThan(1);
+    expect(Math.max(...lineCounts), "one of them runs to three lines or more").toBeGreaterThanOrEqual(3);
+
+    // A name on one line: the approved circle, stretched, exactly as built
+    const one = await read("specimen-gesture-circle");
+    expect(one.lines).toBe(1);
+    expect(one).toMatchObject({ loop: false, aspect: "none", viewBox: GESTURES.circle.viewBox, d: GESTURES.circle.d, svgs: 1 });
+
+    // Re-measured, re-made: widen the block until the name sits on one line
+    // and it is the approved circle again; narrow it and the loop is made
+    // anew for the new box
+    const block = page.getByTestId("specimen-loop-0");
+    const before = await read("specimen-loop-0");
+    await block.evaluate((p) => { (p as HTMLElement).style.width = "420px"; });
+    await expect.poll(async () => (await read("specimen-loop-0")).lines).toBe(1);
+    await expect.poll(async () => (await read("specimen-loop-0")).d).toBe(GESTURES.circle.d);
+    expect(await read("specimen-loop-0")).toMatchObject({ loop: false, aspect: "none", viewBox: GESTURES.circle.viewBox });
+    await block.evaluate((p) => { (p as HTMLElement).style.width = "70px"; });
+    await expect.poll(async () => (await read("specimen-loop-0")).loop).toBe(true);
+    await expect.poll(async () => {
+      const m = await read("specimen-loop-0");
+      const [, , w, h] = (m.viewBox || "").split(" ").map(Number);
+      return m.d === loopPath(w, h) && Math.abs(h - m.height) < 0.01 && m.first.every(Boolean) && m.last.every(Boolean);
+    }).toBe(true);
+    const after = await read("specimen-loop-0");
+    expect(after.lines, "narrower: more lines").toBeGreaterThan(before.lines);
+    expect(after.d, "a new loop for the new box").not.toBe(before.d);
+    expect(after.text).toBe("Kanonkop Paul Sauer");
   });
 });

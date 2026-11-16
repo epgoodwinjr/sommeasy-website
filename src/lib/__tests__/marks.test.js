@@ -19,6 +19,10 @@
 //      client rects, the circle round the whole name and the underline and
 //      strike on its LAST line.
 //   6. SOURCE SCAN: no other file under src/ declares a mark's path data.
+//   7. The loop — the circle round a WRAPPED name (README §13.1): the design
+//      source's loopPath value for value, deterministic, "" for a box that
+//      isn't one, every coordinate inside its box, and corners that keep
+//      one radius however tall the name is.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -65,7 +69,7 @@ async function main() {
   const { RATINGS } = await import("../ratings.js");
   const {
     MARK_COLORS, MARK_WEIGHTS, GLASS_VIEWBOX, GLASS, SHADE, PENCIL_MARKS, GESTURES, TOOLS, RATING_MARKS, MARK_IDS,
-    GESTURE_FIT, markBody, renderMark, markSize, glassFor, gestureStyle, nameLines, gestureBox,
+    GESTURE_FIT, markBody, renderMark, markSize, glassFor, gestureStyle, nameLines, gestureBox, loopPath,
   } = marks;
 
   console.log("\n═══ 1. The paths are exact — the design source, value for value ═══");
@@ -330,6 +334,106 @@ async function main() {
     const designSource = readFileSync(join(REPO, "docs", "marks", "design", "marks.js"), "utf-8");
     assert(designSource.includes(GLASS.bowl.slice(0, 14)), "the design source holds the bowl");
     assert(designSource.includes(SHADE.loved[3].slice(0, 14)), "and the shading");
+  });
+
+  console.log("\n═══ 7. The loop: the circle round a wrapped name (§13.1) ═══");
+
+  /** Every number in a path, as x,y pairs in order. */
+  const pointsIn = (d) => {
+    const n = (d.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    const pts = [];
+    for (let i = 0; i + 1 < n.length; i += 2) pts.push({ x: n[i], y: n[i + 1] });
+    return pts;
+  };
+  /** The four corners' radii, read off the path itself: each corner is the
+   *  one curve between two edges, and its radius is how far it travels. */
+  const cornerRadii = (d) => {
+    // M start, then C×(edge, corner)×4, then the closing edge: 10 segments
+    const segs = d.split(/\s(?=C )/).map(pointsIn);
+    const end = (i) => segs[i][segs[i].length - 1];
+    return [2, 4, 6, 8].map((i) => {
+      const from = end(i - 1), to = end(i);
+      const px = (n) => Math.round(Math.abs(n) * 100) / 100; // the path's own two decimals
+      return { dx: px(to.x - from.x), dy: px(to.y - from.y) };
+    });
+  };
+  const BOXES = [];
+  for (const w of [60, 96, 150, 214, 302.5, 420]) for (const h of [40, 52, 62, 86.5, 110, 134, 240]) BOXES.push([w, h]);
+
+  await test("loopPath is the design source's, value for value, over every box a name could make", () => {
+    assert(typeof loopPath === "function", "marks.js exports loopPath");
+    for (const [w, h] of BOXES) assertEq(loopPath(w, h), design.loopPath(w, h), `loopPath(${w}, ${h})`);
+    // Narrow, short and odd boxes are still the same drawing
+    for (const [w, h] of [[30, 30], [44, 61.3], [1000, 62], [213.71, 61.94], [24, 300]]) {
+      assertEq(loopPath(w, h), design.loopPath(w, h), `loopPath(${w}, ${h})`);
+    }
+  });
+
+  await test("deterministic: the same box gives the same path — and a different box a different one", () => {
+    for (const [w, h] of BOXES) assert(loopPath(w, h) === loopPath(w, h), `${w}×${h} twice`);
+    assert(loopPath(214, 62) !== loopPath(214, 86), "a taller box");
+    assert(loopPath(214, 62) !== loopPath(180, 62), "a narrower box");
+  });
+
+  await test("a box that isn't one draws nothing, and never throws", () => {
+    const junk = [
+      [0, 62], [214, 0], [-214, 62], [214, -62], [NaN, 62], [214, NaN], [undefined, 62], [214, undefined],
+      [null, null], [Infinity, 62], [214, Infinity], ["214", "62"], [{}, []], [],
+    ];
+    for (const args of junk) assertEq(loopPath(...args), "", `loopPath(${args.map(String).join(", ")})`);
+    assertEq(loopPath(), "", "no box at all");
+  });
+
+  await test("one stroke: it starts top-centre, runs anticlockwise through four corners and overlaps its start", () => {
+    for (const [w, h] of BOXES) {
+      const d = loopPath(w, h);
+      assert(/^M [\d.]+ [\d.]+( C( -?[\d.]+){6}){9}$/.test(d), `${w}×${h}: one M and nine curves, nothing else — "${d}"`);
+      assert(!/NaN|Infinity|undefined|e[+-]/.test(d), `${w}×${h} leaks a junk value`);
+      const pts = pointsIn(d);
+      const start = pts[0], end = pts[pts.length - 1];
+      assert(Math.abs(start.x - w / 2) < 0.01 && start.y === 2, `${w}×${h} starts top-centre`);
+      // …and ends past its start, a little lower: the pencil overlaps, as the approved circle does
+      assert(end.x < start.x && end.y > start.y, `${w}×${h} overlaps its start`);
+      // Anticlockwise on screen: left edge next (x falls), then down, then right, then up
+      const segs = d.split(/\s(?=C )/).map(pointsIn);
+      const at = (i) => segs[i][segs[i].length - 1];
+      assert(at(1).x < start.x && at(3).y > at(2).y && at(5).x > at(4).x && at(7).y < at(6).y, `${w}×${h} runs anticlockwise`);
+    }
+  });
+
+  await test("every coordinate sits inside the loop's own box", () => {
+    for (const [w, h] of BOXES) {
+      for (const p of pointsIn(loopPath(w, h))) {
+        assert(p.x >= 0 && p.x <= w && p.y >= 0 && p.y <= h, `${w}×${h}: (${p.x}, ${p.y}) is outside`);
+      }
+    }
+  });
+
+  await test("the corner radius does not grow with the height: 60, 120 and 240 keep one radius", () => {
+    for (const w of [150, 214, 420]) {
+      const radii = [60, 120, 240].map((h) => cornerRadii(loopPath(w, h)));
+      assertEq(radii[1], radii[0], `w ${w}: h 120 turns as h 60 does`);
+      assertEq(radii[2], radii[0], `w ${w}: h 240 turns as h 60 does`);
+      for (const c of radii[0]) {
+        assert(c.dx > 8 && c.dy > 8, `w ${w}: a corner is a corner (${c.dx}, ${c.dy})`);
+        assert(c.dx <= 19.5 && c.dy <= 19.5, `w ${w}: a corner never passes 18px and its wobble (${c.dx}, ${c.dy})`);
+      }
+    }
+    // The stretched drawing is what this replaces: at h 240 its "corner" would be most of the box
+    const tall = cornerRadii(loopPath(214, 240));
+    assert(tall.every((c) => c.dy < 240 / 4), "a tall name's corners stay corners");
+    // A short or narrow box tightens the radius rather than overrunning it
+    for (const [w, h] of [[214, 30], [40, 120]]) {
+      for (const c of cornerRadii(loopPath(w, h))) assert(c.dx <= w / 2 && c.dy <= h / 2, `${w}×${h}: corners fit`);
+    }
+  });
+
+  await test("SOURCE SCAN: the loop's arithmetic lives in marks.js only", () => {
+    const offenders = sourceFiles(SRC)
+      .filter((path) => path !== MODULE)
+      .filter((path) => /0\.55 \* r|h \/ 2 - 1, w \/ 4/.test(readFileSync(path, "utf-8")))
+      .map((path) => relative(SRC, path));
+    assertEq(offenders, [], "call loopPath from @/components/house/marks");
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);
