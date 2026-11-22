@@ -155,6 +155,8 @@ All 49 `wine_interactions` rows (26 rated, 7 accounts) were re-resolved under ma
 
 One pre-existing observation, unrelated to this fix: her stored title is "The Stellenbosch Loyalist", while today's evidence composes "The Constantia Loyalist". Her strand last recomposed at 5 rated bottles and recomposes itself at 10. Nothing here touches it.
 
-The re-credit is prepared in `docs/producer-initials-recredit.sql`, guarded on the measured state, and **not applied**. It waits for Ed's OK, after this PR is deployed.
+The re-credit is in `docs/producer-initials-recredit.sql`, guarded on the measured state. **Applied and verified on Nov 22, 2026**, with Ed's OK, after this PR (#39) deployed: the three rows moved exactly as the table above says, with zero timeline events.
+
+In the same step her strand was refreshed silently to today's composition, **"The Constantia Loyalist"** (the stored "The Stellenbosch Loyalist" noted above): no `dna_timeline` row, and her milestones and firsts were left untouched.
 
 Unaffected and worth naming: "J. de Telmont Grande Réserve" (Nicola, loved) resolves identically. Its unmappable estate dimension `j__de_telmont` is unchanged, because the winery display name still comes from the unfolded key.
