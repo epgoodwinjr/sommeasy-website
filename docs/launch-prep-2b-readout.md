@@ -158,7 +158,7 @@ window because the crest waits for them.
 | Do Not Track / Global Privacy Control: we don't read either signal, and Sommeasy works the same with or without them | Privacy, On your device | Nothing in `src/` reads `doNotTrack`, `Sec-GPC`, `globalPrivacyControl` or DNT (grep, Nov 22). `@vercel/analytics` 2.0.1's dist has none of them either. |
 | …because nothing tracks you across sites: no advertising or third-party trackers | same | Session 1's dependency list (no ad or tracker packages, no third-party scripts). Since item 2, Welcome loads **no** third-party resource (Performance entries, Nov 22). |
 | "Our page counts set no cookies" | same | `@vercel/analytics` is cookieless (Session 1's proof) |
-| A weekly encrypted backup of our database | Privacy, How long we keep it | `.github/workflows/db-backup.yml`: `cron: "17 7 * * 1"`, `backup.sh` encrypts with `age` |
+| A weekly encrypted backup of our database | Privacy, How long we keep it | `epgoodwinjr/sommeasy-backups` (private): `.github/workflows/db-backup.yml` `cron: "17 7 * * 1"`; `backup.sh` encrypts with `age` |
 | Each kept 90 days; deleted data leaves the backups within 90 days | same | `retention-days: 90` (GitHub deletes older artifacts); `BACKUP_RETENTION_DAYS` feeds the copy |
 | GitHub stores it, encrypted before it leaves the backup job, with a key only we hold, so GitHub can't read it | Privacy, Who helps us | `backup.sh`: plaintext only in a private temp dir; only the `.age` file is uploaded; the header is checked before upload; the private key is never in GitHub |
 | *Removed:* fonts load from Google Fonts | Privacy, Who helps us | `src/app/fonts.js`; the `@import` is gone from `globals.css` |
@@ -166,42 +166,61 @@ window because the crest waits for them.
 Two caveats:
 
 - "Once a week we make an encrypted backup" becomes true when you add the
-  secrets and the schedule runs on main. Flip `LEGAL_DRAFT` after the first
-  green run.
+  secrets to sommeasy-backups and the schedule runs. Flip `LEGAL_DRAFT`
+  after the first green run.
 - `e2e/legal.spec.ts` pins the new lines: "Who we are" first on both pages,
   the operator line, the dates line, Pennsylvania, Do Not Track, the 90
   days, and no "Google Fonts".
 
 ---
 
-## 4. The consent line under "Continue with Google"
+## 4. The consent line and Google
 
-- Google makes a new account for a new address from **either** form. So
-  `GOOGLE_CONSENT` now sits right under "Continue with Google" on **sign in
-  and create account**: *By continuing with Google you confirm you're of
-  legal drinking age where you live and agree to our Terms and Privacy
-  Policy.*
-- It's one shared `ConsentLine` component with create account's own line,
-  which still sits above its button.
-- `auth-flows.spec` asserts its exact words, both links, and its place on
-  both forms with the flag on:
-  - below the button;
-  - less than 40 px under it.
-- With the flag off it asserts the line is absent.
+Google makes a new account for a new address from **either** form, so no
+one can make one without seeing the line. The line is said once per page.
+
+- **Create account: one line, above Create account, and so above Continue
+  with Google too.**
+  - With the Google flag on (`SIGNUP_CONSENT_WITH_GOOGLE`): *By creating an
+    account, here or with Google, you confirm you're of legal drinking age
+    where you live and agree to our Terms and Privacy Policy.*
+  - With the flag off it reads exactly as before (`SIGNUP_CONSENT`).
+- **Sign in: `GOOGLE_CONSENT` right under Continue with Google.** *By
+  continuing with Google you confirm…* is worded for the button, since
+  there it may be an existing account.
+- Both use the shared `ConsentLine` component (AuthForm.js).
+- **Specs:**
+  - `legal.spec` asserts create account's one line (the old words exactly
+    with the flag off), no `google-consent`, a single "legal drinking age"
+    on the page, both links, and that the line sits above the button and
+    above Google.
+  - `auth-flows` asserts sign in's line under Google (words, links, under
+    40 px below), and create account's single line before Google. With the
+    flag off it asserts there's no Google line.
 
 ---
 
 ## 5. The weekly encrypted backup
 
-### What it is
+### What it is, and where
 
-| File | Job |
-|---|---|
-| `.github/workflows/db-backup.yml` | Mondays 07:17 UTC + Run workflow; installs pg_dump 17 (PostgreSQL's apt repo) and age; runs `backup.sh`; uploads the one `.age` file for 90 days. Actions pinned to commit SHAs; `contents: read`; no credentials persisted. |
-| `scripts/db-backup/backup.sh` | Writes `public-schema.sql`, `auth-schema.sql`, and `data.sql` (public and auth in one snapshot, all but `auth.schema_migrations`). Adds a manifest of rows per table counted from the dump itself, and versions. Then tar → gzip → age, to one or more recipients. |
-| `scripts/db-backup/restore-drill.sh` | Decrypts and restores into a fresh **local** database, refusing a remote `PGHOST`. Checks rows per table against the manifest, foreign keys for orphans, RLS on every table that had it, every policy, `claim_pending_palate` still SECURITY DEFINER, and that the accounts are present. |
-| `scripts/db-backup/test/drill-test.sh` | End to end on a throwaway Postgres 17 cluster: migrations 001–014 over a stand-in auth schema, seeded rows, backup, the opacity check, drill, then every table, policy, function, trigger, view and grant compared. **Passes.** |
-| `scripts/db-backup/README.md` | The runbook: key, secrets, first run, drill, real restore. |
+The job lives in a **private** repository you asked for:
+**[epgoodwinjr/sommeasy-backups](https://github.com/epgoodwinjr/sommeasy-backups)**.
+Nothing in this public repository backs anything up. The workflow only ever
+existed here on the PR branch, and scheduled workflows run only from the
+default branch, so it never ran here.
+
+| Where | File | Job |
+|---|---|---|
+| sommeasy-backups | `.github/workflows/db-backup.yml` | Mondays 07:17 UTC + Run workflow; installs pg_dump 17 (PostgreSQL's apt repo) and age; runs `./backup.sh`; uploads the one `.age` file for 90 days. Actions pinned to commit SHAs (checkout v7.0.1, upload-artifact v7.0.2); `contents: read`; no credentials persisted. |
+| sommeasy-backups | `backup.sh` | Writes `public-schema.sql`, `auth-schema.sql`, and `data.sql` (public and auth in one snapshot, all but `auth.schema_migrations`). Adds a manifest of rows per table counted from the dump itself, and versions. Then tar → gzip → age, to one or more recipients. Prints no rows or counts. |
+| sommeasy-backups | `.gitignore`, `README.md` | Never commit a backup, a dump or a key. The README points back here for the runbook. |
+| here | `scripts/db-backup/restore-drill.sh` | Decrypts and restores into a fresh **local** database, refusing a remote `PGHOST`. Checks rows per table against the manifest, foreign keys for orphans, RLS on every table that had it, every policy, `claim_pending_palate` still SECURITY DEFINER, and that the accounts are present. |
+| here | `scripts/db-backup/test/drill-test.sh` | End to end on a throwaway Postgres 17 cluster: migrations 001–014 over a stand-in auth schema, seeded rows, backup (`../sommeasy-backups/backup.sh`, or `BACKUP_SH`), the opacity check, drill, then every table, policy, function, trigger, view and grant compared. **Passes** with the moved script. |
+| here | `scripts/db-backup/README.md` | The runbook: key, the private repo's secrets, first run, drill, real restore. |
+
+The workflow is active in sommeasy-backups. Until the secrets are added, a
+scheduled run stops at "SUPABASE_DB_URL is not set" and touches nothing.
 
 ### The connection string
 
@@ -212,7 +231,7 @@ supports pg_dump. Both us-west-1 pooler hosts (`aws-0-…` and `aws-1-…`)
 resolve to IPv4. Copy the exact one from Supabase → Connect → Session
 pooler. Production is Postgres 17, so the workflow installs client 17.
 
-### Secrets to add (Settings → Secrets and variables → Actions)
+### Secrets to add — on sommeasy-backups (Settings → Secrets and variables → Actions)
 
 | Name | Value |
 |---|---|
@@ -247,6 +266,9 @@ the drill on its artifact, is the test of Supabase's real auth schema.
   (`NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=1 NEXT_PUBLIC_MAGIC_LINK_ENABLED=1`):
   **186 passed** (with setup), 5 env-gated skipped, 0 failed, 17.4 min.
   Run separately: auth-flows with the flags off, 25 of 25.
+- **After the move and the single consent line:** 37 unit suites green;
+  auth-flows + legal 30 of 30 with the flags on and 30 of 30 with them off;
+  the drill test passes with `backup.sh` from sommeasy-backups.
 - **Build:** `npm run build` is clean; the faces land in
   `.next/static/media`.
 
@@ -254,17 +276,15 @@ the drill on its artifact, is the test of Supabase's real auth schema.
 
 ## For your review
 
-1. **The repository is public.** Anyone signed in to GitHub can download
-   the backup artifact. It's age-encrypted (X25519 + ChaCha20-Poly1305), so
-   the ciphertext is safe, but it isn't private. If you want it private,
-   move `db-backup.yml` and `scripts/db-backup/` to a private repo. Nothing
-   in them depends on this one.
-2. **Create account shows the consent twice when Google is on**: above
-   Create account (the email path) and under Continue with Google. That's
-   what you asked for. I can drop either.
-3. **Google's line says "By continuing with Google…"** rather than "By
-   creating an account…", because on sign in it may be an existing account.
-   Same two facts, same links.
+1. **The backup lives in the private sommeasy-backups.** On the free
+   plan, a private repository gets 2,000 Actions minutes a month and 500 MB
+   of artifact storage. A run takes about two minutes; thirteen weekly
+   archives of today's database are a sliver of the storage.
+2. **The workflow is active there with no secrets.** Monday's scheduled run
+   fails harmlessly until you add them. Add them first, or expect one red
+   run.
+3. **Create account's one line** names Google only when the flag is on.
+   Sign in's line stays under Google, worded "By continuing with Google…".
 4. **Governing law only.** There's no venue, forum or arbitration clause.
    Tell me if you want courts named.
 5. **`LEGAL_EFFECTIVE` reads November 22, 2026** as a placeholder. Set it
@@ -294,7 +314,8 @@ the drill on its artifact, is the test of Supabase's real auth schema.
   - "Who we are" first, with the Effective · Last updated line.
   - Pennsylvania in the Terms; the Do Not Track line and the 90 days in
     the policy; no Google Fonts.
-- **With `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=1` on Preview:** the consent line
-  right under Continue with Google, on /login and on /signup.
+- **With `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=1` on Preview:**
+  - /login: the consent line right under Continue with Google.
+  - /signup: ONE line above Create account, naming Google.
 - **On a phone:** an anonymous quiz → create a throwaway account → confirm →
   the palate should be up in about two seconds.
