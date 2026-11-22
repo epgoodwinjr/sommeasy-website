@@ -1,5 +1,8 @@
 import { test, expect, Page, Route } from "@playwright/test";
 
+// Launch prep: Google sign-in goes on with this flag (the button renders only then)
+const GOOGLE_ON = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "1";
+
 /**
  * Auth flows — The Front Door (Session 1).
  *
@@ -289,16 +292,38 @@ test.describe("Auth — signed-out flows", () => {
     await expect(page.getByText("Your quiz answers come with you.")).toHaveCount(0);
   });
 
-  test("Google button stays hidden while the provider flag is off", async ({ page }) => {
+  test(`Google sign-in ${GOOGLE_ON ? "hands off to Supabase's Google flow (flag on)" : "stays hidden (flag off)"}`, async ({ page }) => {
     // A real user hit "provider is not enabled" twice — the button must not
-    // render unless NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=1.
-    await page.goto("/login");
-    await expect(page.locator('input[type="email"]')).toBeVisible();
-    await expect(page.getByText("Continue with Google")).toHaveCount(0);
-
+    // render unless NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=1 (launch: it goes on,
+    // once the provider is enabled in Supabase).
+    if (!GOOGLE_ON) {
+      await page.goto("/login");
+      await expect(page.locator('input[type="email"]')).toBeVisible();
+      await expect(page.getByText("Continue with Google")).toHaveCount(0);
+      await page.goto("/signup");
+      await expect(page.locator('input[type="email"]')).toBeVisible();
+      await expect(page.getByText("Continue with Google")).toHaveCount(0);
+      return;
+    }
     await page.goto("/signup");
-    await expect(page.locator('input[type="email"]')).toBeVisible();
-    await expect(page.getByText("Continue with Google")).toHaveCount(0);
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await expect(page.getByText("Continue with Google")).toBeVisible();
+
+    // Never reach Google: catch the hand-off at Supabase's authorize endpoint
+    let authorize: URL | null = null;
+    await page.route("**/auth/v1/authorize**", async (route) => {
+      authorize = new URL(route.request().url());
+      await route.fulfill({ status: 200, contentType: "text/html", body: "<p>google stand-in</p>" });
+    });
+    await page.goto("/login?next=%2Fjournal");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await page.getByText("Continue with Google").click();
+    await expect.poll(() => authorize?.searchParams.get("provider") ?? null, { timeout: 15_000 }).toBe("google");
+    // Back through our PKCE callback, the destination carried
+    const redirectTo = new URL(authorize!.searchParams.get("redirect_to")!);
+    expect(redirectTo.pathname).toBe("/api/auth/callback");
+    expect(redirectTo.searchParams.get("next")).toBe("/journal");
+    expect(authorize!.searchParams.get("code_challenge"), "PKCE").toBeTruthy();
   });
 });
 
