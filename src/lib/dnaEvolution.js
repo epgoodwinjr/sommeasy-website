@@ -707,100 +707,114 @@ export function bottleEvidence(wineName, rating) {
  * When a user saves quiz results, mark all quiz-selected items
  * with source='quiz' in dna_accumulation so they get the higher
  * demotion threshold.
+ *
+ * A HANDFUL OF REQUESTS, WHATEVER THE QUIZ SIZE (launch prep, Nov 2026). It
+ * used to read and write each item in turn — two sequential requests per
+ * item, ~88 round trips for a full quiz, ~15s on a phone with the home
+ * loading screen and the signed-in reveal waiting on it. Now: one read of
+ * the rows these items name, then at most two writes sent together (the
+ * rows that exist, the rows that don't). Row for row the result is what the
+ * loop wrote:
+ *  - a row already earned by ratings (promoted, source 'auto') is skipped —
+ *    the quiz agreeing with the palate doesn't turn earned DNA into founding
+ *    DNA, so the ✦ survives a refine;
+ *  - an existing row becomes source 'quiz', promoted, its display name and
+ *    mappable refreshed — its points and bottle count untouched (the upsert
+ *    names neither column, so ON CONFLICT DO UPDATE leaves them alone);
+ *  - a missing row is created at zero points, promoted, source 'quiz'. Its
+ *    write ignores a conflict, as the loop's insert failed alone on one: a
+ *    row that appears in between (a rating landing) keeps what it holds;
+ *  - an item listed twice (an estate filed under two regions) is one row
+ *    whose display name is the LAST listing's — the loop inserted it, then
+ *    updated it.
+ * `rows`, when given, are the user's accumulation rows as the caller just
+ * read them (saveQuizProfile reads once, before its write, for the merge,
+ * the reconcile and this) — then the writes are the only requests.
+ * A failed read or write throws (the caller logs it; the save has landed).
+ * quizSave.test.js holds it to the loop, row for row, over seeded states.
  */
-export async function syncQuizSelections(supabase, userId, quizAnswers) {
+export async function syncQuizSelections(supabase, userId, quizAnswers, rows = null) {
   const { countries, regions, estates, varietals } = quizAnswers;
 
-  const items = [];
+  const items = new Map(); // `${dimension}\u0000${value}` → item (last listing wins)
+  const add = (dimension, dimensionValue, displayName) =>
+    items.set(`${dimension}\u0000${dimensionValue}`, { dimension, dimensionValue, displayName });
 
   // Countries
   for (const countryId of (countries || [])) {
-    if (isValidDnaCountry(countryId)) {
-      items.push({
-        dimension: "country",
-        dimensionValue: countryId,
-        displayName: getCountryDisplayName(countryId),
-      });
-    }
+    if (isValidDnaCountry(countryId)) add("country", countryId, getCountryDisplayName(countryId));
   }
 
   // Regions
-  for (const [countryId, regionIds] of Object.entries(regions || {})) {
+  for (const regionIds of Object.values(regions || {})) {
     for (const regionId of regionIds) {
-      if (isValidDnaRegion(regionId)) {
-        items.push({
-          dimension: "region",
-          dimensionValue: regionId,
-          displayName: getRegionDisplayName(regionId),
-        });
-      }
+      if (isValidDnaRegion(regionId)) add("region", regionId, getRegionDisplayName(regionId));
     }
   }
 
   // Estates
   for (const [regionId, estateIds] of Object.entries(estates || {})) {
     for (const estateId of estateIds) {
-      // Find display name
-      const estateList = PRODUCERS[regionId] || [];
-      const estate = estateList.find(e => e.id === estateId);
-      if (estate) {
-        items.push({
-          dimension: "estate",
-          dimensionValue: estateId,
-          displayName: estate.name,
-        });
-      }
+      const estate = (PRODUCERS[regionId] || []).find((e) => e.id === estateId);
+      if (estate) add("estate", estateId, estate.name);
     }
   }
 
   // Varietals
   for (const varietalId of (varietals || [])) {
     if (isValidDnaVarietal(varietalId)) {
-      items.push({
-        dimension: "varietal",
-        dimensionValue: varietalId,
-        displayName: DNA_TO_VARIETY_NAME[varietalId] || varietalId,
-      });
+      add("varietal", varietalId, DNA_TO_VARIETY_NAME[varietalId] || varietalId);
     }
   }
 
-  // Upsert each quiz selection into dna_accumulation with source='quiz'
-  for (const item of items) {
-    const { data: existing } = await supabase
+  if (items.size === 0) return;
+
+  if (!rows) {
+    const values = [...new Set([...items.values()].map((i) => i.dimensionValue))];
+    const { data, error: readErr } = await supabase
       .from("dna_accumulation")
-      .select("id, source, promoted")
+      .select("dimension, dimension_value, source, promoted")
       .eq("user_id", userId)
-      .eq("dimension", item.dimension)
-      .eq("dimension_value", item.dimensionValue)
-      .single();
-
-    if (existing) {
-      // A row already earned by ratings keeps its provenance — the quiz
-      // agreeing with the palate doesn't turn earned DNA into founding DNA
-      if (existing.promoted && existing.source === "auto") continue;
-      // Only update source to quiz — don't reset points
-      await supabase.from("dna_accumulation").update({
-        source: "quiz",
-        promoted: true,
-        promoted_at: new Date().toISOString(),
-        display_name: item.displayName,
-        mappable: true,
-      }).eq("id", existing.id);
-    } else {
-      await supabase.from("dna_accumulation").insert({
-        user_id: userId,
-        dimension: item.dimension,
-        dimension_value: item.dimensionValue,
-        display_name: item.displayName,
-        points: 0,
-        interaction_count: 0,
-        promoted: true,
-        promoted_at: new Date().toISOString(),
-        source: "quiz",
-        mappable: true,
-      });
-    }
+      .in("dimension_value", values);
+    if (readErr) throw readErr;
+    rows = data || [];
   }
+
+  const existing = new Map(
+    rows.map((r) => [`${r.dimension}\u0000${r.dimension_value}`, r])
+  );
+  const now = new Date().toISOString();
+  const updates = [];
+  const inserts = [];
+  for (const [key, item] of items) {
+    const row = existing.get(key);
+    const base = {
+      user_id: userId,
+      dimension: item.dimension,
+      dimension_value: item.dimensionValue,
+      display_name: item.displayName,
+      promoted: true,
+      promoted_at: now,
+      source: "quiz",
+      mappable: true,
+    };
+    if (!row) inserts.push({ ...base, points: 0, interaction_count: 0 });
+    else if (!(row.promoted && row.source === "auto")) updates.push(base);
+  }
+
+  const onConflict = "user_id,dimension,dimension_value";
+  const writes = [];
+  if (updates.length) {
+    writes.push(supabase.from("dna_accumulation").upsert(updates, { onConflict }));
+  }
+  if (inserts.length) {
+    writes.push(
+      supabase.from("dna_accumulation").upsert(inserts, { onConflict, ignoreDuplicates: true })
+    );
+  }
+  const results = await Promise.all(writes);
+  const writeErr = results.find((r) => r?.error)?.error;
+  if (writeErr) throw writeErr;
 }
 
 
@@ -840,9 +854,10 @@ function collectDimensionValues(raw) {
  * @param {string} userId - Current user ID
  * @param {object} quizRaw - { countries, regions, estates, varietals, specificWines }
  * @param {object|null} initialRaw - the answers the refine was seeded with
+ * @param {object[]|null} rows - the user's accumulation rows, if already read
  * @returns {object} merged raw arrays, same shape as quizRaw
  */
-export async function mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialRaw = null) {
+export async function mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialRaw = null, rows = null) {
   const initial = initialRaw ? collectDimensionValues(initialRaw) : null;
   const final = collectDimensionValues(quizRaw);
   const explicitlyDeselected = (dimension, value) =>
@@ -857,13 +872,16 @@ export async function mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialR
   for (const [k, v] of Object.entries(quizRaw.regions || {})) merged.regions[k] = [...v];
   for (const [k, v] of Object.entries(quizRaw.estates || {})) merged.estates[k] = [...v];
 
-  const { data: earnedRows } = await supabase
-    .from("dna_accumulation")
-    .select("dimension, dimension_value")
-    .eq("user_id", userId)
-    .eq("promoted", true)
-    .eq("source", "auto")
-    .eq("mappable", true);
+  // `rows`: the user's accumulation rows, already read by the caller
+  const earnedRows = rows
+    ? rows.filter((r) => r.promoted === true && r.source === "auto" && r.mappable === true)
+    : (await supabase
+      .from("dna_accumulation")
+      .select("dimension, dimension_value")
+      .eq("user_id", userId)
+      .eq("promoted", true)
+      .eq("source", "auto")
+      .eq("mappable", true)).data;
 
   for (const row of earnedRows || []) {
     const value = row.dimension_value;
@@ -908,8 +926,15 @@ export async function mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialR
  * too — points survive (the bottles were real), so continued love re-promotes.
  *
  * Deliberate user edits, not rating evidence — so no dna_timeline events.
+ *
+ * One read and at most one write (launch prep, Nov 2026). It touches only
+ * rows OUTSIDE savedRaw, and syncQuizSelections only rows INSIDE the quiz
+ * answers (a subset of savedRaw — the merge only ever adds), so the two can
+ * run side by side. `rows`, when given, are the user's accumulation rows as
+ * the caller read them (then only the write is sent). A failed read or
+ * write throws; the caller logs it.
  */
-export async function reconcileQuizPromotions(supabase, userId, savedRaw) {
+export async function reconcileQuizPromotions(supabase, userId, savedRaw, rows = null) {
   const inDna = {
     country: new Set(savedRaw.countries || []),
     region: new Set(Object.values(savedRaw.regions || {}).flat()),
@@ -917,21 +942,28 @@ export async function reconcileQuizPromotions(supabase, userId, savedRaw) {
     varietal: new Set(savedRaw.varietals || []),
   };
 
-  const { data: promoted } = await supabase
-    .from("dna_accumulation")
-    .select("id, dimension, dimension_value")
-    .eq("user_id", userId)
-    .eq("promoted", true);
-
-  for (const row of promoted || []) {
-    const set = inDna[row.dimension];
-    if (set && !set.has(row.dimension_value)) {
-      await supabase.from("dna_accumulation").update({
-        promoted: false,
-        demoted_at: new Date().toISOString(),
-      }).eq("id", row.id);
-    }
+  let promoted;
+  if (rows) promoted = rows.filter((r) => r.promoted === true);
+  else {
+    const { data, error: readErr } = await supabase
+      .from("dna_accumulation")
+      .select("id, dimension, dimension_value")
+      .eq("user_id", userId)
+      .eq("promoted", true);
+    if (readErr) throw readErr;
+    promoted = data;
   }
+
+  // One write for every row that left the DNA (it was one write per row)
+  const stale = (promoted || [])
+    .filter((row) => inDna[row.dimension] && !inDna[row.dimension].has(row.dimension_value))
+    .map((row) => row.id);
+  if (stale.length === 0) return;
+  const { error: writeErr } = await supabase.from("dna_accumulation").update({
+    promoted: false,
+    demoted_at: new Date().toISOString(),
+  }).in("id", stale);
+  if (writeErr) throw writeErr;
 }
 
 

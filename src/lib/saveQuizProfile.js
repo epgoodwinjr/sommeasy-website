@@ -51,29 +51,44 @@ export async function saveQuizProfile(
       // Fix casing at the source ("Meerlust rubicon" → "Meerlust Rubicon")
       specificWines: (rawAnswers.specificWines || []).map(formatWineName),
     };
-    const merged = mode === "refine"
-      ? await mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialRaw)
-      : quizRaw;
-    const finalProfile = generateDNAProfile(merged);
-
     // Milestone continuity (Act III S3): a quiz save IS a recompose, so it
     // resets the every-5th baseline to the live rated count — while the
     // first-time-firsts flags survive VERBATIM (they fire once per account;
     // a refine must never re-arm them). Quiz saves stay silent by
     // construction: nothing here writes a timeline event.
-    let milestones = { ratedCountAtLastRecompose: 0, firsts: {} };
-    try {
-      const [{ data: existing }, ratedCount] = await Promise.all([
-        supabase.from("wine_profiles").select("identity").eq("user_id", userId).single(),
-        countRatedBottles(supabase, userId),
-      ]);
-      milestones = {
-        ratedCountAtLastRecompose: ratedCount,
-        firsts: existing?.identity?.milestones?.firsts || {},
-      };
-    } catch (msErr) {
-      console.error("Milestone continuity read failed (non-blocking):", msErr);
-    }
+    const readMilestones = async () => {
+      try {
+        const [{ data: existing }, ratedCount] = await Promise.all([
+          supabase.from("wine_profiles").select("identity").eq("user_id", userId).single(),
+          countRatedBottles(supabase, userId),
+        ]);
+        return {
+          ratedCountAtLastRecompose: ratedCount,
+          firsts: existing?.identity?.milestones?.firsts || {},
+        };
+      } catch (msErr) {
+        console.error("Milestone continuity read failed (non-blocking):", msErr);
+        return { ratedCountAtLastRecompose: 0, firsts: {} };
+      }
+    };
+    // ONE read of the user's accumulation rows serves the merge, the
+    // reconcile and the sync; it goes out beside the milestone reads. Every
+    // round trip is ~150ms on a phone, and home's loading view (and the
+    // signed-in reveal) waits on all of them. If the read fails, each step
+    // reads for itself, as before.
+    const readAccumulation = async () => {
+      const { data, error } = await supabase
+        .from("dna_accumulation")
+        .select("id, dimension, dimension_value, source, promoted, mappable")
+        .eq("user_id", userId);
+      if (error) { console.error("Accumulation read failed (each step reads again):", error); return null; }
+      return data || [];
+    };
+    const [accRows, milestones] = await Promise.all([readAccumulation(), readMilestones()]);
+    const merged = mode === "refine"
+      ? await mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialRaw, accRows)
+      : quizRaw;
+    const finalProfile = generateDNAProfile(merged);
 
     const { data: savedRow, error } = await supabase.from("wine_profiles").upsert({
       user_id: userId,
@@ -99,8 +114,21 @@ export async function saveQuizProfile(
     }, { onConflict: "user_id" }).select().single();
     if (error || !savedRow) { console.error("Save error:", error || "no row returned"); return null; }
 
-    // The save has landed. A caller's gate decides whether this save is the
-    // one the ledger records (a throwing gate records nothing — never two)
+    // The save has landed. Un-flag promoted accumulation rows no longer in
+    // the DNA, and mark the declared selections as founding (earned rows keep
+    // provenance). The two touch disjoint rows — reconcile only rows outside
+    // `merged`, sync only rows inside `quizRaw` ⊆ merged — so they go out
+    // side by side, and beside the caller's gate below: their writes are
+    // the only requests left (the rows were read above). A handful of
+    // requests whatever the quiz size; it was two per quiz item, in turn.
+    // Each failure is logged on its own.
+    const accumulation = Promise.allSettled([
+      reconcileQuizPromotions(supabase, userId, merged, accRows),
+      syncQuizSelections(supabase, userId, quizRaw, accRows),
+    ]);
+
+    // A caller's gate decides whether this save is the one the ledger
+    // records (a throwing gate records nothing — never two)
     const event = {
       payload: quizEventPayload({ mode: eventMode || mode, raw: merged, title: finalProfile.archetype }),
       occurredAt: toOccurredAtISO(occurredAt),
@@ -118,14 +146,9 @@ export async function saveQuizProfile(
       );
     }
 
-    try {
-      // Un-flag promoted accumulation rows no longer in the DNA, then mark
-      // the declared selections as founding (earned rows keep provenance)
-      await reconcileQuizPromotions(supabase, userId, merged);
-      await syncQuizSelections(supabase, userId, quizRaw);
-    } catch (syncErr) {
-      console.error("Quiz sync error (non-blocking):", syncErr);
-    }
+    const [reconciled, synced] = await accumulation;
+    if (reconciled.status === "rejected") console.error("Quiz reconcile error (non-blocking):", reconciled.reason);
+    if (synced.status === "rejected") console.error("Quiz sync error (non-blocking):", synced.reason);
 
     // The row the write returned: the steps above touch accumulation rows,
     // never the profile, so a re-read could only fail, never differ
