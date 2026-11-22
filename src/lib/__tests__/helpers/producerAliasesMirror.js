@@ -1,8 +1,37 @@
-// MIRROR of src/lib/producerAliases.js for the CJS mirror sections of
+// MIRROR of src/lib/producerAliases.js (foldInitials, includesWord, the
+// alias table, the producer twins, the short-name guard) for the CJS mirror sections of
 // countryAttribution.test.js and dnaEvolution.test.js, which build their
 // indexes synchronously at load. countryAttribution's real-module section
 // asserts this mirror and the real module build the identical alias table
 // and short-name guard over all of wineUnified.json — change one, change both.
+
+// Initials in one spelling ("g.d."/"g. d."/"g d"/"gd" -> "gd"); a lone
+// letter with no dot is a word. Punctuation may end a run ("s.l.,")
+const INITIALS = /^((?:\p{L}\.)+\p{L}?|\p{L})([,;:)\]]*)$/u;
+function foldInitials(text) {
+  const parts = String(text).split(/(\s+)/);
+  let out = "";
+  for (let i = 0; i < parts.length;) {
+    let j = i, letters = "", tail = "", dotted = false;
+    for (let m; j < parts.length && !tail && (m = INITIALS.exec(parts[j])); j += 2) {
+      letters += m[1].replace(/\./g, "");
+      if (m[1].includes(".")) dotted = true;
+      tail = m[2];
+    }
+    if (j > i && (dotted || letters.length > 1)) { out += letters + tail + (parts[j - 1] ?? ""); i = j; }
+    else { out += parts[i] + (parts[i + 1] ?? ""); i += 2; }
+  }
+  return out;
+}
+
+// A term as words: no letter or digit touching either end
+function includesWord(text, term) {
+  if (!term) return false;
+  for (let at = text.indexOf(term); at >= 0; at = text.indexOf(term, at + 1)) {
+    if (!/[\p{L}\p{N}]/u.test(text[at - 1] || "") && !/[\p{L}\p{N}]/u.test(text[at + term.length] || "")) return true;
+  }
+  return false;
+}
 
 const LEADING_DESIGNATORS = new Set([
   "château", "chateau", "châteaux", "chateaux", "domaine", "domaines",
@@ -54,10 +83,11 @@ function placeAndGrapeNames({ regionLookup, regions, countries, varietals, varie
 function buildCoreNameAliases(data) {
   const producerNames = Object.keys(data.producerLookup);
   const placeAndGrapeTerms = placeAndGrapeNames(data);
+  const folded = new Map(producerNames.map((name) => [name, foldInitials(name)]));
 
   const owners = new Map();
   for (const name of producerNames) {
-    const core = producerCoreName(name);
+    const core = producerCoreName(folded.get(name));
     if (!core) continue;
     const key = words(core).join(" ");
     const entry = owners.get(key) || { core, names: new Set() };
@@ -67,7 +97,7 @@ function buildCoreNameAliases(data) {
 
   const ambiguous = new Set();
   for (const name of producerNames) {
-    eachWordRun(name, (run) => {
+    eachWordRun(folded.get(name), (run) => {
       const entry = owners.get(run);
       if (entry && !entry.names.has(name)) ambiguous.add(run);
     });
@@ -82,6 +112,34 @@ function buildCoreNameAliases(data) {
     aliases.set(entry.core, entry.names.values().next().value);
   }
   return aliases;
+}
+
+// One winery keyed twice: same name once initials fold and designators
+// (and "family") go, same region, each with its own estate -> the twin with
+// more reviews (then the longer name) is canonical
+const TWIN_DESIGNATORS = new Set([...TRAILING_DESIGNATORS, "family"]);
+function buildProducerTwins(data) {
+  const estateOf = (key) => {
+    const p = data.producerLookup[key];
+    return (data.producers[p.regionId] || []).find((e) => e.id === p.producerId) || null;
+  };
+  const plain = (key) => words(foldInitials(key)).join(" ");
+  const byPlain = new Map();
+  for (const key of Object.keys(data.producerLookup)) byPlain.set(plain(key), key);
+  const twins = new Map();
+  for (const key of Object.keys(data.producerLookup)) {
+    const w = plain(key).split(" ");
+    while (w.length > 1 && TWIN_DESIGNATORS.has(w[w.length - 1])) w.pop();
+    const other = byPlain.get(w.join(" "));
+    if (!other || other === key) continue;
+    const a = data.producerLookup[key], b = data.producerLookup[other];
+    const ea = estateOf(key), eb = estateOf(other);
+    if (a.regionId !== b.regionId || !ea || !eb || ea.id === eb.id) continue;
+    const keyWins = (ea.reviewCount || 0) > (eb.reviewCount || 0)
+      || ((ea.reviewCount || 0) === (eb.reviewCount || 0) && key.length > other.length);
+    if (keyWins) twins.set(other, key); else twins.set(key, other);
+  }
+  return twins;
 }
 
 const ARTICLES = new Set(["la", "le", "les", "el", "los", "las", "il", "lo"]);
@@ -100,4 +158,4 @@ function buildShortNameGuard(data, norm) {
   };
 }
 
-module.exports = { producerCoreName, buildCoreNameAliases, buildShortNameGuard };
+module.exports = { producerCoreName, buildCoreNameAliases, buildShortNameGuard, buildProducerTwins, foldInitials, includesWord };

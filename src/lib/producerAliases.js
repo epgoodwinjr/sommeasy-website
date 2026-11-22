@@ -13,6 +13,63 @@
 // matched Newton Johnson only because its normalize() happens to strip
 // "vineyards"; the engine never did). Dependency-free, so tests import it.
 
+// ─── Initials ───
+//
+// WineMag writes a producer's initials one way ("G D Vajra", "A.A.
+// Badenhorst", "E. Guigal") and lists write them every way: "G.D.", "G. D.",
+// "GD", "G D". One spelling for all of them: a run of initials becomes its
+// letters, run together — "g.d. vajra", "g. d. vajra", "g d vajra" and "gd
+// vajra" are all "gd vajra"; "e. guigal" and "e guigal" are "e guigal".
+// An initial is a letter with a dot ("g.", "a.a."), or a lone letter in a run
+// of two or more ("g d"). A lone letter with no dot is a word ("Badia a
+// Coltibuono", "Isole e Olena", "Concha y Toro") and is left alone.
+// Both engines fold the producer names they index AND the text they search,
+// so every spelling meets every other.
+// A run may end on punctuation ("Dios Baco S.L., Andalucía"), which stays
+const INITIALS = /^((?:\p{L}\.)+\p{L}?|\p{L})([,;:)\]]*)$/u;
+
+export function foldInitials(text) {
+  const parts = String(text).split(/(\s+)/);  // words at even indexes, spaces between
+  let out = "";
+  for (let i = 0; i < parts.length;) {
+    let j = i;
+    let letters = "";
+    let tail = "";
+    let dotted = false;
+    for (let m; j < parts.length && !tail && (m = INITIALS.exec(parts[j])); j += 2) {
+      letters += m[1].replace(/\./g, "");
+      if (m[1].includes(".")) dotted = true;
+      tail = m[2];
+    }
+    if (j > i && (dotted || letters.length > 1)) {
+      out += letters + tail + (parts[j - 1] ?? "");
+      i = j;
+    } else {
+      out += parts[i] + (parts[i + 1] ?? "");
+      i += 2;
+    }
+  }
+  return out;
+}
+
+// ─── Words ───
+
+/**
+ * Whether `term` occurs in `text` as words: no letter or digit touching
+ * either end of it. "baden" is not in "badenhorst", "port" not in
+ * "portugal", "napa" not in "anapamu", "asti" not in "sebastiani". Hyphens
+ * and apostrophes bound a word ("crozes-hermitage" states "hermitage",
+ * "barbera d'asti" states "asti"), as they do in matchEngine's
+ * termMatchesInText. Both texts in one spelling (the caller's).
+ */
+export function includesWord(text, term) {
+  if (!term) return false;
+  for (let at = text.indexOf(term); at >= 0; at = text.indexOf(term, at + 1)) {
+    if (!/[\p{L}\p{N}]/u.test(text[at - 1] || "") && !/[\p{L}\p{N}]/u.test(text[at + term.length] || "")) return true;
+  }
+  return false;
+}
+
 // Generic designators: the resolver's normalize() vocabulary minus "cuvee"
 // (it names a wine, not a winery), plus the plurals its \b regex misses
 // and "finca"
@@ -89,10 +146,12 @@ function placeAndGrapeNames({ regionLookup, regions, countries, varietals, varie
 export function buildCoreNameAliases(data) {
   const producerNames = Object.keys(data.producerLookup);
   const placeAndGrapeTerms = placeAndGrapeNames(data);
+  // Cores in the one spelling of initials both engines search in
+  const folded = new Map(producerNames.map((name) => [name, foldInitials(name)]));
 
   const owners = new Map();   // core phrase (as words) -> { core, names }
   for (const name of producerNames) {
-    const core = producerCoreName(name);
+    const core = producerCoreName(folded.get(name));
     if (!core) continue;
     const key = words(core).join(" ");
     const entry = owners.get(key) || { core, names: new Set() };
@@ -102,7 +161,7 @@ export function buildCoreNameAliases(data) {
 
   const ambiguous = new Set();
   for (const name of producerNames) {
-    eachWordRun(name, (run) => {
+    eachWordRun(folded.get(name), (run) => {
       const entry = owners.get(run);
       if (entry && !entry.names.has(name)) ambiguous.add(run);
     });
@@ -117,6 +176,43 @@ export function buildCoreNameAliases(data) {
     aliases.set(entry.core, entry.names.values().next().value);
   }
   return aliases;
+}
+
+/**
+ * One winery the data keys twice: two producerLookup keys that are the same
+ * name once initials are folded and designators set aside ("AA Badenhorst"
+ * and "A.A. Badenhorst Family Wines"), in the same region, EACH with an
+ * estate of its own. Split, a diner's bottles of that winery count toward
+ * two estates and neither promotes. Returns key -> canonical key for the
+ * twin that gives way: the canonical is the one with more reviews (then the
+ * longer name). A twin pair with ONE estate between them is not merged here
+ * — nothing is split, and which name a list writes decides the estate.
+ */
+const TWIN_DESIGNATORS = new Set([...TRAILING_DESIGNATORS, "family"]);
+
+export function buildProducerTwins(data) {
+  const estateOf = (key) => {
+    const p = data.producerLookup[key];
+    return (data.producers[p.regionId] || []).find((e) => e.id === p.producerId) || null;
+  };
+  const plain = (key) => words(foldInitials(key)).join(" ");
+  const byPlain = new Map();
+  for (const key of Object.keys(data.producerLookup)) byPlain.set(plain(key), key);
+
+  const twins = new Map();
+  for (const key of Object.keys(data.producerLookup)) {
+    const w = plain(key).split(" ");
+    while (w.length > 1 && TWIN_DESIGNATORS.has(w[w.length - 1])) w.pop();
+    const other = byPlain.get(w.join(" "));
+    if (!other || other === key) continue;
+    const a = data.producerLookup[key], b = data.producerLookup[other];
+    const ea = estateOf(key), eb = estateOf(other);
+    if (a.regionId !== b.regionId || !ea || !eb || ea.id === eb.id) continue;
+    const keyWins = (ea.reviewCount || 0) > (eb.reviewCount || 0)
+      || ((ea.reviewCount || 0) === (eb.reviewCount || 0) && key.length > other.length);
+    if (keyWins) twins.set(other, key); else twins.set(key, other);
+  }
+  return twins;
 }
 
 const ARTICLES = new Set(["la", "le", "les", "el", "los", "las", "il", "lo"]);

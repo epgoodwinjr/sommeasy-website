@@ -136,15 +136,18 @@ function buildSearchIndex() {
   }
   idx.regionTerms.sort((a, b) => b.term.length - a.term.length);
 
-  for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
-    if (name.length < 3) continue;
-    idx.producerTerms.push({ term: name.toLowerCase(), name, dnaCountryId: data.country || null });
+  // Terms in the one spelling of initials; a twin answers as its canonical
+  const twins = aliasMirror.buildProducerTwins(wineUnified);
+  for (const [key, data] of Object.entries(PRODUCER_LOOKUP)) {
+    if (key.length < 3) continue;
+    const name = twins.get(key) || key;
+    idx.producerTerms.push({ term: aliasMirror.foldInitials(key.toLowerCase()), name, dnaCountryId: data.country || null });
     const variants = [];
-    if (name.includes(" et ")) variants.push(name.replace(/ et /g, " & "));
-    if (name.includes(" and ")) variants.push(name.replace(/ and /g, " & "));
-    if (name.includes(" & ")) variants.push(name.replace(/ & /g, " et "), name.replace(/ & /g, " and "));
+    if (key.includes(" et ")) variants.push(key.replace(/ et /g, " & "));
+    if (key.includes(" and ")) variants.push(key.replace(/ and /g, " & "));
+    if (key.includes(" & ")) variants.push(key.replace(/ & /g, " et "), key.replace(/ & /g, " and "));
     for (const v of variants) {
-      idx.producerTerms.push({ term: v.toLowerCase(), name, dnaCountryId: data.country || null });
+      idx.producerTerms.push({ term: aliasMirror.foldInitials(v.toLowerCase()), name, dnaCountryId: data.country || null });
     }
   }
 
@@ -197,8 +200,8 @@ function buildSearchIndex() {
     v.fold = foldText(v.term);
     if (v.fold !== v.term && ACCENT_ONLY_IN_NAMES.has(v.fold)) v.accentOnlyInNames = true;
   }
-  for (const [core, name] of aliasMirror.buildCoreNameAliases(wineUnified)) {
-    idx.producerTerms.push({ term: core, name, dnaCountryId: PRODUCER_LOOKUP[name].country || null, alias: true });
+  for (const [core, key] of aliasMirror.buildCoreNameAliases(wineUnified)) {
+    idx.producerTerms.push({ term: core, name: twins.get(key) || key, dnaCountryId: PRODUCER_LOOKUP[key].country || null, alias: true });
   }
   idx.producerTerms.sort((a, b) => b.term.length - a.term.length);
   return idx;
@@ -220,9 +223,10 @@ function detectWineAttributes(wineName) {
   const claimed = new Set();
 
   let producer = null;
+  const rawInitials = aliasMirror.foldInitials(raw);
   for (const prod of SEARCH_INDEX.producerTerms) {
     if (prod.term.length < 4) continue;
-    if (termMatchesInText(prod.term, raw, prod.alias)) {
+    if (termMatchesInText(prod.term, rawInitials, prod.alias)) {
       producer = prod;
       claimed.add(foldText(prod.term));
       break;
@@ -257,7 +261,7 @@ function detectWineAttributes(wineName) {
   // producer; a region name two countries share agrees with either
   if (producer && producer.dnaCountryId) {
     const ownName = foldText(producer.term);
-    const stated = [region, statedCountry].filter(g => g && g.dnaCountryId && !ownName.includes(g.fold));
+    const stated = [region, statedCountry].filter(g => g && g.dnaCountryId && !aliasMirror.includesWord(ownName, g.fold));
     const agrees = g => g.dnaCountryId === producer.dnaCountryId || (g.sharedWith || []).includes(producer.dnaCountryId);
     if (stated.length > 0 && !stated.some(agrees)) producer = null;
   }
@@ -300,9 +304,10 @@ function normalize(text, keepDesignators = false) {
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[''`]/g, "'")
     .replace(/\b(19|20)\d{2}\b/g, "");
-  return (keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
+  // Initials in one spelling (producerAliases.foldInitials)
+  return aliasMirror.foldInitials((keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
     .replace(/[^a-z0-9\s'.-]/g, " ")
-    .replace(/\s+/g, " ").trim();
+    .replace(/\s+/g, " ").trim());
 }
 function tokenize(text) { return normalize(text).split(/\s+/).filter(t => t.length >= 2); }
 
@@ -345,7 +350,17 @@ for (const [regionId, estates] of Object.entries(ESTATES)) {
   for (const [core, key] of aliasMirror.buildCoreNameAliases(wineUnified)) {
     const norm = normalize(core);
     if (norms.has(norm) || !norm.includes(" ") || !byLookupKey.has(key)) continue;
-    producerIndex.push({ ...byLookupKey.get(key), norm, alias: true });
+    producerIndex.push({ ...byLookupKey.get(key), norm, alias: true, lookupKey: key });
+  }
+}
+// One winery keyed twice resolves as its canonical twin
+for (const [key, canonical] of aliasMirror.buildProducerTwins(wineUnified)) {
+  const from = { ...byLookupKey.get(canonical), dnaEstateId: PRODUCER_LOOKUP[canonical].producerId };
+  for (const entry of producerIndex) {
+    if (entry === byLookupKey.get(key) || entry === byLookupKey.get(canonical)
+        || (entry.alias && (entry.lookupKey === key || entry.lookupKey === canonical))) {
+      for (const f of ["name", "dnaCountryId", "dnaRegionId"]) entry[f] = from[f];
+    }
   }
 }
 producerIndex.sort((a, b) => b.norm.length - a.norm.length);
@@ -379,6 +394,8 @@ function tokenOverlap(inputTokens, candidateTokens, placeWords) {
 // A name the line writes only inside longer region names it states is the
 // region's word ("Alexander" in "Alexander Valley")
 function namedOnlyInRegions(normInput, prod, statedRegions) {
+  // Letters, not words: "Santa Cruz Mountain" (Vineyard) is the region's own
+  // in "Santa Cruz Mountains" — this only ever withholds a producer
   const around = statedRegions.filter(t => t !== prod.norm && t.includes(prod.norm));
   if (around.length === 0) return false;
   const rest = around.reduce((text, t) => text.split(t).join(" "), normInput);
@@ -692,6 +709,15 @@ test("Resolver: a place-named producer still matches its own full name", () => {
 test("Resolver: a name inside the region the line states yields to it ('Alexander' in 'Alexander Valley')", () => {
   const m = matchProducer("Jordan Cabernet Sauvignon, Alexander Valley 2018");
   assert(m && m.producer.name === "jordan", `matched: ${m && m.producer.name}`);
+});
+
+test("Mirrors: initials in any spelling name the producer in both engines ('G.D. Vajra')", () => {
+  for (const line of ["G.D. Vajra Langhe Rosso", "GD Vajra Langhe Rosso", "G. D. Vajra Langhe Rosso"]) {
+    const m = matchProducer(line);
+    assert(m && m.producer.name === "g d vajra", `resolver mirror ${line}: ${m && m.producer.name}`);
+    assert(detectedProducer(line) === "g d vajra", `engine mirror ${line}: ${detectedProducer(line)}`);
+  }
+  assert(detectedProducer("AA Badenhorst Secateurs Chenin Blanc") === "a.a. badenhorst family wines", "engine mirror twin");
 });
 
 test("Resolver: a token match made only of the line's region words names no producer ('Mendoza')", () => {
@@ -1169,6 +1195,158 @@ async function realModuleTests() {
     // …and the note gives way to the next reason rather than say the key
     const note = pickNote({ reasons: ["estate", "varietal"], producer: name("10 knots", null), grape: "Pinotage" });
     assert(note === "Pinotage — a grape already in your DNA.", `note: ${note}`);
+  });
+
+  // Nov 22, 2026 — producers written with initials, and places inside words.
+  // Nicola's "G.D. Vajra Langhe Rosso" sat at confidence 40 (no producer:
+  // wineUnified spells it "G D Vajra"); "A.A. Badenhorst Secateurs" read
+  // Germany's Baden out of "Badenhorst" at 60, which earns partial credit.
+  console.log("\n═══ Country Attribution — REAL: initials, twins and places as words ═══");
+
+  const VAJRA = ["G.D. Vajra Langhe Rosso", "G. D. Vajra Langhe Rosso", "G D Vajra Langhe Rosso", "GD Vajra Langhe Rosso"];
+  const photoOf = (name, producer) => engine.matchWinesAgainstDNA([{ name, price: 40,
+    visionData: { producer, region: null, country: null, variety: null, color: null } }], NO_DNA, null).scoredEntries[0];
+
+  test("Mirror lock: the CJS mirror folds initials, matches words and pairs twins as the real module does", () => {
+    const samples = [...Object.keys(PRODUCER_LOOKUP), ...Object.keys(REGION_LOOKUP), ...VAJRA.map((l) => l.toLowerCase()),
+      " bodegas dios baco s.l., jerez ", "g.d., vajra", "a, b c", "  two  spaces "];
+    for (const t of samples) {
+      assert(realAliases.foldInitials(t) === aliasMirror.foldInitials(t), `"${t}": real ${realAliases.foldInitials(t)}, mirror ${aliasMirror.foldInitials(t)}`);
+    }
+    for (const [text, term] of [["a.a. badenhorst", "baden"], ["crozes-hermitage", "hermitage"], ["barbera d'asti", "asti"], ["sebastiani", "asti"], ["santa cruz mountains", "santa cruz mountain"]]) {
+      assert(realAliases.includesWord(text, term) === aliasMirror.includesWord(text, term), `includesWord("${text}", "${term}")`);
+    }
+    const real = [...realAliases.buildProducerTwins(wineUnified)].sort().join("|");
+    const mirror = [...aliasMirror.buildProducerTwins(wineUnified)].sort().join("|");
+    assert(real === mirror, `twins: real ${real}, mirror ${mirror}`);
+  });
+
+  test("Initials: every spelling folds to one ('G.D.', 'G. D.', 'G D', 'GD'); a dot makes one letter an initial; a lone letter is a word", () => {
+    const fold = realAliases.foldInitials;
+    for (const t of ["g.d. vajra", "g. d. vajra", "g d vajra", "gd vajra"]) assert(fold(t) === "gd vajra", `"${t}" -> "${fold(t)}"`);
+    assert(fold("e. guigal") === "e guigal" && fold("e guigal") === "e guigal", `e.: ${fold("e. guigal")}`);
+    for (const t of ["badia a coltibuono", "isole e olena", "concha y toro", "plan b"]) assert(fold(t) === t, `"${t}" -> "${fold(t)}"`);
+    assert(fold(" bodegas dios baco s.l., jerez ") === " bodegas dios baco sl, jerez ", `tail: "${fold(" bodegas dios baco s.l., jerez ")}"`);
+  });
+
+  test("Real resolveWine: Nicola's 'G.D. Vajra Langhe Rosso' is G D Vajra in every spelling of the initials", () => {
+    for (const line of VAJRA) {
+      const r = resolveWine(line);
+      assert(r.winery === "G D Vajra", `${line}: winery ${r.winery}`);
+      assert(r.dnaMapping.dnaEstateId === "g_d_vajra" && r.dnaMapping.dnaCountryId === "italy" && r.dnaMapping.dnaRegionId === "piedmont",
+        `${line}: ${JSON.stringify(r.dnaMapping)}`);
+      assert(r.confidence >= 80, `${line}: confidence ${r.confidence}`);
+    }
+  });
+
+  test("Real engine: G D Vajra in every spelling, pasted and photographed", () => {
+    for (const line of VAJRA) {
+      assert(scoreLine(line).detectedProducer === "g d vajra", `pasted ${line}: ${scoreLine(line).detectedProducer}`);
+      const producer = line.replace(" Langhe Rosso", "");
+      assert(photoOf(line, producer).detectedProducer === "g d vajra", `photo ${producer}: ${photoOf(line, producer).detectedProducer}`);
+    }
+  });
+
+  test("Real engine and resolver: one initial with or without its dot ('E Guigal' is E. Guigal)", () => {
+    const r = resolveWine("E Guigal Côtes du Rhône");
+    assert(r.dnaMapping && r.dnaMapping.dnaEstateId === "e_guigal" && r.confidence >= 80, `resolver: ${r.winery} @${r.confidence}`);
+    assert(scoreLine("E Guigal Côtes du Rhône").detectedProducer === "e. guigal", `engine: ${scoreLine("E Guigal Côtes du Rhône").detectedProducer}`);
+  });
+
+  test("Real engine: initials followed by a comma still fold ('Dios Baco S.L., Jerez')", () => {
+    const s = scoreLine("Bodegas Dios Baco S.L., Jerez");
+    assert(s.detectedProducer === "bodegas dios baco s.l.", `producer: ${s.detectedProducer}`);
+  });
+
+  test("Producer twins: exactly the six wineries the data keys twice, each with an estate in one region", () => {
+    // Measured Nov 22, 2026 over all of wineUnified. A pair with ONE estate
+    // between them ("Hamilton Russell" / "Hamilton Russell Vineyards") is not
+    // a twin; nor are namesakes in two regions (Neil Ellis, Painted Wolf) or
+    // two countries (Santa Barbara)
+    const twins = Object.fromEntries(realAliases.buildProducerTwins(wineUnified));
+    const expected = {
+      "aa badenhorst": "a.a. badenhorst family wines", "cedarville": "cedarville vineyard", "chalone": "chalone vineyard",
+      "chatom": "chatom vineyards", "clendenen family": "clendenen", "forrest estate": "forrest",
+    };
+    assert(JSON.stringify(Object.entries(twins).sort()) === JSON.stringify(Object.entries(expected).sort()), `twins: ${JSON.stringify(twins)}`);
+  });
+
+  test("Real resolveWine and engine: both names of a twin are one winery with one estate", () => {
+    const pairs = [
+      ["A.A. Badenhorst Secateurs Chenin Blanc", "AA Badenhorst Secateurs Chenin Blanc", "a_a_badenhorst_family_wines", "a.a. badenhorst family wines"],
+      ["Chalone Chardonnay", "Chalone Vineyard Chardonnay", "chalone_vineyard", "chalone vineyard"],
+      ["Forrest Estate Sauvignon Blanc, Marlborough", "Forrest Sauvignon Blanc, Marlborough", "forrest", "forrest"],
+    ];
+    for (const [a, b, estate, key] of pairs) {
+      for (const line of [a, b]) {
+        const r = resolveWine(line);
+        assert(r.dnaMapping.dnaEstateId === estate && r.confidence >= 80, `resolver ${line}: ${r.dnaMapping.dnaEstateId} @${r.confidence}`);
+        const s = scoreLine(line);
+        assert(s.detectedProducer === key && s.detectedProducerId === estate, `engine ${line}: ${s.detectedProducer} / ${s.detectedProducerId}`);
+      }
+    }
+    // A photo's producer field that IS the twin's key takes the canonical too
+    const photo = photoOf("AA Badenhorst Secateurs", "aa badenhorst");
+    assert(photo.detectedProducer === "a.a. badenhorst family wines" && photo.detectedProducerId === "a_a_badenhorst_family_wines",
+      `photo exact key: ${photo.detectedProducer} / ${photo.detectedProducerId}`);
+  });
+
+  test("Real resolveWine: a producer with initials, or a twin, keeps the data's own spelling ('A.A.', never 'A.a.')", () => {
+    // resolved_winery is what the wine page prints. First-letter title case
+    // wrote "A.a. Badenhorst Family Wines", "Bodegas Dios Baco S.l.", "D.r.
+    // Stephens" — 24 of the 94 such names on Nov 22, 2026
+    const r = resolveWine("A.A. Badenhorst Secateurs Chenin Blanc");
+    assert(r.winery === "A.A. Badenhorst Family Wines", `winery: ${r.winery}`);
+    const twins = realAliases.buildProducerTwins(wineUnified);
+    const keys = new Set([...Object.keys(PRODUCER_LOOKUP).filter((k) => realAliases.foldInitials(k) !== k), ...twins.keys(), ...twins.values()]);
+    const estateName = (key) => {
+      const p = PRODUCER_LOOKUP[key];
+      const byId = (e) => e.id === p.producerId;
+      const e = (ESTATES[p.regionId] || []).find(byId) || Object.values(ESTATES).flat().find(byId);
+      return e ? e.name.trim() : null;
+    };
+    let withEstate = 0;
+    for (const key of keys) {
+      const winery = resolveWine(key).winery;
+      const own = estateName(twins.get(key) || key);
+      if (own) { withEstate++; assert(winery === own, `${key}: "${winery}", the data spells it "${own}"`); }
+      else assert(winery && !/\p{Lu}\.\p{Ll}/u.test(winery), `${key}: "${winery}" — an initial left lowercase`);
+    }
+    assert(keys.size > 90 && withEstate > 40, `a real sample: ${keys.size} names, ${withEstate} with an estate`);
+    assert(resolveWine("B.R. Cohn Cabernet").winery === "B.R. Cohn", `no estate: ${resolveWine("B.R. Cohn Cabernet").winery}`);
+  });
+
+  test("Real resolveWine: a region is stated as words ('Badenhorst' is not Baden; 'Badenhorst Chenin' earns nothing)", () => {
+    const r = resolveWine("Badenhorst Chenin Blanc");
+    assert(r.region !== "baden" && r.dnaMapping.dnaCountryId !== "germany", `region: ${r.region} / ${r.dnaMapping.dnaCountryId}`);
+    assert(r.confidence < 60, `confidence: ${r.confidence} — a grape alone earns no credit`);
+    const a = resolveWine("A.A. Badenhorst Secateurs Chenin Blanc");
+    assert(a.dnaMapping.dnaCountryId === "south_africa" && a.dnaMapping.dnaRegionId === "swartland", `Secateurs: ${JSON.stringify(a.dnaMapping)}`);
+  });
+
+  test("Real resolveWine: a grape is named as words ('Montrose' is no rosé, 'Barberani' no Barbera)", () => {
+    const montrose = resolveWine("Château Montrose, Saint-Estèphe");
+    assert(montrose.varietal === null && montrose.dnaMapping.dnaVarietalId == null, `Montrose: ${montrose.varietal}`);
+    const barberani = resolveWine("Barberani Orvieto Classico");
+    assert(barberani.varietal === null, `Barberani: ${barberani.varietal}`);
+  });
+
+  test("Real resolveWine: a place inside the producer's name is the name only as words ('Asti' is not in 'Sebastiani')", () => {
+    // Sebastiani is Sonoma; the line states Asti outright. "asti" inside
+    // "Sebastiani" used to hide the stated region, and the bottle went to
+    // California at 90
+    const r = resolveWine("Sebastiani Moscato, Asti");
+    assert(r.region === "asti", `region: ${r.region}`);
+    assert(r.confidence < 60, `confidence: ${r.confidence} — a disputed producer accumulates nothing`);
+    // Same-country: Anapamu (California) on a Napa line keeps its producer, now with its region
+    const n = resolveWine("Anapamu Cabernet Sauvignon, Napa");
+    assert(n.region === "napa" && n.confidence >= 80, `Anapamu: ${n.region} @${n.confidence}`);
+  });
+
+  test("Real engine: the namesake guard reads the producer's own name as words ('Sebastiani Moscato, Asti')", () => {
+    const s = scoreLine("Sebastiani Moscato, Asti");
+    assert(s.detectedProducer === null, `producer: ${s.detectedProducer}`);
+    assert(JSON.stringify(s.detectedCountryIds) === JSON.stringify(["italy"]), `countries: ${s.detectedCountryIds}`);
   });
 }
 

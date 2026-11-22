@@ -4,7 +4,7 @@
 // Runs entirely client-side using wineUnified.json
 
 import wineUnified from "./wineUnified.json";
-import { buildCoreNameAliases, buildShortNameGuard } from "./producerAliases.js";
+import { buildCoreNameAliases, buildProducerTwins, buildShortNameGuard, foldInitials, includesWord } from "./producerAliases.js";
 
 const COUNTRIES = wineUnified.countries;
 const REGIONS = wineUnified.regions;
@@ -55,17 +55,19 @@ function spellDesignators(text) {
 }
 
 // keepDesignators: the full name as written ("dry creek vineyard"), for the
-// place-named producers that must match in full (getProducerIndex)
+// place-named producers that must match in full (getProducerIndex).
+// Initials in one spelling (foldInitials): "g.d. vajra", "g d vajra" and
+// "gd vajra" are one name
 function normalize(text, keepDesignators = false) {
   const lowered = text
     .toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // strip accents
     .replace(/[''`]/g, "'")        // normalize quotes
     .replace(/\b(19|20)\d{2}\b/g, "");  // strip vintage years
-  return (keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
+  return foldInitials((keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
     .replace(/[^a-z0-9\s'.-]/g, " ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim());
 }
 
 /**
@@ -122,6 +124,23 @@ function isBlend(varietalName) {
 
 let _producerIndex = null;
 
+/**
+ * The name the data prints for a producerLookup key: its estate's own
+ * spelling when it has an estate (looked up by producerId, in its region
+ * first — matchEngine.getProducerDisplayName's rule), else the key with each
+ * word and each initial capitalized ("j.r. dill" -> "J.R. Dill"). The
+ * first-letter-only title case wrote "A.a. Badenhorst" and "S.l." on the
+ * wine page.
+ */
+function lookupDisplayName(key, data) {
+  const byId = (e) => e.id === data.producerId;
+  const estate = (PRODUCERS[data.regionId] || []).find(byId)
+    || Object.values(PRODUCERS).reduce((hit, list) => hit || list.find(byId), null);
+  const own = estate && typeof estate.name === "string" ? estate.name.trim() : "";
+  if (own) return own;
+  return key.split(/\s+/).map(w => w.replace(/(^|\.)(\p{L})/gu, (m, before, letter) => before + letter.toUpperCase())).join(" ");
+}
+
 function getProducerIndex() {
   if (_producerIndex) return _producerIndex;
 
@@ -141,12 +160,19 @@ function getProducerIndex() {
     return full === norm ? {} : { full, placeLike: isPlaceLike(norm, full) };
   };
 
+  const twins = buildProducerTwins(wineUnified);
+
   // From PRODUCER_LOOKUP (keyed by lowercase name)
   for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
     const norm = normalize(name);
     if (norm.length < 3) continue;
-    // Display name: use the original key with first-letter capitalization
-    const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    // Display name: the key with first-letter capitalization — except a name
+    // with initials, which shows as the data spells it (lookupDisplayName:
+    // "A.A. Badenhorst Family Wines", never "A.a."). A twin shows its
+    // canonical's name (below); all six already title-case as the data does
+    const displayName = foldInitials(name) !== name
+      ? lookupDisplayName(name, data)
+      : name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
     const entry = {
       name: displayName,
       norm,
@@ -201,7 +227,23 @@ function getProducerIndex() {
   for (const [core, key] of buildCoreNameAliases(wineUnified)) {
     const norm = normalize(core);
     if (norms.has(norm) || !norm.includes(" ") || !byLookupKey.has(key)) continue;
-    _producerIndex.push({ ...byLookupKey.get(key), norm, alias: true });
+    _producerIndex.push({ ...byLookupKey.get(key), norm, alias: true, lookupKey: key });
+  }
+
+  // One winery keyed twice (buildProducerTwins: "AA Badenhorst" and "A.A.
+  // Badenhorst Family Wines") resolves as its canonical twin under either
+  // name. The estate is the canonical's own from the data (its producerId,
+  // which buildProducerTwins checked is an estate): the merge above matches
+  // estates by normalized name, and "Chalone Vineyard" and "Chalone"
+  // normalize alike, so it can file both estates on one entry
+  for (const [key, canonical] of twins) {
+    const from = { ...byLookupKey.get(canonical), dnaEstateId: PRODUCER_LOOKUP[canonical].producerId };
+    for (const entry of _producerIndex) {
+      if (entry === byLookupKey.get(key) || entry === byLookupKey.get(canonical)
+          || (entry.alias && (entry.lookupKey === key || entry.lookupKey === canonical))) {
+        for (const f of ["name", "country", "province", "dnaCountryId", "dnaRegionId", "dnaEstateId"]) entry[f] = from[f];
+      }
+    }
   }
 
   // Sort by normalized name length descending (longer matches first)
@@ -346,7 +388,7 @@ function detectExplicitCountries(normInput, ownName) {
  * Wellington conflict behind the US producer of that name.
  */
 function insideName(ownName, term) {
-  return ownName !== term && ownName.includes(term);
+  return ownName !== term && includesWord(ownName, term);
 }
 
 /**
@@ -356,6 +398,8 @@ function insideName(ownName, term) {
  * region's. "Leyda Sauvignon Blanc, Leyda Valley" still names Viña Leyda.
  */
 function namedOnlyInRegions(normInput, prod, statedRegions) {
+  // Letters, not words: "Santa Cruz Mountain" (Vineyard) is the region's own
+  // in "Santa Cruz Mountains" — this only ever withholds a producer
   const around = statedRegions.filter(t => t !== prod.norm && t.includes(prod.norm));
   if (around.length === 0) return false;
   const rest = around.reduce((text, t) => text.split(t).join(" "), normInput);
@@ -442,13 +486,14 @@ function matchProducer(normInput, inputTokens, fullInput, statedRegions) {
 }
 
 /**
- * Find varietal mentioned in the wine name.
+ * Find varietal mentioned in the wine name, as words: "Montrose" names no
+ * rosé, "Barberani" no Barbera, "Wines of Portugal" no Port.
  * Returns the varietal entry or null.
  */
 function matchVarietal(normInput) {
   const varietals = getVarietalIndex();
   for (const v of varietals) {
-    if (v.norm.length >= 4 && normInput.includes(v.norm)) {
+    if (v.norm.length >= 4 && includesWord(normInput, v.norm)) {
       return v;
     }
   }
@@ -456,14 +501,15 @@ function matchVarietal(normInput) {
 }
 
 /**
- * Find region mentioned in the wine name — skipping any inside the matched
- * producer's own name, so the search reaches the region the line states.
+ * Find region mentioned in the wine name, as words ("Badenhorst" is not
+ * Baden) — skipping any inside the matched producer's own name, so the
+ * search reaches the region the line states.
  * Returns the region entry or null.
  */
 function matchRegion(normInput, ownName) {
   const regions = getRegionIndex();
   for (const r of regions) {
-    if (r.term.length >= 4 && normInput.includes(r.term) && !insideName(ownName, r.term)) {
+    if (r.term.length >= 4 && includesWord(normInput, r.term) && !insideName(ownName, r.term)) {
       return r;
     }
   }
