@@ -8,7 +8,9 @@
 #  1. a fresh Postgres 17 cluster in a temp folder (its own port and socket);
 #  2. a "source" database: the drill roles, a stand-in for Supabase's auth
 #     schema, the repo's migrations 001–014 in order, synthetic rows;
-#  3. backup.sh against it with a throwaway age key → one .age file, which
+#  3. backup.sh (from the PRIVATE repository epgoodwinjr/sommeasy-backups —
+#     clone it next to this one, or point BACKUP_SH at it) against that
+#     database with a throwaway age key → one .age file, which
 #     must not contain a seeded email address in the clear;
 #  4. restore-drill.sh from that file into a second database → must pass;
 #  5. every table compared between source and restore, row for row
@@ -16,11 +18,18 @@
 #
 # Needs Postgres 17 (initdb, pg_ctl, pg_dump, psql) and age. Set PG_BIN if
 # the Postgres binaries aren't at Homebrew's postgresql@17 path or on PATH.
+#
+#   git clone git@github.com:epgoodwinjr/sommeasy-backups.git ../sommeasy-backups
 
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../../.." && pwd)"
 PG_BIN="${PG_BIN:-/opt/homebrew/opt/postgresql@17/bin}"
+BACKUP_SH="${BACKUP_SH:-$root/../sommeasy-backups/backup.sh}"
+[ -x "$BACKUP_SH" ] || {
+  echo "backup.sh not found at $BACKUP_SH — clone epgoodwinjr/sommeasy-backups next to this repository, or set BACKUP_SH" >&2
+  exit 1
+}
 [ -x "$PG_BIN/initdb" ] && export PATH="$PG_BIN:$PATH"
 for tool in initdb pg_ctl pg_dump psql createdb age age-keygen; do
   command -v "$tool" >/dev/null || { echo "$tool is not installed" >&2; exit 1; }
@@ -52,7 +61,7 @@ echo "3. backup.sh, with a throwaway key"
 age-keygen -o "$tmp/key.txt" 2>/dev/null
 recipient="$(age-keygen -y "$tmp/key.txt")"
 SUPABASE_DB_URL="postgresql:///source?host=$tmp&port=$port&user=postgres" \
-  BACKUP_AGE_RECIPIENT="$recipient" "$here/../backup.sh" "$tmp/out"
+  BACKUP_AGE_RECIPIENT="$recipient" "$BACKUP_SH" "$tmp/out"
 archive="$(ls "$tmp"/out/*.tar.gz.age)"
 [ "$(ls "$tmp"/out | wc -l | tr -d ' ')" = 1 ] || { echo "FAIL: backup.sh left more than one file" >&2; exit 1; }
 if grep -a -q "drill-one@example.test" "$archive" || gzip -dc < "$archive" >/dev/null 2>&1; then
