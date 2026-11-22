@@ -2,7 +2,7 @@ import { generateDNAProfile } from "./profileEngine";
 import { formatWineName } from "./matchEngine";
 import { mergeQuizWithEarnedDna, reconcileQuizPromotions, syncQuizSelections } from "./dnaEvolution";
 import { countRatedBottles } from "./identityRecompose";
-import { recordEvent, quizEventPayload } from "./wineEvents";
+import { recordEvent, quizEventPayload, toOccurredAtISO } from "./wineEvents";
 
 /**
  * The ONE quiz-save path — extracted from page.js's handleSaveProfile
@@ -28,10 +28,22 @@ import { recordEvent, quizEventPayload } from "./wineEvents";
  * actually happened, which is why occurred_at and created_at are separate
  * columns. This writes wine_events ONLY: quiz saves never touch the DNA
  * timeline table (Suite 12 source-scans this file to keep it that way).
+ *
+ * Exactly-once (launch prep, Nov 2026): the event is recorded only for a
+ * save that LANDED — the upsert returns the row it wrote, and that row is
+ * what the caller gets, so nothing after the write can turn a landed save
+ * into a "failure" the caller retries. (The old trailing re-read did: an
+ * empty read returned null after the event was already written, and the
+ * pending-palate restore folded the same quiz in again on the next load.)
+ * beforeEvent(row, event), when given, runs right after the write: it gets
+ * the event this save would record ({ payload, occurredAt }) and returns
+ * true to have it recorded here, false to withhold it. The pending-palate
+ * restore uses it to claim the account's carrier — the claim records the
+ * event in the same transaction, so only the load that wins it records.
  */
 export async function saveQuizProfile(
   supabase, userId, rawAnswers,
-  { mode = "fresh", initialRaw = null, eventMode = null, occurredAt = null } = {}
+  { mode = "fresh", initialRaw = null, eventMode = null, occurredAt = null, beforeEvent = null } = {}
 ) {
   try {
     const quizRaw = {
@@ -63,7 +75,7 @@ export async function saveQuizProfile(
       console.error("Milestone continuity read failed (non-blocking):", msErr);
     }
 
-    const { error } = await supabase.from("wine_profiles").upsert({
+    const { data: savedRow, error } = await supabase.from("wine_profiles").upsert({
       user_id: userId,
       archetype: finalProfile.archetype,
       archetype_emoji: finalProfile.archetypeEmoji,
@@ -84,16 +96,27 @@ export async function saveQuizProfile(
       recommendations: finalProfile.recommendations,
       red_count: finalProfile.redCount,
       white_count: finalProfile.whiteCount,
-    }, { onConflict: "user_id" });
-    if (error) { console.error("Save error:", error); return null; }
+    }, { onConflict: "user_id" }).select().single();
+    if (error || !savedRow) { console.error("Save error:", error || "no row returned"); return null; }
 
+    // The save has landed. A caller's gate decides whether this save is the
+    // one the ledger records (a throwing gate records nothing — never two)
+    const event = {
+      payload: quizEventPayload({ mode: eventMode || mode, raw: merged, title: finalProfile.archetype }),
+      occurredAt: toOccurredAtISO(occurredAt),
+    };
+    let record = true;
+    if (beforeEvent) {
+      try { record = (await beforeEvent(savedRow, event)) === true; } catch { record = false; }
+    }
     // The ledger record — fired without await so a slow insert can't delay
     // the reveal by a frame
-    recordEvent(
-      supabase, userId, "quiz_completed",
-      quizEventPayload({ mode: eventMode || mode, raw: merged, title: finalProfile.archetype }),
-      occurredAt ? { occurredAt } : {}
-    );
+    if (record) {
+      recordEvent(
+        supabase, userId, "quiz_completed", event.payload,
+        event.occurredAt ? { occurredAt: event.occurredAt } : {}
+      );
+    }
 
     try {
       // Un-flag promoted accumulation rows no longer in the DNA, then mark
@@ -104,8 +127,9 @@ export async function saveQuizProfile(
       console.error("Quiz sync error (non-blocking):", syncErr);
     }
 
-    const { data } = await supabase.from("wine_profiles").select("*").eq("user_id", userId).single();
-    return data || null;
+    // The row the write returned: the steps above touch accumulation rows,
+    // never the profile, so a re-read could only fail, never differ
+    return savedRow;
   } catch (err) {
     console.error("Save error:", err);
     return null;

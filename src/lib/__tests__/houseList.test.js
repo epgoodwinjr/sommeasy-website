@@ -142,6 +142,8 @@ async function main() {
     assertEq(PAGE_TITLES, {
       "/": "Your list", "/recommend": "Match a list", "/log": "Log a bottle", "/journal": "Journal",
       "/wine": "Wine", "/search": "Search", "/palate": "Your palate", "/account": "Account",
+      // launch prep: the two legal pages wear the House look and its trail
+      "/privacy": "Privacy", "/terms": "Terms",
     }, "titles");
     assert(HOME_TITLE === "Your list", "home title");
     assert(titleForPath("/login") === null && titleForPath("/nope") === null, "non-House pages → null");

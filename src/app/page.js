@@ -9,7 +9,7 @@ import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompo
 import { saveQuizProfile } from "@/lib/saveQuizProfile";
 import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { ratingFor } from "@/lib/ratings";
-import { claimStash, restoreStash, unionQuizRaw, parseMetadataStash } from "@/lib/pendingPalate";
+import { restorePendingPalate } from "@/lib/pendingPalateRestore";
 import { signatureLine } from "@/lib/palateSignature";
 import { resolveOutstandingVerdict, VERDICT_EVENT_TYPES, VERDICT_WINDOW_DAYS, readDismissedVerdicts, dismissVerdict } from "@/lib/tableVerdict";
 import { resolveFirstPourCards } from "@/lib/firstPour";
@@ -24,6 +24,7 @@ import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
 import WelcomeDemo from "@/components/WelcomeDemo";
 import GrowthMoment from "@/components/GrowthMoment";
 import Divider from "@/components/house/Divider";
+import LegalLinks from "@/components/house/LegalLinks";
 import SectionHead from "@/components/house/SectionHead";
 import LeaderEntry from "@/components/house/LeaderEntry";
 import WineRow from "@/components/house/WineRow";
@@ -753,6 +754,9 @@ function WelcomeScreen({ onStart, user, onSignOut, notice }) {
       {/* The head's label and rule land 80ms after its delay: 1650 */}
       <SectionHead label="Watch it work" enterDelay={1570} style={{ marginTop: 22 }} />
       <WelcomeDemo style={{ marginTop: 18 }} />
+
+      <Divider enterDelay={1700} style={{ marginTop: 34 }} />
+      <LegalLinks style={{ marginTop: 6 }} />
     </div>
   );
 }
@@ -777,69 +781,9 @@ export default function Home() {
   const [welcomeNotice, setWelcomeNotice] = useState(null);
   const supabase = createClient();
 
-  const rowToRaw = (row) => ({
-    countries: row.countries || [], regions: row.regions || {},
-    estates: row.estates || {}, varietals: row.varietals || [],
-    specificWines: row.specific_wines || [],
-  });
-
-  // Never Lose a Palate (Sessions 2 + 5): a pending anonymous quiz gets
-  // folded in on the first authenticated load of "/". TWO carriers, same
-  // quiz: user_metadata.pending_palate (attached at signup — travels with
-  // the account onto ANY device; the July 30 canary fix) and the
-  // localStorage stash (same-browser fallback, and the only carrier for
-  // plain sign-ins). claimStash removes the local stash synchronously
-  // BEFORE the async save — the two-tab race (email-confirmation landing vs
-  // the original tab) has exactly one winner; the metadata carrier is safe
-  // to race because the union save is content-idempotent. Both carriers
-  // present → union, never lose either. If the save fails, the local stash
-  // goes back untouched and the metadata stays put: nothing lost, next load
-  // retries. Over an existing profile it's stash ∪ existing ∪ earned
-  // (refine merge, initialRaw null — the anonymous quiz never displayed the
-  // existing chips, so nothing counts as a deselection). After a successful
-  // save BOTH carriers are cleared.
-  const restorePendingPalate = async (currentUser, existingRow) => {
-    const local = claimStash(window.localStorage);
-    const meta = parseMetadataStash(currentUser.user_metadata?.pending_palate);
-    if (!local && !meta) return null;
-    const stashAnswers =
-      local && meta ? unionQuizRaw(meta.answers, local.answers) : (meta || local).answers;
-    try {
-      const rawAnswers = existingRow
-        ? unionQuizRaw(stashAnswers, rowToRaw(existingRow))
-        : stashAnswers;
-      const row = await saveQuizProfile(supabase, currentUser.id, rawAnswers, {
-        mode: existingRow ? "refine" : "fresh",
-        initialRaw: null,
-        // The Long Memory: this save is the anonymous quiz finally landing —
-        // record it as mode "restore", back-logged to when the quiz actually
-        // happened (the stash's createdAt; the local carrier's is authoritative
-        // when both exist — same moment, but the local one always carries it)
-        eventMode: "restore",
-        occurredAt: local?.createdAt ?? meta?.createdAt ?? null,
-      });
-      if (row) {
-        if (meta) {
-          // Clear the account-side carrier. A failed clear only means the
-          // next load re-runs a content-identical union — nothing is ever
-          // double-applied, so this must not block the restore.
-          try {
-            const { error: clearErr } = await supabase.auth.updateUser({
-              data: { pending_palate: null },
-            });
-            if (clearErr) console.error("Pending palate metadata clear failed:", clearErr);
-          } catch (clearErr) {
-            console.error("Pending palate metadata clear failed:", clearErr);
-          }
-        }
-        return row;
-      }
-    } catch (err) {
-      console.error("Pending palate restore failed:", err);
-    }
-    if (local) restoreStash(window.localStorage, local);
-    return null;
-  };
+  // Never Lose a Palate: a pending anonymous quiz is folded in on the first
+  // signed-in load of "/" — exactly once per account across tabs, devices and
+  // reloads (src/lib/pendingPalateRestore.js says how, and why it matters)
 
   const fetchEarnedDna = async (userId) => {
     const { data } = await supabase
@@ -882,11 +826,11 @@ export default function Home() {
       setUser(currentUser);
       if (currentUser) {
         let { data } = await supabase.from("wine_profiles").select("*").eq("user_id", currentUser.id).single();
-        const restoredRow = await restorePendingPalate(currentUser, data);
-        if (restoredRow) {
-          data = restoredRow;
-          setWelcomeBack(true);
-        }
+        const restored = await restorePendingPalate({
+          supabase, user: currentUser, existingRow: data, storage: window.localStorage,
+        });
+        if (restored.row) data = restored.row;
+        if (restored.welcomeBack) setWelcomeBack(true);
         if (data) { setSavedProfile(data); setView("profile"); }
         else { setView("welcome"); }
         if (quizParam === "fresh") {

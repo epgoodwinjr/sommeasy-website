@@ -1023,10 +1023,12 @@ test.describe("The reveal, signed in — when the save goes wrong", () => {
     // The row the save hands back carries an identity whose genome is not
     // one (a malformed or legacy jsonb): every surface degrades to text
     // only for it, and the reveal has to as well — not wait for a draw
-    // that no mark will ever report
+    // that no mark will ever report. Since launch prep (Nov 2026) the save
+    // hands back the row its upsert returned (POST …&select=*), not a
+    // second read
     await page.route("**/rest/v1/wine_profiles**", async (route) => {
       const request = route.request();
-      if (request.method() !== "GET" || !decodeURIComponent(request.url()).includes("select=*")) return route.continue();
+      if (request.method() !== "POST" || !decodeURIComponent(request.url()).includes("select=*")) return route.continue();
       const response = await route.fetch();
       const row = await response.json();
       if (row?.identity) row.identity = { ...row.identity, genome: "not a genome" };

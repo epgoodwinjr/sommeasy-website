@@ -230,13 +230,49 @@ SELECT
   (SELECT count(DISTINCT user_id) FROM wine_events
     WHERE event_type = 'quiz_completed'
       AND occurred_at > now() - interval '7 days')                   AS users_completing_quiz,
-  (SELECT count(*) FROM wine_events
+  (SELECT count(DISTINCT user_id) FROM wine_events
     WHERE event_type = 'quiz_completed' AND payload->>'mode' = 'restore'
       AND occurred_at > now() - interval '7 days')                   AS anonymous_quizzes_folded_in;
 ```
 
 Read `anonymous_quizzes_folded_in` against the teaser pageviews in Web
-Analytics: that ratio IS the teaser gate's conversion. **Escalate when**
+Analytics: that ratio IS the teaser gate's conversion.
+
+**Count users, never rows, for every quiz mode.** Until Nov 22, 2026 the
+pending palate could be folded in more than once: one account wrote 23
+`restore` rows between Nov 12 and Nov 17, 2026 (the carrier was cleared ~15
+seconds behind the event, and every reload in between folded it again —
+`src/lib/pendingPalateRestore.js`). Those rows stay (append-forever), so a
+row count overstates every mode that ever repeated. The by-mode view,
+users first:
+
+```sql
+SELECT
+  payload->>'mode'                   AS mode,
+  count(DISTINCT user_id)            AS users,
+  count(*)                           AS rows,
+  count(*) - count(DISTINCT user_id) AS repeat_rows
+FROM wine_events
+WHERE event_type = 'quiz_completed'
+  AND occurred_at > now() - interval '7 days'
+GROUP BY 1
+ORDER BY 1;
+```
+
+`users` is the funnel number. `repeat_rows` is expected for `refine` (people
+refine more than once) and `fresh` (Start fresh); for `restore` it must be
+zero from Nov 22, 2026 on — a waiting palate is folded in exactly once per
+account (guard: `e2e/palate-once.spec.ts`). **Escalate when** `restore`
+shows repeat rows with `created_at` after that date:
+
+```sql
+SELECT user_id, count(*) AS restores, min(created_at), max(created_at)
+FROM wine_events
+WHERE event_type = 'quiz_completed' AND payload->>'mode' = 'restore'
+  AND created_at > '2026-11-23'
+GROUP BY user_id
+HAVING count(*) > 1;
+``` **Escalate when**
 teaser views are healthy but fold-ins are ~0 — the stash/metadata carry
 broke (the palate-handoff guards pin it, but prod SMTP/browser weirdness is
 exactly what the July 30 canary caught).
