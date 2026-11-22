@@ -251,10 +251,24 @@ function nameForms(name, norm) {
 }
 const producerIndex = [];
 const byLookupKey = new Map();
+// A name with initials shows as the data spells it: its estate's name, else
+// the key with each word and initial capitalized (mirror of
+// wineResolver.lookupDisplayName)
+const twinsMirror = aliasMirror.buildProducerTwins(wineUnified);
+function lookupDisplayName(key, data) {
+  const byId = (e) => e.id === data.producerId;
+  const estate = (ESTATES[data.regionId] || []).find(byId)
+    || Object.values(ESTATES).reduce((hit, list) => hit || list.find(byId), null);
+  const own = estate && typeof estate.name === "string" ? estate.name.trim() : "";
+  if (own) return own;
+  return key.split(/\s+/).map(w => w.replace(/(^|\.)(\p{L})/gu, (m, before, letter) => before + letter.toUpperCase())).join(" ");
+}
 for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
   const norm = normalize(name);
   if (norm.length < 3) continue;
-  const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  const displayName = aliasMirror.foldInitials(name) !== name
+    ? lookupDisplayName(name, data)
+    : name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   const entry = {
     name: displayName, norm, ...nameForms(name, norm), tokens: new Set(tokenize(name)),
     country: getCountryDisplayName(data.country), province: data.province || "",
@@ -295,7 +309,7 @@ for (const [regionId, estates] of Object.entries(ESTATES)) {
   }
 }
 // One winery keyed twice resolves as its canonical twin, estate and all
-for (const [key, canonical] of aliasMirror.buildProducerTwins(wineUnified)) {
+for (const [key, canonical] of twinsMirror) {
   const from = { ...byLookupKey.get(canonical), dnaEstateId: PRODUCER_LOOKUP[canonical].producerId };
   for (const entry of producerIndex) {
     if (entry === byLookupKey.get(key) || entry === byLookupKey.get(canonical)

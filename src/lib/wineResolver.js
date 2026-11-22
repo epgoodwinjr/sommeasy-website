@@ -124,6 +124,23 @@ function isBlend(varietalName) {
 
 let _producerIndex = null;
 
+/**
+ * The name the data prints for a producerLookup key: its estate's own
+ * spelling when it has an estate (looked up by producerId, in its region
+ * first — matchEngine.getProducerDisplayName's rule), else the key with each
+ * word and each initial capitalized ("j.r. dill" -> "J.R. Dill"). The
+ * first-letter-only title case wrote "A.a. Badenhorst" and "S.l." on the
+ * wine page.
+ */
+function lookupDisplayName(key, data) {
+  const byId = (e) => e.id === data.producerId;
+  const estate = (PRODUCERS[data.regionId] || []).find(byId)
+    || Object.values(PRODUCERS).reduce((hit, list) => hit || list.find(byId), null);
+  const own = estate && typeof estate.name === "string" ? estate.name.trim() : "";
+  if (own) return own;
+  return key.split(/\s+/).map(w => w.replace(/(^|\.)(\p{L})/gu, (m, before, letter) => before + letter.toUpperCase())).join(" ");
+}
+
 function getProducerIndex() {
   if (_producerIndex) return _producerIndex;
 
@@ -143,12 +160,19 @@ function getProducerIndex() {
     return full === norm ? {} : { full, placeLike: isPlaceLike(norm, full) };
   };
 
+  const twins = buildProducerTwins(wineUnified);
+
   // From PRODUCER_LOOKUP (keyed by lowercase name)
   for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
     const norm = normalize(name);
     if (norm.length < 3) continue;
-    // Display name: use the original key with first-letter capitalization
-    const displayName = name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    // Display name: the key with first-letter capitalization — except a name
+    // with initials, which shows as the data spells it (lookupDisplayName:
+    // "A.A. Badenhorst Family Wines", never "A.a."). A twin shows its
+    // canonical's name (below); all six already title-case as the data does
+    const displayName = foldInitials(name) !== name
+      ? lookupDisplayName(name, data)
+      : name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
     const entry = {
       name: displayName,
       norm,
@@ -212,7 +236,7 @@ function getProducerIndex() {
   // which buildProducerTwins checked is an estate): the merge above matches
   // estates by normalized name, and "Chalone Vineyard" and "Chalone"
   // normalize alike, so it can file both estates on one entry
-  for (const [key, canonical] of buildProducerTwins(wineUnified)) {
+  for (const [key, canonical] of twins) {
     const from = { ...byLookupKey.get(canonical), dnaEstateId: PRODUCER_LOOKUP[canonical].producerId };
     for (const entry of _producerIndex) {
       if (entry === byLookupKey.get(key) || entry === byLookupKey.get(canonical)

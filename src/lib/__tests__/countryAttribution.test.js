@@ -1291,6 +1291,31 @@ async function realModuleTests() {
       `photo exact key: ${photo.detectedProducer} / ${photo.detectedProducerId}`);
   });
 
+  test("Real resolveWine: a producer with initials, or a twin, keeps the data's own spelling ('A.A.', never 'A.a.')", () => {
+    // resolved_winery is what the wine page prints. First-letter title case
+    // wrote "A.a. Badenhorst Family Wines", "Bodegas Dios Baco S.l.", "D.r.
+    // Stephens" — 24 of the 94 such names on Nov 22, 2026
+    const r = resolveWine("A.A. Badenhorst Secateurs Chenin Blanc");
+    assert(r.winery === "A.A. Badenhorst Family Wines", `winery: ${r.winery}`);
+    const twins = realAliases.buildProducerTwins(wineUnified);
+    const keys = new Set([...Object.keys(PRODUCER_LOOKUP).filter((k) => realAliases.foldInitials(k) !== k), ...twins.keys(), ...twins.values()]);
+    const estateName = (key) => {
+      const p = PRODUCER_LOOKUP[key];
+      const byId = (e) => e.id === p.producerId;
+      const e = (ESTATES[p.regionId] || []).find(byId) || Object.values(ESTATES).flat().find(byId);
+      return e ? e.name.trim() : null;
+    };
+    let withEstate = 0;
+    for (const key of keys) {
+      const winery = resolveWine(key).winery;
+      const own = estateName(twins.get(key) || key);
+      if (own) { withEstate++; assert(winery === own, `${key}: "${winery}", the data spells it "${own}"`); }
+      else assert(winery && !/\p{Lu}\.\p{Ll}/u.test(winery), `${key}: "${winery}" — an initial left lowercase`);
+    }
+    assert(keys.size > 90 && withEstate > 40, `a real sample: ${keys.size} names, ${withEstate} with an estate`);
+    assert(resolveWine("B.R. Cohn Cabernet").winery === "B.R. Cohn", `no estate: ${resolveWine("B.R. Cohn Cabernet").winery}`);
+  });
+
   test("Real resolveWine: a region is stated as words ('Badenhorst' is not Baden; 'Badenhorst Chenin' earns nothing)", () => {
     const r = resolveWine("Badenhorst Chenin Blanc");
     assert(r.region !== "baden" && r.dnaMapping.dnaCountryId !== "germany", `region: ${r.region} / ${r.dnaMapping.dnaCountryId}`);

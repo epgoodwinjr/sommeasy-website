@@ -66,6 +66,18 @@ Before this, the two engines even disagreed on these lines: "Cedarville Vineyard
 
 Not merged: the pairs with ONE estate between them (Hamilton Russell / Hamilton Russell Vineyards, Rust en Vrede, Le Riche, De Wetshof, Le Bonheur, Ernie Els…). Nothing is split there, but the long name resolves to a key with **no** estate. "Hamilton Russell Vineyards Pinot Noir" earns no estate point. That is a pre-existing follow-up, not changed here.
 
+### Display names (follow-up, Nov 22, 2026)
+
+`resolved_winery` is what the wine page prints, and the resolver built it by title-casing the producerLookup key's first letter: "A.a. Badenhorst Family Wines", "Bodegas Dios Baco S.l.", "D.r. Stephens". Of the 94 initialed and twinned names, 24 were misspelled: 19 differed from the data's own estate name and 5 (no estate) showed an "X.y" slip.
+
+A name with initials now shows as the data spells it (`lookupDisplayName` in wineResolver.js):
+- with an estate, the estate's name, looked up by producerId the way `matchEngine.getProducerDisplayName` does;
+- without one, the key with each word and each initial capitalized ("B.R. Cohn").
+
+All 94 now match. A twin shows its canonical's name, and all six canonicals already title-cased as the data spells them, so a twin-specific rule would change nothing and was left out.
+
+Production is unchanged by this: the one initialed production name without an estate, Nicola's "J. de Telmont", still reads "J. De Telmont", so its `j__de_telmont` dimension holds. countryAttribution goes to 91; the dnaEvolution mirror follows; 4 of 4 mutants are caught.
+
 ## 3. Corpus diffs, main → this branch
 
 **Engine** (`scripts/scan-truth/corpus-diff.mjs`): 21,959 pasted lines: 24 read differently (15 higher, 2 lower, 7 the same score). 10,750 photographed wines: 6 read differently (2 higher, 1 lower).
