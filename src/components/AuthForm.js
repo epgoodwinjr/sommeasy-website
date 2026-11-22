@@ -11,7 +11,7 @@ import { peekStash, buildMetadataPayload } from "@/lib/pendingPalate";
 import AuthShell, { AuthAlert, AuthField, AuthLinkLine, AuthLinks, AuthNotice } from "./AuthShell";
 import LeaderEntry from "./house/LeaderEntry";
 import LegalLinks from "./house/LegalLinks";
-import { GOOGLE_CONSENT, SIGNUP_CONSENT } from "@/lib/legalCopy";
+import { GOOGLE_CONSENT, SIGNUP_CONSENT, SIGNUP_CONSENT_WITH_GOOGLE } from "@/lib/legalCopy";
 import TextAction, { TextActions } from "./house/TextAction";
 import Link from "next/link";
 import { BURGUNDY, SANS, SERIF, ink } from "./house/tokens";
@@ -440,7 +440,15 @@ export default function AuthForm({ mode, params }) {
         {noticeLine}
 
         {/* What creating an account agrees to — said before the button, not after */}
-        {!isLogin && <ConsentLine copy={SIGNUP_CONSENT} testId="signup-consent" style={{ marginTop: 22 }} />}
+        {/* Create account says it once, before both ways in: above its
+            button, and so above Continue with Google */}
+        {!isLogin && (
+          <ConsentLine
+            copy={GOOGLE_ENABLED ? SIGNUP_CONSENT_WITH_GOOGLE : SIGNUP_CONSENT}
+            testId="signup-consent"
+            style={{ marginTop: 22 }}
+          />
+        )}
 
         <LeaderEntry
           tone="filled"
@@ -468,9 +476,9 @@ export default function AuthForm({ mode, params }) {
             )}
           </TextActions>
         )}
-        {/* Google makes an account for a new address from either form, so its
-            line sits right under it on both */}
-        {GOOGLE_ENABLED && <ConsentLine copy={GOOGLE_CONSENT} testId="google-consent" style={{ marginTop: 6 }} />}
+        {/* Sign in: Google makes an account for a new address here too, so
+            its line sits right under the button */}
+        {GOOGLE_ENABLED && isLogin && <ConsentLine copy={GOOGLE_CONSENT} testId="google-consent" style={{ marginTop: 6 }} />}
       </form>
 
       {!isLogin && quizWaiting && (

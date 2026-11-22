@@ -21,7 +21,8 @@ export const LEGAL_UPDATED = "November 22, 2026";
 export const LEGAL_EFFECTIVE = "November 22, 2026";
 // Who runs Sommeasy — "we" and "us" on both pages
 export const LEGAL_OPERATOR = "Sommeasy is run by Ed Goodwin, an individual. “We” and “us” here mean him.";
-// How long the weekly database backup is kept (.github/workflows/db-backup.yml)
+// How long the weekly database backup is kept (retention-days in the PRIVATE
+// repository epgoodwinjr/sommeasy-backups, .github/workflows/db-backup.yml)
 export const BACKUP_RETENTION_DAYS = 90;
 export const LEGAL_CONTACT = "hello@sommeasy.wine";
 
@@ -35,10 +36,17 @@ export const SIGNUP_CONSENT = {
   end: ".",
 };
 
-// The same line under "Continue with Google", on sign in AND create account
-// (launch prep Session 2b): Google makes a new account for a new address
-// from either form, so no one gets one without seeing this. Worded for the
-// button — on sign in it may be an existing account.
+// Google makes a new account for a new address from either form, so no one
+// gets one without seeing the line (launch prep Session 2b):
+// - create account says it ONCE, above its button and so above Continue
+//   with Google too, worded for both ways in (with the flag off it is
+//   SIGNUP_CONSENT, word for word);
+// - sign in puts GOOGLE_CONSENT right under Continue with Google, worded
+//   for the button — there it may be an existing account.
+export const SIGNUP_CONSENT_WITH_GOOGLE = {
+  ...SIGNUP_CONSENT,
+  lead: "By creating an account, here or with Google, you confirm you’re of legal drinking age where you live and agree to our ",
+};
 export const GOOGLE_CONSENT = {
   ...SIGNUP_CONSENT,
   lead: "By continuing with Google you confirm you’re of legal drinking age where you live and agree to our ",

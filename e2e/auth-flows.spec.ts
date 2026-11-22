@@ -1,5 +1,5 @@
 import { test, expect, Page, Route } from "@playwright/test";
-import { GOOGLE_CONSENT } from "../src/lib/legalCopy.js";
+import { GOOGLE_CONSENT, SIGNUP_CONSENT_WITH_GOOGLE } from "../src/lib/legalCopy.js";
 
 // Launch prep: Google sign-in goes on with this flag (the button renders only then)
 const GOOGLE_ON = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "1";
@@ -307,26 +307,42 @@ test.describe("Auth — signed-out flows", () => {
       await expect(page.getByTestId("google-consent")).toHaveCount(0);
       return;
     }
-    // Google makes an account for a new address from EITHER form, so the
-    // consent line sits right under its button on both: age, Terms, Privacy
-    const consentText =
+    // Google makes an account for a new address from EITHER form, so no one
+    // gets one without the consent line. Sign in: right under the button
+    const googleText =
       GOOGLE_CONSENT.lead + GOOGLE_CONSENT.terms + GOOGLE_CONSENT.and + GOOGLE_CONSENT.privacy + GOOGLE_CONSENT.end;
-    for (const path of ["/signup", "/login"]) {
-      await page.goto(path);
-      await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    await page.goto("/login");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    {
       const google = page.getByRole("button", { name: "Continue with Google" });
       const consent = page.getByTestId("google-consent");
-      await expect(google, `${path}: the Google button`).toBeVisible();
-      await expect(consent, `${path}: its consent line`).toBeVisible();
-      await expect(consent).toHaveText(consentText);
-      expect(consentText).toContain("legal drinking age");
+      await expect(google, "sign in: the Google button").toBeVisible();
+      await expect(consent, "sign in: its consent line").toBeVisible();
+      await expect(consent).toHaveText(googleText);
+      expect(googleText).toContain("legal drinking age");
       await expect(consent.getByRole("link", { name: GOOGLE_CONSENT.terms })).toHaveAttribute("href", "/terms");
       await expect(consent.getByRole("link", { name: GOOGLE_CONSENT.privacy })).toHaveAttribute("href", "/privacy");
-      // Directly under the button: nothing to scroll past between them
       const g = (await google.boundingBox())!;
       const c = (await consent.boundingBox())!;
-      expect(c.y, `${path}: the line is below the button`).toBeGreaterThanOrEqual(g.y + g.height - 1);
-      expect(c.y - (g.y + g.height), `${path}: and right under it`).toBeLessThan(40);
+      expect(c.y, "sign in: the line is below the button").toBeGreaterThanOrEqual(g.y + g.height - 1);
+      expect(c.y - (g.y + g.height), "sign in: and right under it").toBeLessThan(40);
+    }
+    // Create account: ONE line, worded for both ways in, above the button
+    // and so above Continue with Google — never a second line under Google
+    await page.goto("/signup");
+    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+    {
+      const google = page.getByRole("button", { name: "Continue with Google" });
+      await expect(google, "create account: the Google button").toBeVisible();
+      await expect(page.getByTestId("google-consent")).toHaveCount(0);
+      await expect(page.getByText("legal drinking age")).toHaveCount(1);
+      const consent = page.getByTestId("signup-consent");
+      const c = SIGNUP_CONSENT_WITH_GOOGLE;
+      await expect(consent).toHaveText(c.lead + c.terms + c.and + c.privacy + c.end);
+      expect(c.lead).toContain("with Google");
+      const box = (await consent.boundingBox())!;
+      const g = (await google.boundingBox())!;
+      expect(box.y + box.height, "create account: the line comes before Google").toBeLessThanOrEqual(g.y);
     }
 
     // Never reach Google: catch the hand-off at Supabase's authorize endpoint
