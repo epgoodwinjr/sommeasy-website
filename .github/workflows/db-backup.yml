@@ -1,0 +1,70 @@
+# Weekly encrypted database backup (launch prep 2b, Nov 2026).
+#
+# Supabase's free plan keeps no backups, so this does: every Monday, and on
+# demand (Actions → "Database backup" → Run workflow), it dumps the public
+# and auth schemas — accounts included — encrypts the dump with an age
+# public key whose private half only Ed holds, and keeps the one encrypted
+# file as a workflow artifact for 90 days. Runbook, secrets and the restore
+# drill: scripts/db-backup/README.md.
+#
+# THIS REPOSITORY IS PUBLIC. Its Actions logs and artifacts can be seen by
+# anyone signed in to GitHub, so the backup's safety rests on its
+# encryption: backup.sh never prints rows or counts, and it refuses to
+# finish unless the file it wrote IS an age file. Only that file is uploaded.
+#
+# Secrets: SUPABASE_DB_URL (the SESSION POOLER string — the direct host
+# db.<ref>.supabase.co is IPv6-only and GitHub's runners can't reach it) and
+# BACKUP_AGE_RECIPIENT (the age public key, age1…). Scheduled runs happen on
+# the default branch only; GitHub pauses schedules in a public repository
+# after 60 days without a commit (re-enable from the Actions tab).
+
+name: Database backup
+
+on:
+  schedule:
+    - cron: "17 7 * * 1" # Mondays 07:17 UTC (off the hour, when GitHub's queue is busiest)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pg_dump 17 and age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          # PostgreSQL's own apt repository: the client must be at least as
+          # new as the server (17); Ubuntu's own is older
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17 age
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Dump and encrypt
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          pg_dump --version
+          scripts/db-backup/backup.sh "$RUNNER_TEMP/backup"
+          echo "STAMP=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+
+      - name: Keep it for 90 days
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sommeasy-db-${{ env.STAMP }}-run${{ github.run_number }}
+          path: ${{ runner.temp }}/backup/*.tar.gz.age
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0 # already compressed, and encrypted
