@@ -1,4 +1,5 @@
 import "./globals.css";
+import { playfair, sourceSans } from "./fonts";
 import { Analytics } from "@vercel/analytics/react";
 
 export const metadata = {
@@ -27,7 +28,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${playfair.variable} ${sourceSans.variable}`}>
       <body>
         {/* Subtle background gradient */}
         <div

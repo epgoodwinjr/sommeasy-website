@@ -14,8 +14,28 @@ export const CREAM = "#F5F0E8";
 /** Ink at an opacity, for rules, leaders and tracks. */
 export const ink = (alpha) => `rgba(27,61,47,${alpha})`;
 
-export const SERIF = "'Playfair Display', Georgia, serif";
-export const SANS = "'Source Sans 3', sans-serif";
+// The faces are self-hosted through next/font (src/app/fonts.js), which
+// hashes their family names; these name its two variables, set on <html>.
+// A canvas can't read a CSS variable: resolve with canvasFont() first.
+export const SERIF = "var(--font-playfair), Georgia, serif";
+export const SANS = "var(--font-source-sans), sans-serif";
+
+/** A CSS font shorthand with its var(--…) families resolved against the
+ *  document, for a canvas (ctx.font) or document.fonts.load(). Without a
+ *  document, or a variable the page doesn't set, the var() drops out and
+ *  the stack's own fallbacks remain. */
+export function canvasFont(font) {
+  if (typeof font !== "string") return "";
+  const root = typeof document !== "undefined" && document.documentElement
+    ? getComputedStyle(document.documentElement)
+    : null;
+  return font
+    .replace(/var\((--[\w-]+)\)\s*,?\s*/g, (_m, name) => {
+      const value = root?.getPropertyValue(name).trim();
+      return value ? `${value}, ` : "";
+    })
+    .replace(/,\s*$/, "");
+}
 
 export const GRADIENT = "linear-gradient(135deg,#8B2332,#7A1E2C)";
 export const CIRCLE_SHADOW = "0 6px 20px rgba(139,35,50,0.3)";
