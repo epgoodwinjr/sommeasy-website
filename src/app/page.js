@@ -24,6 +24,7 @@ import WineRecList, { evolutionToastMessages } from "@/components/WineRecList";
 import WelcomeDemo from "@/components/WelcomeDemo";
 import GrowthMoment from "@/components/GrowthMoment";
 import Divider from "@/components/house/Divider";
+import LegalLinks from "@/components/house/LegalLinks";
 import SectionHead from "@/components/house/SectionHead";
 import LeaderEntry from "@/components/house/LeaderEntry";
 import WineRow from "@/components/house/WineRow";
@@ -753,6 +754,9 @@ function WelcomeScreen({ onStart, user, onSignOut, notice }) {
       {/* The head's label and rule land 80ms after its delay: 1650 */}
       <SectionHead label="Watch it work" enterDelay={1570} style={{ marginTop: 22 }} />
       <WelcomeDemo style={{ marginTop: 18 }} />
+
+      <Divider enterDelay={1700} style={{ marginTop: 34 }} />
+      <LegalLinks style={{ marginTop: 6 }} />
     </div>
   );
 }

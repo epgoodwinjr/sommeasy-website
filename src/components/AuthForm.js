@@ -10,8 +10,13 @@ import {
 import { peekStash, buildMetadataPayload } from "@/lib/pendingPalate";
 import AuthShell, { AuthAlert, AuthField, AuthLinkLine, AuthLinks, AuthNotice } from "./AuthShell";
 import LeaderEntry from "./house/LeaderEntry";
+import LegalLinks from "./house/LegalLinks";
+import { SIGNUP_CONSENT } from "@/lib/legalCopy";
 import TextAction, { TextActions } from "./house/TextAction";
-import { SERIF, ink } from "./house/tokens";
+import Link from "next/link";
+import { BURGUNDY, SANS, SERIF, ink } from "./house/tokens";
+
+const consentLink = { color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "10px 0" };
 
 const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "1";
 const MAGIC_ENABLED = process.env.NEXT_PUBLIC_MAGIC_LINK_ENABLED === "1";
@@ -417,6 +422,20 @@ export default function AuthForm({ mode, params }) {
         {errorLine}
         {noticeLine}
 
+        {/* What creating an account agrees to — said before the button, not after */}
+        {!isLogin && (
+          <p data-testid="signup-consent" style={{
+            fontFamily: SANS, fontSize: "13px", lineHeight: 1.5, color: ink(0.6), marginTop: 22,
+            textAlign: "center", textWrap: "balance",
+          }}>
+            {SIGNUP_CONSENT.lead}
+            <Link href="/terms" style={consentLink}>{SIGNUP_CONSENT.terms}</Link>
+            {SIGNUP_CONSENT.and}
+            <Link href="/privacy" style={consentLink}>{SIGNUP_CONSENT.privacy}</Link>
+            {SIGNUP_CONSENT.end}
+          </p>
+        )}
+
         <LeaderEntry
           tone="filled"
           mark="→"
@@ -425,7 +444,7 @@ export default function AuthForm({ mode, params }) {
             ? (isLogin ? "Signing you in…" : "Creating account…")
             : (isLogin ? "Sign in" : "Create account")}
           disabled={anyPending || !hydrated}
-          style={{ marginTop: isLogin ? 32 : 30 }}
+          style={{ marginTop: isLogin ? 32 : 16 }}
         />
 
         {(GOOGLE_ENABLED || (MAGIC_ENABLED && isLogin)) && (
@@ -458,6 +477,7 @@ export default function AuthForm({ mode, params }) {
           <TextAction href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`} size={13}>
             Forgot your password?
           </TextAction>
+          <LegalLinks style={{ marginTop: 18 }} />
         </AuthLinks>
       ) : (
         <AuthLinks style={{ marginTop: 20 }}>

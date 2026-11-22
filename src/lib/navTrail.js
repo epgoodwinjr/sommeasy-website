@@ -33,6 +33,8 @@ export const PAGE_TITLES = Object.freeze({
   "/search": "Search",
   "/palate": "Your palate",
   "/account": "Account",
+  "/privacy": "Privacy",
+  "/terms": "Terms",
 });
 
 export function titleForPath(pathname) {

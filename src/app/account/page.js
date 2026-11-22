@@ -29,6 +29,7 @@ import PalateMark from "@/components/PalateMark";
 import RunningHead from "@/components/house/RunningHead";
 import ServiceBar from "@/components/house/ServiceBar";
 import Divider from "@/components/house/Divider";
+import LegalLinks from "@/components/house/LegalLinks";
 import SectionHead from "@/components/house/SectionHead";
 import SettingRow from "@/components/house/SettingRow";
 import RuledField, { AmountRange } from "@/components/house/RuledField";
@@ -585,6 +586,7 @@ export default function AccountPage() {
               style={{ marginTop: 8 }}
             />
           )}
+          <LegalLinks style={{ marginTop: 14 }} />
         </div>
         </Enter>
       </main>
