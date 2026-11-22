@@ -96,6 +96,7 @@ function makeClient(device, { dieAfter = null, hooks = {} } = {}) {
     return filters.every(([kind, col, val]) => {
       const v = row[col];
       if (kind === "eq") return v === val;
+      if (kind === "in") return val.includes(v);
       if (kind === "not-is") return val === null ? v != null : v !== val;
       return true;
     });
@@ -113,6 +114,19 @@ function makeClient(device, { dieAfter = null, hooks = {} } = {}) {
       if (q.op === "update") {
         for (const r of rows().filter((r) => rowMatches(r, q.filters))) Object.assign(r, clone(q.data));
         return { data: null, error: null };
+      }
+      if (q.op === "upsert" && q.onConflict) {
+        // A bulk upsert on a unique key: DO UPDATE sets only the columns
+        // sent; ignoreDuplicates is DO NOTHING
+        const keys = q.onConflict.split(",");
+        const written = [];
+        for (const it of (Array.isArray(q.data) ? q.data : [q.data])) {
+          const hit = rows().find((r) => keys.every((k) => r[k] === it[k]));
+          if (hit) { if (!q.ignoreDuplicates) { Object.assign(hit, clone(it)); written.push(hit); } }
+          else { const row = { id: `row-${++server.seq}`, ...clone(it) }; rows().push(row); written.push(row); }
+        }
+        if (!q.returning) return { data: null, error: null };
+        return { data: q.single ? clone(written[0] ?? null) : clone(written), error: null };
       }
       if (q.op === "upsert") {
         const existing = rows().find((r) => r.user_id === q.data.user_id);
@@ -135,12 +149,17 @@ function makeClient(device, { dieAfter = null, hooks = {} } = {}) {
     const b = {
       select(_cols, opts) { if (q.op === "select") { if (opts?.count) q.count = true; } else q.returning = true; return b; },
       eq(col, val) { q.filters.push(["eq", col, val]); return b; },
+      in(col, vals) { q.filters.push(["in", col, vals]); return b; },
       not(col, op, val) { if (op === "is") q.filters.push(["not-is", col, val]); return b; },
       order() { return b; },
       limit() { return b; },
       insert(data) { q.op = "insert"; q.data = data; return b; },
       update(data) { q.op = "update"; q.data = data; return b; },
-      upsert(data) { q.op = "upsert"; q.data = data; return b; },
+      upsert(data, opts) {
+        q.op = "upsert"; q.data = data;
+        q.onConflict = opts?.onConflict || null; q.ignoreDuplicates = !!opts?.ignoreDuplicates;
+        return b;
+      },
       single() { q.single = "single"; return b; },
       maybeSingle() { q.single = "maybe"; return b; },
       then(res, rej) { return network(`${q.op}:${table}`, exec).then(res, rej); },

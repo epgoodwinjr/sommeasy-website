@@ -63,9 +63,10 @@ test.describe("The link preview", () => {
 // ─── The palate card ───
 
 const CREAM = [245, 240, 232];
-// SharePalate's faces, by role — the tokens' SERIF and SANS
-const SERIF = "'Playfair Display', Georgia, serif";
-const SANS = "'Source Sans 3', sans-serif";
+// SharePalate's faces, by role — the tokens' SERIF and SANS (CSS variables
+// next/font sets on <html>; resolved in the page, as canvasFont() does)
+const SERIF = "var(--font-playfair), Georgia, serif";
+const SANS = "var(--font-source-sans), sans-serif";
 const CARD_FONTS = {
   title: `700 76px ${SERIF}`,
   epithet: `italic 400 40px ${SERIF}`,
@@ -113,7 +114,15 @@ const PLAN_SOURCE = readFileSync("src/lib/palateCard.js", "utf-8")
 
 async function planInPage(page: Page, words: { title: string; epithet: string }) {
   await page.addScriptTag({ content: `window.__palateCard = (() => { ${PLAN_SOURCE}; return { PALATE_CARD, palateCardPlan }; })();` });
-  return page.evaluate(async ({ words, fonts }) => {
+  return page.evaluate(async ({ words, fonts: stacks }) => {
+    // The variables resolved as canvasFont() resolves them — and they must
+    // resolve: a page without them would draw both sides in Georgia
+    const root = getComputedStyle(document.documentElement);
+    const fonts = Object.fromEntries(Object.entries(stacks).map(([role, f]) => [role, f.replace(/var\((--[\w-]+)\)\s*,?\s*/g, (_m, name) => {
+      const value = root.getPropertyValue(name).trim();
+      if (!value) throw new Error(`${name} is not set on <html>`);
+      return `${value}, `;
+    })])) as typeof stacks;
     await Promise.all(Object.values(fonts).map((f) => document.fonts.load(f)));
     const { PALATE_CARD: C, palateCardPlan } = (window as any).__palateCard;
     const ctx = document.createElement("canvas").getContext("2d")!;

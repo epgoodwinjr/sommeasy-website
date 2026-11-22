@@ -27,10 +27,12 @@ import { useEffect, useRef, useState } from "react";
 import { renderPalateMarkDocument } from "@/lib/palateMark";
 import { PALATE_CARD, SHARE_COPY, palateCardPlan } from "@/lib/palateCard";
 import TextAction from "./house/TextAction";
-import { BURGUNDY, CREAM, INK, SANS, SERIF, ink } from "./house/tokens";
+import { BURGUNDY, CREAM, INK, SANS, SERIF, canvasFont, ink } from "./house/tokens";
 
 const C = PALATE_CARD;
-// The page's own faces (globals.css loads them), by the card's roles
+// The page's own faces (next/font self-hosts them — src/app/fonts.js), by
+// the card's roles. They name CSS variables: makeCard resolves them for the
+// canvas, which can't read one
 const FONTS = {
   title: `700 ${C.title.size}px ${SERIF}`,
   epithet: `italic 400 ${C.epithet.size}px ${SERIF}`,
@@ -71,9 +73,10 @@ function loadImage(svg) {
 /** The card as a PNG File, or null when it can't be made. */
 async function makeCard({ genome, title, epithet }) {
   if (typeof document === "undefined") return null;
+  const fonts = Object.fromEntries(Object.entries(FONTS).map(([role, font]) => [role, canvasFont(font)]));
   // Every face drawn, loaded first (a failed load falls back, as the page does)
   if (document.fonts?.load) {
-    const loaded = Promise.all(Object.values(FONTS).map((font) => document.fonts.load(font).catch(() => null)));
+    const loaded = Promise.all(Object.values(fonts).map((font) => document.fonts.load(font).catch(() => null)));
     await Promise.race([loaded, new Promise((resolve) => setTimeout(resolve, FONT_WAIT_MS))]);
   }
   const canvas = document.createElement("canvas");
@@ -83,7 +86,7 @@ async function makeCard({ genome, title, epithet }) {
   if (!ctx) return null;
   const tracking = C.site.size * C.site.tracking;
   const measure = (text, role) => {
-    ctx.font = FONTS[role];
+    ctx.font = fonts[role];
     return role === "site" ? trackedWidth(ctx, text, tracking) : ctx.measureText(text).width;
   };
   const plan = palateCardPlan({ title, epithet }, measure);
@@ -96,7 +99,7 @@ async function makeCard({ genome, title, epithet }) {
   ctx.drawImage(bloom, plan.mark.x, plan.mark.y, plan.mark.size, plan.mark.size);
   ctx.textBaseline = "middle";
   for (const line of plan.lines) {
-    ctx.font = FONTS[line.role];
+    ctx.font = fonts[line.role];
     ctx.fillStyle = COLORS[line.role];
     if (line.role === "site") {
       fillTracked(ctx, line.text, line.x, line.y, tracking);

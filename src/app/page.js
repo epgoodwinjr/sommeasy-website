@@ -904,7 +904,7 @@ export default function Home() {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px" }}>
         <img src="/protea-icon.png" alt="" style={{ height: 56, width: "auto", opacity: 0.5 }} />
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#8B2332", opacity: 0.4 }}>Sommeasy</div>
+        <div style={{ fontFamily: SERIF, fontSize: "22px", color: "#8B2332", opacity: 0.4 }}>Sommeasy</div>
       </div>
     );
   }
