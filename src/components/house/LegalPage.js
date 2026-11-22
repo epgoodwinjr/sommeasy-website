@@ -5,7 +5,7 @@ import Enter from "./Enter";
 import { PAGE_REST } from "./motion";
 import { BURGUNDY, COLUMN, GUTTER, INK, SANS, SERIF, TYPE, ink } from "./tokens";
 import { numeralCounter } from "@/lib/numerals";
-import { LEGAL_CONTACT, LEGAL_DRAFT, LEGAL_UPDATED } from "@/lib/legalCopy";
+import { LEGAL_CONTACT, LEGAL_DRAFT, LEGAL_EFFECTIVE, LEGAL_UPDATED } from "@/lib/legalCopy";
 
 // /privacy and /terms (launch prep, Nov 2026): a quiet House List page —
 // the running head, the title rising, the rest on one fade (PAGE_REST) —
@@ -45,8 +45,8 @@ export default function LegalPage({ copy, testId }) {
         <Enter>
           <h1 style={TYPE.h1}>{copy.title}</h1>
           <p style={{ ...TYPE.sub, marginTop: 8 }}>{copy.sub}</p>
-          <p style={{ ...TYPE.meta, marginTop: 12 }}>
-            Last updated {LEGAL_UPDATED}
+          <p data-testid="legal-dates" style={{ ...TYPE.meta, marginTop: 12 }}>
+            Effective {LEGAL_EFFECTIVE} · Last updated {LEGAL_UPDATED}
           </p>
           {LEGAL_DRAFT && (
             <p data-testid="legal-draft" style={{

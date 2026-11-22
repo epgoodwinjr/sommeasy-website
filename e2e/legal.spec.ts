@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { LEGAL_CONTACT, SIGNUP_CONSENT } from "../src/lib/legalCopy.js";
+import { BACKUP_RETENTION_DAYS, LEGAL_CONTACT, LEGAL_EFFECTIVE, LEGAL_OPERATOR, LEGAL_UPDATED, SIGNUP_CONSENT } from "../src/lib/legalCopy.js";
 
 /**
  * The Privacy Policy and Terms (launch prep, Nov 2026): reachable from
@@ -26,7 +26,22 @@ test.describe("Privacy and Terms", () => {
         await expect(main.getByRole("heading", { level: 2 }).first()).toBeVisible();
         await expect(main.locator(`a[href="mailto:${LEGAL_CONTACT}"]`).first()).toBeVisible();
         await expect(main).toContainText("21 in the United States");
+        // Who runs it, and when the text takes effect (launch prep Session 2b)
+        await expect(main.getByRole("heading", { level: 2 }).first()).toContainText("Who we are");
+        await expect(main).toContainText(LEGAL_OPERATOR);
+        await expect(main.getByTestId("legal-dates")).toHaveText(`Effective ${LEGAL_EFFECTIVE} · Last updated ${LEGAL_UPDATED}`);
       }
+    });
+
+    test("the Terms follow Pennsylvania law; the policy says what Do Not Track changes and how long backups live", async ({ page }) => {
+      await page.goto("/terms");
+      await expect(page.getByTestId("terms-page")).toContainText("governed by the laws of the Commonwealth of Pennsylvania");
+      await page.goto("/privacy");
+      const privacy = page.getByTestId("privacy-page");
+      await expect(privacy).toContainText("Do Not Track");
+      await expect(privacy).toContainText(`keep each one for ${BACKUP_RETENTION_DAYS} days`);
+      // The fonts are self-hosted now: the policy no longer names Google Fonts
+      await expect(privacy).not.toContainText("Google Fonts");
     });
 
     test("Welcome's footer and sign in link to both pages", async ({ page }) => {

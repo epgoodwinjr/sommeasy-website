@@ -11,12 +11,29 @@ import { peekStash, buildMetadataPayload } from "@/lib/pendingPalate";
 import AuthShell, { AuthAlert, AuthField, AuthLinkLine, AuthLinks, AuthNotice } from "./AuthShell";
 import LeaderEntry from "./house/LeaderEntry";
 import LegalLinks from "./house/LegalLinks";
-import { SIGNUP_CONSENT } from "@/lib/legalCopy";
+import { GOOGLE_CONSENT, SIGNUP_CONSENT } from "@/lib/legalCopy";
 import TextAction, { TextActions } from "./house/TextAction";
 import Link from "next/link";
 import { BURGUNDY, SANS, SERIF, ink } from "./house/tokens";
 
 const consentLink = { color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "10px 0" };
+
+/** What signing up agrees to: legal drinking age, the Terms, the Privacy
+ *  Policy — above Create account, and under Continue with Google. */
+function ConsentLine({ copy, testId, style }) {
+  return (
+    <p data-testid={testId} style={{
+      fontFamily: SANS, fontSize: "13px", lineHeight: 1.5, color: ink(0.6),
+      textAlign: "center", textWrap: "balance", ...style,
+    }}>
+      {copy.lead}
+      <Link href="/terms" style={consentLink}>{copy.terms}</Link>
+      {copy.and}
+      <Link href="/privacy" style={consentLink}>{copy.privacy}</Link>
+      {copy.end}
+    </p>
+  );
+}
 
 const GOOGLE_ENABLED = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "1";
 const MAGIC_ENABLED = process.env.NEXT_PUBLIC_MAGIC_LINK_ENABLED === "1";
@@ -337,7 +354,7 @@ export default function AuthForm({ mode, params }) {
           </div>
           <AuthLinks style={{ marginTop: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ fontFamily: "'Source Sans 3', sans-serif", fontSize: "14px", color: ink(0.55) }}>
+              <span style={{ fontFamily: SANS, fontSize: "14px", color: ink(0.55) }}>
                 Used the wrong address?
               </span>
               <TextAction size={14} onClick={() => { setView("form"); setNotice(null); setErrorKey(null); }}>
@@ -423,18 +440,7 @@ export default function AuthForm({ mode, params }) {
         {noticeLine}
 
         {/* What creating an account agrees to — said before the button, not after */}
-        {!isLogin && (
-          <p data-testid="signup-consent" style={{
-            fontFamily: SANS, fontSize: "13px", lineHeight: 1.5, color: ink(0.6), marginTop: 22,
-            textAlign: "center", textWrap: "balance",
-          }}>
-            {SIGNUP_CONSENT.lead}
-            <Link href="/terms" style={consentLink}>{SIGNUP_CONSENT.terms}</Link>
-            {SIGNUP_CONSENT.and}
-            <Link href="/privacy" style={consentLink}>{SIGNUP_CONSENT.privacy}</Link>
-            {SIGNUP_CONSENT.end}
-          </p>
-        )}
+        {!isLogin && <ConsentLine copy={SIGNUP_CONSENT} testId="signup-consent" style={{ marginTop: 22 }} />}
 
         <LeaderEntry
           tone="filled"
@@ -462,6 +468,9 @@ export default function AuthForm({ mode, params }) {
             )}
           </TextActions>
         )}
+        {/* Google makes an account for a new address from either form, so its
+            line sits right under it on both */}
+        {GOOGLE_ENABLED && <ConsentLine copy={GOOGLE_CONSENT} testId="google-consent" style={{ marginTop: 6 }} />}
       </form>
 
       {!isLogin && quizWaiting && (

@@ -1,4 +1,5 @@
 import { test, expect, Page, Route } from "@playwright/test";
+import { GOOGLE_CONSENT } from "../src/lib/legalCopy.js";
 
 // Launch prep: Google sign-in goes on with this flag (the button renders only then)
 const GOOGLE_ON = process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED === "1";
@@ -303,11 +304,30 @@ test.describe("Auth — signed-out flows", () => {
       await page.goto("/signup");
       await expect(page.locator('input[type="email"]')).toBeVisible();
       await expect(page.getByText("Continue with Google")).toHaveCount(0);
+      await expect(page.getByTestId("google-consent")).toHaveCount(0);
       return;
     }
-    await page.goto("/signup");
-    await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
-    await expect(page.getByText("Continue with Google")).toBeVisible();
+    // Google makes an account for a new address from EITHER form, so the
+    // consent line sits right under its button on both: age, Terms, Privacy
+    const consentText =
+      GOOGLE_CONSENT.lead + GOOGLE_CONSENT.terms + GOOGLE_CONSENT.and + GOOGLE_CONSENT.privacy + GOOGLE_CONSENT.end;
+    for (const path of ["/signup", "/login"]) {
+      await page.goto(path);
+      await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 15_000 });
+      const google = page.getByRole("button", { name: "Continue with Google" });
+      const consent = page.getByTestId("google-consent");
+      await expect(google, `${path}: the Google button`).toBeVisible();
+      await expect(consent, `${path}: its consent line`).toBeVisible();
+      await expect(consent).toHaveText(consentText);
+      expect(consentText).toContain("legal drinking age");
+      await expect(consent.getByRole("link", { name: GOOGLE_CONSENT.terms })).toHaveAttribute("href", "/terms");
+      await expect(consent.getByRole("link", { name: GOOGLE_CONSENT.privacy })).toHaveAttribute("href", "/privacy");
+      // Directly under the button: nothing to scroll past between them
+      const g = (await google.boundingBox())!;
+      const c = (await consent.boundingBox())!;
+      expect(c.y, `${path}: the line is below the button`).toBeGreaterThanOrEqual(g.y + g.height - 1);
+      expect(c.y - (g.y + g.height), `${path}: and right under it`).toBeLessThan(40);
+    }
 
     // Never reach Google: catch the hand-off at Supabase's authorize endpoint
     let authorize: URL | null = null;

@@ -1,8 +1,9 @@
 // legalCopy.js — the Privacy Policy and Terms, as data (launch prep, Nov 2026).
 //
 // DRAFTS until Ed reviews them: LEGAL_DRAFT puts a "Draft for review" line
-// on both pages. Flip it to false when they're approved — and change
-// LEGAL_UPDATED whenever the text changes.
+// on both pages. Flip it to false when they're approved, and set
+// LEGAL_EFFECTIVE to that day. Change LEGAL_UPDATED whenever the text
+// changes.
 //
 // Every factual claim here is written from what the code does; the launch
 // readout (docs/launch-prep-readout.md) lists each one with the file that
@@ -15,6 +16,13 @@
 
 export const LEGAL_DRAFT = true;
 export const LEGAL_UPDATED = "November 22, 2026";
+// The day the current text takes effect — set it to the day LEGAL_DRAFT
+// goes false (while it's true, the draft line says "not yet in effect")
+export const LEGAL_EFFECTIVE = "November 22, 2026";
+// Who runs Sommeasy — "we" and "us" on both pages
+export const LEGAL_OPERATOR = "Sommeasy is run by Ed Goodwin, an individual. “We” and “us” here mean him.";
+// How long the weekly database backup is kept (.github/workflows/db-backup.yml)
+export const BACKUP_RETENTION_DAYS = 90;
 export const LEGAL_CONTACT = "hello@sommeasy.wine";
 
 // Create account's line above its button. "Terms" and "Privacy Policy" are
@@ -27,10 +35,23 @@ export const SIGNUP_CONSENT = {
   end: ".",
 };
 
+// The same line under "Continue with Google", on sign in AND create account
+// (launch prep Session 2b): Google makes a new account for a new address
+// from either form, so no one gets one without seeing this. Worded for the
+// button — on sign in it may be an existing account.
+export const GOOGLE_CONSENT = {
+  ...SIGNUP_CONSENT,
+  lead: "By continuing with Google you confirm you’re of legal drinking age where you live and agree to our ",
+};
+
 export const PRIVACY = {
   title: "Privacy",
   sub: "What we keep, who helps us run Sommeasy, and what you can do about it.",
   sections: [
+    {
+      heading: "Who we are",
+      body: [LEGAL_OPERATOR],
+    },
     {
       heading: "The short version",
       body: [
@@ -63,8 +84,9 @@ export const PRIVACY = {
         "Supabase stores your account and everything above, and runs sign-in.",
         "Anthropic reads the lists and labels you send us. To write the Somm’s picks and notes, it also receives your palate (countries, regions, grapes and estates), the bottles you loved or didn’t, tonight’s terms and the wines on the list. To refresh the narrative on Your palate it receives your title, signature, palate and recent ratings. It never receives your name or email address.",
         "Resend delivers our sign-in emails: confirming your address, sign-in links and password resets.",
-        "Google signs you in if you choose Continue with Google. Our fonts also load from Google Fonts, so your browser asks Google’s servers for them, as it does on many sites.",
+        "Google signs you in if you choose Continue with Google.",
         "Vercel hosts Sommeasy. Its Web Analytics counts page views without cookies and without identifying you.",
+        "GitHub stores our weekly database backup. Each one is encrypted before it leaves the backup job, with a key only we hold, so GitHub can’t read it.",
       ],
     },
     {
@@ -72,6 +94,7 @@ export const PRIVACY = {
       body: [
         "Sign-in keeps a session in cookies on your device. Sommeasy also remembers a few things in your browser’s own storage: a quiz you finished before creating an account (for up to seven days), your five most recent searches, prompts you dismissed, and the trail behind the back link. None of it leaves your device except the quiz, which joins your account when you sign up or sign in.",
         "To keep the service from being overwhelmed, our server remembers your IP address for up to one hour each time you use a feature that reads a list or label or asks the Somm, and counts the requests.",
+        "Your browser may send a Do Not Track or Global Privacy Control signal. Sommeasy doesn’t read either one and works the same way with or without them, because there is nothing for them to switch off: we don’t track you across other sites, we have no advertising or third-party trackers, and our page counts set no cookies.",
       ],
     },
     {
@@ -96,7 +119,7 @@ export const PRIVACY = {
     {
       heading: "How long we keep it",
       body: [
-        "We keep your data while you have an account, and delete it when you delete your account. Our providers may hold short-lived backups and logs on their own schedules.",
+        `We keep your data while you have an account, and delete it when you delete your account. Once a week we make an encrypted backup of our database and keep each one for ${BACKUP_RETENTION_DAYS} days, so data you delete has left our backups within ${BACKUP_RETENTION_DAYS} days. Our providers may hold short-lived backups and logs on their own schedules.`,
       ],
     },
     {
@@ -112,6 +135,10 @@ export const TERMS = {
   title: "Terms",
   sub: "The plain rules for using Sommeasy.",
   sections: [
+    {
+      heading: "Who we are",
+      body: [`${LEGAL_OPERATOR} By using Sommeasy you agree to these Terms.`],
+    },
     {
       heading: "Who can use Sommeasy",
       body: [
@@ -152,6 +179,7 @@ export const TERMS = {
       heading: "The fine print",
       body: [
         "Sommeasy is provided as it is, without warranties of any kind. To the extent the law allows, we aren’t liable for indirect or consequential losses, or for a bottle you didn’t enjoy. Nothing here limits rights the law gives you that can’t be limited.",
+        "These Terms are governed by the laws of the Commonwealth of Pennsylvania, without regard to its conflict-of-laws rules.",
         "If we change these Terms, we’ll update this page and the date at the top. Using Sommeasy after a change means you accept it.",
         "Questions: [[contact]].",
       ],
