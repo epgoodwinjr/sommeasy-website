@@ -2,7 +2,7 @@
 // Single data source: wineUnified.json (built from 130k WineMag reviews)
 
 import wineUnified from "./wineUnified.json";
-import { buildCoreNameAliases } from "./producerAliases.js";
+import { buildCoreNameAliases, buildProducerTwins, foldInitials, includesWord } from "./producerAliases.js";
 import { fitsColor, budgetFit, budgetLimits, isPickable, isSparkling, knownColor } from "./matchTerms.js";
 
 const COUNTRIES = wineUnified.countries;
@@ -79,20 +79,25 @@ function buildSearchIndex() {
   }
   idx.regionTerms.sort((a, b) => b.term.length - a.term.length);
 
-  // Producers from unified producerLookup (8,882 entries)
-  for (const [name, data] of Object.entries(PRODUCER_LOOKUP)) {
-    if (name.length < 3) continue;
+  // Producers from unified producerLookup (8,882 entries). A term is the
+  // name in the one spelling of initials (foldInitials: "g.d."/"g d"/"gd"
+  // all "gd"); a producer the data keys twice (buildProducerTwins) answers
+  // under the canonical twin's name, so both keys are one winery
+  const twins = buildProducerTwins(wineUnified);
+  for (const [key, data] of Object.entries(PRODUCER_LOOKUP)) {
+    if (key.length < 3) continue;
+    const name = twins.get(key) || key;
     idx.producerTerms.push({
-      term: name.toLowerCase(), name, dnaCountryId: data.country || null,
+      term: foldInitials(key.toLowerCase()), name, dnaCountryId: data.country || null,
     });
     // Menus write "& Fils" where WineMag writes "et Fils" (and vice versa) —
     // index conjunction variants so both spellings match
     const variants = [];
-    if (name.includes(" et ")) variants.push(name.replace(/ et /g, " & "));
-    if (name.includes(" and ")) variants.push(name.replace(/ and /g, " & "));
-    if (name.includes(" & ")) variants.push(name.replace(/ & /g, " et "), name.replace(/ & /g, " and "));
+    if (key.includes(" et ")) variants.push(key.replace(/ et /g, " & "));
+    if (key.includes(" and ")) variants.push(key.replace(/ and /g, " & "));
+    if (key.includes(" & ")) variants.push(key.replace(/ & /g, " et "), key.replace(/ & /g, " and "));
     for (const v of variants) {
-      idx.producerTerms.push({ term: v.toLowerCase(), name, dnaCountryId: data.country || null });
+      idx.producerTerms.push({ term: foldInitials(v.toLowerCase()), name, dnaCountryId: data.country || null });
     }
   }
 
@@ -182,9 +187,10 @@ function buildSearchIndex() {
   // Core-name aliases: menus write "Newton Johnson", WineMag keys "Newton
   // Johnson Vineyards" — without the alias the longest-first scan falls
   // through to Napa's "Newton". Whole-phrase matches only (producerAliases.js)
-  for (const [core, name] of buildCoreNameAliases(wineUnified)) {
-    idx.producerTerms.push({ term: core, name, dnaCountryId: PRODUCER_LOOKUP[name].country || null, alias: true });
+  for (const [core, key] of buildCoreNameAliases(wineUnified)) {
+    idx.producerTerms.push({ term: core, name: twins.get(key) || key, dnaCountryId: PRODUCER_LOOKUP[key].country || null, alias: true });
   }
+  idx.twins = twins;
   idx.producerTerms.sort((a, b) => b.term.length - a.term.length);
 
   return idx;
@@ -576,12 +582,14 @@ const pad = function(text) { return " " + text + " "; };
 
 // Producers — word-boundary matching, NOT raw substring: producers named
 // "Cass"/"Pier"/"Rozès" must not hit inside "Cassis"/"Pierre"/
-// "Crozes-Hermitage" (the country-misattribution bugs)
+// "Crozes-Hermitage" (the country-misattribution bugs). The text is read in
+// the terms' one spelling of initials ("G.D. Vajra" is "gd vajra")
 function findProducer(raw) {
+  const text = foldInitials(raw);
   for (var pi = 0; pi < SEARCH_INDEX.producerTerms.length; pi++) {
     const prod = SEARCH_INDEX.producerTerms[pi];
     if (prod.term.length < 4) continue;
-    if (termMatchesInText(prod.term, raw, prod.alias)) return prod;
+    if (termMatchesInText(prod.term, text, prod.alias)) return prod;
   }
   return null;
 }
@@ -627,8 +635,9 @@ function findCountry(folded) {
 function isNamesake(producer, region, statedCountry) {
   if (!producer || !producer.dnaCountryId) return false;
   const ownName = foldText(producer.term);
+  // Inside the name as words: "Sebastiani" does not name Asti
   const stated = [region, statedCountry].filter(function(g) {
-    return g && g.dnaCountryId && ownName.indexOf(g.fold) < 0;
+    return g && g.dnaCountryId && !includesWord(ownName, g.fold);
   });
   const agrees = function(g) {
     return g.dnaCountryId === producer.dnaCountryId || (g.sharedWith || []).indexOf(producer.dnaCountryId) >= 0;
@@ -693,7 +702,7 @@ function fieldText(value) {
 function findProducerInField(field) {
   if (!field) return null;
   const exact = PRODUCER_LOOKUP[field];
-  if (exact) return { term: field, name: field, dnaCountryId: exact.country || null };
+  if (exact) return { term: field, name: SEARCH_INDEX.twins.get(field) || field, dnaCountryId: exact.country || null };
   return findProducer(pad(field));
 }
 

@@ -215,9 +215,10 @@ function normalize(text, keepDesignators = false) {
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[''`]/g, "'")
     .replace(/\b(19|20)\d{2}\b/g, "");
-  return (keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
+  // Initials in one spelling (producerAliases.foldInitials)
+  return aliasMirror.foldInitials((keepDesignators ? spellDesignators(lowered) : lowered.replace(/\b(estate|vineyard|vineyards|winery|wines|wine|cellars|cellar|cuvee|domaine|chateau|château|bodega|tenuta|casa|cantina|fattoria|azienda|maison)\b/gi, ""))
     .replace(/[^a-z0-9\s'.-]/g, " ")
-    .replace(/\s+/g, " ").trim();
+    .replace(/\s+/g, " ").trim());
 }
 function tokenize(text) { return normalize(text).split(/\s+/).filter(t => t.length >= 2); }
 
@@ -290,7 +291,17 @@ for (const [regionId, estates] of Object.entries(ESTATES)) {
   for (const [core, key] of aliasMirror.buildCoreNameAliases(wineUnified)) {
     const norm = normalize(core);
     if (norms.has(norm) || !norm.includes(" ") || !byLookupKey.has(key)) continue;
-    producerIndex.push({ ...byLookupKey.get(key), norm, alias: true });
+    producerIndex.push({ ...byLookupKey.get(key), norm, alias: true, lookupKey: key });
+  }
+}
+// One winery keyed twice resolves as its canonical twin, estate and all
+for (const [key, canonical] of aliasMirror.buildProducerTwins(wineUnified)) {
+  const from = { ...byLookupKey.get(canonical), dnaEstateId: PRODUCER_LOOKUP[canonical].producerId };
+  for (const entry of producerIndex) {
+    if (entry === byLookupKey.get(key) || entry === byLookupKey.get(canonical)
+        || (entry.alias && (entry.lookupKey === key || entry.lookupKey === canonical))) {
+      for (const f of ["name", "country", "province", "dnaCountryId", "dnaRegionId", "dnaEstateId"]) entry[f] = from[f];
+    }
   }
 }
 producerIndex.sort((a, b) => b.norm.length - a.norm.length);
@@ -363,6 +374,8 @@ function tokenOverlap(inputTokens, candidateTokens, placeWords) {
 // A name the line writes only inside longer region names it states is the
 // region's word ("Alexander" in "Alexander Valley")
 function namedOnlyInRegions(normInput, prod, statedRegions) {
+  // Letters, not words: "Santa Cruz Mountain" (Vineyard) is the region's own
+  // in "Santa Cruz Mountains" — this only ever withholds a producer
   const around = statedRegions.filter(t => t !== prod.norm && t.includes(prod.norm));
   if (around.length === 0) return false;
   const rest = around.reduce((text, t) => text.split(t).join(" "), normInput);
@@ -390,13 +403,13 @@ function matchProducer(normInput, inputTokens, fullInput, statedRegions) {
 }
 
 function matchVarietal(normInput) {
-  for (const v of varietalIndex) { if (v.norm.length >= 4 && normInput.includes(v.norm)) return v; }
+  for (const v of varietalIndex) { if (v.norm.length >= 4 && aliasMirror.includesWord(normInput, v.norm)) return v; }
   return null;
 }
 // A place term that is a proper part of the producer's written name is the name
-function insideName(ownName, term) { return ownName !== term && ownName.includes(term); }
+function insideName(ownName, term) { return ownName !== term && aliasMirror.includesWord(ownName, term); }
 function matchRegion(normInput, ownName) {
-  for (const r of regionIndex) { if (r.term.length >= 4 && normInput.includes(r.term) && !insideName(ownName, r.term)) return r; }
+  for (const r of regionIndex) { if (r.term.length >= 4 && aliasMirror.includesWord(normInput, r.term) && !insideName(ownName, r.term)) return r; }
   return null;
 }
 
