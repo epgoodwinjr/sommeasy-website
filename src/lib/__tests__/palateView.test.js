@@ -247,6 +247,63 @@ async function main() {
     assertEq(view.evolutionRows([]), [], "nothing yet");
   });
 
+
+  // ─── Canary fixes (Nov 23, 2026) ───
+
+  await test("wines you named say what is true: the journal's verdict, else the quiz, else nothing", () => {
+    const profile = { specific_wines: ["Meerlust Rubicon", "Domaine Jamet Côte-Rôtie", "  ", 7, "Kanonkop Paul Sauer"] };
+    const journal = [
+      { wine_name: "meerlust   rubicon", rating: "loved" }, // Log a bottle's old copy, written another way
+      { wine_name: "Kanonkop Paul Sauer", rating: null },  // a want: no verdict
+      { wine_name: "Domaine Jamet Cote-Rotie", rating: "not_for_me" },
+    ];
+    assertEq(view.namedWines(profile, journal).map((w) => [w.name, w.note]), [
+      ["Meerlust Rubicon", "Loved it"],
+      ["Domaine Jamet Côte-Rôtie", "Not for me"],
+      ["Kanonkop Paul Sauer", "from your quiz"],
+    ], "verdicts by normalized name; junk names dropped");
+    assertEq(view.namedWines(profile, null).map((w) => w.note), ["", "", ""], "an unreadable journal claims nothing");
+    assertEq(view.namedWines(profile, []).map((w) => w.note), ["from your quiz", "from your quiz", "from your quiz"], "an empty journal: the quiz");
+    assertEq(view.namedWines({}, []), [], "no named wines");
+    assertEq(view.namedWines(null, null), [], "junk");
+    const keys = view.namedWines({ specific_wines: ["A", "A"] }, []).map((w) => w.key);
+    assertEq(new Set(keys).size, 2, "a name listed twice keeps two keys");
+  });
+
+  await test("an estate's particles are lowercase wherever Your palate names it", () => {
+    const profile = { estates: { burgundy: ["domaine_de_la_vougeraie"] } };
+    const names = { estate: (id) => ({ domaine_de_la_vougeraie: "Domaine De La Vougeraie" })[id] || null };
+    assertEq(view.dnaEntries({ profile, accumulation: [], names }).map((e) => e.name), ["Domaine de la Vougeraie"], "the DNA row");
+    assertEq(view.dnaEntries({ profile: { estates: { x: ["plaisir_de_merle"] } }, accumulation: [
+      { dimension: "estate", dimension_value: "plaisir_de_merle", display_name: "Plaisir De Merle", promoted: true, source: "quiz" },
+    ] }).map((e) => e.name), ["Plaisir de Merle"], "the engine's display name too");
+    const building = view.buildingNow([
+      { dimension: "estate", dimension_value: "v", display_name: "Domaine De La Vougeraie", points: 2, promoted: false },
+      { dimension: "region", dimension_value: "r", display_name: "Côte De Nuits", points: 2, promoted: false },
+    ]);
+    assertEq(building.rows.map((r) => r.name), ["Domaine de la Vougeraie", "Côte De Nuits"], "Building now: the estate, and only the estate");
+    const evolved = view.evolutionRows([
+      { id: 1, event_type: "promoted", dimension: "estate", display_name: "Domaine De La Vougeraie", event_at: "2026-11-23T10:00:00Z" },
+    ], { now: new Date("2026-11-23T12:00:00Z") });
+    assertEq(evolved[0].line.text, "Domaine de la Vougeraie joined your estates", "Recently evolved");
+  });
+
+  await test("an Italian estate's family name keeps its De — the country comes from the names resolver", () => {
+    const names = {
+      estate: (id) => ({ marchesi_de_gregorio: "Marchesi De Gregorio" })[id] || null,
+      estateCountry: (id, region) => (id === "marchesi_de_gregorio" ? "italy" : null),
+    };
+    const profile = { estates: { sicily: ["marchesi_de_gregorio"] } };
+    assertEq(view.dnaEntries({ profile, accumulation: [], names }).map((e) => e.name), ["Marchesi De Gregorio"], "the DNA row");
+    const row = { dimension: "estate", dimension_value: "marchesi_de_gregorio", display_name: "Marchesi De Gregorio", points: 2, promoted: false };
+    assertEq(view.buildingNow([row], { names }).rows.map((r) => r.name), ["Marchesi De Gregorio"], "Building now");
+    assertEq(view.buildingNow([row]).rows.map((r) => r.name), ["Marchesi de Gregorio"], "no resolver: the general rule");
+    const evolved = view.evolutionRows([{ id: 1, event_type: "promoted", dimension: "estate", dimension_value: "marchesi_de_gregorio",
+      display_name: "Marchesi De Gregorio", event_at: "2026-11-23T10:00:00Z" }], { names, now: new Date("2026-11-23T12:00:00Z") });
+    assertEq(evolved[0].line.text, "Marchesi De Gregorio joined your estates", "Recently evolved");
+  });
+
+
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }

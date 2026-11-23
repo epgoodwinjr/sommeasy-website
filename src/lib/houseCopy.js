@@ -504,6 +504,75 @@ function casePart(part, opens) {
   return !opens && PARTICLES.has(part) ? part : capitalize(part);
 }
 
+// An estate's little words, lowercase inside its name ("Domaine de la
+// Vougeraie", "Plaisir de Merle", "Quinta do Monte d'Oiro", "Stone the
+// Crows") — never when they open or close it ("Scala Dei"). The data
+// capitalizes them ("Domaine De La Vougeraie"). An article is lowercase only
+// after a Romance preposition ("de la", "del", "de los"): on its own it is
+// part of the name, as French and Spanish write them ("Château La Nerthe",
+// "Winery at La Grange"). Left alone: "Van" ("Lemos & Van Zeller") and
+// "Sur", which is Spanish for south ("Cono Sur").
+//
+// Italian is the one place a particle can be a capital: "De" is not an
+// Italian preposition (that is "di"), so on an Italian estate it starts a
+// family name and keeps the data's capital — "Marchesi De Gregorio",
+// "Cantine De Falco", "Sandro De Bruno". Not before an article ("Terre de
+// la Custodia") or after Venetian "Ca'" ("Ca' de Lion", where "de" is "of").
+// "di", "del", "della"… stay prepositions ("Castello di Ama"). Reviewed
+// country by country over every name the app can show (canary-fixes readout).
+const ROMANCE_PARTICLES = new Set([
+  "de", "du", "des", "di", "da", "del", "della", "dello", "dei", "degli", "delle",
+  "do", "dos", "das",
+]);
+const ESTATE_PARTICLES = new Set([
+  ...ROMANCE_PARTICLES, "von", "zu", "et", "e", "y", "of", "the", "and", "at", "in", "by", "en", "am", "im",
+]);
+const ESTATE_ARTICLES = new Set(["la", "le", "les", "los", "las", "lo", "il", "el"]);
+const VENETIAN_HOUSE = new Set(["ca'", "ca’", "cà"]);
+
+/** An estate's name with its particles lowercase. `country` is the estate's
+ *  country id when the caller knows it ("italy" keeps a family name's "De").
+ *  Display only — the stored name and every lookup keep the data's
+ *  spelling. Junk → "". */
+export function estateName(name, { country = null } = {}) {
+  if (typeof name !== "string") return "";
+  const words = name.trim().replace(/\s+/g, " ").split(" ");
+  const last = words.length - 1;
+  let afterRomance = false;
+  return words.map((word, i) => {
+    const wasAfter = afterRomance;
+    afterRomance = false;
+    if (i === 0 || !word) return word;
+    // An elided particle carries its word with it, so it may close the
+    // name ("Château d'Yquem") — and that word keeps its capital, which the
+    // data sometimes drops ("Tasca D'almerita" → "Tasca d'Almerita")
+    const elided = word.match(/^([A-Za-z])(['’])(.+)$/);
+    if (elided) {
+      const [, letter, mark, rest] = elided;
+      const head = letter.toLowerCase();
+      if (!(head === "d" || (head === "l" && wasAfter))) return word;
+      const tail = ESTATE_PARTICLES.has(rest.toLowerCase()) ? rest.toLowerCase() : rest.charAt(0).toUpperCase() + rest.slice(1);
+      return `${head}${mark}${tail}`;
+    }
+    if (i === last) return word;
+    const lower = word.toLowerCase();
+    if (country === "italy" && lower === "de" &&
+      !ESTATE_ARTICLES.has((words[i + 1] || "").toLowerCase()) &&
+      !VENETIAN_HOUSE.has((words[i - 1] || "").toLowerCase())) {
+      return word;
+    }
+    if (ESTATE_PARTICLES.has(lower)) {
+      afterRomance = ROMANCE_PARTICLES.has(lower);
+      return lower;
+    }
+    return wasAfter && ESTATE_ARTICLES.has(lower) ? lower : word;
+  }).join(" ");
+}
+
+function safeCall(fn, ...args) {
+  try { return fn(...args) ?? null; } catch { return null; }
+}
+
 /** A place in display case. The resolver stores its lookup term lowercase
  *  (resolved_region "vouvray", "hemel-en-aarde"); a name that already has
  *  capitals is left as written. Junk → "". */
@@ -557,9 +626,11 @@ const TIMELINE_TARGETS = { varietal: "your DNA", estate: "your estates", region:
  *  "Chenin Blanc joined your DNA", minus "… left your estates", arrow "You
  *  became The Mosel Purist" (strong). A shift that kept its title is the
  *  signature moving. Junk → null. */
-export function timelineLine(entry) {
+export function timelineLine(entry, { estateCountry = null } = {}) {
   if (!entry || typeof entry !== "object" || typeof entry.display_name !== "string" || !entry.display_name) return null;
-  const name = entry.display_name;
+  const name = entry.dimension === "estate"
+    ? estateName(entry.display_name, { country: typeof estateCountry === "function" ? safeCall(estateCountry, entry.dimension_value) : null })
+    : entry.display_name;
   const target = TIMELINE_TARGETS[entry.dimension] || "your DNA";
   if (entry.event_type === "promoted") return { mark: "plus", text: `${name} joined ${target}`, strong: false };
   if (entry.event_type === "demoted") return { mark: "minus", text: `${name} left ${target}`, strong: false };

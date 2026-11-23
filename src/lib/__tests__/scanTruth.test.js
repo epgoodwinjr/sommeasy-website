@@ -196,6 +196,22 @@ test("a grape resolves under either half of its name: Syrah, Pinot Grigio, Grena
   }
 });
 
+test("a pasted name reads its place and grape with hyphens or spaces alike (Nov 23, 2026)", () => {
+  const rhone = ids(score(one("Domaine Jamet Côte Rôtie 2018...$140")));
+  assertEq(rhone.regions, ["rhone_valley"], "premise: the data's spelling reads the Rhône");
+  for (const line of ["Domaine Jamet Côte-Rôtie 2018...$140", "Domaine Jamet Cote-Rotie 2018...$140", "DOMAINE JAMET CÔTE-RÔTIE 2018...$140"]) {
+    const s = score(one(line));
+    assertEq(ids(s), rhone, line);
+    assert(s.score > 0, `${line} scores for a Rhône palate`);
+  }
+  // …and the other way round: the data writes Crozes-Hermitage with its hyphen
+  assertEq(ids(score(one("Alain Graillot Crozes Hermitage 2019...$60"))), ids(score(one("Alain Graillot Crozes-Hermitage 2019...$60"))), "Crozes Hermitage");
+  assertEq(ids(score(one("Alain Graillot Crozes Hermitage 2019...$60"))).regions, ["rhone_valley"], "the spaced spelling reads the Rhône");
+  assertEq(ids(score(one("Château Test Cabernet-Sauvignon 2019...$60"))).varietals, ["cabernet_sauvignon"], "a hyphenated grape");
+  // A photo field already read either spelling; the two readers agree
+  assertEq(ids(score(photo({ region: "Côte-Rôtie" }))).regions, rhone.regions, "the photo field");
+});
+
 test("two grapes are two grapes, with or without the word blend — and never a phantom third", () => {
   for (const variety of ["Cabernet Sauvignon, Merlot", "Cabernet Sauvignon / Merlot", "Cabernet Sauvignon-Merlot blend", "Cabernet Sauvignon & Merlot", "Merlot and Cabernet Sauvignon"]) {
     const s = score(photo({ variety }));

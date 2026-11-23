@@ -32,7 +32,16 @@ const VARIETAL_LOOKUP = wineUnified.varietalLookup;
 let idCounter = 0;
 function genId() { return `mock-id-${++idCounter}`; }
 
-function createMockSupabase(tables) {
+// `latency` (ms) holds every request before it lands, and `requests`
+// collects one entry per request sent — Suite 14 measures the save's chain
+// with them. A request's effect lands when it is SENT (as a server would
+// apply it), its answer after the latency. Every request answers as a real
+// Promise, so `.then(...)` chains behave as supabase-js's do.
+// Each entry also carries its `wave`: the round trip it is part of — one
+// more than the deepest request already ANSWERED when it was sent. The
+// deepest wave is a chain's length in round trips, whatever the clock says.
+function createMockSupabase(tables, { latency = 0, requests = null } = {}) {
+  let deepestAnswered = 0;
   function from(tableName) {
     let op = null;
     let filters = [];
@@ -176,6 +185,26 @@ function createMockSupabase(tables) {
         }
       }
     };
+    // Promise-correct answers (a raw thenable's .then returns undefined)
+    const send = (raw) => (onFulfilled, onRejected) => {
+      let value;
+      raw((v) => { value = v; });
+      const wave = deepestAnswered + 1;
+      if (requests) requests.push({ table: tableName, op, wave });
+      const land = () => { deepestAnswered = Math.max(deepestAnswered, wave); return value; };
+      const answer = latency > 0
+        ? new Promise((r) => setTimeout(() => r(land()), latency))
+        : Promise.resolve().then(land);
+      return answer.then(onFulfilled, onRejected);
+    };
+    const rawThen = builder.then;
+    const rawSingle = builder.single;
+    builder.then = send((r) => rawThen(r));
+    builder.single = () => {
+      const inner = rawSingle();
+      return { then: send((r) => inner.then(r)) };
+    };
+    builder.maybeSingle = () => builder.single();
     return builder;
   }
   return { from, tables };
@@ -2253,12 +2282,15 @@ async function suite12() {
     const sb = createMockSupabase(tables);
     seedStrandProfile(tables, S12_RAW);
     seedRatedRows(tables, 4);
-    // Arm the other tab: when THIS hook run reads dna_accumulation (after
-    // its profile read, before its CAS), the other tab lands its recompose
+    // Arm the other tab: after THIS hook run has read the profile, and just
+    // before its CAS (its second wine_profiles request), the other tab lands
+    // its recompose. (The hook's reads go out together since Nov 23, 2026,
+    // so the window is between them and the write.)
     let armed = false;
+    let profileRequests = 0;
     const origFrom = sb.from;
     const raced = { ...sb, from: (name) => {
-      if (armed && name === "dna_accumulation") {
+      if (armed && name === "wine_profiles" && ++profileRequests === 2) {
         armed = false;
         const row = profileRow(tables);
         row.archetype = "The Stellenbosch Curator";
@@ -2601,6 +2633,188 @@ function suite8() {
   console.log("       Verify: points adjust, demotion toast if threshold crossed");
 }
 
+
+// ═══════════════════════════════════════════════════════
+// SUITE 14: One read, writes together (Nov 23, 2026)
+// ═══════════════════════════════════════════════════════
+// The real engine reads the accumulation once and sends a rating's writes
+// together; the mirror is the engine as it was (one request after
+// another) — fixtures/dnaEvolutionAtA911ffc.js, the module verbatim. THE
+// ORACLE: over a seeded walk of rates, re-rates and deletes
+// that reaches promotions, both roll-ups and demotions, the two leave the
+// same accumulation, timeline (in order), profile and results after every
+// step. Then the chain itself, timed at a fixed latency per request.
+
+// Three cuvées each of four estates in four regions (every line resolves
+// to its estate at 90 — checked against the real resolver), so a walk can
+// promote estates, regions by points, a region by roll-up and a country by
+// roll-up; plus lines in the partial band and below the gate
+const WALK_ESTATES = [
+  ["Shiraz, Barossa", ["Torbreck", "Henschke", "Penfolds", "Yalumba"]],
+  ["Cabernet Sauvignon, Napa Valley", ["Robert Mondavi", "Duckhorn", "Flora Springs", "Joseph Phelps"]],
+  ["Pinot Noir, Sonoma", ["Williams Selyem", "Lynmar", "Gary Farrell", "Siduri"]],
+  ["Zinfandel, Paso Robles", ["J. Lohr", "Tablas Creek", "Adelaida", "Peachy Canyon"]],
+];
+const WALK_WINES = [
+  ...WALK_ESTATES.flatMap(([tail, estates]) =>
+    estates.flatMap((e) => ["Reserve", "Old Vine", "Estate"].map((c) => `${e} ${c} ${tail}`))),
+  "Barossa Shiraz", "Chablis 2021", "Kanonkop Paul Sauer 2020",
+];
+const WALK_RATINGS = ["loved", "loved", "loved", "liked", "fine", "not_for_me"];
+
+function walkState(tables, result) {
+  const strip = ({ id, promoted_at, demoted_at, event_at, created_at, ...rest }) => rest;
+  // promoted defaults to false in the table — the mirror sends it, the
+  // engine leaves it to the default
+  const acc = tables.dna_accumulation.map((r) => ({ promoted: false, ...strip(r) }))
+    .sort((a, b) => `${a.dimension}:${a.dimension_value}`.localeCompare(`${b.dimension}:${b.dimension_value}`));
+  const timeline = tables.dna_timeline.map(strip);
+  const { countries, regions, estates, varietals } = tables.wine_profiles[0];
+  const moments = result
+    ? ["promotions", "demotions"].map((k) => (result[k] || []).map(({ id, ...rest }) => rest))
+    : null;
+  return JSON.stringify({ acc, timeline, profile: { countries, regions, estates, varietals }, moments });
+}
+
+function firstDiff(want, got) {
+  const a = JSON.parse(want), b = JSON.parse(got);
+  for (const k of Object.keys(a)) {
+    if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) {
+      if (Array.isArray(a[k])) {
+        const n = Math.max(a[k].length, b[k].length);
+        for (let i = 0; i < n; i++) {
+          if (JSON.stringify(a[k][i]) !== JSON.stringify(b[k][i])) {
+            return `${k}[${i}] of ${a[k].length} vs ${b[k].length}:\n  one-by-one: ${JSON.stringify(a[k][i])}\n  together:   ${JSON.stringify(b[k][i])}`;
+          }
+        }
+      }
+      return `${k}:\n  one-by-one: ${JSON.stringify(a[k]).slice(0, 900)}\n  together:   ${JSON.stringify(b[k]).slice(0, 900)}`;
+    }
+  }
+  return "";
+}
+
+function walkTables() {
+  const tables = freshTables();
+  tables.wine_profiles.push({
+    id: genId(), user_id: TEST_USER,
+    countries: ["france"], regions: { france: ["burgundy"] }, estates: { barossa: ["henschke"] }, varietals: ["syrah"], specific_wines: [],
+  });
+  // Quiz-sourced promoted rows a "not for me" can demote
+  // Rows one "not for me" away from demotion: a quiz grape and an earned estate
+  seedEarnedRow(tables, "varietal", "syrah", "Syrah", { source: "quiz", points: -9, interaction_count: 0 });
+  seedEarnedRow(tables, "estate", "henschke", "Henschke", { points: -5, interaction_count: 0 });
+  // A country its bottles can't promote by points, so only the roll-up can
+  seedEarnedRow(tables, "country", "us", "US", { promoted: false, promoted_at: null, points: -1000, interaction_count: 0 });
+  return tables;
+}
+
+async function suite14() {
+  console.log("\n═══ Suite 14: One read, writes together ═══");
+  const real = await import("../dnaEvolution.js");
+  const ORACLE = await import("./fixtures/dnaEvolutionAtA911ffc.js");
+
+  await runTest("Suite 14", "14A: The real engine leaves exactly what the one-by-one engine did, step by step", async () => {
+    const seen = { promoted: 0, demoted: 0, rollupRegion: 0, rollupCountry: 0, deletes: 0 };
+    for (const seed of [11, 23, 47, 101]) {
+      const rnd = seededRandom(seed);
+      const a = walkTables();
+      const b = JSON.parse(JSON.stringify(a));
+      const sa = createMockSupabase(a);
+      const sb = createMockSupabase(b);
+      for (let step = 0; step < 600; step++) {
+        const wine = WALK_WINES[Math.floor(rnd() * WALK_WINES.length)];
+        const del = rnd() < 0.12;
+        let ra, rb;
+        if (del) {
+          ra = await simulateJournalDelete(sa, wine, { engine: ORACLE });
+          rb = await simulateJournalDelete(sb, wine, { engine: real });
+          seen.deletes += ra.deletedCount;
+        } else {
+          const rating = WALK_RATINGS[Math.floor(rnd() * WALK_RATINGS.length)];
+          ra = await simulateSurfaceRate(sa, wine, rating, ORACLE);
+          rb = await simulateSurfaceRate(sb, wine, rating, real);
+        }
+        for (const p of ra.promotions || []) {
+          seen.promoted++;
+          if (p.isRollup && p.dimension === "region") seen.rollupRegion++;
+          if (p.isRollup && p.dimension === "country") seen.rollupCountry++;
+        }
+        seen.demoted += (ra.demotions || []).length;
+        const want = walkState(a, ra);
+        const got = walkState(b, rb);
+        assert(got === want, `seed ${seed}, step ${step} (${del ? "delete" : "rate"} ${wine}): the engines part\n  ${firstDiff(want, got)}`);
+      }
+    }
+    // The premise: the walk reached every kind of moment
+    console.log(`       walk reached: ${JSON.stringify(seen)}`);
+    for (const [k, n] of Object.entries(seen)) assert(n > 0, `the walk never reached ${k}`);
+  });
+
+  await runTest("Suite 14", "14B: A promoting rating's chain is a handful of round trips, not one per request", async () => {
+    // Counted by the mock's waves (a request's depth in the chain), not the
+    // clock — a wall-clock count tipped 4 into 5 under CPU load
+    const wine = "Torbreck RunRig Shiraz";
+    const measured = async (engine) => {
+      const tables = walkTables();
+      const requests = [];
+      const sb = createMockSupabase(tables, { latency: 5, requests });
+      await simulateSurfaceRate(sb, wine, "loved", engine); // the estate at 2 points
+      const mark = requests.length;
+      const result = await simulateSurfaceRate(sb, "Torbreck The Struie Shiraz, Barossa", "loved", engine);
+      const mine = requests.slice(mark);
+      const base = Math.min(...mine.map((r) => r.wave)) - 1;
+      return { result, requests: mine.length, trips: Math.max(...mine.map((r) => r.wave)) - base };
+    };
+    const old = await measured(ORACLE);
+    const now = await measured(real);
+    assert(old.result.promotions.length > 0 && now.result.promotions.length > 0,
+      "premise: the second Torbreck must promote the estate");
+    assert(now.trips <= 4, `a promoting rating takes at most 4 round trips (the reads, the dimension writes, the promotion's writes, its timeline row), took ${now.trips}`);
+    assert(old.trips >= 4 * now.trips, `premise: the one-by-one engine took ${old.trips} round trips, the new ${now.trips}`);
+    assert(now.requests <= old.requests, `no more requests than before: ${now.requests} vs ${old.requests}`);
+    console.log(`       promoting rating: ${old.trips} round trips / ${old.requests} requests → ${now.trips} / ${now.requests}`);
+  });
+
+  await runTest("Suite 14", "14D: Every timeline row of a rating has landed, in order, before the rating returns", async () => {
+    // Three Napa estates already promoted and Duckhorn one bottle shy: one
+    // loved Duckhorn promotes the estate AND rolls up Napa Valley — two
+    // timeline rows, written one after the other, at 30ms a request
+    const tables = walkTables();
+    for (const e of ["robert_mondavi", "flora_springs", "joseph_phelps"]) seedEarnedRow(tables, "estate", e, e);
+    seedEarnedRow(tables, "estate", "duckhorn", "Duckhorn", { promoted: false, promoted_at: null, points: 2, interaction_count: 1 });
+    tables.wine_profiles[0].estates = { ...tables.wine_profiles[0].estates, napa_valley: ["robert_mondavi", "flora_springs", "joseph_phelps"] };
+    const sb = createMockSupabase(tables, { latency: 30 });
+    const result = await simulateSurfaceRate(sb, "Duckhorn Reserve Cabernet Sauvignon, Napa Valley", "loved", real);
+    const promoted = result.promotions.map((p) => `${p.dimension}:${p.dimensionValue}`);
+    assert(promoted.includes("estate:duckhorn") && promoted.includes("region:napa_valley"), `premise: two promotions, got ${promoted}`);
+    const rows = tables.dna_timeline.map((e) => `${e.event_type}:${e.dimension}:${e.dimension_value}`);
+    assert(JSON.stringify(rows) === JSON.stringify(result.promotions.map((p) => `promoted:${p.dimension}:${p.dimensionValue}`)),
+      `every timeline row landed before the rating returned, in the promotions' order: ${rows}`);
+  });
+
+  await runTest("Suite 14", "14C: A failed accumulation read throws before anything is written", async () => {
+    const tables = walkTables();
+    const sb = createMockSupabase(tables);
+    const before = JSON.stringify(tables.dna_accumulation);
+    const failing = {
+      tables,
+      from(t) {
+        const b = sb.from(t);
+        if (t !== "dna_accumulation") return b;
+        const orig = b.select;
+        b.select = (...args) => { orig(...args); return { eq: () => Promise.resolve({ data: null, error: { message: "boom" } }) }; };
+        return b;
+      },
+    };
+    let threw = false;
+    try { await real.resolveAndAccumulate(failing, TEST_USER, "Torbreck RunRig Shiraz", "loved", null); }
+    catch { threw = true; }
+    assert(threw, "an unreadable accumulation must throw, never guess 'no rows'");
+    assert(JSON.stringify(tables.dna_accumulation) === before, "nothing written to the accumulation");
+  });
+}
+
 // ═══════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════
@@ -2622,6 +2836,7 @@ async function main() {
   await suite11();
   await suite12();
   await suite13();
+  await suite14();
   suite8();
 
   // ── Report ──
@@ -2634,7 +2849,7 @@ async function main() {
     "Suite 4": "Demotion", "Suite 5": "Rating Changes", "Suite 6": "Quiz Sync",
     "Suite 7": "Edge Cases", "Suite 9": "Quiz Merge",
     "Suite 10": "Partial Credit", "Suite 11": "Surface Flows",
-    "Suite 12": "The Living Strand", "Suite 13": "The Bottle Count",
+    "Suite 12": "The Living Strand", "Suite 13": "The Bottle Count", "Suite 14": "Writes Together",
   };
   for (const [key, label] of Object.entries(suiteNames)) {
     const s = suiteResults[key] || { passed: 0, failed: 0 };

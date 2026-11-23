@@ -104,6 +104,20 @@ const BROAD_AREAS = { "western cape": "south_africa", "central coast": "us" };
 const SHORT_REGION_NAMES = { "loire": "loire valley", "rhône": "rhône valley" };
 const ACCENT_ONLY_IN_NAMES = new Set(["rose"]);
 
+// Nov 23, 2026: a name of more than one word in both spellings — all
+// spaces and all hyphens ("Côte-Rôtie" / "Côte Rôtie")
+function addSeparatorSpellings(terms) {
+  const have = new Set(terms.map((t) => t.term));
+  for (const t of terms.slice()) {
+    if (t.term.includes(" / ") || !/[\s-]/.test(t.term)) continue;
+    for (const spelling of [t.term.replace(/-/g, " "), t.term.replace(/\s+/g, "-")]) {
+      if (have.has(spelling)) continue;
+      have.add(spelling);
+      terms.push({ ...t, term: spelling });
+    }
+  }
+}
+
 function buildSearchIndex() {
   const idx = { regionTerms: [], producerTerms: [], varietyTerms: [], countryTerms: [] };
 
@@ -134,6 +148,7 @@ function buildSearchIndex() {
     const full = idx.regionTerms.find(r => r.term === long);
     if (full && !idx.regionTerms.some(r => r.term === short)) idx.regionTerms.push({ ...full, term: short });
   }
+  addSeparatorSpellings(idx.regionTerms);
   idx.regionTerms.sort((a, b) => b.term.length - a.term.length);
 
   // Terms in the one spelling of initials; a twin answers as its canonical
@@ -173,6 +188,7 @@ function buildSearchIndex() {
     if (!canonical) continue;
     idx.varietyTerms.push({ term: synLower, name: canonical.name, color: knownColor(canonical.color), dnaVarietalId: canonicalId });
   }
+  addSeparatorSpellings(idx.varietyTerms);
   idx.varietyTerms.sort((a, b) => b.term.length - a.term.length);
 
   for (const c of COUNTRIES) {
@@ -763,9 +779,17 @@ async function realModuleTests() {
     const fold = (t) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const lines = new Set(["Cuvee Test, USA", "Cuvee Test, Western Cape", "Cuvee Test, Central Coast", "Cuvee Test, Loire", "Cuvee Test, Rhone",
       "Gård Riesling", "Gård Riesling, Washington", "Chateau La Rose Bellevue, Bordeaux", "Whispering Angel Rosé"]);
-    for (const key of Object.keys(REGION_LOOKUP)) { lines.add(`Cuvee Test, ${key}`); lines.add(`Cuvee Test, ${fold(key)}`); }
+    // …and since Nov 23, 2026 with its words joined the other way ("Côte-Rôtie" / "Crozes Hermitage")
+    const swaps = (t) => [t.replace(/-/g, " "), t.replace(/\s+/g, "-")];
+    for (const key of Object.keys(REGION_LOOKUP)) {
+      lines.add(`Cuvee Test, ${key}`); lines.add(`Cuvee Test, ${fold(key)}`);
+      for (const t of swaps(key)) { lines.add(`Cuvee Test, ${t}`); lines.add(`Cuvee Test ${fold(t)} 2018`); }
+    }
     for (const regions of Object.values(REGIONS)) for (const r of regions) lines.add(`Cuvee Test, ${fold(r.name)}`);
-    for (const v of VARIETALS) for (const part of v.name.split(" / ")) { lines.add(`Cuvee Test ${part.trim()}`); lines.add(`Cuvee Test ${fold(part.trim())}`); }
+    for (const v of VARIETALS) for (const part of v.name.split(" / ")) {
+      lines.add(`Cuvee Test ${part.trim()}`); lines.add(`Cuvee Test ${fold(part.trim())}`);
+      for (const t of swaps(part.trim())) lines.add(`Cuvee Test ${t}`);
+    }
     for (const c of COUNTRIES) lines.add(`Cuvee Test, ${c.name}`);
     const sorted = (set) => JSON.stringify(Array.from(set).sort());
     let read = 0;
@@ -782,7 +806,7 @@ async function realModuleTests() {
       assert(real.detectedColor !== "unknown", `"${line}": "unknown" is no color`);
       if (real.detectedRegionIds.length + real.detectedCountryIds.length + real.detectedVarietalIds.length > 0) read++;
     }
-    assert(lines.size > 1400 && read > lines.size * 0.9, `a real corpus: ${read} of ${lines.size} lines read`);
+    assert(lines.size > 2400 && read > lines.size * 0.9, `a real corpus: ${read} of ${lines.size} lines read`);
   });
 
   test("Mirror lock: the CJS mirror's short-name guard rules on every producer as the real one does", () => {

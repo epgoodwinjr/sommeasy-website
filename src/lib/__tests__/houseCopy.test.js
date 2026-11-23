@@ -725,6 +725,83 @@ async function main() {
     assertEq(copy.placeName(null), "", "junk");
   });
 
+  await test("estate names: particles low inside the name, never opening or closing it", () => {
+    const cases = [
+      ["Domaine De La Vougeraie", "Domaine de la Vougeraie"],
+      ["Plaisir De Merle", "Plaisir de Merle"],
+      ["Terrazas de Los Andes", "Terrazas de los Andes"],
+      ["Clos de L'Oratoire des Papes", "Clos de l'Oratoire des Papes"],
+      ["Il Feuduccio Di S. Maria D'Orni", "Il Feuduccio di S. Maria d'Orni"],
+      ["Concha Y Toro", "Concha y Toro"],
+      ["Domaine Jean Petitot Et Fils", "Domaine Jean Petitot et Fils"],
+      ["Valley Of The Moon", "Valley of the Moon"],
+      ["Winzer Von Erbach", "Winzer von Erbach"],
+      ["Château La Nerthe", "Château La Nerthe"],        // an article alone is the name's
+      ["Finca La Emperatriz", "Finca La Emperatriz"],
+      ["Winery At La Grange", "Winery at La Grange"],    // English "at" isn't a Romance preposition
+      ["Scala Dei", "Scala Dei"],                        // a particle never closes the name
+      ["Cono Sur", "Cono Sur"],                          // Spanish for south
+      ["Lemos & Van Zeller", "Lemos & Van Zeller"],
+      ["La Chablisienne", "La Chablisienne"],            // never when it opens
+      ["Domaine de la Romanée-Conti", "Domaine de la Romanée-Conti"],
+      ["Château D'Yquem", "Château d'Yquem"],             // an elision may close it
+      ["  Kanonkop  ", "Kanonkop"],
+    ];
+    for (const [input, want] of cases) assertEq(copy.estateName(input), want, input);
+    assertEq(copy.estateName(null), "", "junk");
+  });
+
+  await test("estate names: an Italian family name keeps its De; the word after an elision its capital; Portuguese do/dos/das", () => {
+    const italian = [
+      ["Marchesi De Gregorio", "Marchesi De Gregorio"],   // De is no Italian preposition: a family name
+      ["Cantine De Falco", "Cantine De Falco"],
+      ["Sandro De Bruno", "Sandro De Bruno"],
+      ["Leone de Castris", "Leone de Castris"],           // the data's own lowercase stands
+      ["Terre De La Custodia", "Terre de la Custodia"],   // before an article it is "of the"
+      ["Ca' De Lion Ghione", "Ca' de Lion Ghione"],       // Venetian Ca' de: "house of"
+      ["Castello Di Ama", "Castello di Ama"],             // di stays a preposition
+      ["Marchesi Di Barolo", "Marchesi di Barolo"],
+      ["Tenute Cisa Asinari Dei Marchesi Di Gresy", "Tenute Cisa Asinari dei Marchesi di Gresy"],
+    ];
+    for (const [input, want] of italian) assertEq(copy.estateName(input, { country: "italy" }), want, `${input} (Italy)`);
+    // The same names with no country (or another one) are read as French or Spanish would write them
+    assertEq(copy.estateName("Marchesi De Gregorio"), "Marchesi de Gregorio", "no country: the general rule");
+    assertEq(copy.estateName("Marquis De Goulaine", { country: "france" }), "Marquis de Goulaine", "France");
+    assertEq(copy.estateName("Fernández De Piérola", { country: "spain" }), "Fernández de Piérola", "Spain");
+    const elisions = [
+      ["Tasca D'almerita", "Tasca d'Almerita"],
+      ["Château D'yquem", "Château d'Yquem"],
+      ["Coeur D'alene", "Coeur d'Alene"],
+      ["Chateau De L'oiselinière", "Chateau de l'Oiselinière"],
+      ["Mas D'en Gil", "Mas d'en Gil"],                   // Catalan d'en: a particle stays low
+      ["Château L'Évangile", "Château L'Évangile"],       // L' alone is the name's
+    ];
+    for (const [input, want] of elisions) assertEq(copy.estateName(input), want, input);
+    for (const [input, want] of [
+      ["Quinta Do Noval", "Quinta do Noval"],
+      ["Herdade Dos Grous", "Herdade dos Grous"],
+      ["Quinta Das Carvalhas", "Quinta das Carvalhas"],
+      ["Quinta Do Monte D'oiro", "Quinta do Monte d'Oiro"],
+      ["Gaba Do Xil", "Gaba do Xil"],                     // Galician too
+    ]) assertEq(copy.estateName(input), want, input);
+  });
+
+  await test("a timeline line names an Italian estate by its country when it is told it, and survives a resolver that throws", () => {
+    const row = { event_type: "promoted", dimension: "estate", dimension_value: "marchesi_de_gregorio", display_name: "Marchesi De Gregorio" };
+    assertEq(copy.timelineLine(row, { estateCountry: (id) => (id === "marchesi_de_gregorio" ? "italy" : null) }).text,
+      "Marchesi De Gregorio joined your estates", "Italy keeps the family name");
+    assertEq(copy.timelineLine(row).text, "Marchesi de Gregorio joined your estates", "no resolver: the general rule");
+    assertEq(copy.timelineLine(row, { estateCountry: () => { throw new Error("x"); } }).text,
+      "Marchesi de Gregorio joined your estates", "a resolver that throws: the general rule, never a throw");
+  });
+
+  await test("a timeline line names an estate with its particles low, and nothing else changes", () => {
+    assertEq(copy.timelineLine({ event_type: "promoted", dimension: "estate", display_name: "Domaine De La Vougeraie" }).text,
+      "Domaine de la Vougeraie joined your estates", "an estate");
+    assertEq(copy.timelineLine({ event_type: "promoted", dimension: "region", display_name: "Côte De Nuits" }).text,
+      "Côte De Nuits joined your regions", "a region passes through");
+  });
+
   await test("short dates: Today, Aug 1, and the year only when it isn't this one", () => {
     const now = new Date(2026, 9, 30, 15, 0);
     assertEq(copy.shortDate(new Date(2026, 9, 30, 8, 0).toISOString(), now), "Today", "earlier today");

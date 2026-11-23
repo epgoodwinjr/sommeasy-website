@@ -38,6 +38,24 @@ const SHORT_REGION_NAMES = { "loire": "loire valley", "rhône": "rhône valley" 
 // A variety field is a statement about the grape, so there either does.
 const ACCENT_ONLY_IN_NAMES = new Set(["rose"]);
 
+// A name of more than one word is written with spaces or hyphens, as the
+// list likes: "Côte-Rôtie" and "Côte Rôtie", "Crozes Hermitage" and
+// "Crozes-Hermitage", "Cabernet-Sauvignon". The data keys one spelling (it
+// has both forms for a few), so each such term is also indexed all-spaces
+// and all-hyphens. Same length, so the longest-first scan is unchanged; a
+// spelling the index already holds keeps its own entry.
+function addSeparatorSpellings(terms) {
+  const have = new Set(terms.map((t) => t.term));
+  for (const t of terms.slice()) {
+    if (t.term.includes(" / ") || !/[\s-]/.test(t.term)) continue;
+    for (const spelling of [t.term.replace(/-/g, " "), t.term.replace(/\s+/g, "-")]) {
+      if (have.has(spelling)) continue;
+      have.add(spelling);
+      terms.push({ ...t, term: spelling });
+    }
+  }
+}
+
 function buildSearchIndex() {
   const idx = { regionTerms: [], producerTerms: [], varietyTerms: [], countryTerms: [] };
 
@@ -77,6 +95,7 @@ function buildSearchIndex() {
     const full = idx.regionTerms.find(r => r.term === long);
     if (full && !idx.regionTerms.some(r => r.term === short)) idx.regionTerms.push({ ...full, term: short });
   }
+  addSeparatorSpellings(idx.regionTerms);
   idx.regionTerms.sort((a, b) => b.term.length - a.term.length);
 
   // Producers from unified producerLookup (8,882 entries). A term is the
@@ -135,6 +154,7 @@ function buildSearchIndex() {
       dnaVarietalId: canonicalId, count: canonical.reviewCount || 0,
     });
   }
+  addSeparatorSpellings(idx.varietyTerms);
   idx.varietyTerms.sort((a, b) => b.term.length - a.term.length);
 
   // Countries from unified countries array
@@ -830,6 +850,10 @@ export function buildFeedbackSignals(interactions) {
     suppressedVarietals: new Set(),
     suppressedProducers: new Set(),
     suppressedWineNames: [],
+    // Bottles rated loved or liked, by name: matchWinesAgainstDNA reads
+    // them as favorites (the weight-10 named-wine match) beside the quiz's
+    // named wines — whichever surface the rating came from
+    favoredWineNames: [],
   };
 
   const BOOST_WEIGHTS = { loved: 2, liked: 1 };
@@ -851,6 +875,9 @@ export function buildFeedbackSignals(interactions) {
       var w = BOOST_WEIGHTS[inter.rating];
       var pw = PRODUCER_BOOST_WEIGHTS[inter.rating];
       if (!w) continue;
+      if (typeof inter.wine_name === "string" && inter.wine_name.trim()) {
+        signals.favoredWineNames.push(inter.wine_name.trim());
+      }
 
       attrs.regionIds.forEach(function(id) {
         var existing = signals.boostedRegions.get(id);
@@ -1415,8 +1442,21 @@ export function matchWinesAgainstDNA(entries, dnaProfile, feedbackSignals) {
     }
   }
 
-  // Filter out suppressed wines from specificWines so they don't get the weight-10 boost
-  var specificWines = dnaProfile.specificWines || [];
+  // The named wines: the quiz's, plus every bottle rated loved or liked
+  // (Log a bottle used to copy those into specific_wines; since Nov 23, 2026
+  // the journal is where they come from, on every surface). A rated bottle
+  // the list already names isn't named twice, however it's cased.
+  // Suppressed wines don't get the weight-10 boost
+  var specificWines = (dnaProfile.specificWines || []).slice();
+  var namedSeen = new Set(specificWines.filter(function(w) { return typeof w === "string"; })
+    .map(function(w) { return w.toLowerCase(); }));
+  var favored = feedbackSignals && feedbackSignals.favoredWineNames ? feedbackSignals.favoredWineNames : [];
+  for (var ni = 0; ni < favored.length; ni++) {
+    var favKey = favored[ni].toLowerCase();
+    if (namedSeen.has(favKey)) continue;
+    namedSeen.add(favKey);
+    specificWines.push(favored[ni]);
+  }
   if (feedbackSignals && feedbackSignals.suppressedWineNames.length > 0) {
     var suppressedLower = new Set(
       feedbackSignals.suppressedWineNames.map(function(n) { return n.toLowerCase(); })

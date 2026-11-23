@@ -7,6 +7,7 @@
 
 import wineUnified from "./wineUnified.json";
 import { getCountryFlag, getCountryName, getRegionDisplayName, getVarietalDisplayName } from "./matchEngine";
+import { estateCountry } from "./estateCountry";
 
 const PRODUCERS = wineUnified.producers;
 
@@ -27,4 +28,5 @@ export const DNA_NAMES = Object.freeze({
   region: getRegionDisplayName,
   grape: getVarietalDisplayName,
   estate: estateName,
+  estateCountry,
 });

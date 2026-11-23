@@ -70,9 +70,11 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
   // Step 1: Resolve wine metadata
   const resolution = resolveWine(wineName);
 
-  // Step 2: Write resolved metadata back to wine_interactions
-  if (resolution.confidence > 0) {
-    await supabase.from("wine_interactions").update({
+  // Step 2: Write resolved metadata back to wine_interactions. Nothing
+  // reads it back here, so it travels beside the reads below and is
+  // awaited before returning (its result was never checked)
+  const stamp = resolution.confidence > 0
+    ? supabase.from("wine_interactions").update({
       resolved_winery: resolution.winery,
       resolved_varietal: resolution.varietal,
       resolved_region: resolution.region,
@@ -80,12 +82,13 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
       resolved_country: resolution.country,
       match_confidence: resolution.confidence,
       resolved_at: new Date().toISOString(),
-    }).eq("user_id", userId).eq("wine_name", wineName);
-  }
+    }).eq("user_id", userId).eq("wine_name", wineName).then((r) => r, () => null)
+    : Promise.resolve(null);
 
   // Step 3: Only accumulate if confidence reaches at least the partial band
   const pointsTable = pointsTableFor(resolution.confidence);
   if (!pointsTable) {
+    await stamp;
     return { resolution, dimensions: [], promotions: [], demotions: [], wineName };
   }
   const partial = pointsTable === PARTIAL_RATING_POINTS;
@@ -101,26 +104,32 @@ export async function resolveAndAccumulate(supabase, userId, wineName, rating, p
   const countDelta = pushCount(newPoints) - pushCount(oldPoints);
 
   if (pointDelta === 0) {
+    await stamp;
     return { resolution, dimensions: dimensionUpdates, promotions: [], demotions: [], wineName };
   }
 
-  // Step 6: Apply point and count deltas to dna_accumulation
-  for (const dim of dimensionUpdates) {
-    await upsertAccumulation(supabase, userId, dim, pointDelta, countDelta);
-  }
+  // Step 6: Apply point and count deltas to dna_accumulation — one read of
+  // the user's rows (with the profile a promotion would need, read beside
+  // it), then every dimension's write at once. Steps 7–9 judge the rows as
+  // those writes left them, so nothing is read twice
+  const profileRead = readProfileDna(supabase, userId);
+  const [acc] = await Promise.all([readAccumulation(supabase, userId), stamp]);
+  await applyDeltas(supabase, userId, acc, dimensionUpdates, pointDelta, countDelta);
 
   // Step 7: Check promotions and demotions
-  const promotions = await checkPromotions(supabase, userId, dimensionUpdates);
-  const demotions = await checkDemotions(supabase, userId, dimensionUpdates);
+  const promotions = await checkPromotions(supabase, userId, acc, dimensionUpdates);
+  const demotions = checkDemotions(acc, dimensionUpdates);
 
   // Step 8: Apply promotions to wine_profiles
+  let profile = null;
   if (promotions.length > 0) {
-    await applyPromotions(supabase, userId, promotions, wineName);
+    profile = await applyPromotions(supabase, userId, promotions, wineName, await profileRead);
   }
 
-  // Step 9: Apply demotions to wine_profiles
+  // Step 9: Apply demotions to wine_profiles (after the promotions, on the
+  // profile they left)
   if (demotions.length > 0) {
-    await applyDemotions(supabase, userId, demotions, wineName);
+    await applyDemotions(supabase, userId, demotions, wineName, profile ?? await profileRead);
   }
 
   return { resolution, dimensions: dimensionUpdates, promotions, demotions, wineName };
@@ -206,41 +215,69 @@ function buildDimensionUpdates(resolution, { partial = false } = {}) {
 // ACCUMULATION
 // ═══════════════════════════════════════════════════════
 
+// The user's accumulation, read once per rating: a Map keyed
+// "dimension:value" that applyDeltas keeps as the writes leave it, so the
+// promotion, roll-up and demotion checks read the state a re-read would
+// have returned. A failed read throws — guessing "no row" would insert
+// rows that already exist and judge promotions on nothing.
+async function readAccumulation(supabase, userId) {
+  const { data, error } = await supabase
+    .from("dna_accumulation")
+    .select("id, dimension, dimension_value, display_name, points, interaction_count, promoted, source, mappable")
+    .eq("user_id", userId);
+  if (error) throw error;
+  const acc = new Map();
+  for (const row of data || []) acc.set(`${row.dimension}:${row.dimension_value}`, row);
+  return acc;
+}
+
+// The profile's DNA arrays — read beside the accumulation so a promotion
+// never waits on a read of its own. null when there is no profile (or the
+// read failed): promotions and demotions then write nothing, as they
+// always have.
+function readProfileDna(supabase, userId) {
+  return supabase
+    .from("wine_profiles")
+    .select("countries, regions, estates, varietals")
+    .eq("user_id", userId)
+    .maybeSingle()
+    .then(({ data }) => data || null, () => null);
+}
+
 // countDelta moves interaction_count (see pushCount). It never goes below
 // zero: a reversal can land on a row that never counted its bottle (a
 // pre-fix ledger, or a resolver change since the rating), and a negative
-// bottle count means nothing.
-async function upsertAccumulation(supabase, userId, dim, pointDelta, countDelta) {
-  // Try to fetch existing row
-  const { data: existing } = await supabase
-    .from("dna_accumulation")
-    .select("id, points, interaction_count")
-    .eq("user_id", userId)
-    .eq("dimension", dim.dimension)
-    .eq("dimension_value", dim.dimensionValue)
-    .single();
-
-  if (existing) {
-    // Update existing row
-    await supabase.from("dna_accumulation").update({
-      points: existing.points + pointDelta,
-      interaction_count: Math.max(0, existing.interaction_count + countDelta),
-      display_name: dim.displayName,
-      mappable: dim.mappable,
-    }).eq("id", existing.id);
-  } else {
-    // Insert new row
-    await supabase.from("dna_accumulation").insert({
-      user_id: userId,
-      dimension: dim.dimension,
-      dimension_value: dim.dimensionValue,
-      display_name: dim.displayName,
-      points: pointDelta,
-      interaction_count: Math.max(0, countDelta),
-      mappable: dim.mappable,
-      source: "auto",
-    });
-  }
+// bottle count means nothing. Every dimension is written at once (one row
+// each — a rating's dimensions are distinct); a write that fails leaves
+// the Map as the database still holds it.
+async function applyDeltas(supabase, userId, acc, dims, pointDelta, countDelta) {
+  await Promise.all(dims.map(async (dim) => {
+    const key = `${dim.dimension}:${dim.dimensionValue}`;
+    const existing = acc.get(key);
+    if (existing) {
+      const next = {
+        points: existing.points + pointDelta,
+        interaction_count: Math.max(0, existing.interaction_count + countDelta),
+        display_name: dim.displayName,
+        mappable: dim.mappable,
+      };
+      const { error } = await supabase.from("dna_accumulation").update(next).eq("id", existing.id);
+      if (!error) acc.set(key, { ...existing, ...next });
+    } else {
+      const row = {
+        user_id: userId,
+        dimension: dim.dimension,
+        dimension_value: dim.dimensionValue,
+        display_name: dim.displayName,
+        points: pointDelta,
+        interaction_count: Math.max(0, countDelta),
+        mappable: dim.mappable,
+        source: "auto",
+      };
+      const { data } = await supabase.from("dna_accumulation").insert(row).select("id").single();
+      if (data?.id) acc.set(key, { ...row, id: data.id, promoted: false });
+    }
+  }));
 }
 
 
@@ -248,53 +285,64 @@ async function upsertAccumulation(supabase, userId, dim, pointDelta, countDelta)
 // PROMOTION CHECKS
 // ═══════════════════════════════════════════════════════
 
-async function checkPromotions(supabase, userId, dimensionUpdates) {
+async function checkPromotions(supabase, userId, acc, dimensionUpdates) {
   const promotions = [];
 
   for (const dim of dimensionUpdates) {
     // Skip unmappable dimensions — can't write to wine_profiles
     if (!dim.mappable) continue;
 
-    const { data: acc } = await supabase
-      .from("dna_accumulation")
-      .select("id, points, promoted, dimension, dimension_value, display_name")
-      .eq("user_id", userId)
-      .eq("dimension", dim.dimension)
-      .eq("dimension_value", dim.dimensionValue)
-      .single();
-
-    if (!acc || acc.promoted) continue;
+    const row = acc.get(`${dim.dimension}:${dim.dimensionValue}`);
+    if (!row || row.promoted) continue;
 
     const threshold = PROMOTION_THRESHOLDS[dim.dimension];
-    if (acc.points >= threshold) {
+    if (row.points >= threshold) {
       promotions.push({
-        id: acc.id,
-        dimension: acc.dimension,
-        dimensionValue: acc.dimension_value,
-        displayName: acc.display_name,
+        id: row.id,
+        dimension: row.dimension,
+        dimensionValue: row.dimension_value,
+        displayName: row.display_name,
       });
     }
   }
 
   // Check roll-up promotions (estates → region, regions → country)
-  const rollupPromotions = await checkRollupPromotions(supabase, userId);
+  const rollupPromotions = await checkRollupPromotions(supabase, userId, acc);
   promotions.push(...rollupPromotions);
 
   return promotions;
 }
 
-async function checkRollupPromotions(supabase, userId) {
-  const promotions = [];
+// A roll-up target that has no accumulation row yet gets one (zero points)
+// so it can be promoted; one already promoted is left alone.
+async function rollupTarget(supabase, userId, acc, dimension, value, displayName) {
+  const row = acc.get(`${dimension}:${value}`);
+  if (row) {
+    return row.promoted ? null : { id: row.id, dimension, dimensionValue: value, displayName, isRollup: true };
+  }
+  const { data: newAcc } = await supabase.from("dna_accumulation").insert({
+    user_id: userId,
+    dimension,
+    dimension_value: value,
+    display_name: displayName,
+    points: 0,
+    interaction_count: 0,
+    mappable: true,
+    source: "auto",
+  }).select("id").single();
+  return newAcc ? { id: newAcc.id, dimension, dimensionValue: value, displayName, isRollup: true } : null;
+}
+
+// Judged on the promoted flags as they stood before this rating's own
+// promotions are applied — an estate promoted now counts toward its region
+// on the next rating, as it always has
+async function checkRollupPromotions(supabase, userId, acc) {
+  const rows = [...acc.values()];
+  const targets = [];
 
   // Check: 3+ promoted estates in same region → promote that region
-  const { data: promotedEstates } = await supabase
-    .from("dna_accumulation")
-    .select("dimension_value")
-    .eq("user_id", userId)
-    .eq("dimension", "estate")
-    .eq("promoted", true);
-
-  if (promotedEstates && promotedEstates.length >= ROLLUP_THRESHOLDS.region) {
+  const promotedEstates = rows.filter((r) => r.dimension === "estate" && r.promoted);
+  if (promotedEstates.length >= ROLLUP_THRESHOLDS.region) {
     // Count estates per region
     const regionCounts = {};
     for (const est of promotedEstates) {
@@ -306,62 +354,16 @@ async function checkRollupPromotions(supabase, userId) {
         }
       }
     }
-
     for (const [regionId, count] of Object.entries(regionCounts)) {
       if (count >= ROLLUP_THRESHOLDS.region && isValidDnaRegion(regionId)) {
-        // Check if region is already promoted
-        const { data: regionAcc } = await supabase
-          .from("dna_accumulation")
-          .select("id, promoted")
-          .eq("user_id", userId)
-          .eq("dimension", "region")
-          .eq("dimension_value", regionId)
-          .single();
-
-        if (regionAcc && !regionAcc.promoted) {
-          promotions.push({
-            id: regionAcc.id,
-            dimension: "region",
-            dimensionValue: regionId,
-            displayName: getRegionDisplayName(regionId),
-            isRollup: true,
-          });
-        } else if (!regionAcc) {
-          // Create the accumulation row and promote it
-          const { data: newAcc } = await supabase.from("dna_accumulation").insert({
-            user_id: userId,
-            dimension: "region",
-            dimension_value: regionId,
-            display_name: getRegionDisplayName(regionId),
-            points: 0,
-            interaction_count: 0,
-            mappable: true,
-            source: "auto",
-          }).select("id").single();
-
-          if (newAcc) {
-            promotions.push({
-              id: newAcc.id,
-              dimension: "region",
-              dimensionValue: regionId,
-              displayName: getRegionDisplayName(regionId),
-              isRollup: true,
-            });
-          }
-        }
+        targets.push(["region", regionId, getRegionDisplayName(regionId)]);
       }
     }
   }
 
   // Check: 3+ promoted regions in same country → promote that country
-  const { data: promotedRegions } = await supabase
-    .from("dna_accumulation")
-    .select("dimension_value")
-    .eq("user_id", userId)
-    .eq("dimension", "region")
-    .eq("promoted", true);
-
-  if (promotedRegions && promotedRegions.length >= ROLLUP_THRESHOLDS.country) {
+  const promotedRegions = rows.filter((r) => r.dimension === "region" && r.promoted);
+  if (promotedRegions.length >= ROLLUP_THRESHOLDS.country) {
     const countryCounts = {};
     for (const reg of promotedRegions) {
       const countryId = findCountryForRegion(reg.dimension_value);
@@ -369,52 +371,16 @@ async function checkRollupPromotions(supabase, userId) {
         countryCounts[countryId] = (countryCounts[countryId] || 0) + 1;
       }
     }
-
     for (const [countryId, count] of Object.entries(countryCounts)) {
       if (count >= ROLLUP_THRESHOLDS.country && isValidDnaCountry(countryId)) {
-        const { data: countryAcc } = await supabase
-          .from("dna_accumulation")
-          .select("id, promoted")
-          .eq("user_id", userId)
-          .eq("dimension", "country")
-          .eq("dimension_value", countryId)
-          .single();
-
-        if (countryAcc && !countryAcc.promoted) {
-          promotions.push({
-            id: countryAcc.id,
-            dimension: "country",
-            dimensionValue: countryId,
-            displayName: getCountryDisplayName(countryId),
-            isRollup: true,
-          });
-        } else if (!countryAcc) {
-          const { data: newAcc } = await supabase.from("dna_accumulation").insert({
-            user_id: userId,
-            dimension: "country",
-            dimension_value: countryId,
-            display_name: getCountryDisplayName(countryId),
-            points: 0,
-            interaction_count: 0,
-            mappable: true,
-            source: "auto",
-          }).select("id").single();
-
-          if (newAcc) {
-            promotions.push({
-              id: newAcc.id,
-              dimension: "country",
-              dimensionValue: countryId,
-              displayName: getCountryDisplayName(countryId),
-              isRollup: true,
-            });
-          }
-        }
+        targets.push(["country", countryId, getCountryDisplayName(countryId)]);
       }
     }
   }
 
-  return promotions;
+  const found = await Promise.all(targets.map(([dimension, value, name]) =>
+    rollupTarget(supabase, userId, acc, dimension, value, name)));
+  return found.filter(Boolean);
 }
 
 
@@ -422,29 +388,22 @@ async function checkRollupPromotions(supabase, userId) {
 // DEMOTION CHECKS
 // ═══════════════════════════════════════════════════════
 
-async function checkDemotions(supabase, userId, dimensionUpdates) {
+function checkDemotions(acc, dimensionUpdates) {
   const demotions = [];
 
   for (const dim of dimensionUpdates) {
     if (!dim.mappable) continue;
 
-    const { data: acc } = await supabase
-      .from("dna_accumulation")
-      .select("id, points, promoted, source, dimension, dimension_value, display_name")
-      .eq("user_id", userId)
-      .eq("dimension", dim.dimension)
-      .eq("dimension_value", dim.dimensionValue)
-      .single();
+    const row = acc.get(`${dim.dimension}:${dim.dimensionValue}`);
+    if (!row || !row.promoted) continue;
 
-    if (!acc || !acc.promoted) continue;
-
-    const threshold = acc.source === "quiz" ? DEMOTION_THRESHOLDS.quiz : DEMOTION_THRESHOLDS.auto;
-    if (acc.points <= threshold) {
+    const threshold = row.source === "quiz" ? DEMOTION_THRESHOLDS.quiz : DEMOTION_THRESHOLDS.auto;
+    if (row.points <= threshold) {
       demotions.push({
-        id: acc.id,
-        dimension: acc.dimension,
-        dimensionValue: acc.dimension_value,
-        displayName: acc.display_name,
+        id: row.id,
+        dimension: row.dimension,
+        dimensionValue: row.dimension_value,
+        displayName: row.display_name,
       });
     }
   }
@@ -457,26 +416,45 @@ async function checkDemotions(supabase, userId, dimensionUpdates) {
 // APPLY PROMOTIONS TO WINE_PROFILES
 // ═══════════════════════════════════════════════════════
 
+// Each promotion's row is marked and its timeline row written, beside the
+// profile's own write — all at once. The timeline rows go one after
+// another, in the order the promotions were found, so their event_at
+// keeps that order as it always has.
+function writeMoments(supabase, userId, moments, flag, eventType, wineName) {
+  const flags = moments.map(({ id }) =>
+    supabase.from("dna_accumulation").update(flag()).eq("id", id).then((r) => r, () => null));
+  const timeline = moments.reduce((chain, { dimension, dimensionValue, displayName }) =>
+    chain.then(() => supabase.from("dna_timeline").insert({
+      user_id: userId,
+      event_type: eventType,
+      dimension,
+      dimension_value: dimensionValue,
+      display_name: displayName,
+      wine_name: wineName,
+    }).then((r) => r, () => null)), Promise.resolve());
+  return Promise.all([...flags, timeline]);
+}
+
+function profileWrite(supabase, userId, dna, changed) {
+  if (!changed) return Promise.resolve(null);
+  return supabase.from("wine_profiles").update(dna).eq("user_id", userId).then((r) => r, () => null);
+}
+
 // wineName is the bottle whose rating earned these (null when nothing
-// named one) — it links each timeline row to that wine's page
-async function applyPromotions(supabase, userId, promotions, wineName = null) {
-  // Fetch current profile
-  const { data: profile } = await supabase
-    .from("wine_profiles")
-    .select("countries, regions, estates, varietals")
-    .eq("user_id", userId)
-    .single();
-
-  if (!profile) return;
-
-  let countries = profile.countries || [];
-  let regions = profile.regions || {};
-  let estates = profile.estates || {};
-  let varietals = profile.varietals || [];
+// named one) — it links each timeline row to that wine's page. `profile`
+// is the DNA as read beside the accumulation (readProfileDna).
+// Returns the profile's DNA as this left it; with no profile it writes
+// nothing and returns null, as it always has.
+async function applyPromotions(supabase, userId, promotions, wineName = null, profile = null) {
+  if (!profile) return null;
+  let countries = profile?.countries || [];
+  let regions = profile?.regions || {};
+  let estates = profile?.estates || {};
+  let varietals = profile?.varietals || [];
   let changed = false;
 
   for (const promo of promotions) {
-    const { dimension, dimensionValue, displayName, id } = promo;
+    const { dimension, dimensionValue } = promo;
 
     if (dimension === "country") {
       if (!countries.includes(dimensionValue)) {
@@ -514,30 +492,17 @@ async function applyPromotions(supabase, userId, promotions, wineName = null) {
         changed = true;
       }
     }
-
-    // Mark as promoted in dna_accumulation
-    await supabase.from("dna_accumulation").update({
-      promoted: true,
-      promoted_at: new Date().toISOString(),
-      demoted_at: null,
-    }).eq("id", id);
-
-    // Log to timeline
-    await supabase.from("dna_timeline").insert({
-      user_id: userId,
-      event_type: "promoted",
-      dimension,
-      dimension_value: dimensionValue,
-      display_name: displayName,
-      wine_name: wineName,
-    });
   }
 
-  if (changed) {
-    await supabase.from("wine_profiles").update({
-      countries, regions, estates, varietals,
-    }).eq("user_id", userId);
-  }
+  const dna = { countries, regions, estates, varietals };
+  await Promise.all([
+    // Mark as promoted in dna_accumulation, and log each to the timeline
+    writeMoments(supabase, userId, promotions,
+      () => ({ promoted: true, promoted_at: new Date().toISOString(), demoted_at: null }),
+      "promoted", wineName),
+    profileWrite(supabase, userId, dna, changed),
+  ]);
+  return dna;
 }
 
 
@@ -545,23 +510,16 @@ async function applyPromotions(supabase, userId, promotions, wineName = null) {
 // APPLY DEMOTIONS TO WINE_PROFILES
 // ═══════════════════════════════════════════════════════
 
-async function applyDemotions(supabase, userId, demotions, wineName = null) {
-  const { data: profile } = await supabase
-    .from("wine_profiles")
-    .select("countries, regions, estates, varietals")
-    .eq("user_id", userId)
-    .single();
-
+async function applyDemotions(supabase, userId, demotions, wineName = null, profile = null) {
   if (!profile) return;
-
-  let countries = profile.countries || [];
-  let regions = profile.regions || {};
-  let estates = profile.estates || {};
-  let varietals = profile.varietals || [];
+  let countries = profile?.countries || [];
+  let regions = profile?.regions || {};
+  let estates = profile?.estates || {};
+  let varietals = profile?.varietals || [];
   let changed = false;
 
   for (const demo of demotions) {
-    const { dimension, dimensionValue, displayName, id } = demo;
+    const { dimension, dimensionValue } = demo;
 
     if (dimension === "country") {
       const filtered = countries.filter(c => c !== dimensionValue);
@@ -586,29 +544,15 @@ async function applyDemotions(supabase, userId, demotions, wineName = null) {
       const filtered = varietals.filter(v => v !== dimensionValue);
       if (filtered.length !== varietals.length) { varietals = filtered; changed = true; }
     }
-
-    // Mark as demoted in dna_accumulation
-    await supabase.from("dna_accumulation").update({
-      promoted: false,
-      demoted_at: new Date().toISOString(),
-    }).eq("id", id);
-
-    // Log to timeline
-    await supabase.from("dna_timeline").insert({
-      user_id: userId,
-      event_type: "demoted",
-      dimension,
-      dimension_value: dimensionValue,
-      display_name: displayName,
-      wine_name: wineName,
-    });
   }
 
-  if (changed) {
-    await supabase.from("wine_profiles").update({
-      countries, regions, estates, varietals,
-    }).eq("user_id", userId);
-  }
+  await Promise.all([
+    // Mark as demoted in dna_accumulation, and log each to the timeline
+    writeMoments(supabase, userId, demotions,
+      () => ({ promoted: false, demoted_at: new Date().toISOString() }),
+      "demoted", wineName),
+    profileWrite(supabase, userId, { countries, regions, estates, varietals }, changed),
+  ]);
 }
 
 
@@ -655,16 +599,17 @@ export async function reverseAccumulation(supabase, userId, wineName, interactio
 
   const dimensionUpdates = buildDimensionUpdates(resolution, { partial });
 
-  // Reverse the points, and take the bottle off every count it was on
-  for (const dim of dimensionUpdates) {
-    await upsertAccumulation(supabase, userId, dim, -points, -pushCount(points));
-  }
+  // Reverse the points, and take the bottle off every count it was on —
+  // one read, every write at once (as resolveAndAccumulate does)
+  const profileRead = readProfileDna(supabase, userId);
+  const acc = await readAccumulation(supabase, userId);
+  await applyDeltas(supabase, userId, acc, dimensionUpdates, -points, -pushCount(points));
 
   // Check for demotions triggered by the reversal. They name no wine: only
   // a rating does — the deleted bottle has left the journal and has no page
-  const demotions = await checkDemotions(supabase, userId, dimensionUpdates);
+  const demotions = checkDemotions(acc, dimensionUpdates);
   if (demotions.length > 0) {
-    await applyDemotions(supabase, userId, demotions, null);
+    await applyDemotions(supabase, userId, demotions, null, await profileRead);
   }
 
   return { demotions };

@@ -38,8 +38,16 @@ import { GESTURES } from "../src/components/house/marks.js";
  * must be the big moment — the bloom arriving in the shape the account had,
  * growing (celebrated) into the one the recompose wrote. Its bottle is
  * logged as written, so it is identified by its exact name (a Log save
- * carries no source_url), and a loved Log save also names the wine in
- * specific_wines — healed and restored with the rest.
+ * carries no source_url). Until Nov 23, 2026 a loved Log save also named
+ * the wine in specific_wines; it no longer does (the speed guard below
+ * asserts it), but the heal and the restore still put that list back.
+ *
+ * The speed guard (Nov 23, 2026 canary): the same promoting, shifting Log
+ * save, every Supabase request held to at least 150ms. The hard checks are
+ * the request count (at most 20 — it was ~25, one after another, 9–26s on a
+ * phone) and the chain's depth in round trips (at most 10; about 8 now).
+ * The clock is a generous backstop against a hang, relative to the measured
+ * round trip. Alone it measured 2.25s at 158ms.
  */
 
 const GUARD_LINE = "Domaine Dujac Clos de la Roche 2019...$95";
@@ -829,6 +837,101 @@ test.describe("The growth moment — reduced motion (hard-fail)", () => {
   // The suite's default: under reduced motion a moment is still known, and
   // nothing of it plays — the saved step shows the new shape at once
   test.afterEach(async ({ page }) => { await restoreBaseline(page); });
+
+  test("HARD-FAIL GUARD: logging the bottle that promotes an estate and shifts the strand is a handful of requests and lands in a handful of round trips", async ({ page }) => {
+    test.setTimeout(150_000);
+    const RTT_MS = 150;
+    // Two hard checks no connection or machine can move: the request count,
+    // and the chain's DEPTH in round trips — each request is one deeper
+    // than the deepest response already finished when it started (the save
+    // is about eight deep; the old engine's was ~23). The clock is only a
+    // backstop against a hang: in the full suite this save once took 5.9s
+    // with the same 17 requests (2.25s alone) — the dev server, not the
+    // network — so a tight clock here would be a flaky guard.
+    const MAX_DEPTH = 10;
+    const BACKSTOP_TRIPS = 30;
+    const PAGE_MS = 5_000;
+    // The save's Supabase requests, tap to saved step: the rating's read and
+    // upsert, the stamp + accumulation read + profile read, three dimension
+    // writes, the promotion's flag + timeline + profile write, the hook's
+    // three reads, its swap and its shifted row, the bottle_logged event.
+    // It was ~25, one after another.
+    const MAX_REQUESTS = 20;
+    const { supabase, userId } = await testDb();
+    await ensureEarnedFixture(supabase, userId);
+    await healStaleState(supabase, userId);
+    const { profile: before } = await captureBaseline(supabase, userId);
+    expect(before.archetype).not.toMatch(/Loyalist/);
+
+    // This machine's own latency to Supabase, topped up to a phone's
+    const samples: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const t = Date.now();
+      await supabase.from("wine_profiles").select("user_id").eq("user_id", userId).limit(1);
+      samples.push(Date.now() - t);
+    }
+    const ownRtt = samples.sort((a, b) => a - b)[2];
+    const addMs = Math.max(0, RTT_MS - ownRtt);
+    const rtt = Math.max(RTT_MS, ownRtt);
+    const limitMs = BACKSTOP_TRIPS * rtt + PAGE_MS;
+    const isSupabase = (url: string) => url.includes("/rest/v1/") || url.includes("/auth/v1/");
+    await page.route((url) => isSupabase(url.toString()), async (route) => {
+      if (addMs) await new Promise((r) => setTimeout(r, addMs));
+      await route.continue();
+    });
+
+    await page.goto(`/log?q=${encodeURIComponent(LOG_WINE)}`);
+    await expect(page.getByTestId("log-search-input")).toHaveValue(LOG_WINE, { timeout: 15_000 });
+    await page.getByRole("button", { name: /as written/ }).click();
+    const rate = page.getByTestId("bottle-confirm");
+    await expect(rate).toBeVisible();
+    await rate.getByRole("radio", { name: "Loved it" }).click();
+    // The resolver builds its indexes on first use (~0.4s): warm it as a
+    // diner's earlier search would have, so the clock measures the save
+    await page.waitForTimeout(500);
+
+    const requests: string[] = [];
+    const waves = new Map<object, number>();
+    let deepestFinished = 0;
+    let deepest = 0;
+    let counting = true;
+    page.on("request", (req) => {
+      if (!counting || !isSupabase(req.url())) return;
+      const wave = deepestFinished + 1;
+      waves.set(req, wave);
+      deepest = Math.max(deepest, wave);
+      requests.push(`${wave}:${req.method()} ${new URL(req.url()).pathname.replace(/^.*\/(rest|auth)\/v1\//, "")}`);
+    });
+    const finished = (req: object) => {
+      const wave = waves.get(req);
+      if (wave) deepestFinished = Math.max(deepestFinished, wave);
+    };
+    page.on("requestfinished", finished);
+    page.on("requestfailed", finished);
+    const t0 = Date.now();
+    await page.getByTestId("log-save").click();
+    const saved = page.getByTestId("log-saved");
+    await expect(saved).toBeVisible({ timeout: 30_000 });
+    const elapsed = Date.now() - t0;
+    counting = false;
+    console.log(JSON.stringify({ rttMs: rtt, ownRtt, addMs, elapsedMs: elapsed, limitMs, requests: requests.length, depth: deepest, list: requests }));
+
+    // The same save as ever: the moment, the shift, the event
+    await expect(saved).toHaveAttribute("data-moment", "grown");
+    await expect
+      .poll(async () => (await readProfile(supabase, userId)).archetype, { timeout: 20_000 })
+      .toMatch(/Loyalist$/);
+    const { data: timeline } = await supabase.from("dna_timeline")
+      .select("event_type, dimension, dimension_value, wine_name").eq("user_id", userId);
+    const fresh = (timeline ?? []).filter((e) => e.wine_name === LOG_WINE);
+    expect(fresh.map((e) => `${e.event_type}:${e.dimension}`).sort()).toEqual(["promoted:estate", "shifted:identity"]);
+    // …and the bottle is not copied into the quiz's named wines
+    expect((await readProfile(supabase, userId)).specific_wines ?? []).toEqual(before.specific_wines ?? []);
+
+    expect(requests.length, `the save's requests: ${requests.join(", ")}`).toBeLessThanOrEqual(MAX_REQUESTS);
+    expect(deepest, `round trips deep: ${requests.join(", ")}`).toBeLessThanOrEqual(MAX_DEPTH);
+    expect(elapsed, `backstop: tap to saved step at ${rtt}ms a round trip (${BACKSTOP_TRIPS} round trips + ${PAGE_MS}ms)`).toBeLessThan(limitMs);
+  });
 
   test("logging the bottle that promotes an estate: the saved step's bloom is already the new shape — one frame, no word split", async ({ page }) => {
     test.setTimeout(150_000);

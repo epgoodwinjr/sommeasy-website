@@ -31,6 +31,8 @@ export default function PalatePage() {
   const [profile, setProfile] = useState(null);
   const [timeline, setTimeline] = useState(null);
   const [accumulation, setAccumulation] = useState(null);
+  // The journal's verdicts, for Wines you named (null = unread: no notes)
+  const [journal, setJournal] = useState(null);
   // "Removed from your journal" can arrive here from a wine page's back step
   const { toasts } = useToast({ receivesCarried: true });
   const supabase = createClient();
@@ -43,16 +45,18 @@ export default function PalatePage() {
       if (!live) return;
       setUser(u);
       if (u) {
-        const [profileRes, timelineRes, accRes] = await Promise.all([
+        const [profileRes, timelineRes, accRes, journalRes] = await Promise.all([
           supabase.from("wine_profiles").select("*").eq("user_id", u.id).maybeSingle(),
           supabase.from("dna_timeline").select("*").eq("user_id", u.id).order("event_at", { ascending: false }).limit(20),
           supabase.from("dna_accumulation").select("*").eq("user_id", u.id),
+          supabase.from("wine_interactions").select("wine_name, rating").eq("user_id", u.id).not("rating", "is", null),
         ]);
         if (!live) return;
         if (profileRes.error) setReadFailed(true);
         else setProfile(profileRes.data);
         setTimeline(rows(timelineRes));
         setAccumulation(rows(accRes));
+        setJournal(rows(journalRes));
 
         // The Somm refreshes the narrative when the palate has genuinely
         // moved (a promotion, or ≥5 new rated bottles). Progressive
@@ -134,5 +138,5 @@ export default function PalatePage() {
     );
   }
 
-  return page(<PalateView profile={profile} timeline={timeline} accumulation={accumulation} />);
+  return page(<PalateView profile={profile} timeline={timeline} accumulation={accumulation} journal={journal} />);
 }

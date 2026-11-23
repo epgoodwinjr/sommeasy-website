@@ -31,6 +31,7 @@ import { createClient } from "@/lib/supabase";
 import { reverseAccumulation } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { resolveWine } from "@/lib/wineResolver";
+import { estateCountry } from "@/lib/estateCountry";
 import { recordEvent, confidenceBand } from "@/lib/wineEvents";
 import { CONFIDENCE_GATE } from "@/lib/dnaThresholds";
 import { ratingFor } from "@/lib/ratings";
@@ -533,7 +534,7 @@ export default function WinePage({ name }) {
   // chose it for this palate
   const sommNote = row?.somm_note || rec?.why || null;
   const sommTag = row?.somm_note ? sommRoleTag(row.somm_pick_role) : rec?.why ? matchTag(rec.matchType) : null;
-  const lines = events.map((e) => ({ id: e.id, line: timelineLine(e) })).filter((e) => e.line);
+  const lines = events.map((e) => ({ id: e.id, line: timelineLine(e, { estateCountry }) })).filter((e) => e.line);
   const factRows = particulars(facts, vintage);
   const next = numeralCounter();
 
