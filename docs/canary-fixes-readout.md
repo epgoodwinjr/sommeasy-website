@@ -112,14 +112,15 @@ other reads, and each named wine shows its verdict ("Loved it") when the
 journal holds one, "from your quiz" when it doesn't, and nothing when the
 journal couldn't be read.
 
-**Existing rows — proposed, not run.** Read-only audit: 29 named wines on 5
+**Existing rows — run Nov 23, 2026, after the merge, with Ed's yes.** Read-only audit: 29 named wines on 5
 accounts; 10 match a loved/liked journal row; 5 of those are also named by a
 `bottle_logged` event (2 accounts). `docs/canary-specific-wines-cleanup.sql`
 holds a preview and a commented UPDATE that removes exactly those 5. A wine
 the quiz also named looks the same, so review the preview first. It moves no
 points, no timeline, no title; the next recompose reads the shorter list
-silently. Until it runs, a logged copy shows its verdict, and a logged copy
-whose journal row was deleted still reads "from your quiz".
+silently. It ran on the two accounts the preview named: 18 → 15 and 7 → 5 named wines (29 → 24 in all), the
+other names in their order; the preview now finds none, and no timeline row,
+point or identity field was written.
 
 Side effect to know: a not-for-me logged on a quiz-named wine no longer
 removes it from the list (the engine still suppresses it in matching).
@@ -236,7 +237,7 @@ clock (5.9s, same 17 requests). `npm run build` passes.
 
 ## For Ed
 
-1. The specific_wines cleanup (`docs/canary-specific-wines-cleanup.sql`) —
-   your yes before the UPDATE runs.
+1. DONE (Nov 23, after the merge, with your yes): the specific_wines cleanup
+   (`docs/canary-specific-wines-cleanup.sql`) removed the 5 logged copies.
 2. (Approved Nov 23) Every surface gets the favorite boost: a bottle loved on
    /recommend now earns +10 when it appears on a list.

@@ -1,4 +1,6 @@
--- PROPOSED, NOT RUN — needs Ed's explicit yes before the UPDATE runs.
+-- RUN Nov 23, 2026, after PR #42 merged, with Ed's yes — on the two accounts
+-- the preview named: 5 names removed (18 -> 15, 7 -> 5), order kept; the
+-- preview now returns nothing. Kept as the record. Do not run it again.
 -- (canary-fixes, Nov 23, 2026; docs/canary-fixes-readout.md §2)
 --
 -- Until Nov 23, 2026 Log a bottle copied every bottle rated loved or liked
