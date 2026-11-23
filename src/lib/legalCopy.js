@@ -14,11 +14,11 @@
 //   [[contact]] → the contact address (mailto)
 //   [[privacy]] → the Privacy Policy   [[terms]] → the Terms   [[account]] → Account
 
-export const LEGAL_DRAFT = true;
-export const LEGAL_UPDATED = "November 22, 2026";
+export const LEGAL_DRAFT = false;
+export const LEGAL_UPDATED = "November 23, 2026";
 // The day the current text takes effect — set it to the day LEGAL_DRAFT
 // goes false (while it's true, the draft line says "not yet in effect")
-export const LEGAL_EFFECTIVE = "November 22, 2026";
+export const LEGAL_EFFECTIVE = "November 23, 2026";
 // Who runs Sommeasy — "we" and "us" on both pages
 export const LEGAL_OPERATOR = "Sommeasy is run by Ed Goodwin, an individual. “We” and “us” here mean him.";
 // How long the weekly database backup is kept (retention-days in the PRIVATE
