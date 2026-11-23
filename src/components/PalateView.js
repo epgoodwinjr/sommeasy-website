@@ -20,7 +20,7 @@ import { useRef, useState } from "react";
 import { formatWineName } from "@/lib/matchEngine";
 import { computeSignature, concentrationPhrase, signatureLine } from "@/lib/palateSignature";
 import { DNA_NAMES } from "@/lib/dnaNames";
-import { TIMELINE_HREF, buildingNow, dnaEntries, dnaGroups, evolutionRows } from "@/lib/palateView";
+import { TIMELINE_HREF, buildingNow, dnaEntries, dnaGroups, evolutionRows, namedWines } from "@/lib/palateView";
 import { bottlesAwayLine, dnaCount, dnaKindLabel, numberWord } from "@/lib/houseCopy";
 import { numeralCounter } from "@/lib/numerals";
 import PalateMark from "./PalateMark";
@@ -173,13 +173,13 @@ const groupLabel = {
   fontFamily: SERIF, fontStyle: "italic", fontSize: "15px", fontWeight: 400, color: BURGUNDY, marginTop: 20,
 };
 
-function YourDna({ numeral, profile, accumulation, enterDelay }) {
+function YourDna({ numeral, profile, accumulation, journal, enterDelay }) {
   const entries = dnaEntries({ profile, accumulation, names: DNA_NAMES });
   const groups = dnaGroups(entries);
-  // The quiz's named wines aren't dimensions the engine evolves, but they're
-  // the user's own answers — they stay on the page they've always had
-  const named = (Array.isArray(profile.specific_wines) ? profile.specific_wines : [])
-    .filter((w) => typeof w === "string" && w.trim());
+  // The named wines aren't dimensions the engine evolves, but they're the
+  // user's own — each says what is true of it (namedWines: its journal
+  // verdict, else the quiz; nothing when the journal couldn't be read)
+  const named = namedWines(profile, journal);
   return (
     <section data-testid="palate-dna">
       <SectionHead numeral={numeral} label="Your DNA" enterDelay={enterDelay} style={{ margin: "28px 0 0" }} />
@@ -194,7 +194,7 @@ function YourDna({ numeral, profile, accumulation, enterDelay }) {
       {named.length > 0 && (
         <div>
           <h3 style={groupLabel}>Wines you named</h3>
-          {named.map((w, i) => <DnaRow key={`${i}:${w}`} name={formatWineName(w)} count={dnaCount(0, "quiz")} />)}
+          {named.map((w) => <DnaRow key={w.key} name={formatWineName(w.name)} count={w.note} />)}
         </div>
       )}
       {entries.some((e) => e.earned) && (
@@ -232,7 +232,7 @@ function QuizLinks() {
   );
 }
 
-export default function PalateView({ profile, timeline, accumulation }) {
+export default function PalateView({ profile, timeline, accumulation, journal = null }) {
   // The strand's epithet leads (Act III); the live signature line is the
   // fallback for a row the engine hasn't composed yet
   const epithet = profile.identity?.epithet || signatureLine(profile, accumulation);
@@ -274,7 +274,7 @@ export default function PalateView({ profile, timeline, accumulation }) {
 
       <RecentlyEvolved numeral={next()} timeline={timeline} enterDelay={head()} />
       <BuildingNow numeral={next()} accumulation={accumulation} enterDelay={head()} />
-      <YourDna numeral={next()} profile={profile} accumulation={accumulation} enterDelay={head()} />
+      <YourDna numeral={next()} profile={profile} accumulation={accumulation} journal={journal} enterDelay={head()} />
       <QuizLinks />
     </div>
   );

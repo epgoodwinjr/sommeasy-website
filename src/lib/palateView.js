@@ -15,8 +15,10 @@
 // yet" on a guess. Junk in → a safe default, never a throw.
 
 import { PROMOTION_THRESHOLDS } from "./dnaThresholds.js";
-import { lovedBottlesAway, shortDate, timelineLine } from "./houseCopy.js";
+import { estateName, lovedBottlesAway, shortDate, timelineLine } from "./houseCopy.js";
 import { wineHref } from "./navTrail.js";
+import { ratingFor } from "./ratings.js";
+import { normalizeWineName } from "./matchTerms.js";
 
 const KINDS = ["country", "region", "grape", "estate"];
 // A kind's dna_accumulation dimension, and back
@@ -92,10 +94,11 @@ export function dnaEntries({ profile, accumulation, names = {} } = {}) {
       : kind === "region" ? lookup(names.region, id, parent)
       : kind === "grape" ? lookup(names.grape, id)
       : lookup(names.estate, id, parent);
+    const name = looked || text(row?.display_name) || prettifyId(id);
     return {
       kind,
       id,
-      name: looked || text(row?.display_name) || prettifyId(id),
+      name: kind === "estate" ? estateName(name) : name,
       flag: kind === "country" ? lookup(names.flag, id) || "" : "",
       earned: Boolean(known && row?.promoted && row.source === "auto"),
       bottles: known ? bottlesOf(row) : null,
@@ -140,7 +143,7 @@ export function buildingNow(accumulation, { limit = 6 } = {}) {
     if (!threshold || !kind || !(points > 0) || !name) continue;
     building.push({
       key: `${row.dimension}:${row.dimension_value}`,
-      name,
+      name: kind === "estate" ? estateName(name) : name,
       kind,
       dimension: row.dimension,
       points,
@@ -176,4 +179,31 @@ export function evolutionRows(timeline, { limit = 3, now = new Date() } = {}) {
     });
   }
   return rows;
+}
+
+/**
+ * Wines you named: the profile's specific_wines, each with what is true of
+ * it → [{ key, name, note }]. Until Nov 23, 2026 Log a bottle also added
+ * every bottle rated loved or liked there, so a name on this list is not
+ * always a quiz answer: one the journal holds a verdict on says that verdict
+ * (its label from ratings.js); one it holds none on is the quiz's ("from your quiz").
+ * `journal` is the user's wine_interactions rows (wine_name, rating), or
+ * null when they couldn't be read — then no note at all, never a guess.
+ */
+export function namedWines(profile, journal) {
+  const named = list(profile?.specific_wines).map(text).filter(Boolean);
+  if (named.length === 0) return [];
+  const known = Array.isArray(journal);
+  const verdicts = new Map();
+  for (const row of known ? journal : []) {
+    const rating = row && typeof row === "object" ? ratingFor(row.rating) : null;
+    if (!rating || !isId(row.wine_name)) continue;
+    const key = normalizeWineName(row.wine_name);
+    if (key && !verdicts.has(key)) verdicts.set(key, rating.label);
+  }
+  return named.map((name, i) => ({
+    key: `${i}:${name}`,
+    name,
+    note: known ? (verdicts.get(normalizeWineName(name)) || "from your quiz") : "",
+  }));
 }

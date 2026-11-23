@@ -504,6 +504,50 @@ function casePart(part, opens) {
   return !opens && PARTICLES.has(part) ? part : capitalize(part);
 }
 
+// An estate's little words, lowercase inside its name ("Domaine de la
+// Vougeraie", "Plaisir de Merle", "Stone the Crows") — never when they open
+// or close it ("Scala Dei"). The data capitalizes them ("Domaine De La
+// Vougeraie"). An article is lowercase only after a Romance preposition
+// ("de la", "del", "de los"): on its own it is part of the name, as French
+// and Spanish write them ("Château La Nerthe", "Winery at La Grange").
+// Left alone: "Van" ("Lemos & Van Zeller") and "Sur", which is Spanish for
+// south ("Cono Sur").
+const ROMANCE_PARTICLES = new Set([
+  "de", "du", "des", "di", "da", "del", "della", "dello", "dei", "degli", "delle",
+]);
+const ESTATE_PARTICLES = new Set([
+  ...ROMANCE_PARTICLES, "von", "zu", "et", "e", "y", "of", "the", "and", "at", "in", "by", "en", "am", "im",
+]);
+const ESTATE_ARTICLES = new Set(["la", "le", "les", "los", "las", "lo", "il", "el"]);
+
+/** An estate's name with its particles lowercase. Display only — the
+ *  stored name and every lookup keep the data's spelling. Junk → "". */
+export function estateName(name) {
+  if (typeof name !== "string") return "";
+  const words = name.trim().replace(/\s+/g, " ").split(" ");
+  const last = words.length - 1;
+  let afterRomance = false;
+  return words.map((word, i) => {
+    const wasAfter = afterRomance;
+    afterRomance = false;
+    if (i === 0 || !word) return word;
+    // An elided particle carries its word with it, so it may close the
+    // name ("Château d'Yquem")
+    const elided = word.match(/^([A-Za-z])(['’])(.+)$/);
+    if (elided) {
+      const head = elided[1].toLowerCase();
+      return head === "d" || (head === "l" && wasAfter) ? `${head}${elided[2]}${elided[3]}` : word;
+    }
+    if (i === last) return word;
+    const lower = word.toLowerCase();
+    if (ESTATE_PARTICLES.has(lower)) {
+      afterRomance = ROMANCE_PARTICLES.has(lower);
+      return lower;
+    }
+    return wasAfter && ESTATE_ARTICLES.has(lower) ? lower : word;
+  }).join(" ");
+}
+
 /** A place in display case. The resolver stores its lookup term lowercase
  *  (resolved_region "vouvray", "hemel-en-aarde"); a name that already has
  *  capitals is left as written. Junk → "". */
@@ -559,7 +603,7 @@ const TIMELINE_TARGETS = { varietal: "your DNA", estate: "your estates", region:
  *  signature moving. Junk → null. */
 export function timelineLine(entry) {
   if (!entry || typeof entry !== "object" || typeof entry.display_name !== "string" || !entry.display_name) return null;
-  const name = entry.display_name;
+  const name = entry.dimension === "estate" ? estateName(entry.display_name) : entry.display_name;
   const target = TIMELINE_TARGETS[entry.dimension] || "your DNA";
   if (entry.event_type === "promoted") return { mark: "plus", text: `${name} joined ${target}`, strong: false };
   if (entry.event_type === "demoted") return { mark: "minus", text: `${name} left ${target}`, strong: false };

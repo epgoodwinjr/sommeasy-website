@@ -9,9 +9,10 @@
 // The logging semantics are home's, moved verbatim: compressImage → POST
 // /api/scan-label reads the label; the save runs previousRating read →
 // upsert had + rating (+ note/place) → resolveAndAccumulate →
-// maybeRecomposeIdentity → bottle_logged (fire-and-forget) →
-// specific_wines. The saved step is the celebration — no toasts here — and
-// it re-reads the genome after the recompose so the bloom shows the change:
+// maybeRecomposeIdentity → bottle_logged (fire-and-forget). The saved step
+// is the celebration — no toasts here — and it shows the genome the
+// recompose stored (read back only when it stored none), so the bloom shows
+// the change:
 // SavedStep grows it from the shape it had before the save when the rating
 // earned a promotion or a shift (docs/motion/README.md §8.4). Once the save
 // has landed the rate step leaves (D_EXIT) and the saved step arrives.
@@ -156,7 +157,7 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
       setUser(u);
       if (u) {
         const [profileRes, journalRes] = await Promise.all([
-          supabase.from("wine_profiles").select("specific_wines, identity").eq("user_id", u.id).maybeSingle(),
+          supabase.from("wine_profiles").select("identity").eq("user_id", u.id).maybeSingle(),
           supabase.from("wine_interactions")
             .select("wine_name, interaction_type, rating, resolved_winery, resolved_region, resolved_varietal, updated_at")
             .eq("user_id", u.id)
@@ -377,39 +378,29 @@ export default function LogBottle({ initialQuery = "", isMobile = false }) {
         confidence: evolutionResult?.resolution?.confidence,
       }));
 
-      // 3. specific_wines follows the rating (existing logic)
-      const currentSpecific = profile?.specific_wines || [];
-      const nameLower = name.toLowerCase();
-      if (rating === "loved" || rating === "liked") {
-        if (!currentSpecific.some((w) => w.toLowerCase() === nameLower)) {
-          const { error: updateErr } = await supabase.from("wine_profiles").update({
-            specific_wines: [...currentSpecific, name],
-          }).eq("user_id", user.id);
-          if (updateErr) console.error("Profile update failed:", updateErr);
-        }
-      } else if (rating === "not_for_me") {
-        const filtered = currentSpecific.filter((w) => w.toLowerCase() !== nameLower);
-        if (filtered.length !== currentSpecific.length) {
-          const { error: updateErr } = await supabase.from("wine_profiles").update({
-            specific_wines: filtered,
-          }).eq("user_id", user.id);
-          if (updateErr) console.error("Profile update failed:", updateErr);
-        }
-      }
-
-      // 4. The bloom as it stands after the recompose
+      // 3. The bloom as it stands after the recompose. A recompose that
+      // wrote the strand hands back the genome it stored; otherwise (no
+      // milestone, or another tab won the swap) read what is stored.
+      // (Log no longer copies loved bottles into specific_wines — that list
+      // is the quiz's "Wines you named"; a rated bottle reaches the match
+      // engine through the journal, from every surface alike.)
       let genome = profile?.identity?.genome ?? null;
-      try {
-        const { data } = await supabase
-          .from("wine_profiles")
-          .select("specific_wines, identity")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        if (data) {
-          genome = data.identity?.genome ?? null;
-          setProfile(data);
-        }
-      } catch { /* the saved step keeps the mark we had */ }
+      if (shift?.genome) {
+        genome = shift.genome;
+        setProfile((p) => (p ? { ...p, identity: { ...(p.identity || {}), genome } } : p));
+      } else {
+        try {
+          const { data } = await supabase
+            .from("wine_profiles")
+            .select("identity")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (data) {
+            genome = data.identity?.genome ?? null;
+            setProfile((p) => ({ ...(p || {}), identity: data.identity }));
+          }
+        } catch { /* the saved step keeps the mark we had */ }
+      }
 
       const resolution = evolutionResult?.resolution;
       setJournal((rows) => {

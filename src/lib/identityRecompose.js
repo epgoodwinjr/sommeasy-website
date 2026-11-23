@@ -103,26 +103,37 @@ function isOutsideDna(dimensions, profile) {
  *   wineName } — wineName (resolveAndAccumulate returns it) names the wine
  *   whose rating triggered the recompose on the 'shifted' row
  * @returns {object|null} null when no milestone fired; otherwise
- *   { shifted, titleChanged, title, previousTitle, epithet, previousEpithet }
- *   — shifted=true means a 'shifted' event was written and the surface
- *   should celebrate.
+ *   { shifted, titleChanged, title, previousTitle, epithet, previousEpithet,
+ *   genome } — shifted=true means a 'shifted' event was written and the
+ *   surface should celebrate. genome is present only when THIS call wrote
+ *   the strand (a silent refresh, or a won compare-and-swap): it is then
+ *   the bloom as stored, and a surface can show it without reading it back.
+ *   A lost swap carries none — another tab wrote what is stored.
  */
 export async function maybeRecomposeIdentity(supabase, userId, engineResult = {}) {
   const promotions = engineResult.promotions || [];
   const demotions = engineResult.demotions || [];
 
-  const { data: profile } = await supabase
-    .from("wine_profiles")
-    .select("archetype, identity, countries, regions, estates, varietals, specific_wines")
-    .eq("user_id", userId)
-    .single();
+  // The three reads go out together. The accumulation is only used when a
+  // milestone fires — reading it alongside costs a request, never a wait
+  const [{ data: profile }, ratedCount, { data: accumulation }] = await Promise.all([
+    supabase
+      .from("wine_profiles")
+      .select("archetype, identity, countries, regions, estates, varietals, specific_wines")
+      .eq("user_id", userId)
+      .single(),
+    countRatedBottles(supabase, userId),
+    supabase
+      .from("dna_accumulation")
+      .select("dimension, dimension_value, points")
+      .eq("user_id", userId),
+  ]);
   if (!profile) return null; // no palate yet — nothing to recompose
 
   const identity = profile.identity || {};
   const milestones = identity.milestones || {};
   const firsts = milestones.firsts || {};
 
-  const ratedCount = await countRatedBottles(supabase, userId);
   const baseline = milestones.ratedCountAtLastRecompose ?? 0;
 
   let milestone = promotions.length > 0 || demotions.length > 0 ||
@@ -155,11 +166,6 @@ export async function maybeRecomposeIdentity(supabase, userId, engineResult = {}
   // Recompose from current evidence: the profile arrays already hold
   // quiz ∪ earned-promoted DNA (promotions edit them), and the accumulation
   // rows let evidence points pick the anchor region / signature grape.
-  const { data: accumulation } = await supabase
-    .from("dna_accumulation")
-    .select("dimension, dimension_value, points")
-    .eq("user_id", userId);
-
   const strand = composeIdentity({
     countries: profile.countries || [],
     regions: profile.regions || {},
@@ -193,7 +199,7 @@ export async function maybeRecomposeIdentity(supabase, userId, engineResult = {}
       red_count: redCount,
       white_count: whiteCount,
     }).eq("user_id", userId);
-    return { shifted: false, titleChanged: false, title: strand.title, previousTitle, epithet: strand.epithet, previousEpithet };
+    return { shifted: false, titleChanged: false, title: strand.title, previousTitle, epithet: strand.epithet, previousEpithet, genome: strand.genome };
   }
 
   // Compare-and-swap on the strand we read: if another tab recomposed in
@@ -235,5 +241,6 @@ export async function maybeRecomposeIdentity(supabase, userId, engineResult = {}
     previousTitle,
     epithet: strand.epithet,
     previousEpithet,
+    genome: strand.genome,
   };
 }

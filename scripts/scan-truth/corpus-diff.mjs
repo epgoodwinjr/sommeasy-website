@@ -34,7 +34,10 @@ const captured = JSON.parse(readFileSync(new URL("src/lib/__tests__/fixtures/sca
 const { lists } = JSON.parse(readFileSync(new URL("scripts/scan-truth/lists.json", REPO), "utf8"));
 
 const fold = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
-const both = (s) => Array.from(new Set([s, fold(s)]));
+// Since Nov 23, 2026 a name of more than one word is also written with its
+// words joined the other way ("Côte-Rôtie" / "Côte Rôtie"), as lists do
+const joins = (s) => [s, s.replace(/-/g, " "), s.replace(/\s+/g, "-")];
+const both = (s) => Array.from(new Set(joins(s).flatMap((j) => [j, fold(j)])));
 
 // A palate that holds everything
 const EVERYTHING = {
@@ -49,7 +52,7 @@ const EVERYTHING = {
 const text = new Set();
 for (const [key, p] of Object.entries(u.producerLookup)) {
   text.add(key);
-  if (p.province) text.add(`${key}, ${p.province}`);
+  if (p.province) for (const prov of new Set(joins(p.province))) text.add(`${key}, ${prov}`);
 }
 for (const [core] of buildCoreNameAliases(u)) text.add(core);
 const regionNames = new Set(Object.keys(u.regionLookup));

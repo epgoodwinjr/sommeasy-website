@@ -586,5 +586,58 @@ test("the lone Adventure: an unknown-colored stranger ranks after the palate's c
   assertEq(direct.candidates.map((c) => c.color), [null, null], "an entry filed under \"unknown\" is told as no color");
 });
 
+// ─── A named bottle is named by the journal, not by Log a bottle alone (Nov 23, 2026) ───
+// Log used to copy a loved or liked bottle into wine_profiles.specific_wines,
+// which gave it the weight-10 favorite match; the other three rating
+// surfaces never did. The engine now reads rated bottles from the journal
+// (buildFeedbackSignals), so the boost is the same wherever the rating was
+// made — and specific_wines stays the quiz's "Wines you named".
+console.log("\nNamed bottles come from the journal");
+{
+  const LIST = [
+    "Meerlust Rubicon 2018...$90",
+    "Domaine Jamet Cote Rotie 2018...$140",
+    "Bodega Nadie Tempranillo 2020...$60",
+    "Some Other Rubicon 2018...$70",
+  ].join("\n");
+  const dna = { countries: [], regions: {}, estates: {}, varietals: [], specificWines: [] };
+  const favorite = (scored, name) => (scored.find((e) => e.name.startsWith(name))?.matchReasons || [])
+    .filter((r) => r.type === "favorite");
+  const run = (rated, specificWines = []) => engine.matchWinesAgainstDNA(
+    engine.parseWineList(LIST), { ...dna, specificWines }, rated.length ? engine.buildFeedbackSignals(rated) : null).scoredEntries;
+  const row = (wine_name, rating, interaction_type = "had") => ({ wine_name, rating, interaction_type });
+
+  test("a bottle loved or liked on any surface is a named favorite (weight 10)", () => {
+    for (const rating of ["loved", "liked"]) {
+      const f = favorite(run([row("Meerlust Rubicon", rating)]), "Meerlust Rubicon");
+      assertEq(f.map((r) => [r.label, r.weight]), [["Meerlust Rubicon", 10]], `${rating} names it`);
+    }
+  });
+  test("fine, not for me, a want or a pass name nothing", () => {
+    for (const r of [row("Meerlust Rubicon", "fine"), row("Meerlust Rubicon", "not_for_me"),
+      row("Meerlust Rubicon", null, "want"), row("Meerlust Rubicon", null, "skip")]) {
+      assertEq(favorite(run([r]), "Meerlust Rubicon"), [], `${r.interaction_type}/${r.rating}`);
+    }
+  });
+  test("a bottle the quiz named AND the journal loved counts once, however it's cased", () => {
+    const f = favorite(run([row("meerlust rubicon", "loved")], ["Meerlust Rubicon"]), "Meerlust Rubicon");
+    assertEq(f.length, 1, "one favorite reason");
+    assertEq(f[0].label, "Meerlust Rubicon", "the quiz's spelling");
+  });
+  test("the quiz's named wines still match with no journal at all", () => {
+    assertEq(favorite(run([], ["Meerlust Rubicon"]), "Meerlust Rubicon").length, 1, "the quiz names it");
+  });
+  test("a not-for-me on the same name still takes the favorite away", () => {
+    const scored = run([row("Meerlust Rubicon", "loved"), row("MEERLUST RUBICON", "not_for_me")]);
+    assertEq(favorite(scored, "Meerlust Rubicon"), [], "suppressed");
+  });
+  test("a profile with specific_wines exactly as before scores exactly as before when the journal holds no favorites", () => {
+    const before = run([row("Bodega Nadie Tempranillo", "not_for_me")], ["Domaine Jamet"]);
+    const signals = engine.buildFeedbackSignals([row("Bodega Nadie Tempranillo", "not_for_me")]);
+    assertEq(signals.favoredWineNames, [], "no favorites from a not-for-me");
+    assert(favorite(before, "Domaine Jamet").length === 1, "the quiz's wine still a favorite");
+  });
+}
+
 console.log(`\nTotal: ${passed}/${passed + failed} passed, ${failed} failed\n`);
 process.exit(failed > 0 ? 1 : 0);
