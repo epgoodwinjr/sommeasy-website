@@ -288,6 +288,21 @@ async function main() {
     assertEq(evolved[0].line.text, "Domaine de la Vougeraie joined your estates", "Recently evolved");
   });
 
+  await test("an Italian estate's family name keeps its De — the country comes from the names resolver", () => {
+    const names = {
+      estate: (id) => ({ marchesi_de_gregorio: "Marchesi De Gregorio" })[id] || null,
+      estateCountry: (id, region) => (id === "marchesi_de_gregorio" ? "italy" : null),
+    };
+    const profile = { estates: { sicily: ["marchesi_de_gregorio"] } };
+    assertEq(view.dnaEntries({ profile, accumulation: [], names }).map((e) => e.name), ["Marchesi De Gregorio"], "the DNA row");
+    const row = { dimension: "estate", dimension_value: "marchesi_de_gregorio", display_name: "Marchesi De Gregorio", points: 2, promoted: false };
+    assertEq(view.buildingNow([row], { names }).rows.map((r) => r.name), ["Marchesi De Gregorio"], "Building now");
+    assertEq(view.buildingNow([row]).rows.map((r) => r.name), ["Marchesi de Gregorio"], "no resolver: the general rule");
+    const evolved = view.evolutionRows([{ id: 1, event_type: "promoted", dimension: "estate", dimension_value: "marchesi_de_gregorio",
+      display_name: "Marchesi De Gregorio", event_at: "2026-11-23T10:00:00Z" }], { names, now: new Date("2026-11-23T12:00:00Z") });
+    assertEq(evolved[0].line.text, "Marchesi De Gregorio joined your estates", "Recently evolved");
+  });
+
 
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);

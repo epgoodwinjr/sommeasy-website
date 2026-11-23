@@ -75,7 +75,7 @@ function Signature({ profile, accumulation }) {
 }
 
 function RecentlyEvolved({ numeral, timeline, enterDelay }) {
-  const rows = evolutionRows(timeline);
+  const rows = evolutionRows(timeline, { names: DNA_NAMES });
   return (
     <section data-testid="palate-evolution">
       <SectionHead numeral={numeral} label="Recently evolved" enterDelay={enterDelay} style={{ margin: "32px 0 2px" }} />
@@ -121,7 +121,7 @@ function BuildingRow({ row, delay }) {
 }
 
 function BuildingNow({ numeral, accumulation, enterDelay }) {
-  const building = buildingNow(accumulation);
+  const building = buildingNow(accumulation, { names: DNA_NAMES });
   return (
     <section data-testid="palate-building">
       <SectionHead numeral={numeral} label="Building now" enterDelay={enterDelay} style={{ margin: "28px 0 2px" }} />

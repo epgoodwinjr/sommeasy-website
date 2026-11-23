@@ -37,7 +37,11 @@ function genId() { return `mock-id-${++idCounter}`; }
 // with them. A request's effect lands when it is SENT (as a server would
 // apply it), its answer after the latency. Every request answers as a real
 // Promise, so `.then(...)` chains behave as supabase-js's do.
+// Each entry also carries its `wave`: the round trip it is part of — one
+// more than the deepest request already ANSWERED when it was sent. The
+// deepest wave is a chain's length in round trips, whatever the clock says.
 function createMockSupabase(tables, { latency = 0, requests = null } = {}) {
+  let deepestAnswered = 0;
   function from(tableName) {
     let op = null;
     let filters = [];
@@ -185,10 +189,12 @@ function createMockSupabase(tables, { latency = 0, requests = null } = {}) {
     const send = (raw) => (onFulfilled, onRejected) => {
       let value;
       raw((v) => { value = v; });
-      if (requests) requests.push({ table: tableName, op });
+      const wave = deepestAnswered + 1;
+      if (requests) requests.push({ table: tableName, op, wave });
+      const land = () => { deepestAnswered = Math.max(deepestAnswered, wave); return value; };
       const answer = latency > 0
-        ? new Promise((r) => setTimeout(() => r(value), latency))
-        : Promise.resolve(value);
+        ? new Promise((r) => setTimeout(() => r(land()), latency))
+        : Promise.resolve().then(land);
       return answer.then(onFulfilled, onRejected);
     };
     const rawThen = builder.then;
@@ -2746,35 +2752,28 @@ async function suite14() {
   });
 
   await runTest("Suite 14", "14B: A promoting rating's chain is a handful of round trips, not one per request", async () => {
-    const LATENCY = 30;
+    // Counted by the mock's waves (a request's depth in the chain), not the
+    // clock — a wall-clock count tipped 4 into 5 under CPU load
     const wine = "Torbreck RunRig Shiraz";
-    const timed = async (engine) => {
+    const measured = async (engine) => {
       const tables = walkTables();
       const requests = [];
-      const sb = createMockSupabase(tables, { latency: LATENCY, requests });
-      await simulateSurfaceRate(sb, wine, "loved", engine); // 2 points
-      requests.length = 0;
-      const t0 = Date.now();
-      const result = await simulateSurfaceRate(sb, wine, "loved", engine); // re-rate: no change
-      await simulateJournalDelete(sb, wine, { engine });
-      await simulateSurfaceRate(sb, wine, "loved", engine);
-      const t1 = Date.now();
-      requests.length = 0;
-      const s0 = Date.now();
-      const second = await simulateSurfaceRate(sb, "Torbreck The Struie Shiraz, Barossa", "loved", engine);
-      const elapsed = Date.now() - s0;
-      return { elapsed, requests: requests.length, second, warm: t1 - t0, result };
+      const sb = createMockSupabase(tables, { latency: 5, requests });
+      await simulateSurfaceRate(sb, wine, "loved", engine); // the estate at 2 points
+      const mark = requests.length;
+      const result = await simulateSurfaceRate(sb, "Torbreck The Struie Shiraz, Barossa", "loved", engine);
+      const mine = requests.slice(mark);
+      const base = Math.min(...mine.map((r) => r.wave)) - 1;
+      return { result, requests: mine.length, trips: Math.max(...mine.map((r) => r.wave)) - base };
     };
-    const old = await timed(ORACLE);
-    const now = await timed(real);
-    assert(old.second.promotions.length > 0 && now.second.promotions.length > 0,
+    const old = await measured(ORACLE);
+    const now = await measured(real);
+    assert(old.result.promotions.length > 0 && now.result.promotions.length > 0,
       "premise: the second Torbreck must promote the estate");
-    const trips = Math.round(now.elapsed / LATENCY);
-    const oldTrips = Math.round(old.elapsed / LATENCY);
-    assert(trips <= 4, `a promoting rating should take at most 4 round trips (read, writes, promotion writes, timeline), took ${trips} (${now.elapsed}ms at ${LATENCY}ms)`);
-    assert(oldTrips >= 2 * trips, `premise: the one-by-one engine took ${oldTrips} round trips, the new ${trips}`);
+    assert(now.trips <= 4, `a promoting rating takes at most 4 round trips (the reads, the dimension writes, the promotion's writes, its timeline row), took ${now.trips}`);
+    assert(old.trips >= 4 * now.trips, `premise: the one-by-one engine took ${old.trips} round trips, the new ${now.trips}`);
     assert(now.requests <= old.requests, `no more requests than before: ${now.requests} vs ${old.requests}`);
-    console.log(`       promoting rating: ${oldTrips} round trips / ${old.requests} requests → ${trips} / ${now.requests}`);
+    console.log(`       promoting rating: ${old.trips} round trips / ${old.requests} requests → ${now.trips} / ${now.requests}`);
   });
 
   await runTest("Suite 14", "14D: Every timeline row of a rating has landed, in order, before the rating returns", async () => {

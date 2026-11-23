@@ -98,7 +98,7 @@ export function dnaEntries({ profile, accumulation, names = {} } = {}) {
     return {
       kind,
       id,
-      name: kind === "estate" ? estateName(name) : name,
+      name: kind === "estate" ? estateName(name, { country: lookup(names.estateCountry, id, parent) }) : name,
       flag: kind === "country" ? lookup(names.flag, id) || "" : "",
       earned: Boolean(known && row?.promoted && row.source === "auto"),
       bottles: known ? bottlesOf(row) : null,
@@ -131,7 +131,7 @@ export function browseDna(entries) {
  * → { rows: [{ key, name, kind, dimension, points, threshold, ratio, away }],
  * more } — or null when the accumulation is unknown.
  */
-export function buildingNow(accumulation, { limit = 6 } = {}) {
+export function buildingNow(accumulation, { limit = 6, names = {} } = {}) {
   if (!Array.isArray(accumulation)) return null;
   const building = [];
   for (const row of accumulation) {
@@ -143,7 +143,7 @@ export function buildingNow(accumulation, { limit = 6 } = {}) {
     if (!threshold || !kind || !(points > 0) || !name) continue;
     building.push({
       key: `${row.dimension}:${row.dimension_value}`,
-      name: kind === "estate" ? estateName(name) : name,
+      name: kind === "estate" ? estateName(name, { country: lookup(names.estateCountry, row.dimension_value) }) : name,
       kind,
       dimension: row.dimension,
       points,
@@ -164,12 +164,12 @@ export function buildingNow(accumulation, { limit = 6 } = {}) {
  * open the full history. → [{ key, line, date, href }], or null when the
  * timeline is unknown.
  */
-export function evolutionRows(timeline, { limit = 3, now = new Date() } = {}) {
+export function evolutionRows(timeline, { limit = 3, now = new Date(), names = {} } = {}) {
   if (!Array.isArray(timeline)) return null;
   const rows = [];
   for (const event of timeline) {
     if (rows.length >= limit) break;
-    const line = timelineLine(event);
+    const line = timelineLine(event, { estateCountry: names.estateCountry });
     if (!line) continue;
     rows.push({
       key: event.id ?? `${event.event_type}:${event.event_at}:${rows.length}`,

@@ -43,10 +43,11 @@ import { GESTURES } from "../src/components/house/marks.js";
  * asserts it), but the heal and the restore still put that list back.
  *
  * The speed guard (Nov 23, 2026 canary): the same promoting, shifting Log
- * save at 150ms a Supabase round trip must land its saved step in under
- * three seconds. On the canary account one save was ~25 requests one after
- * another (9–26s on a phone); the engine now reads the accumulation once
- * and sends a rating's writes together.
+ * save, every Supabase request held to at least 150ms. The hard checks are
+ * the request count (at most 20 — it was ~25, one after another, 9–26s on a
+ * phone) and the chain's depth in round trips (at most 10; about 8 now).
+ * The clock is a generous backstop against a hang, relative to the measured
+ * round trip. Alone it measured 2.25s at 158ms.
  */
 
 const GUARD_LINE = "Domaine Dujac Clos de la Roche 2019...$95";
@@ -837,10 +838,19 @@ test.describe("The growth moment — reduced motion (hard-fail)", () => {
   // nothing of it plays — the saved step shows the new shape at once
   test.afterEach(async ({ page }) => { await restoreBaseline(page); });
 
-  test("HARD-FAIL GUARD: logging the bottle that promotes an estate and shifts the strand lands in under three seconds at 150ms a round trip", async ({ page }) => {
+  test("HARD-FAIL GUARD: logging the bottle that promotes an estate and shifts the strand is a handful of requests and lands in a handful of round trips", async ({ page }) => {
     test.setTimeout(150_000);
     const RTT_MS = 150;
-    const TARGET_MS = 3_000;
+    // Two hard checks no connection or machine can move: the request count,
+    // and the chain's DEPTH in round trips — each request is one deeper
+    // than the deepest response already finished when it started (the save
+    // is about eight deep; the old engine's was ~23). The clock is only a
+    // backstop against a hang: in the full suite this save once took 5.9s
+    // with the same 17 requests (2.25s alone) — the dev server, not the
+    // network — so a tight clock here would be a flaky guard.
+    const MAX_DEPTH = 10;
+    const BACKSTOP_TRIPS = 30;
+    const PAGE_MS = 5_000;
     // The save's Supabase requests, tap to saved step: the rating's read and
     // upsert, the stamp + accumulation read + profile read, three dimension
     // writes, the promotion's flag + timeline + profile write, the hook's
@@ -862,6 +872,8 @@ test.describe("The growth moment — reduced motion (hard-fail)", () => {
     }
     const ownRtt = samples.sort((a, b) => a - b)[2];
     const addMs = Math.max(0, RTT_MS - ownRtt);
+    const rtt = Math.max(RTT_MS, ownRtt);
+    const limitMs = BACKSTOP_TRIPS * rtt + PAGE_MS;
     const isSupabase = (url: string) => url.includes("/rest/v1/") || url.includes("/auth/v1/");
     await page.route((url) => isSupabase(url.toString()), async (route) => {
       if (addMs) await new Promise((r) => setTimeout(r, addMs));
@@ -879,18 +891,30 @@ test.describe("The growth moment — reduced motion (hard-fail)", () => {
     await page.waitForTimeout(500);
 
     const requests: string[] = [];
+    const waves = new Map<object, number>();
+    let deepestFinished = 0;
+    let deepest = 0;
     let counting = true;
     page.on("request", (req) => {
       if (!counting || !isSupabase(req.url())) return;
-      requests.push(`${req.method()} ${new URL(req.url()).pathname.replace(/^.*\/(rest|auth)\/v1\//, "")}`);
+      const wave = deepestFinished + 1;
+      waves.set(req, wave);
+      deepest = Math.max(deepest, wave);
+      requests.push(`${wave}:${req.method()} ${new URL(req.url()).pathname.replace(/^.*\/(rest|auth)\/v1\//, "")}`);
     });
+    const finished = (req: object) => {
+      const wave = waves.get(req);
+      if (wave) deepestFinished = Math.max(deepestFinished, wave);
+    };
+    page.on("requestfinished", finished);
+    page.on("requestfailed", finished);
     const t0 = Date.now();
     await page.getByTestId("log-save").click();
     const saved = page.getByTestId("log-saved");
     await expect(saved).toBeVisible({ timeout: 30_000 });
     const elapsed = Date.now() - t0;
     counting = false;
-    console.log(JSON.stringify({ rttMs: RTT_MS, ownRtt, addMs, elapsedMs: elapsed, requests: requests.length, list: requests }));
+    console.log(JSON.stringify({ rttMs: rtt, ownRtt, addMs, elapsedMs: elapsed, limitMs, requests: requests.length, depth: deepest, list: requests }));
 
     // The same save as ever: the moment, the shift, the event
     await expect(saved).toHaveAttribute("data-moment", "grown");
@@ -905,7 +929,8 @@ test.describe("The growth moment — reduced motion (hard-fail)", () => {
     expect((await readProfile(supabase, userId)).specific_wines ?? []).toEqual(before.specific_wines ?? []);
 
     expect(requests.length, `the save's requests: ${requests.join(", ")}`).toBeLessThanOrEqual(MAX_REQUESTS);
-    expect(elapsed, `tap to saved step at ${RTT_MS}ms a round trip`).toBeLessThan(TARGET_MS);
+    expect(deepest, `round trips deep: ${requests.join(", ")}`).toBeLessThanOrEqual(MAX_DEPTH);
+    expect(elapsed, `backstop: tap to saved step at ${rtt}ms a round trip (${BACKSTOP_TRIPS} round trips + ${PAGE_MS}ms)`).toBeLessThan(limitMs);
   });
 
   test("logging the bottle that promotes an estate: the saved step's bloom is already the new shape — one frame, no word split", async ({ page }) => {

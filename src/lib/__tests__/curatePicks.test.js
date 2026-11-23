@@ -105,7 +105,33 @@ for (const list of Object.keys(fx.lists)) for (const palate of Object.keys(fx.pa
   combos.push({ list, palate, color, min, max, key: [list, palate, color, min ?? "", max ?? ""].join("|") });
 }
 
+// Readings that changed AFTER the lock was captured, for a reason of their
+// own — the lock holds the terms rule, not every later matching fix. Each
+// is named, dated and proved below (the line must read what the fix says),
+// so an exception can never hide anything else. NEVER add one without that
+// proof, and never regenerate the fixture instead.
+const READING_CHANGED = new Map([
+  // canary-fixes: "Côte-Rôtie" with its hyphen reads the Rhône (it was a
+  // quality bonus alone, 1.8 → 3.8), which reorders this list for the one
+  // palate that holds the Rhône Valley. Scored against a911ffc's engine,
+  // every lock list × palate, this was the ONLY line whose score moved.
+  // Its 68 combinations still meet every rule below.
+  ["example|broad", { line: "Domaine de la Côte-Rôtie, E. Guigal 2019", region: "rhone_valley" }],
+]);
+const lockedReading = (c) => !READING_CHANGED.has(`${c.list}|${c.palate}`);
+
 console.log("\n═══ The lock — where today's picks obeyed the terms, nothing moves ═══");
+
+test("each reading excepted from the lock is the change it names", () => {
+  for (const [key, why] of READING_CHANGED) {
+    const [list, palate] = key.split("|");
+    const { scored } = scoring(list, palate);
+    const line = scored.find((e) => e.name === why.line);
+    assert(line, `${key}: "${why.line}" is on the list`);
+    assert((line.detectedRegionIds || []).includes(why.region), `${key}: "${why.line}" reads ${why.region}`);
+    assert(line.matchReasons.some((r) => r.type === "region"), `${key}: it scores on its region`);
+  }
+});
 
 test("the fixture is the one captured before the rule: every combination has an entry", () => {
   assert(combos.length === 1496, `${combos.length} combinations`);
@@ -116,6 +142,7 @@ test("no budget, no color: every list × palate returns exactly the captured pic
   let n = 0;
   for (const c of combos) {
     if (c.color !== "all" || c.min != null || c.max != null) continue;
+    if (!lockedReading(c)) { n++; continue; }
     const { scored, picks } = curate(c.list, c.palate, c.color, c.min, c.max);
     assertEq(encode(scored, picks), fx.picks[c.key], `${c.key}: ${show(picks)} — was ${show(decode(scored, fx.picks[c.key]))}`);
     n++;
@@ -127,6 +154,7 @@ test("a color the old engine honored (three or more of it), no budget: the captu
   let n = 0;
   for (const c of combos) {
     if (c.color === "all" || c.min != null || c.max != null) continue;
+    if (!lockedReading(c)) continue;
     const { scored, picks } = curate(c.list, c.palate, c.color, c.min, c.max);
     if (scored.filter((e) => terms.fitsColor(e, c.color)).length < 3) continue; // the old engine ignored this color
     assertEq(encode(scored, picks), fx.picks[c.key], `${c.key}: ${show(picks)} — was ${show(decode(scored, fx.picks[c.key]))}`);
@@ -138,6 +166,7 @@ test("a color the old engine honored (three or more of it), no budget: the captu
 test("wherever the captured picks already obeyed the terms, the picks are the same — budgets included", () => {
   let same = 0, changed = 0;
   for (const c of combos) {
+    if (!lockedReading(c)) continue;
     const { scored, picks } = curate(c.list, c.palate, c.color, c.min, c.max);
     const was = decode(scored, fx.picks[c.key]);
     const colorHonored = c.color === "all" || scored.filter((e) => terms.fitsColor(e, c.color)).length >= 3;
@@ -636,6 +665,21 @@ console.log("\nNamed bottles come from the journal");
     const signals = engine.buildFeedbackSignals([row("Bodega Nadie Tempranillo", "not_for_me")]);
     assertEq(signals.favoredWineNames, [], "no favorites from a not-for-me");
     assert(favorite(before, "Domaine Jamet").length === 1, "the quiz's wine still a favorite");
+  });
+}
+
+// ─── An estate's country, for its name on Your palate (Nov 23, 2026) ───
+console.log("\nAn estate's country");
+{
+  const { estateCountry } = await import("../estateCountry.js");
+  const { DNA_NAMES } = await import("../dnaNames.js");
+  test("an estate's country is its region's; junk and unfiled estates are null; Your palate's resolver carries it", () => {
+    assertEq(estateCountry("marchesi_de_gregorio"), "italy", "an Italian estate");
+    assertEq(estateCountry("domaine_dujac"), "france", "a French one");
+    assertEq(estateCountry("domaine_dujac", "burgundy"), "france", "with its region");
+    assertEq(estateCountry("domaine_dujac", "not_a_region"), "france", "a wrong region falls back to the estate");
+    assertEq([estateCountry("no_such_estate"), estateCountry(null), estateCountry(7)], [null, null, null], "junk");
+    assert(DNA_NAMES.estateCountry === estateCountry, "DNA_NAMES hands it to palateView");
   });
 }
 

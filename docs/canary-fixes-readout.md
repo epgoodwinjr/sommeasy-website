@@ -29,16 +29,44 @@ database function.**
 | The milestone hook | profile, count, accumulation in turn | the three together |
 | Log's tail | specific_wines write + a profile read | neither: the hook hands back the genome it stored (read back only when it stored none) |
 
-Measured on the test mock at 30ms a request, a promoting rating: **27 round
-trips / 23 requests → 4 / 10** (dnaEvolution 14B). In the browser, the real
+Measured on the test mock by round-trip depth, a promoting rating: **23
+round trips / 23 requests → 3 / 10** (dnaEvolution 14B; it first counted by
+the clock and flaked under CPU load, so the mock now labels each request
+with its depth in the chain). In the browser, the real
 Dujac promotion through /log with every Supabase request held to 150ms:
 **2.25 seconds from the tap to the saved step, 17 requests** (this machine's
 own round trip to Supabase measured 158ms, so nothing was padded). The
 sequence: the rating's read, upsert and stamp; the profile and accumulation
 reads; four dimension writes; the promotion's profile write and timeline row;
 the hook's count, profile and accumulation reads; the swap; the shifted row;
-the bottle_logged event. identity-shift.spec's new speed guard fails it over
-3s or over 20 requests.
+the bottle_logged event. Measured as a chain, those 17 requests are **9
+round trips deep** — 8 the saved step waits on, then the fire-and-forget
+event:
+
+```
+1  GET wine_interactions        the previous rating
+2  POST wine_interactions       the upsert
+3  PATCH wine_interactions      the resolved_* stamp ┐
+3  GET wine_profiles            the profile's DNA    ├ together
+3  GET dna_accumulation         the one read         ┘
+4  PATCH dna_accumulation ×3    the dimensions, together
+5  PATCH dna_accumulation       the promotion's flag ┐
+5  PATCH wine_profiles          the profile          ├ together
+5  POST dna_timeline            promoted             ┘
+6  HEAD / GET / GET             the hook's three reads, together
+7  PATCH wine_profiles          the strand's swap
+8  POST dna_timeline            shifted
+9  POST wine_events             bottle_logged (not waited on)
+```
+
+Over four runs alone: 1.9–2.9s. identity-shift.spec's new speed guard has
+two hard checks no connection or machine can move — **at most 20 requests**
+and **at most 10 round trips deep** (each request is one deeper than the
+deepest response that had finished when it started) — and a clock that is
+only a backstop against a hang: 30 round trips plus 5 seconds at the round
+trip it measures first (9.5s at 150ms). Its first version held the clock to
+3 (later 4.1) seconds: in the full suite it failed once at 5.9s with the same
+17 requests — the dev server late in a 20-minute run, not the network.
 
 Every rating surface shares the engine, so /recommend, home's From last
 night and the wine page get the same speed; the delete path too.
@@ -137,15 +165,46 @@ would sit at the region-only 40 and accumulate nothing anyway.
 ## 4. Estate particles
 
 `estateName` (houseCopy.js) shows "Domaine De La Vougeraie" as "Domaine de
-la Vougeraie" in Your DNA, Building now and Recently evolved (and the
-journal's Timeline, which shares the line). Particles are lowercase inside a
-name, never first or last ("Scala Dei"); an article only after a Romance
-preposition ("Château La Nerthe", "Winery at La Grange" keep theirs); an
-elision may close a name ("Château d'Yquem"); "Van" and "Sur" (Spanish for
-south — "Cono Sur") are left alone. Display only. Over the 10,060 estate and
-winery names the app can show, 1,117 change, every one a mid-name particle.
-Known miss: Italian family names that keep a capital ("Marchesi De
-Gregorio", "Cantine De Falco") now read "de".
+la Vougeraie" in Your DNA, Building now and Recently evolved (and the wine
+page's and journal's timelines, which share the line). Display only.
+
+The rule:
+- Particles are lowercase inside a name, never first or last ("Scala Dei").
+- An article goes lowercase only after a Romance preposition ("de la", "del",
+  "de los"); on its own it is the name's ("Château La Nerthe", "Winery at La
+  Grange").
+- An elision may close a name, and the word after it gets back the capital
+  the data drops ("Château d'Yquem", "Tasca d'Almerita", "Coeur d'Alene";
+  Catalan "d'en" stays low).
+- Portuguese and Galician "do / dos / das" are particles ("Quinta do Noval").
+- "Van" and "Sur" (Spanish for south — "Cono Sur") are left alone.
+- **Italian family names (Ed's ruling).** On an Italian estate, "De" — which is
+  not an Italian preposition — starts a family name and keeps the data's
+  capital: "Marchesi De Gregorio", "Cantine De Falco", "Sandro De Bruno",
+  "Pagani De Marchi", "Lantieri De Paratico", "Terre De Trinci", "Leone De
+  Castris". Two exceptions: before an article ("Terre de la Custodia",
+  "Sallier de la Tour") and after Venetian "Ca'" ("Ca' de Lion", where "de"
+  is "of"). "di / del / della / dei" stay prepositions ("Castello di Ama",
+  "Marchesi di Barolo"). The estate's country comes from `estateCountry`
+  (wineUnified only).
+
+**Reviewed by country**, over the 10,060 estate and winery names the app can
+show: France 515 changed, Italy 268, Portugal 122, Spain 117, US 71,
+Argentina 25, Chile 20, South Africa 12, Austria 4, Germany 3, Australia 3,
+Canada 2, Israel 2. I read every Italian change (the prepositions before a
+place, "of the …", and every "De"), every elision, every Portuguese and
+Galician "do / dos / das", and the US, Argentina and Spain lists in full;
+Chile, France and the rest were sampled. Spain's "de" is lowercase in
+surnames too ("Fernández de Piérola", "Marqués de Riscal"), as Spanish
+writes it.
+
+**Known:**
+- The journal's Timeline tab doesn't load the wine data (it was kept light
+  on purpose), so an Italian "De" reads lowercase there; Your palate and the
+  wine page get it right.
+- Two "Di" surnames read as prepositions: "Terredora di Paolo" and "Cantine
+  di Marzo". Both producers write it either way, and no rule tells them
+  apart from "Castello di Ama" without a hand-made list.
 
 ## 5. CLAUDE.md
 
@@ -156,16 +215,28 @@ Priorities lists what this PR leaves open.
 ## Tests
 
 All 37 unit suites pass. New or grown: dnaEvolution 102 (Suite 14),
-curatePicks 54, palateView 13, houseCopy 72, scanTruth 37, countryAttribution
-91 (wider lock). e2e on the 13 specs this touches (identity-shift with its new speed guard,
-log-bottle, palate, wine-page, evidence-ledger, table-verdict, first-pour,
-search, match-picks, raw-ids, quiz-completion, wine-events, motion): 89
-passed, 0 failed. The full suite was not run. `npm run build` passes.
+curatePicks 56, palateView 14, houseCopy 74, scanTruth 37, countryAttribution
+91 (wider lock).
+
+**The pick lock.** The hyphen fix moved one line on one lock list —
+"Domaine de la Côte-Rôtie, E. Guigal 2019" now reads the Rhône (1.8 → 3.8)
+— which reorders the "example" list for the palate holding the Rhône. That
+broke three lock tests, which the first push missed: curatePicks was left
+out of the run after the hyphen change, so "all 37 pass" was wrong then. The
+fixture is not regenerated. That one list × palate is a named exception
+(`READING_CHANGED`) with a test proving the line reads the Rhône; scored
+against a911ffc's engine, it is the only score that moved on any lock list,
+and its 68 combinations still meet every rule.
+
+**e2e, the full suite** (both sign-in flags on, as in production): **187
+passed, 0 failed, 5 skipped** (the env-gated seeder and screenshot capture),
+19.8 minutes. In it the speed guard measured 2.9s, 17 requests, 9 deep. The
+run before the guard's rewrite was 186 passed, 1 failed — that guard, on its
+clock (5.9s, same 17 requests). `npm run build` passes.
 
 ## For Ed
 
 1. The specific_wines cleanup (`docs/canary-specific-wines-cleanup.sql`) —
    your yes before the UPDATE runs.
-2. The "every surface gets the favorite boost" consequence: a bottle loved on
+2. (Approved Nov 23) Every surface gets the favorite boost: a bottle loved on
    /recommend now earns +10 when it appears on a list.
-3. Italian family-name particles ("Marchesi de Gregorio").
