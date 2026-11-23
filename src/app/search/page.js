@@ -24,6 +24,7 @@ import { resolveWine } from "@/lib/wineResolver";
 import { CONFIDENCE_GATE } from "@/lib/dnaThresholds";
 import { DNA_NAMES } from "@/lib/dnaNames";
 import { browseDna, dnaEntries } from "@/lib/palateView";
+import { rankRecommendations } from "@/lib/palateRecs";
 import { readRecentSearches, rememberSearch, searchDna, searchJournal, searchRecs } from "@/lib/searchView";
 import { numeralCounter } from "@/lib/numerals";
 import { wineHref } from "@/lib/navTrail";
@@ -122,10 +123,10 @@ export default function SearchPage() {
         const [ints, prof, acc] = await Promise.all([
           supabase.from("wine_interactions").select("*").eq("user_id", u.id)
             .order("updated_at", { ascending: false }),
-          supabase.from("wine_profiles").select("countries, regions, estates, varietals, recommendations")
+          supabase.from("wine_profiles").select("countries, regions, estates, varietals, specific_wines")
             .eq("user_id", u.id).maybeSingle(),
           supabase.from("dna_accumulation")
-            .select("dimension, dimension_value, display_name, promoted, source, interaction_count")
+            .select("dimension, dimension_value, display_name, promoted, source, interaction_count, points")
             .eq("user_id", u.id),
         ]);
         if (!live) return;
@@ -144,9 +145,12 @@ export default function SearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The Somm's picks as home ranks them: the palate's DNA and the points
+  // ratings earned (palateRecs.js) — both already read above, so a failed
+  // read is the page's readFailed, never a list ranked on a guess
   const recs = useMemo(
-    () => (Array.isArray(profile?.recommendations) ? profile.recommendations : []),
-    [profile],
+    () => (profile ? rankRecommendations({ profile, accumulation }) : []),
+    [profile, accumulation],
   );
 
   // Warm the recommendations' facts after the first paint

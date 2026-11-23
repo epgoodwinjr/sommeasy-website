@@ -13,6 +13,7 @@ import { restorePendingPalate } from "@/lib/pendingPalateRestore";
 import { signatureLine } from "@/lib/palateSignature";
 import { resolveOutstandingVerdict, VERDICT_EVENT_TYPES, VERDICT_WINDOW_DAYS, readDismissedVerdicts, dismissVerdict } from "@/lib/tableVerdict";
 import { resolveFirstPourCards } from "@/lib/firstPour";
+import { readPalateRecs } from "@/lib/palateRecsRead";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
 import { HOME_TITLE, wineHref } from "@/lib/navTrail";
@@ -174,7 +175,11 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   const [verdictHeld, pressVerdict] = usePressHold();
   const supabase = createClient();
 
-  const recs = profile.recommendations || [];
+  // "Chosen for your palate", ranked from the palate as it stands — the
+  // DNA plus the points ratings earned (palateRecs.js). undefined until the
+  // read settles; null when it failed (the section stays out: a list ranked
+  // without the points would be a guess)
+  const [recs, setRecs] = useState(undefined);
 
   // Each read below writes only from its live effect run. StrictMode runs
   // mount effects twice in dev, so a discarded run's read can land after
@@ -239,6 +244,13 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
 
   useEffect(() => {
     let live = true;
+    readPalateRecs(supabase, user?.id, profile).then((ranked) => { if (live) setRecs(ranked); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    let live = true;
     // The journal read behind the layout choice (First Pour's durable
     // truth, through the pure firstPour.js): never rated anything → the
     // new-user layout. ANY failure → the established layout — onboarding is
@@ -273,9 +285,9 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   // The layout is chosen once. A due verdict ask outranks onboarding — the
   // established layout carries From last night (First Pour's stacking rule)
   useEffect(() => {
-    if (layout || !verdictLoaded || !journal) return;
+    if (layout || !verdictLoaded || !journal || recs === undefined) return;
     setLayout(journal.newUser && !verdict?.ask ? "new" : "established");
-  }, [layout, verdictLoaded, journal, verdict]);
+  }, [layout, verdictLoaded, journal, verdict, recs]);
 
   // …unless a read stalls: then, after HOME_SETTLE_MS, the established layout
   // (never a guessed "new") and the plain date
@@ -450,7 +462,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
   const section = useStagger(HOME.sections, HOME.sectionStep);
   const isNew = layout === "new";
   const epithet = isNew
-    ? "Your first list — it rewrites itself as you rate"
+    ? "Your first list — it follows your palate"
     : crest.epithet || signatureLine(profile);
   // What is left of a delay counted from the layout's choice, for a line
   // whose read lands after it (the whisper)
@@ -597,7 +609,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 <Link href="/log" data-testid="first-entry-snap" style={{
                   color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "12px 0",
                 }}>snap tonight’s label</Link>
-                <span style={{ color: ink(0.55) }}>. One rating and the Somm rewrites this list around you.</span>
+                <span style={{ color: ink(0.55) }}>. Every bottle you rate shapes your palate, and this list follows it.</span>
               </p>
               </Enter>
             </section>
@@ -614,7 +626,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
 
           {!isNew && verdict && renderVerdict()}
 
-          {recs.length > 0 && (() => {
+          {recs?.length > 0 && (() => {
             const chosen = section();
             return (
             <>

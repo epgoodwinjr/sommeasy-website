@@ -43,6 +43,9 @@ import {
   sommRoleTag, timelineLine, verdictWhere, wineMeta,
 } from "@/lib/houseCopy";
 import { hasStoredResolution, sameVein, wineFacts, wineStanding } from "@/lib/journalView";
+import { rankRecommendations } from "@/lib/palateRecs";
+import { PALATE_RECS_COLUMNS } from "@/lib/palateRecsRead";
+import { WINE_RECS } from "@/lib/wineRecs";
 import { growthOf, readPalate } from "@/lib/growthMoment";
 import { evolutionToastMessages, saveInteraction } from "@/components/WineRecList";
 import GrowthMoment from "@/components/GrowthMoment";
@@ -176,24 +179,34 @@ export default function WinePage({ name }) {
       setUser(u);
       userId.current = u?.id ?? null;
       if (u && name) {
-        const [ints, profile, timeline] = await Promise.all([
+        const [ints, profile, timeline, acc] = await Promise.all([
           supabase.from("wine_interactions").select("*").eq("user_id", u.id)
             .order("updated_at", { ascending: false }),
-          supabase.from("wine_profiles").select("recommendations, identity").eq("user_id", u.id).maybeSingle(),
+          supabase.from("wine_profiles").select("countries, regions, estates, varietals, specific_wines, identity")
+            .eq("user_id", u.id).maybeSingle(),
           supabase.from("dna_timeline").select("*").eq("user_id", u.id).eq("wine_name", name)
             .order("event_at", { ascending: false }),
+          supabase.from("dna_accumulation").select(PALATE_RECS_COLUMNS).eq("user_id", u.id),
         ]);
         if (!live) return;
         if (ints.error || !Array.isArray(ints.data) || profile.error) {
           setReadFailed(true);
         } else {
           const mine = ints.data.find((r) => r.wine_name === name) || null;
-          const recList = Array.isArray(profile.data?.recommendations) ? profile.data.recommendations : [];
+          // The palate's recommendations ranked as home ranks them — every
+          // wine it scores, so a curated bottle keeps its words here however
+          // far down it sits. Points that couldn't be read rank nothing: the
+          // same vein then comes from the journal alone, never a guess
+          const recList = profile.data && !acc.error && Array.isArray(acc.data)
+            ? rankRecommendations({ profile: profile.data, accumulation: acc.data, limit: Infinity })
+            : [];
           genomeNow.current = profile.data?.identity?.genome ?? null;
           setJournal(ints.data);
           setRecs(recList);
           setRow(mine);
-          setKnown(Boolean(mine || recList.some((r) => r?.wine === name)));
+          // A curated wine is a known bottle whatever the palate thinks of
+          // it now — a rec opened from home must never read "not found"
+          setKnown(Boolean(mine || WINE_RECS.some((r) => r.wine === name)));
           setNote(mine?.note || "");
           noteDraft.current = mine?.note || "";
           noteSaved.current = mine?.note || "";
@@ -527,13 +540,17 @@ export default function WinePage({ name }) {
   const standing = wineStanding(row);
   const tried = standing === "rated" || standing === "unrated";
   const rated = ratingFor(row?.rating);
-  const rec = recs.find((r) => r?.wine === name) || null;
+  // The curated words for this bottle; the match tag only when the palate
+  // ranks it (a tag on a wine it no longer leans toward would be a guess)
+  const ranked = recs.find((r) => r?.wine === name) || null;
+  const curated = WINE_RECS.find((r) => r.wine === name) || null;
+  const rec = ranked || (curated ? { wine: curated.wine, why: curated.why, matchType: null } : null);
   const { base, vintage } = splitVintage(name);
   const meta = wineMeta(facts);
   // The Somm's words: what it said the night it was picked, else why it
   // chose it for this palate
   const sommNote = row?.somm_note || rec?.why || null;
-  const sommTag = row?.somm_note ? sommRoleTag(row.somm_pick_role) : rec?.why ? matchTag(rec.matchType) : null;
+  const sommTag = row?.somm_note ? sommRoleTag(row.somm_pick_role) : rec?.why && rec.matchType ? matchTag(rec.matchType) : null;
   const lines = events.map((e) => ({ id: e.id, line: timelineLine(e, { estateCountry }) })).filter((e) => e.line);
   const factRows = particulars(facts, vintage);
   const next = numeralCounter();
