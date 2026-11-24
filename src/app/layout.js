@@ -1,6 +1,7 @@
 import "./globals.css";
 import { playfair, sourceSans } from "./fonts";
 import { Analytics } from "@vercel/analytics/react";
+import SourceTag from "@/components/SourceTag";
 
 export const metadata = {
   title: "Sommeasy — Your Wine DNA Profile",
@@ -49,6 +50,9 @@ export default function RootLayout({ children }) {
             matters in between. Enable Web Analytics on the Vercel project
             with this deploy. No-ops silently outside Vercel (dev, e2e). */}
         <Analytics />
+        {/* Where an account came from: keeps a ?ref=<tag> from any page and
+            puts it on a new account (src/lib/sourceTag.js). Renders nothing */}
+        <SourceTag />
       </body>
     </html>
   );

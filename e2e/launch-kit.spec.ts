@@ -14,7 +14,9 @@ import { testDb } from "./fixtures/test-db";
  * your palate" on /palate hands the browser ONE file, a 1080×1350 PNG whose
  * bloom is exactly renderPalateMarkDocument of the account's genome, whose
  * title, epithet and address sit where palateCard.js plans them, and whose
- * every other pixel is bare cream — nothing beyond what is drawn. Where a
+ * every other pixel is bare cream — nothing beyond what is drawn — with one
+ * link beside it, https://sommeasy.wine/?ref=card, wherever the browser says
+ * it can share the file and the link together (the file alone elsewhere). Where a
  * file can't be shared, or share() refuses, it downloads; a dismissed share
  * does neither; a second tap while the sheet is open does nothing; a card
  * that couldn't be made is made again on the next tap. No request leaves on
@@ -74,11 +76,13 @@ const CARD_FONTS = {
 };
 
 /** Before any script: Web Share as the test says it is. "file" shares
- *  files (and keeps what it was handed); "none" has no Web Share;
+ *  files, with a link or without (and keeps what it was handed);
+ *  "file-only" shares files but says it can't share a link with them;
+ *  "none" has no Web Share;
  *  "refuse" and "dismiss" reject as a browser does; "hold" keeps the sheet
  *  open until `__releaseShare()`, and a share() while it is open rejects
  *  with InvalidStateError, as browsers do. */
-async function webShare(page: Page, mode: "file" | "none" | "refuse" | "dismiss" | "hold") {
+async function webShare(page: Page, mode: "file" | "file-only" | "none" | "refuse" | "dismiss" | "hold") {
   await page.addInitScript((m) => {
     const w = window as any;
     w.__shareCalls = [];
@@ -88,12 +92,16 @@ async function webShare(page: Page, mode: "file" | "none" | "refuse" | "dismiss"
       return;
     }
     Object.defineProperty(navigator, "canShare", {
-      configurable: true, value: (data: any) => Array.isArray(data?.files) && data.files.length > 0,
+      configurable: true,
+      value: (data: any) => Array.isArray(data?.files) && data.files.length > 0 && !(m === "file-only" && "url" in data),
     });
     Object.defineProperty(navigator, "share", {
       configurable: true,
       value: async (data: any) => {
-        w.__shareCalls.push({ keys: Object.keys(data), files: (data.files || []).map((f: File) => ({ name: f.name, type: f.type })) });
+        w.__shareCalls.push({
+          keys: Object.keys(data).sort(), url: data.url ?? null,
+          files: (data.files || []).map((f: File) => ({ name: f.name, type: f.type })),
+        });
         w.__sharedFile = data.files?.[0];
         if (m === "refuse") throw new DOMException("no activation", "NotAllowedError");
         if (m === "dismiss") throw new DOMException("dismissed", "AbortError");
@@ -244,8 +252,12 @@ test.describe("The palate card", () => {
     await action.click();
     await expect.poll(() => page.evaluate(() => (window as any).__shareCalls.length)).toBe(1);
     const call = await page.evaluate(() => (window as any).__shareCalls[0]);
-    // The file alone: no title, text or link rides with it
-    expect(call).toEqual({ keys: ["files"], files: [{ name: "sommeasy-palate.png", type: "image/png" }] });
+    // The file, and one link beside it — tagged, so an account made from a
+    // card is counted. No title or text rides with it
+    expect(call).toEqual({
+      keys: ["files", "url"], url: "https://sommeasy.wine/?ref=card",
+      files: [{ name: "sommeasy-palate.png", type: "image/png" }],
+    });
     // Nothing recorded, nowhere called
     expect(sent.filter((u) => /\/api\/|supabase\.co/.test(u))).toEqual([]);
     // A share needs no line of its own: the sheet was the answer
@@ -267,6 +279,17 @@ test.describe("The palate card", () => {
     for (const line of card.lines) expect(line.ink, `${line.role} "${line.text}" is drawn`).toBeGreaterThan(150);
     // …and nothing else on the card
     expect(card.stray).toBe(0);
+  });
+
+  test("where the browser can share the file but not a link with it, the file goes alone", async ({ page }) => {
+    await webShare(page, "file-only");
+    const action = await openPalate(page);
+    await action.click();
+    await expect.poll(() => page.evaluate(() => (window as any).__shareCalls.length)).toBe(1);
+    const call = await page.evaluate(() => (window as any).__shareCalls[0]);
+    // The picture is the share: never dropped for the link
+    expect(call).toEqual({ keys: ["files"], url: null, files: [{ name: "sommeasy-palate.png", type: "image/png" }] });
+    await expect(page.getByTestId("share-palate-said")).toHaveText("");
   });
 
   test("where a file can't be shared, the card downloads, and says so", async ({ page }) => {

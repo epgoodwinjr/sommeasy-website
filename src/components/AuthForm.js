@@ -8,6 +8,7 @@ import {
   NAME_MAX, cleanName, interpretSignUpResult, isOtpNoAccountError, sanitizeNext, validateSignup,
 } from "@/lib/authFlow";
 import { peekStash, buildMetadataPayload } from "@/lib/pendingPalate";
+import { readStoredRef } from "@/lib/sourceTag";
 import AuthShell, { AuthAlert, AuthField, AuthLinkLine, AuthLinks, AuthNotice } from "./AuthShell";
 import LeaderEntry from "./house/LeaderEntry";
 import LegalLinks from "./house/LegalLinks";
@@ -135,6 +136,17 @@ export default function AuthForm({ mode, params }) {
     }
   };
 
+  // Where the account came from: a ?ref=<tag> kept on this device rides the
+  // signup beside the name (src/lib/sourceTag.js). The pending palate's 8KB
+  // guard is its own and unchanged; the tag is at most 24 characters
+  const storedRef = () => {
+    try {
+      return readStoredRef(window.localStorage)?.tag || null;
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     if (!isLogin) {
       try {
@@ -176,13 +188,18 @@ export default function AuthForm({ mode, params }) {
         // user_metadata; the palate keeps its own 8KB guard. The trimmed
         // address is the one the inbox state shows and a resend uses
         const pendingPalate = pendingPalateMetadata();
+        const ref = storedRef();
         const signupEmail = email.trim();
         setEmail(signupEmail);
         const { data, error } = await supabase.auth.signUp({
           email: signupEmail, password,
           options: {
             emailRedirectTo: emailRedirectTo(),
-            data: { name: cleanName(name), ...(pendingPalate ? { pending_palate: pendingPalate } : {}) },
+            data: {
+              name: cleanName(name),
+              ...(pendingPalate ? { pending_palate: pendingPalate } : {}),
+              ...(ref ? { ref } : {}),
+            },
           },
         });
         const outcome = interpretSignUpResult(data, error);

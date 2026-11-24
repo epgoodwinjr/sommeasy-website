@@ -33,6 +33,11 @@ export const PALATE_CARD = Object.freeze({
 });
 
 /** What the share action says (for Ed's review). */
+// The link that rides with a shared card. ?ref=card is how an account made
+// from a shared card is counted (src/lib/sourceTag.js). The picture stays the
+// share: the link goes only where the browser says it can share both.
+export const SHARE_LINK = "https://sommeasy.wine/?ref=card";
+
 export const SHARE_COPY = Object.freeze({
   action: "Share your palate",
   making: "Making your card…",
