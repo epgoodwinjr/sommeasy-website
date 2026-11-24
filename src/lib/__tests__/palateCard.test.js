@@ -30,7 +30,7 @@ function assertEq(actual, expected, msg) {
 
 async function main() {
   const card = await import("../palateCard.js");
-  const { PALATE_CARD: C, balancedLines, palateCardPlan, SHARE_COPY } = card;
+  const { PALATE_CARD: C, balancedLines, palateCardPlan, SHARE_COPY, SHARE_LINK } = card;
 
   // A stand-in for canvas measureText: half an em a character, at each
   // role's own size
@@ -131,6 +131,12 @@ async function main() {
     for (const [key, line] of Object.entries(SHARE_COPY)) {
       assert(typeof line === "string" && line.trim() && !/error|null|undefined/i.test(line), `${key}: ${line}`);
     }
+  });
+
+  await test("the link beside a shared card is the site, tagged as a card", async () => {
+    assertEq(SHARE_LINK, "https://sommeasy.wine/?ref=card", "the link");
+    const { refFromSearch } = await import("../sourceTag.js");
+    assertEq(refFromSearch(new URL(SHARE_LINK).search), "card", "its tag is one the site keeps");
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

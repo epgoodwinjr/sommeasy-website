@@ -18,14 +18,17 @@
 // before it has anything to say (a region mounted with its words in it
 // often goes unannounced).
 //
-// Only the file is shared — no title, text or link rides with it — and
-// nothing is recorded: no route, no event (the wine_events catalog is
+// The file is shared with one link beside it, SHARE_LINK (sommeasy.wine with
+// ?ref=card, so an account made from a card is counted) — no title or text.
+// The picture is the share: the link rides only where the browser says it
+// can share the file AND the link together; anywhere else the file goes
+// alone. Nothing is recorded: no route, no event (the wine_events catalog is
 // unchanged). A missing or unusable genome offers nothing: the card is the
 // bloom's.
 
 import { useEffect, useRef, useState } from "react";
 import { renderPalateMarkDocument } from "@/lib/palateMark";
-import { PALATE_CARD, SHARE_COPY, palateCardPlan } from "@/lib/palateCard";
+import { PALATE_CARD, SHARE_COPY, SHARE_LINK, palateCardPlan } from "@/lib/palateCard";
 import TextAction from "./house/TextAction";
 import { BURGUNDY, CREAM, INK, SANS, SERIF, canvasFont, ink } from "./house/tokens";
 
@@ -119,13 +122,22 @@ async function makeCard({ genome, title, epithet }) {
   return blob ? new File([blob], C.fileName, { type: "image/png" }) : null;
 }
 
-function canShareFile(file) {
+function canShare(data) {
   try {
     return typeof navigator !== "undefined" && typeof navigator.share === "function"
-      && typeof navigator.canShare === "function" && navigator.canShare({ files: [file] });
+      && typeof navigator.canShare === "function" && navigator.canShare(data);
   } catch {
     return false;
   }
+}
+
+/** What share() is given: the card and the link, the card alone, or null
+ *  when the browser can't share the file at all (then it downloads). */
+function shareData(file) {
+  const withLink = { files: [file], url: SHARE_LINK };
+  if (canShare(withLink)) return withLink;
+  const alone = { files: [file] };
+  return canShare(alone) ? alone : null;
 }
 
 function download(file) {
@@ -188,9 +200,10 @@ export default function SharePalate({ genome, title, epithet, style }) {
         file = await cardFor(key);
         if (!file) { setState("failed"); return; }
       }
-      if (canShareFile(file)) {
+      const data = shareData(file);
+      if (data) {
         try {
-          await navigator.share({ files: [file] });
+          await navigator.share(data);
           setState("idle");
           return;
         } catch (err) {

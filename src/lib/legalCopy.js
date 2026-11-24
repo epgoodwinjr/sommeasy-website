@@ -75,7 +75,7 @@ export const PRIVACY = {
         "Your palate: your quiz answers (countries, regions, estates, grapes and any wines you name) and what we compose from them — your title, signature, narrative and palate mark.",
         "Your journal: the wines you rate, want or pass on, your verdicts, your notes, where you drank a bottle when you tell us, the Somm’s note for a pick you chose, and the direction you gave the Somm that night.",
         "Your settings at the table: your usual spend and color.",
-        "A record of how you use Sommeasy: moments like finishing the quiz, analyzing a wine list, rating or choosing a wine. For a list, we keep counts (wines read, wines priced, picks shown) and tonight’s terms, not the list. When a list matches nothing, we keep up to 15 of the wine names it read, so we can see what went wrong. This record also notes what each of the Somm’s answers cost us to make.",
+        "A record of how you use Sommeasy: moments like finishing the quiz, analyzing a wine list, rating or choosing a wine. For a list, we keep counts (wines read, wines priced, picks shown) and tonight’s terms, not the list. When a list matches nothing, we keep up to 15 of the wine names it read, so we can see what went wrong. This record also notes what each of the Somm’s answers cost us to make. If you arrived through a tagged link, such as an invitation or Instagram, we note where you came from.",
       ],
     },
     {

@@ -473,6 +473,65 @@ verbs, which are also the two the stall is made of. Exclude the e2e accounts
 (epgoodwin+e2e@ / epgoodwin+e2e-fresh@) before reading percentages at
 current scale.
 
+### 11g. Where accounts came from (source tags, Nov 2026)
+
+A link with `?ref=<tag>` (lowercase letters, digits, hyphens, up to 24
+characters) leaves its tag on the device for 30 days, first tag wins, and the
+account made there carries it as `raw_user_meta_data->>'ref'`: email signup
+sends it with the signup, a Google signup gets it on its first signed-in load
+(only an account under 24 hours old with no ref, written once, never
+overwritten). A shared palate card carries `https://sommeasy.wine/?ref=card`.
+Rules and tests: `src/lib/sourceTag.js`, `src/lib/__tests__/sourceTag.test.js`,
+`e2e/source-tags.spec.ts`. No ref means no tagged link was followed on the
+signup device (or the tag had expired) — read `untagged` as "direct or
+unknown", never as "organic".
+
+Accounts by ref:
+
+```sql
+SELECT
+  coalesce(raw_user_meta_data->>'ref', 'untagged') AS ref,
+  count(*)                                          AS accounts,
+  min(created_at)::date                             AS first_seen,
+  max(created_at)::date                             AS last_seen
+FROM auth.users
+WHERE email NOT LIKE 'epgoodwin+e2e%'
+GROUP BY 1
+ORDER BY accounts DESC;
+```
+
+By ref × a first `menu_analyzed` within 21 days of signup (the account
+brought a real list to the table, not only took the quiz):
+
+```sql
+WITH first_menu AS (
+  SELECT user_id, min(occurred_at) AS first_menu_at
+  FROM wine_events
+  WHERE event_type = 'menu_analyzed'
+  GROUP BY user_id
+)
+SELECT
+  coalesce(u.raw_user_meta_data->>'ref', 'untagged')                  AS ref,
+  count(*)                                                             AS accounts,
+  count(*) FILTER (WHERE m.first_menu_at < u.created_at + interval '21 days') AS menu_within_21d,
+  round(100.0 * count(*) FILTER (WHERE m.first_menu_at < u.created_at + interval '21 days')
+        / greatest(count(*), 1))                                       AS pct,
+  count(*) FILTER (WHERE u.created_at > now() - interval '21 days')    AS still_in_window
+FROM auth.users u
+LEFT JOIN first_menu m ON m.user_id = u.id
+WHERE u.email NOT LIKE 'epgoodwin+e2e%'
+GROUP BY 1
+ORDER BY accounts DESC;
+```
+
+`still_in_window` counts accounts younger than 21 days — they can still
+convert, so a young tag's pct is a floor, not a rate. **Escalate when** a
+tag that's being actively posted (Instagram, invitations) shows zero
+accounts for a week — check that the link really carries `?ref=` in that
+exact spelling (uppercase or an underscore is ignored by design), or when
+`card` accounts appear but `ref` is missing on Google signups made the same
+day (the first signed-in load stopped writing it).
+
 ### 12. The roster (founder CRM)
 
 `SELECT * FROM user_roster;` — one row per user: signup date, title +
