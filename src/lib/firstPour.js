@@ -27,6 +27,9 @@ function isRecommendProvenance(src) {
   return src === "photo_scan" || src === "text_paste" || /^https?:\/\//.test(src || "");
 }
 
+/** The event types whose existence completes a card (one row of each is enough). */
+export const FIRST_POUR_EVENT_TYPES = Object.freeze(["bottle_logged", "menu_analyzed"]);
+
 /**
  * Resolve the visible cards from durable truth.
  *
@@ -42,6 +45,9 @@ function isRecommendProvenance(src) {
  *  - log-a-bottle: any bottle_logged event (rows carry no source — the
  *    event is the only durable trace of the camera path).
  *  - bring-a-list: any menu_analyzed event, or provenance in source_url.
+ *
+ * Only whether each event type EXISTS matters, so a caller reads one row of
+ * each FIRST_POUR_EVENT_TYPES — never the whole append-forever history.
  *
  * @param {object} args { interactions: [{rating, source_url}], events:
  *   [{event_type}], dismissedIds: string[] }
