@@ -139,7 +139,7 @@ test.describe.serial("The First Pour — fresh account (hard-fail)", () => {
     await expect(recs.getByTestId("reserved-row")).toHaveCount(2);
     await expect(recs).toContainText("Two more selections open after your first rating.");
     // The new user's crest line — and none of the established furniture
-    await expect(page.getByTestId("palate-strip")).toContainText("Your first list — it rewrites itself as you rate");
+    await expect(page.getByTestId("palate-strip")).toContainText("Your first list — it follows your palate");
     await expect(logEntry(page)).toHaveCount(0);
     await expect(page.getByTestId("verdict-ask")).toHaveCount(0);
   });

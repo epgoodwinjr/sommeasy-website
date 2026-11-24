@@ -178,7 +178,9 @@ function RecRow({ rec, numeral, meta, state, readOnly, onAction, onRate, enterDe
 }
 
 /**
- * @param recs       profile.recommendations ({ wine, why, matchType })
+ * @param recs       { wine, why, matchType } best first — home ranks them on
+ *                   read (palateRecs.js), the reveal passes the list its
+ *                   save stored, ranked the same way
  * @param user       Supabase user (null → read-only rows, no actions)
  * @param limit      rows shown (4 on home)
  * @param surface    which door this list is ("home" | "reveal") — rides

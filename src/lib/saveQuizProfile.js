@@ -79,7 +79,7 @@ export async function saveQuizProfile(
     const readAccumulation = async () => {
       const { data, error } = await supabase
         .from("dna_accumulation")
-        .select("id, dimension, dimension_value, source, promoted, mappable")
+        .select("id, dimension, dimension_value, source, promoted, mappable, points")
         .eq("user_id", userId);
       if (error) { console.error("Accumulation read failed (each step reads again):", error); return null; }
       return data || [];
@@ -88,7 +88,10 @@ export async function saveQuizProfile(
     const merged = mode === "refine"
       ? await mergeQuizWithEarnedDna(supabase, userId, quizRaw, initialRaw, accRows)
       : quizRaw;
-    const finalProfile = generateDNAProfile(merged);
+    // The stored recommendations (the reveal's list) are ranked with the
+    // points ratings earned; an unread accumulation ranks on the DNA alone —
+    // home, Search and the wine page rank on read anyway
+    const finalProfile = generateDNAProfile(merged, { accumulation: accRows || [] });
 
     const { data: savedRow, error } = await supabase.from("wine_profiles").upsert({
       user_id: userId,
