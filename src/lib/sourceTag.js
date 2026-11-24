@@ -15,7 +15,11 @@
 //   3. Email signup carries the stored tag as options.data.ref (AuthForm).
 //      Any other signup (Google) gets it on the first signed-in load: only an
 //      account made in the last 24 hours, only one with no ref, written once
-//      and never over a ref the server already holds.
+//      and never over a ref the server already holds — and never while the
+//      account still carries a waiting palate (user_metadata.pending_palate):
+//      the restore claims that carrier on the same first load, and a
+//      metadata write racing the claim must not be able to put it back
+//      (the quiz would fold in twice). A later page tries again.
 //   4. The stored tag is cleared once the account carries it.
 //   5. Storage can be missing, junk or throwing: every call here degrades to
 //      "no tag" and never throws.
@@ -99,8 +103,8 @@ let inFlight = null;
 /**
  * Put the stored tag on the signed-in account when rule 3 allows it, and
  * clear it once the account carries it (rule 4). Returns what happened, for
- * tests: "none" | "signed_out" | "carried" | "other_ref" | "old" | "tagged" |
- * "failed". Never throws, and one call at a time (StrictMode runs effects
+ * tests: "none" | "signed_out" | "carried" | "other_ref" | "old" |
+ * "palate_waiting" | "tagged" | "failed". Never throws, and one call at a time (StrictMode runs effects
  * twice; a page change mid-write waits for the same answer).
  */
 export function tagAccount({ supabase, storage, now = Date.now() }) {
@@ -121,6 +125,7 @@ async function runTagAccount({ supabase, storage, now }) {
     const seen = settled(storage, held, accountRef(cached));
     if (seen) return seen;
     if (!isNewAccount(cached, now)) return "old";
+    if (palateWaiting(cached)) return "palate_waiting";
     // A session is a cache: ask the server before writing, so a ref set on
     // another device is never written over
     const { data, error } = await supabase.auth.getUser();
@@ -128,6 +133,7 @@ async function runTagAccount({ supabase, storage, now }) {
     const onServer = settled(storage, held, accountRef(data.user));
     if (onServer) return onServer;
     if (!isNewAccount(data.user, now)) return "old";
+    if (palateWaiting(data.user)) return "palate_waiting";
     const { error: writeErr } = await supabase.auth.updateUser({ data: { ref: held.tag } });
     if (writeErr) return "failed";
     clearStoredRef(storage);
@@ -135,6 +141,14 @@ async function runTagAccount({ supabase, storage, now }) {
   } catch {
     return "failed";
   }
+}
+
+// A waiting palate rides user_metadata until claim_pending_palate removes it
+// (src/lib/pendingPalateRestore.js). Any value counts: the restore decides
+// what's a real carrier, this only keeps out of its way.
+function palateWaiting(user) {
+  const meta = user?.user_metadata;
+  return Boolean(meta && Object.prototype.hasOwnProperty.call(meta, "pending_palate") && meta.pending_palate != null);
 }
 
 // An account with a ref is never written again. Its own tag on this device

@@ -25,7 +25,12 @@ new event type, no new dependency.
   older than 24 hours, or one that already has a ref, stops there. A new
   account with no ref asks the server (`getUser`) — a session is a cache and
   could predate a ref written on another device — and only then writes
-  `updateUser({ data: { ref } })`. One call at a time (StrictMode's double
+  `updateUser({ data: { ref } })`. **Never while a palate is waiting:** if the
+  account, cached or on the server, still carries
+  `user_metadata.pending_palate`, the write is skipped and a later page tries
+  again. The pending-palate restore claims that carrier on the same first
+  load, and a metadata write racing the claim must not be able to put it
+  back (the quiz would fold in twice). One call at a time (StrictMode's double
   effect writes once). A failure is silent and keeps the tag for the next
   load. The page never waits on any of it.
 - **Clearing.** The stored tag is cleared once the account carries THAT tag
@@ -47,15 +52,14 @@ Appended to the usage item of the Privacy Policy (`legalCopy.js`):
 `LEGAL_UPDATED` already reads November 23, 2026 (today). **If this merges on a
 later day, change it to that day** — it's the one line to touch.
 
-**For Ed — one paragraph the brief told me not to touch is now inexact.** The
-policy's "On your device" paragraph lists what Sommeasy keeps in browser
-storage and ends "None of it leaves your device except the quiz, which joins
-your account when you sign up or sign in." The tag is now also kept there and
-also joins the account. I left it as the brief says ("change nothing else");
-a suggested fix, if you want it: add "a link's tag (for up to 30 days)" to the
-list, and end "…except the quiz and a link's tag, which join your account
-when you sign up or sign in." Similarly "Share your palate makes an image…"
-is still true (no personal data rides with the link), so I left it.
+**"On your device", corrected (Ed, Nov 23).** That paragraph listed what
+Sommeasy keeps in browser storage and said none of it leaves the device
+except the quiz; the tag now does too. It now reads: "…and the trail behind
+the back link, and the tag of a link you arrived through (for up to 30 days).
+None of it leaves your device except the quiz and that tag, which join your
+account when you sign up or sign in." Nothing else on the legal pages
+changed. `LEGAL_UPDATED` stays as it is until the merge (Ed sets the day
+then).
 
 ## 2. The link on shared palate cards
 
@@ -85,12 +89,14 @@ into a link-preview bubble in Messages and some apps keep only one of the two.
 
 ## Tests
 
-- `node src/lib/__tests__/sourceTag.test.js` — 20 tests: what a tag is (and
+- `node src/lib/__tests__/sourceTag.test.js` — 21 tests: what a tag is (and
   what's ignored), the query string, first tag wins, 30-day expiry, junk /
   throwing / full storage, which accounts are new, and the signed-in write
   against a scripted auth — once, two calls at once write once, old accounts
   ask nothing, never over a cached or server-only ref, a carried tag cleared
-  with no write, failures silent with the tag kept, the server's age winning.
+  with no write, failures silent with the tag kept, the server's age winning, and no write while a palate
+  is waiting (cached or on the server — each check mutation-pinned), then
+  the tag written alone once the claim has removed it.
 - `palateCard.test.js` +1: the link, and that its tag is one the site keeps.
 - `e2e/source-tags.spec.ts` — 7 tests, EVERY `/auth/v1/*` call intercepted, no
   real user created: a visit keeps the first valid tag; email signup carries
@@ -106,7 +112,7 @@ into a link-preview bubble in Messages and some apps keep only one of the two.
 - `launch-kit.spec.ts`: the share now carries the link (the one expectation
   this change moves), plus a test that a browser that can't share the link
   with a file shares the file alone.
-- Every unit suite passes (39 files), and the full `npm run test:e2e`: 194 passed, 5 skipped (the env-gated seeder and screenshot specs), 0 failed, 18.0 min.
+- Every unit suite passes (39 files), and the full `npm run test:e2e`: 194 passed, 5 skipped (the env-gated seeder and screenshot specs), 0 failed — 18.0 min, and 17.8 min on the rerun after Ed's three changes.
 
 ## What I chose not to do
 
@@ -119,4 +125,3 @@ into a link-preview bubble in Messages and some apps keep only one of the two.
 - A tag that arrives on a client-side navigation to the SAME path (`/` →
   `/?ref=x` without leaving `/`) isn't read until the next page change. Tagged
   links arrive from outside, as full loads.
-- The "On your device" paragraph (above) — Ed's call.

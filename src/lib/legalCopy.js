@@ -100,7 +100,7 @@ export const PRIVACY = {
     {
       heading: "On your device",
       body: [
-        "Sign-in keeps a session in cookies on your device. Sommeasy also remembers a few things in your browser’s own storage: a quiz you finished before creating an account (for up to seven days), your five most recent searches, prompts you dismissed, and the trail behind the back link. None of it leaves your device except the quiz, which joins your account when you sign up or sign in.",
+        "Sign-in keeps a session in cookies on your device. Sommeasy also remembers a few things in your browser’s own storage: a quiz you finished before creating an account (for up to seven days), your five most recent searches, prompts you dismissed, and the trail behind the back link, and the tag of a link you arrived through (for up to 30 days). None of it leaves your device except the quiz and that tag, which join your account when you sign up or sign in.",
         "To keep the service from being overwhelmed, our server remembers your IP address for up to one hour each time you use a feature that reads a list or label or asks the Somm, and counts the requests.",
         "Your browser may send a Do Not Track or Global Privacy Control signal. Sommeasy doesn’t read either one and works the same way with or without them, because there is nothing for them to switch off: we don’t track you across other sites, we have no advertising or third-party trackers, and our page counts set no cookies.",
       ],

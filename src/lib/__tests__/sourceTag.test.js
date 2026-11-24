@@ -288,6 +288,31 @@ async function main() {
     assertEq(await tagAccount({ supabase: t.supabase, storage: throwingStorage, now: NOW }), "none", "throwing storage: nothing");
   });
 
+  await test("no write while the account still carries a waiting palate — cached or on the server — then a later page writes", async () => {
+    const PALATE = { version: 1, createdAt: NOW - 60 * 1000, answers: { countries: ["france"] } };
+    // The cached session still carries the carrier: no request at all
+    const s = memoryStorage();
+    rememberRef(s, "card", NOW);
+    const cached = scriptedAuth({ cached: user(1000, { pending_palate: PALATE }) });
+    assertEq(await tagAccount({ supabase: cached.supabase, storage: s, now: NOW }), "palate_waiting", "cached carrier");
+    assertEq(cached.calls, ["getSession"], "nothing asked, nothing written");
+    assertEq(readStoredRef(s, NOW)?.tag, "card", "the tag waits for a later page");
+
+    // The cache is clean but the server still holds it (claimed on another
+    // load a moment from now): no write either
+    const server = scriptedAuth({ cached: user(1000), server: user(1000, { pending_palate: PALATE }) });
+    assertEq(await tagAccount({ supabase: server.supabase, storage: s, now: NOW }), "palate_waiting", "server carrier");
+    assertEq(server.writes().length, 0, "no write while the server holds it");
+    assertEq(readStoredRef(s, NOW)?.tag, "card", "still waiting");
+
+    // Once the claim has removed it (null, as the fallback clear leaves it),
+    // the next page writes the tag — and only the tag
+    const claimed = scriptedAuth({ cached: user(1000, { pending_palate: null }), server: user(1000, { pending_palate: null }) });
+    assertEq(await tagAccount({ supabase: claimed.supabase, storage: s, now: NOW + 5000 }), "tagged", "tagged after the claim");
+    assertEq(claimed.writes(), [["updateUser", { data: { ref: "card" } }]], "the write never names pending_palate");
+    assertEq(s.data[REF_KEY], undefined, "cleared");
+  });
+
   await test("the server's word on the account's age wins over the cache", async () => {
     const s = memoryStorage();
     rememberRef(s, "card", NOW);
