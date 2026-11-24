@@ -1,6 +1,6 @@
 # Where people come from — readout (Nov 23, 2026)
 
-Branch `source-tags`. Launch measurement only, two changes. No migration, no
+Branch `source-tags`, PR #46. Preview: https://sommeasy-website-git-source-tags-epgoodwinjrs-projects.vercel.app (behind Vercel's login). Launch measurement only, two changes. No migration, no
 new event type, no new dependency.
 
 ## 1. Every account records where it came from
