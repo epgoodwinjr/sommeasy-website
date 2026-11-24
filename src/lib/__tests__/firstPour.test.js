@@ -48,6 +48,7 @@ async function main() {
     FIRST_POUR_ORDER,
     MAX_VISIBLE_CARDS,
     resolveFirstPourCards,
+    FIRST_POUR_EVENT_TYPES,
     readDismissedFirstPour,
     dismissFirstPourCard,
   } = await import("../firstPour.js");
@@ -218,6 +219,43 @@ async function main() {
     store["sommeasy.firstPourDismissed"] = "{corrupt";
     assertEq(readDismissedFirstPour(), [], "corrupt storage reads as empty");
     delete globalThis.localStorage;
+  });
+
+  console.log("\n═══ Suite 6: one row of each type is the whole answer (Nov 23, 2026) ═══");
+
+  await test("the event types are exactly the ones completion reads", () => {
+    assertEq([...FIRST_POUR_EVENT_TYPES], ["bottle_logged", "menu_analyzed"], "the two types");
+    assert(Object.isFrozen(FIRST_POUR_EVENT_TYPES), "frozen");
+  });
+
+  await test("one row of each type gives the same cards as the whole history, at any length", () => {
+    // Home reads `.eq(type).limit(1)` per type instead of the history: the
+    // cards must not care. Seeded, so a failure replays.
+    let seed = 1062;
+    const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    const pool = ["bottle_logged", "menu_analyzed", "pick_rated", "quiz_completed"];
+    for (let trial = 0; trial < 300; trial++) {
+      const n = [0, 1, 2, 5, 999, 1000, 1500][trial % 7];
+      const history = Array.from({ length: n }, () => ({ event_type: pool[Math.floor(rand() * pool.length)] }));
+      const onePerType = FIRST_POUR_EVENT_TYPES.flatMap((t) => history.filter((e) => e.event_type === t).slice(0, 1));
+      const interactions = rand() < 0.5 ? [] : [{ rating: rand() < 0.5 ? null : "liked", source_url: rand() < 0.3 ? "recommend" : null }];
+      const dismissedIds = rand() < 0.3 ? ["log-a-bottle"] : [];
+      assertEq(
+        resolveFirstPourCards({ interactions, events: onePerType, dismissedIds }),
+        resolveFirstPourCards({ interactions, events: history, dismissedIds }),
+        `trial ${trial} (${n} events)`);
+    }
+  });
+
+  await test("a capped page of the history could hide a type — the reason home reads one of each", () => {
+    // 1,000 menu_analyzed rows, then a bottle_logged: the server's first page
+    // holds no bottle_logged at all
+    const history = [...Array.from({ length: 1000 }, () => ({ event_type: "menu_analyzed" })), { event_type: "bottle_logged" }];
+    const capped = history.slice(0, 1000);
+    const onePerType = FIRST_POUR_EVENT_TYPES.flatMap((t) => history.filter((e) => e.event_type === t).slice(0, 1));
+    const interactions = [{ rating: null, source_url: null }];
+    assert(resolveFirstPourCards({ interactions, events: capped }).includes("log-a-bottle"), "premise: the capped page shows the card");
+    assert(!resolveFirstPourCards({ interactions, events: onePerType }).includes("log-a-bottle"), "one of each: the card is done");
   });
 
   console.log(`\n${passed} passed, ${failed} failed`);

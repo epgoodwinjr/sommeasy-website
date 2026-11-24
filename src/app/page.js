@@ -11,8 +11,8 @@ import { recordEvent, ratingEventPayload } from "@/lib/wineEvents";
 import { ratingFor } from "@/lib/ratings";
 import { restorePendingPalate } from "@/lib/pendingPalateRestore";
 import { signatureLine } from "@/lib/palateSignature";
-import { resolveOutstandingVerdict, VERDICT_EVENT_TYPES, VERDICT_WINDOW_DAYS, readDismissedVerdicts, dismissVerdict } from "@/lib/tableVerdict";
-import { resolveFirstPourCards } from "@/lib/firstPour";
+import { readVerdictAsk, readDismissedVerdicts, dismissVerdict } from "@/lib/tableVerdict";
+import { resolveFirstPourCards, FIRST_POUR_EVENT_TYPES } from "@/lib/firstPour";
 import { readPalateRecs } from "@/lib/palateRecsRead";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
@@ -219,23 +219,15 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
     // to silence (same posture as the fire-and-forget write path; the
     // wine-events blackhole guard drives this page with the table
     // unreachable, and home must not care).
+    // The read is newest first and bounded (tableVerdict.js): unordered, the
+    // server's row cap chose which events came back.
     async function loadVerdictAsk() {
-      try {
-        const since = new Date(Date.now() - VERDICT_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-        const { data, error } = await supabase
-          .from("wine_events")
-          .select("id, event_type, payload, occurred_at")
-          .eq("user_id", user.id)
-          .in("event_type", VERDICT_EVENT_TYPES)
-          .gte("occurred_at", since);
-        if (!live) return;
-        if (!error && data && !settleForced.current) {
-          const ask = resolveOutstandingVerdict(data, { dismissedIds: readDismissedVerdicts() });
-          setVerdict(ask ? { ask } : null);
-        }
-      } catch { /* the prompt is a courtesy — never break home over it */ }
+      const ask = await readVerdictAsk(supabase, user.id, { dismissedIds: readDismissedVerdicts() });
+      if (!live) return;
+      // undefined = the read failed: the prompt is a courtesy, so silence
+      if (ask !== undefined && !settleForced.current) setVerdict(ask ? { ask } : null);
       // Settled either way (a failed read = no ask)
-      if (live) setVerdictLoaded(true);
+      setVerdictLoaded(true);
     }
     if (user?.id) loadVerdictAsk();
     return () => { live = false; };
@@ -261,17 +253,22 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
       let rows = null;
       let newUser = false;
       try {
-        const [ints, evts] = await Promise.all([
+        // First Pour asks only whether each event type EXISTS: one row of
+        // each, in parallel — never the whole append-forever history (a
+        // capped page of it could hide a type altogether)
+        const [ints, logged, analyzed] = await Promise.all([
           supabase.from("wine_interactions")
             .select("wine_name, interaction_type, rating, source_url, resolved_region")
             .eq("user_id", user.id),
-          supabase.from("wine_events").select("event_type").eq("user_id", user.id)
-            .in("event_type", ["bottle_logged", "menu_analyzed"]),
+          ...FIRST_POUR_EVENT_TYPES.map((type) =>
+            supabase.from("wine_events").select("event_type").eq("user_id", user.id)
+              .eq("event_type", type).limit(1)),
         ]);
         if (!ints.error && ints.data) {
           rows = ints.data;
-          if (!evts.error && evts.data) {
-            newUser = resolveFirstPourCards({ interactions: ints.data, events: evts.data }).includes("rate-one");
+          if (!logged.error && logged.data && !analyzed.error && analyzed.data) {
+            const events = [...logged.data, ...analyzed.data];
+            newUser = resolveFirstPourCards({ interactions: ints.data, events }).includes("rate-one");
           }
         }
       } catch { /* settles as unknown → the established layout */ }
