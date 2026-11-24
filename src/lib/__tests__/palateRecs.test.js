@@ -457,5 +457,20 @@ await test("an estate is the one a rating of that bottle would record, wherever 
   assert(checked >= 25, `enough checked (${checked})`);
 });
 
+await test("a wine's grapes are the ones its own words name (Lapierre, Columella, Paul Sauer)", () => {
+  // Three tags once named grapes the wines don't hold: a Grenache lover was
+  // offered a Gamay, a Chenin lover a red, a Pinotage lover a Bordeaux blend
+  const tags = (wine) => WINE_RECS.find((r) => r.wine === wine).varietals;
+  assertEq(tags("Marcel Lapierre, Morgon"), ["gamay"], "Morgon is Gamay");
+  assertEq(tags("The Sadie Family, Columella"), ["syrah", "mourvedre"], "Columella is Syrah-Mourvèdre");
+  assertEq(tags("Kanonkop, Paul Sauer"), ["cabernet_sauvignon", "cabernet_franc", "merlot"], "Paul Sauer is a Bordeaux blend");
+  const lists = (varietal, wine) =>
+    wines(rankRecommendations({ profile: { countries: [], regions: {}, estates: {}, varietals: [varietal] }, limit: Infinity })).includes(wine);
+  assert(lists("gamay", "Marcel Lapierre, Morgon") && !lists("grenache", "Marcel Lapierre, Morgon"), "Gamay lovers get Lapierre, Grenache lovers don't");
+  assert(lists("mourvedre", "The Sadie Family, Columella") && !lists("chenin_blanc", "The Sadie Family, Columella"), "Mourvèdre lovers get Columella, Chenin lovers don't");
+  assert(lists("merlot", "Kanonkop, Paul Sauer") && lists("cabernet_franc", "Kanonkop, Paul Sauer") && !lists("pinotage", "Kanonkop, Paul Sauer"),
+    "Merlot and Cabernet Franc lovers get Paul Sauer, Pinotage lovers don't");
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

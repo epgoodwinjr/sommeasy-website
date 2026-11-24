@@ -87,7 +87,7 @@ already makes.
 
 ## 3. Tests
 
-`src/lib/__tests__/palateRecs.test.js`: 25 tests, all on the real modules.
+`src/lib/__tests__/palateRecs.test.js`: 26 tests, all on the real modules.
 
 - **The canary** is built bottle by bottle through the real `bottleEvidence`
   (resolver, confidence gates, points tables) and the real promotion
@@ -126,7 +126,11 @@ already makes.
 - **The data:** every region, grape, country and estate id exists in
   wineUnified; every region sits in its wine's country; wherever the
   resolver is sure (80 or above), the estate it records for the rec's own
-  name is the one the rec carries, so loving that bottle lifts it.
+  name is the one the rec carries, so loving that bottle lifts it; and the
+  three corrected wines carry the grapes their own words name (Gamay lovers
+  get Lapierre and Grenache lovers don't; Mourvèdre lovers get Columella and
+  Chenin lovers don't; Merlot and Cabernet Franc lovers get Paul Sauer and
+  Pinotage lovers don't). That test fails with the old tags put back.
 - **Mutation-checked: 11 mutants, 10 caught.** Caught: points ignored,
   negatives ignored, a quiz pick worth one bottle, country at full weight,
   zero scores listed, named wines kept, duplicates kept, a wrong matchType
@@ -134,28 +138,25 @@ already makes.
   survivor, a separate tier tie-break, was redundant with list order and is
   removed.
 
-Unit suites: all 38 pass (palateRecs 25 included). `next build` passes. The
+Unit suites: all 38 pass (palateRecs 26 included). `next build` passes. The
 e2e results are in the PR description.
 
-## 4. Copy: yours to approve
+## 4. Copy: approved (Ed, Nov 23)
 
-Both lines were untrue before. No rating rewrote the list. They are still
-only partly true as written: the list now re-ranks on the next load, not
-mid-visit (rows never move under a tap), and an "It was fine" rating adds no
-DNA points, so it moves nothing.
+Both lines were untrue before. No rating rewrote the list. Both are true
+now: a loved, liked or not-for-me rating moves the list on the next load
+(never mid-visit — rows don't move under a tap), and "It was fine", which
+adds no DNA points, is the one verdict the line doesn't claim.
 
 | Where | Old | New |
 |---|---|---|
 | Crest line, new-user layout | Your first list — it rewrites itself as you rate | Your first list — it follows your palate |
-| Under "Your first entry" | …snap tonight’s label. One rating and the Somm rewrites this list around you. | …snap tonight’s label. Every bottle you rate shapes your palate, and this list follows it. |
+| Under "Your first entry" | …snap tonight’s label. One rating and the Somm rewrites this list around you. | …snap tonight’s label. Every bottle you love — or don’t — moves this list. |
 
-The second line echoes the house's existing "every rating sharpens your DNA"
-(home's Log a bottle). Strictly, a "fine" rating shapes nothing. If you want
-it airtight: "Every bottle you love — or don't — moves this list." The
-Reserved caption ("Two more selections open after your first rating.") was
+The Reserved caption ("Two more selections open after your first rating.") was
 already true and is unchanged. first-pour.spec asserts the new crest line.
 
-## 5. Where the curated list is too thin (not changed: no wines added)
+## 5. Where the curated list is too thin (no wines added)
 
 - **Regions:** 29 of wineUnified's 145 regions have a curated wine. Among
   the most-reviewed regions with none: Columbia Valley (8,334 reviews),
@@ -166,12 +167,13 @@ already true and is unchanged. first-pour.spec asserts the new crest line.
   Maipo Valley, Uco Valley and Languedoc-Roussillon. Fourteen more regions
   have exactly one wine, including Willamette Valley, Rioja, Champagne,
   Mosel, Douro and Ribera del Duero.
-- **Grapes:** 23 of 71 have a curated wine. Missing, by review count: Rosé
-  (3,563), Portuguese Red (2,466), Portuguese White, Gamay (0, see below),
-  Petite Sirah, Barbera, Glera/Prosecco, Port, Pinot Blanc, the Valpolicella
+- **Grapes:** 24 of 71 have a curated wine (23 before the tag fixes below,
+  which brought Gamay on). Missing, by review count: Rosé (3,563),
+  Portuguese Red (2,466), Portuguese White, Petite Sirah, Barbera, Glera/Prosecco, Port, Pinot Blanc, the Valpolicella
   blend (Corvina, Rondinella, Molinara), Carmenère, Nero d'Avola, Aglianico,
-  Moscato, Verdejo, Muscadet and Garganega. One wine each: Zinfandel, Pinot
-  Grigio, Cabernet Franc, Grüner Veltliner, Viognier, Albariño, Mourvèdre.
+  Moscato, Verdejo, Muscadet and Garganega. One wine each: Gamay, Pinotage
+  (Paul Sauer no longer counts toward it), Zinfandel, Pinot Grigio, Grüner
+  Veltliner, Viognier, Albariño, Sémillon.
 - **Countries:** none at all for Chile beyond its discovery, Israel, Greece,
   Canada, Hungary or Uruguay. Portugal has one non-discovery wine; Italy has
   five against 19,540 reviews.
@@ -181,13 +183,13 @@ Veneto, Rosé or Barbera gets nothing specific. It sees wines that share only
 a country or a grape, and a list running dry quickly (the "You've reviewed
 all your wines" empty state).
 
-**Tags I left as they were, for your review** (curation, not code):
-- Marcel Lapierre's Morgon is tagged Grenache, though its own words say
-  Gamay. Grenache lovers get it, Gamay lovers don't.
-- The Sadie Family's Columella is tagged Syrah + Chenin Blanc, though its
-  words say Syrah-Mourvèdre.
-- Kanonkop Paul Sauer is tagged Cabernet + Pinotage, though it's a
-  Bordeaux blend with no Pinotage.
+**Tags fixed (Ed, Nov 23)** — words unchanged, grapes only:
+- Marcel Lapierre, Morgon: Grenache → Gamay.
+- The Sadie Family, Columella: Syrah + Chenin Blanc → Syrah + Mourvèdre.
+- Kanonkop, Paul Sauer: Cabernet Sauvignon + Pinotage → Cabernet
+  Sauvignon + Cabernet Franc + Merlot.
+
+**Left as they are, for your review:**
 - Yalumba Virgilius sits under Barossa (Eden Valley has no region of its
   own in the data).
 - Le Pin, Chave, Rayas, Montevertine, Roulot, Dunn, Littorai, Álvaro

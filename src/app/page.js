@@ -609,7 +609,7 @@ function SavedProfileView({ profile, onRefine, user, welcomeBack }) {
                 <Link href="/log" data-testid="first-entry-snap" style={{
                   color: BURGUNDY, fontWeight: 600, textDecoration: "none", padding: "12px 0",
                 }}>snap tonight’s label</Link>
-                <span style={{ color: ink(0.55) }}>. Every bottle you rate shapes your palate, and this list follows it.</span>
+                <span style={{ color: ink(0.55) }}>. Every bottle you love — or don’t — moves this list.</span>
               </p>
               </Enter>
             </section>
