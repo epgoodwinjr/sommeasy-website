@@ -49,7 +49,7 @@ The origin is: a test read never joins a live list.
 - `name_key` on each line (folded, vintage and "NV" removed) is the one
   derived column, for the repeat-bottles view.
 
-## Privacy diff (`src/lib/legalCopy.js`, `LEGAL_UPDATED` → November 27, 2026; `LEGAL_EFFECTIVE` kept)
+## Privacy diff (`src/lib/legalCopy.js`, `LEGAL_UPDATED` → November 28, 2026, the merge day; `LEGAL_EFFECTIVE` kept)
 
 | Where | Before | After |
 |---|---|---|
@@ -185,7 +185,8 @@ Ed's review approved the build and asked for four changes before merge:
    bit.ly or flow.page unlisted; a suffix match without its dot).
 3. **Privacy copy** — Ed's five edits, word for word, plus one word of mine
    (above: "comes from" → "leads to"). Each is in the proof table.
-   `LEGAL_UPDATED` stays November 27, 2026 — the day this round finished.
+   `LEGAL_UPDATED` is November 28, 2026 — the merge day (it was past
+   midnight when the round finished).
 4. **CLAUDE.md** — "What remains" under the List Ledger: `/api/lists`
    trusts the page for the paste rule, the host and the read restaurant;
    before anything users see reads the catalog, the server should keep what
@@ -227,5 +228,4 @@ takes a day from the clock, and watchtower §11h's "restaurants added" reads
    keeps `menuUrl` — a QR code's short link, if that's what was typed — not
    the host it led to. Unchanged here (it predates this PR); the policy's new
    journal line is true either way.
-6. `LEGAL_UPDATED` says November 27, 2026 — the day this round finished, as
-   you asked.
+6. `LEGAL_UPDATED` says November 28, 2026 — the merge day.

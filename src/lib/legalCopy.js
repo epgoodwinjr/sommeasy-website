@@ -15,7 +15,7 @@
 //   [[privacy]] → the Privacy Policy   [[terms]] → the Terms   [[account]] → Account
 
 export const LEGAL_DRAFT = false;
-export const LEGAL_UPDATED = "November 27, 2026";
+export const LEGAL_UPDATED = "November 28, 2026";
 // The day the current text takes effect — set it to the day LEGAL_DRAFT
 // goes false (while it's true, the draft line says "not yet in effect")
 export const LEGAL_EFFECTIVE = "November 23, 2026";
