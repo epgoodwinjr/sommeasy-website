@@ -30,10 +30,12 @@ export function getClientIp(request) {
 }
 
 /**
- * Record a request and decide whether it may proceed.
+ * Record a request and decide whether it may proceed. `max` defaults to
+ * MAX_REQUESTS; a cheap route may allow more (/api/lists — one write per
+ * page a sitting reads).
  * Returns { allowed: true } or { allowed: false, retryAfterSec }.
  */
-export function checkRateLimit(route, ip) {
+export function checkRateLimit(route, ip, max = MAX_REQUESTS) {
   // Off ONLY outside production, and only on an explicit signal:
   //  - E2E_DISABLE_RATE_LIMIT=1 — playwright.config.ts sets it on the
   //    `next dev` it launches. (A NODE_ENV check alone never fires there:
@@ -56,7 +58,8 @@ export function checkRateLimit(route, ip) {
 
   const stamps = (buckets.get(key) || []).filter((t) => t > cutoff);
 
-  if (stamps.length >= MAX_REQUESTS) {
+  const limit = Number.isInteger(max) && max > 0 ? max : MAX_REQUESTS;
+  if (stamps.length >= limit) {
     buckets.set(key, stamps);
     const retryAfterSec = Math.ceil((stamps[0] + WINDOW_MS - now) / 1000);
     return { allowed: false, retryAfterSec };

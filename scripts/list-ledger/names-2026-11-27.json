@@ -1,0 +1,92 @@
+{
+ "measuredAt": "2026-11-27",
+ "route": "/api/parse-wine-list (real handler)",
+ "note": "metadata.restaurant per scan; every restaurant is invented (render-headers.py)",
+ "scans": {
+  "aug8-namecity": [
+   {
+    "wines": 25,
+    "restaurant": {
+     "name": "Fynbos Kitchen",
+     "city": "Franschhoek",
+     "website": null
+    }
+   },
+   {
+    "wines": 25,
+    "restaurant": {
+     "name": "Fynbos Kitchen",
+     "city": "Franschhoek",
+     "website": null
+    }
+   }
+  ],
+  "mixed-name": [
+   {
+    "wines": 14,
+    "restaurant": {
+     "name": "The Long Table",
+     "city": null,
+     "website": null
+    }
+   },
+   {
+    "wines": 14,
+    "restaurant": {
+     "name": "The Long Table",
+     "city": null,
+     "website": null
+    }
+   }
+  ],
+  "sept19-full": [
+   {
+    "wines": 14,
+    "restaurant": {
+     "name": "Salt & Cellar",
+     "city": "Hermanus",
+     "website": "saltandcellar.co.za"
+    }
+   },
+   {
+    "wines": 14,
+    "restaurant": {
+     "name": "Salt & Cellar",
+     "city": "Hermanus",
+     "website": "saltandcellar.co.za"
+    }
+   }
+  ],
+  "aug8-bare": [
+   {
+    "wines": 25,
+    "restaurant": {
+     "name": null,
+     "city": null,
+     "website": null
+    }
+   }
+  ],
+  "mixed-bare": [
+   {
+    "wines": 14,
+    "restaurant": {
+     "name": null,
+     "city": null,
+     "website": null
+    }
+   }
+  ],
+  "sept19-bare": [
+   {
+    "wines": 14,
+    "restaurant": {
+     "name": null,
+     "city": null,
+     "website": null
+    }
+   }
+  ]
+ },
+ "model": "claude-sonnet-4-6"
+}

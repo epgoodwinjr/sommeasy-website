@@ -15,7 +15,7 @@
 //   [[privacy]] → the Privacy Policy   [[terms]] → the Terms   [[account]] → Account
 
 export const LEGAL_DRAFT = false;
-export const LEGAL_UPDATED = "November 23, 2026";
+export const LEGAL_UPDATED = "November 28, 2026";
 // The day the current text takes effect — set it to the day LEGAL_DRAFT
 // goes false (while it's true, the draft line says "not yet in effect")
 export const LEGAL_EFFECTIVE = "November 23, 2026";
@@ -64,6 +64,7 @@ export const PRIVACY = {
       heading: "The short version",
       body: [
         "We keep what you tell us about wine so we can recommend wine. We don’t sell it, we don’t show ads, and there are no third-party trackers or advertising cookies. You can export your journal or delete your account, and everything with it, from [[account]].",
+        "We also keep the wine lists you photograph, upload or link — the wines, their prices and, when the list or its link names it, the restaurant — in a catalog that never says who read them.",
         "Sommeasy is for people of legal drinking age where they live — 21 in the United States.",
       ],
     },
@@ -73,15 +74,17 @@ export const PRIVACY = {
         "Your account: your email address and the name you give us. Your password goes straight to our sign-in provider, Supabase, which stores it hashed; we never see it.",
         "If you continue with Google: the name and email address Google shares when you agree to it on Google’s screen.",
         "Your palate: your quiz answers (countries, regions, estates, grapes and any wines you name) and what we compose from them — your title, signature, narrative and palate mark.",
-        "Your journal: the wines you rate, want or pass on, your verdicts, your notes, where you drank a bottle when you tell us, the Somm’s note for a pick you chose, and the direction you gave the Somm that night.",
+        "Your journal: the wines you rate, want or pass on, your verdicts, your notes, where you drank a bottle when you tell us, the Somm’s note for a pick you chose, the direction you gave the Somm that night and, for a pick from a list you shared by link, that link.",
         "Your settings at the table: your usual spend and color.",
-        "A record of how you use Sommeasy: moments like finishing the quiz, analyzing a wine list, rating or choosing a wine. For a list, we keep counts (wines read, wines priced, picks shown) and tonight’s terms, not the list. When a list matches nothing, we keep up to 15 of the wine names it read, so we can see what went wrong. This record also notes what each of the Somm’s answers cost us to make. If you arrived through a tagged link, such as an invitation or Instagram, we note where you came from.",
+        "A record of how you use Sommeasy: moments like finishing the quiz, analyzing a wine list, rating or choosing a wine. For a list, we keep counts (wines read, wines priced, picks shown), tonight’s terms and, for a list you photographed, uploaded or linked, a note of which list in our catalog it was (see “Wine lists and labels”). When a list matches nothing, we keep up to 15 of the wine names it read, so we can see what went wrong. This record also notes what each of the Somm’s answers cost us to make. If you arrived through a tagged link, such as an invitation or Instagram, we note where you came from.",
       ],
     },
     {
       heading: "Wine lists and labels",
       body: [
-        "When you photograph a list, upload a file, paste a list or share a link, we send it to Anthropic, which reads it for us with its Claude models. Label photos are read the same way. We don’t store the photos, files or pasted text — only the wines read from them, while you use the page, and the counts above.",
+        "When you photograph a list or upload a file, we send it to Anthropic, which reads it for us with its Claude models. Label photos are read the same way. A list you paste or link is read by Sommeasy itself. We never store the photo, the file or the text you paste.",
+        "From a list you photograph, upload or link, we keep the wines it lists — their names, vintages and prices, and what was read about each one (producer, grape, region, country, color and the section it sits in) — and, when the list names it, the restaurant: the name, city or website printed on the list, or the website a shared link leads to. They go into our catalog of restaurant wine lists, which we use to make Sommeasy better: to learn wines our data doesn’t know yet, to see which restaurants’ lists suit a palate, and to compare a bottle’s price across restaurants. A list you paste is never kept in the catalog.",
+        "Nothing in the catalog says who read a list: not your name, email address, account, IP address or location, and only the day a list was read, never the time. Your own usage record notes which list in the catalog you read, and with it the restaurant when the catalog names one. That note is part of your account and leaves with it. Lists stay in the catalog after you delete your account, with nothing pointing to you.",
         "When you share a link to a list, our server fetches that page for you, so the restaurant’s site sees our server, not you.",
       ],
     },
@@ -121,13 +124,13 @@ export const PRIVACY = {
         "Export your journal as a spreadsheet file from [[account]]. For a copy of everything else we keep, write to [[contact]].",
         "Remove any wine from your journal on its page; its pull on your palate goes with it.",
         "Start fresh resets your quiz answers.",
-        "Delete account removes your account and everything tied to it — your palate, journal, history and usage record — from our database. It can’t be undone.",
+        "Delete account removes your account and everything tied to it — your palate, journal, history and usage record — from our database. It can’t be undone. Wine lists you photographed, uploaded or linked stay in our catalog, with nothing pointing to you.",
       ],
     },
     {
       heading: "How long we keep it",
       body: [
-        `We keep your data while you have an account, and delete it when you delete your account. Once a week we make an encrypted backup of our database and keep each one for ${BACKUP_RETENTION_DAYS} days, so data you delete has left our backups within ${BACKUP_RETENTION_DAYS} days. Our providers may hold short-lived backups and logs on their own schedules.`,
+        `We keep your data while you have an account, and delete it when you delete your account. The catalog of wine lists holds nothing about who read them, and we keep it. Once a week we make an encrypted backup of our database and keep each one for ${BACKUP_RETENTION_DAYS} days, so data you delete has left our backups within ${BACKUP_RETENTION_DAYS} days. Our providers may hold short-lived backups and logs on their own schedules.`,
       ],
     },
     {

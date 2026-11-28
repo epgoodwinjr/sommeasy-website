@@ -28,7 +28,7 @@ async function throwsReason(fn, reason) {
 }
 
 async function main() {
-  const { isBlockedIp, assertPublicUrl, safeFetch, SsrfError } = await import("../ssrfGuard.js");
+  const { isBlockedIp, assertPublicUrl, safeFetch, safeFetchFinal, SsrfError } = await import("../ssrfGuard.js");
 
   console.log("\n═══ isBlockedIp — the block table ═══");
 
@@ -186,6 +186,34 @@ async function main() {
     });
     assert(res.status === 200, "final status");
     assert(seen[1] === "http://example.com/b", `resolved relative: ${seen[1]}`);
+  });
+
+  await test("safeFetchFinal says where the page finally came from — after every redirect", async () => {
+    const direct = await safeFetchFinal("https://www.harbourtable.example/wine", {}, {
+      lookup: pub, fetchImpl: async () => okResponse(),
+    });
+    assert(direct.response.status === 200 && direct.url === "https://www.harbourtable.example/wine", `direct: ${direct.url}`);
+    let n = 0;
+    const viaQr = await safeFetchFinal("https://qrco.de/bfXyZ", {}, {
+      lookup: pub,
+      fetchImpl: async () => {
+        n++;
+        if (n === 1) return redirectTo("https://bit.ly/3abc");
+        if (n === 2) return redirectTo("https://www.harbourtable.example/menus");
+        if (n === 3) return redirectTo("/menus/wine.pdf");
+        return okResponse();
+      },
+    });
+    assert(viaQr.url === "https://www.harbourtable.example/menus/wine.pdf", `after three redirects: ${viaQr.url}`);
+    assert(viaQr.response.status === 200, "the final response");
+  });
+
+  await test("safeFetch is safeFetchFinal's response", async () => {
+    const res = await safeFetch("https://qrco.de/x", {}, {
+      lookup: pub,
+      fetchImpl: async (u) => (u.includes("qrco.de") ? redirectTo("https://harbourtable.example/") : okResponse()),
+    });
+    assert(res instanceof Response && res.status === 200, "a Response");
   });
 
   await test("SsrfError carries a machine-readable reason", () => {

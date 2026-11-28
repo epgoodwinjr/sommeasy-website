@@ -32,6 +32,7 @@
 // the real module in plain node — the sommPicks/pendingPalate pattern.
 
 import { CONFIDENCE_GATE, PARTIAL_CONFIDENCE_GATE } from "./dnaThresholds.js";
+import { isListRef } from "./listLedger.js";
 
 /** The catalog — mirrors the wine_events CHECK constraint exactly
  *  (migration 009 v1 set + migration 011's Table Verdict pair). */
@@ -265,11 +266,16 @@ const TERM_COLORS = ["red", "white", "sparkling"];
  *                 name (80 chars) and the region / country / variety the
  *                 photo read for it, whether it was by the glass, whether
  *                 it had a price. A pasted line has only its name.
+ *   list_ref      the sitting's key in the List Ledger (Nov 27, 2026) when
+ *                 this list was kept in the catalog — a photographed,
+ *                 uploaded or linked list — else null. Always a key. It is
+ *                 the user's own note of which list they read: it leaves
+ *                 with their account, and nothing in the catalog points back
  *
  * `entries` are the wines as read (parseWineList / entriesFromVision);
  * `scored`, `matchCount` and `picksShown` are counts from the analysis.
  */
-export function menuAnalyzedPayload({ source, entries, scored, matchCount, picksShown, loneAdventure, terms, steer, session, somm } = {}) {
+export function menuAnalyzedPayload({ source, entries, scored, matchCount, picksShown, loneAdventure, terms, steer, session, somm, listRef } = {}) {
   const read = Array.isArray(entries) ? entries : [];
   const row = (e) => (e && typeof e === "object" ? e : {});
   const hasPrice = (e) => typeof row(e).price === "number" && Number.isFinite(row(e).price);
@@ -286,6 +292,7 @@ export function menuAnalyzedPayload({ source, entries, scored, matchCount, picks
     wines_scored: finiteOrNull(scored),
     picks_shown: finiteOrNull(picksShown),
     lone_adventure: loneAdventure === true,
+    list_ref: isListRef(listRef) ? listRef.toLowerCase() : null,
     terms: {
       min: limitOrNull(t.min),
       max: limitOrNull(t.max),
