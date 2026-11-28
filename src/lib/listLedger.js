@@ -58,6 +58,14 @@ export const HOSTING_PLATFORMS = Object.freeze([
   "bentobox.com", "bbot.menu", "menufy.com", "singleplatform.com", "allmenus.com", "menupages.com",
   "opentable.com", "resy.com", "tock.com", "exploretock.com", "yelp.com", "tripadvisor.com",
   "untappd.com", "wine-searcher.com", "instagram.com", "facebook.com", "linktr.ee",
+  // link shorteners and QR-code redirect services: the address on a table
+  // card is theirs, not the restaurant's (the fetch route reports the host a
+  // link finally led to; one that never left the shortener names no one)
+  "bit.ly", "bitly.com", "tinyurl.com", "t.co", "goo.gl", "g.co", "ow.ly", "is.gd", "v.gd", "cutt.ly",
+  "rebrand.ly", "rb.gy", "shorturl.at", "tiny.cc", "buff.ly", "lnkd.in", "t.ly", "s.id", "short.io",
+  "qrco.de", "qr.codes", "qr-codes.io", "l.ead.me", "ead.me", "me-qr.com", "uqr.to", "uqr.me",
+  "flowcode.com", "flow.page", "qrcode-monkey.com", "qr-code-generator.com", "qrfy.com", "qrfy.io",
+  "beaconstac.com", "scnv.io", "qrstud.io", "qr.page", "qrd.by", "qr.net", "linkin.bio",
 ]);
 
 const str = (v, max) => {

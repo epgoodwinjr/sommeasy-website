@@ -200,6 +200,18 @@ await test("the hosting platforms name no restaurant — the host or any subdoma
   for (const p of L.HOSTING_PLATFORMS) assert(p === p.toLowerCase() && !p.startsWith("www.") && L.normalizeHost(p) === p, `${p} is written as a normalized host`);
 });
 
+await test("link shorteners and QR-code services are platforms too — a table card's link is theirs", () => {
+  const brief = ["bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd", "cutt.ly", "rebrand.ly",
+    "qrco.de", "qr.codes", "l.ead.me", "me-qr.com", "uqr.to", "flowcode.com", "flow.page"];
+  for (const h of brief) assert(L.HOSTING_PLATFORMS.includes(h), `${h} is listed`);
+  for (const h of [...brief, "www.bit.ly", "j.mp.bitly.com", "go.flowcode.com", "QRCO.DE"]) {
+    assert(L.restaurantHost(h) === null, `${h} names no restaurant`);
+  }
+  for (const h of ["at.co", "this.is.gdansk.example", "notbit.ly.example", "qrcodebistro.com"]) {
+    assert(!L.isHostingPlatform(L.normalizeHost(h)), `${h} is not a shortener`);
+  }
+});
+
 console.log("\n--- who the list belongs to ---");
 
 const shaped = (extra) => L.shapeListBody(body(extra));
@@ -213,6 +225,12 @@ await test("a hosting platform's link names no one — and falls back to what's 
   assert(L.restaurantEvidence(shaped({ source_kind: "url", source_host: "static1.squarespace.com" })) === null, "a platform alone");
   const e = L.restaurantEvidence(shaped({ source_kind: "url", source_host: "docs.google.com", restaurant: { website: "www.vineandfig.co.za" } }));
   assert(e?.website_host === "vineandfig.co.za", "the printed website instead");
+});
+
+await test("a link that never left its shortener names no one, and its list still keeps what's printed", () => {
+  assert(L.restaurantEvidence(shaped({ source_kind: "url", source_host: "qrco.de" })) === null, "qrco.de alone");
+  const e = L.restaurantEvidence(shaped({ source_kind: "url", source_host: "bit.ly", restaurant: { name: "Vine & Fig", city: "Stellenbosch" } }));
+  assert(e?.name_key === "vine and fig" && e.website_host === null, "the printed name + city instead");
 });
 
 await test("a website printed on the list names it (and never a printed platform address)", () => {
@@ -313,7 +331,7 @@ await test("listWriteArgs: exactly the database function's arguments — none ab
 
 console.log("\n--- no user field on the write path (source scan) ---");
 
-await test("listLedger, listCatalog, the route and migration 015 write nothing about who read a list", () => {
+await test("listLedger, listCatalog, the route and migrations 015–016 write nothing about who read a list", () => {
   const root = new URL("../../../", import.meta.url);
   const read = (p) => readFileSync(new URL(p, root), "utf8");
   // Code, comments stripped (the files explain the rule in words)
@@ -322,11 +340,13 @@ await test("listLedger, listCatalog, the route and migration 015 write nothing a
   const catalog = code(read("src/lib/listCatalog.js"));
   const route = code(read("src/app/api/lists/route.js"));
   const sql = code(read("supabase/migrations/015_list_ledger.sql"));
-  for (const [file, src] of [["listLedger.js", ledger], ["listCatalog.js", catalog], ["migration 015", sql]]) {
+  const sql16 = code(read("supabase/migrations/016_list_ledger_days.sql"));
+  for (const [file, src] of [["listLedger.js", ledger], ["listCatalog.js", catalog], ["migration 015", sql], ["migration 016", sql16]]) {
     for (const re of [/user_?id/i, /\buser\b/i, /email/i, /\bip\b/i, /getClientIp/, /x-forwarded-for/i, /location/i, /auth\.uid/i, /session/i]) {
       assert(!re.test(src), `${file} mentions ${re}`);
     }
   }
+  assert(!/now\(\)|current_date|current_timestamp|clock_timestamp|localtimestamp/i.test(sql16), "migration 016 takes no day from the clock");
   // The route reads the session and the IP — only to decide and to limit.
   // What it writes is recordListObservation(admin, shaped): the list alone
   const call = route.match(/recordListObservation\(([^)]*)\)/);
@@ -348,11 +368,18 @@ await test("the policy names the catalog, what it keeps and what it never does �
     "catalog of restaurant wine lists",
     "never store the photo, the file or the text you paste",
     "Nothing in the catalog says who read a list",
-    "that note is part of your account and leaves with it",
+    "That note is part of your account and leaves with it",
+    "and with it the restaurant when the catalog names one",
     "Lists stay in the catalog after you delete your account, with nothing pointing to you",
-    "A list you paste is never kept",
+    "A list you paste is never kept in the catalog",
+    "when the list or its link names it, the restaurant",
+    "to learn wines our data doesn’t know yet, to see which restaurants’ lists suit a palate, and to compare a bottle’s price across restaurants",
+    "for a pick from a list you shared by link, that link",
+    "or the website a shared link leads to",
   ]) assert(text.includes(claim), `missing: ${claim}`);
-  for (const gone of ["not the list", "only the wines read from them, while you use the page", "paste a list or share a link, we send it to Anthropic"]) {
+  for (const gone of ["not the list", "only the wines read from them, while you use the page", "paste a list or share a link, we send it to Anthropic",
+    "A list you paste is never kept.", "such as comparing a bottle’s price", "their prices and, when the list names it, the restaurant",
+    "the website a shared link comes from"]) {
     assert(!text.includes(gone), `still says: ${gone}`);
   }
   assert(text.includes("We don’t ask for or track your location."), "the location sentence stays as it is");

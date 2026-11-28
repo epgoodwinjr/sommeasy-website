@@ -142,11 +142,17 @@ async function main() {
     const lookup = fetchLog.find((c) => c.url.endsWith("/auth/v1/user"));
     assert(lookup?.authorization === "Bearer fake-access-token", "the session is the user's own token");
     const args = JSON.parse(calls[0].body);
-    // exactly the database function's fifteen arguments (migration 015) — nothing rides along
+    // exactly the database function's fifteen arguments, as the LATEST
+    // migration that defines it declares them (016) — nothing rides along
     const want = ["p_list_ref", "p_observed_on", "p_source_kind", "p_source_host", "p_origin", "p_parser_version", "p_fingerprint",
       "p_wine_count", "p_priced_count", "p_btg_count", "p_read_name", "p_read_city", "p_read_website", "p_restaurant", "p_items"];
     assert(JSON.stringify(Object.keys(args).sort()) === JSON.stringify([...want].sort()), `arguments ${Object.keys(args)}`);
-    const sql = (await import("node:fs")).readFileSync(new URL("../../../supabase/migrations/015_list_ledger.sql", import.meta.url), "utf8");
+    const fs = await import("node:fs");
+    const dir = new URL("../../../supabase/migrations/", import.meta.url);
+    const defining = fs.readdirSync(dir).filter((f) => /^\d+_.*\.sql$/.test(f)).sort()
+      .filter((f) => fs.readFileSync(new URL(f, dir), "utf8").includes("function public.record_list_observation("));
+    assert(defining.at(-1) === "016_list_ledger_days.sql", `the latest definition: ${defining}`);
+    const sql = fs.readFileSync(new URL(defining.at(-1), dir), "utf8");
     const declared = [...sql.match(/function public\.record_list_observation\(([\s\S]*?)\)\s*returns/)[1].matchAll(/(p_\w+)/g)].map((m) => m[1]);
     assert(JSON.stringify(declared.sort()) === JSON.stringify([...want].sort()), `the function declares ${declared}`);
     assert(args.p_list_ref === REF, `list_ref ${args.p_list_ref}`);

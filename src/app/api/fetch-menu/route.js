@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDocumentProxy } from "unpdf";
-import { safeFetch, SsrfError, SSRF_BLOCK_MESSAGE } from "@/lib/ssrfGuard";
+import { safeFetchFinal, SsrfError, SSRF_BLOCK_MESSAGE } from "@/lib/ssrfGuard";
+import { normalizeHost } from "@/lib/listLedger";
 import { checkRateLimit, getClientIp, RATE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 export const maxDuration = 45;
@@ -152,9 +153,14 @@ export async function POST(request) {
     const urlPath = parsedUrl.pathname.toLowerCase();
 
     // ─── FETCH THE PAGE (SSRF-guarded, per-hop revalidated) ───
+    // `host` is where the page finally came from, after every redirect — a
+    // QR code or short link (qrco.de, bit.ly) names the restaurant's own
+    // site it led to, never itself. The List Ledger keeps this host, not the
+    // address the diner typed (src/lib/listLedger.js restaurantEvidence).
     let pageResponse;
+    let host = null;
     try {
-      pageResponse = await safeFetch(fetchUrl, {
+      const fetched = await safeFetchFinal(fetchUrl, {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -163,6 +169,8 @@ export async function POST(request) {
         },
         signal: AbortSignal.timeout(15000),
       });
+      pageResponse = fetched.response;
+      host = normalizeHost(fetched.url);
 
       if (!pageResponse.ok) {
         return NextResponse.json(
@@ -224,7 +232,7 @@ export async function POST(request) {
       }
 
       pdfText = cleanExtractedText(pdfText);
-      return NextResponse.json({ text: pdfText, source: "pdf" });
+      return NextResponse.json({ text: pdfText, source: "pdf", host });
     }
 
     // ─── HTML HANDLING ───
@@ -257,7 +265,7 @@ export async function POST(request) {
     }
 
     pageText = cleanExtractedText(pageText);
-    return NextResponse.json({ text: pageText, source: "html" });
+    return NextResponse.json({ text: pageText, source: "html", host });
   } catch (err) {
     console.error("Fetch-menu route error:", err);
     return NextResponse.json({ error: "Failed to process URL" }, { status: 500 });

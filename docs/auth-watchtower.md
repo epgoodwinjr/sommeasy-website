@@ -543,7 +543,7 @@ de-identified, in four service-role-only tables (migration 015):
 `src/lib/__tests__/listLedger.test.js`, `listsRoute.test.js`,
 `scripts/list-ledger/sql-test.sh`, `e2e/list-ledger.spec.ts`. Read only
 `origin = 'live'` — e2e, dev and previews write `test` to the same tables.
-Dates are days, never times (`observed_on`, `first_seen`, `last_seen`).
+Dates are days, never times (`observed_on`; `first_seen`, `last_seen` on lists and restaurants — migration 016).
 
 Lists and restaurants added this week, and the share of lists with a
 restaurant:
@@ -556,7 +556,7 @@ SELECT
         / greatest(count(*), 1))                                  AS pct_with_restaurant,
   sum(wine_count)                                                 AS wines,
   (SELECT count(*) FROM restaurants
-    WHERE created_at > now() - interval '7 days'
+    WHERE first_seen > current_date - 7
       AND id IN (SELECT restaurant_id FROM wine_lists WHERE origin = 'live')) AS restaurants_added
 FROM wine_lists
 WHERE origin = 'live' AND first_seen > current_date - 7;

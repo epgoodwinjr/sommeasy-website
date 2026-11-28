@@ -1,5 +1,5 @@
 -- sql-test.sql — record_list_observation() on a throwaway database, run by
--- sql-test.sh after migrations 001–015. Every check raises on failure.
+-- sql-test.sh after every migration (001–016). Every check raises on failure.
 \set ON_ERROR_STOP on
 
 create or replace function pg_temp.obs(ref uuid, fp text, wines int, restaurant jsonb default null,
@@ -61,7 +61,7 @@ select pg_temp.check((select count(*) from public.restaurants where name_key = '
 select pg_temp.check((pg_temp.obs('00000000-0000-4000-8000-000000000015', 'fp-r6', 2) ->> 'restaurant')::boolean = false, 'no evidence, no restaurant');
 do $$ begin
   begin
-    insert into public.restaurants (name, name_key) values ('Name Alone', 'name alone');
+    insert into public.restaurants (name, name_key, first_seen, last_seen) values ('Name Alone', 'name alone', '2026-11-24', '2026-11-24');
     raise exception 'FAILED: a name alone made a restaurant row';
   exception when check_violation then raise notice 'ok  a name alone can never be a restaurant row';
   end;
@@ -96,13 +96,39 @@ begin
   raise notice 'ok  anon and authenticated reach nothing; the service role may write';
 end $$;
 
--- 9. Nothing in the catalog can say who read a list
+-- 9. Nothing in the catalog can say who read a list — nor when, past the day
 do $$ begin
   if exists (select 1 from information_schema.columns
               where table_schema = 'public'
                 and table_name in ('restaurants', 'wine_lists', 'wine_list_items', 'wine_list_observations')
-                and (column_name ~ '(user|email|ip|location|lat|lng|device)' or data_type like 'timestamp%' and table_name <> 'restaurants')) then
+                and column_name ~ '(user|email|ip|location|lat|lng|device)') then
     raise exception 'FAILED: a catalog column could identify a reader';
   end if;
-  raise notice 'ok  no user, email, IP, location or time-of-day column on a list or observation';
+  raise notice 'ok  no user, email, IP or location column in the catalog';
 end $$;
+do $$
+declare c text;
+begin
+  -- every table AND view of the catalog: a day is a date, and nothing else
+  -- that tells time (timestamp, time, interval) may be there
+  select string_agg(table_name || '.' || column_name || ' ' || data_type, ', ') into c
+    from information_schema.columns
+   where table_schema = 'public'
+     and table_name in ('restaurants', 'wine_lists', 'wine_list_items', 'wine_list_observations',
+                        'list_catalog_by_restaurant', 'list_catalog_repeat_bottles')
+     and (data_type like 'timestamp%' or data_type like 'time%' or data_type = 'interval');
+  if c is not null then raise exception 'FAILED: a catalog column holds a time: %', c; end if;
+  raise notice 'ok  no catalog column holds a time — days only';
+end $$;
+select pg_temp.check((select count(*) from information_schema.columns
+  where table_schema = 'public' and table_name = 'restaurants' and column_name in ('first_seen', 'last_seen') and data_type = 'date') = 2,
+  'a restaurant keeps the days it was first and last seen');
+
+-- 10. A restaurant's days are its observations' days, never the clock
+select pg_temp.obs('00000000-0000-4000-8000-000000000030', 'fp-d1', 2, '{"website_host":"daysonly.example"}', day => '2026-10-02');
+select pg_temp.check((select first_seen = '2026-10-02' and last_seen = '2026-10-02' from public.restaurants where website_host = 'daysonly.example'), 'a new restaurant is first and last seen on its observation''s day');
+select pg_temp.obs('00000000-0000-4000-8000-000000000031', 'fp-d2', 2, '{"website_host":"daysonly.example"}', day => '2026-10-09');
+select pg_temp.check((select first_seen = '2026-10-02' and last_seen = '2026-10-09' from public.restaurants where website_host = 'daysonly.example'), 'a later list moves its last day, not its first');
+select pg_temp.obs('00000000-0000-4000-8000-000000000032', 'fp-d3', 2, '{"name":"Day Room","name_key":"day room","city":"Paarl"}', day => '2026-10-03');
+select pg_temp.obs('00000000-0000-4000-8000-000000000033', 'fp-d4', 2, '{"website_host":"dayroom.example","name":"Day Room","name_key":"day room","city":"Paarl"}', day => '2026-10-05');
+select pg_temp.check((select first_seen = '2026-10-03' and last_seen = '2026-10-05' from public.restaurants where name_key = 'day room'), 'a web address joining a name-and-city row keeps both days right');

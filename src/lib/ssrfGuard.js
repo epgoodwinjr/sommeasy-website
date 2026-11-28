@@ -205,20 +205,27 @@ export async function assertPublicUrl(urlString, { lookup = defaultLookup } = {}
  * 169.254.169.254 is stopped at the hop. Caps total hops.
  *
  * Throws SsrfError on any unsafe hop or when the cap is exceeded; otherwise
- * returns the final (non-redirect) Response.
+ * returns `{ response, url }`: the final (non-redirect) Response and the URL
+ * it was fetched from — after every redirect, so a QR code or short link is
+ * the address it led to, never the one typed.
  */
-export async function safeFetch(urlString, fetchOptions = {}, { maxHops = 4, lookup, fetchImpl = fetch } = {}) {
+export async function safeFetchFinal(urlString, fetchOptions = {}, { maxHops = 4, lookup, fetchImpl = fetch } = {}) {
   let current = urlString;
   for (let hop = 0; ; hop++) {
     const { url } = await assertPublicUrl(current, { lookup });
     const res = await fetchImpl(url, { ...fetchOptions, redirect: "manual" });
 
     const isRedirect = res.status >= 300 && res.status < 400 && res.headers.get("location");
-    if (!isRedirect) return res;
+    if (!isRedirect) return { response: res, url };
 
     if (hop >= maxHops) {
       throw new SsrfError("too_many_redirects", `exceeded ${maxHops} hops`);
     }
     current = new URL(res.headers.get("location"), url).toString();
   }
+}
+
+/** safeFetchFinal's Response alone. */
+export async function safeFetch(urlString, fetchOptions = {}, deps = {}) {
+  return (await safeFetchFinal(urlString, fetchOptions, deps)).response;
 }

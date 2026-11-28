@@ -60,7 +60,9 @@ const BLACKHOLE: Wine[] = [
 // Invented restaurants, marked so a stray row is recognizable
 const PRINTED = { name: "[e2e] Ledger Harbour Table", city: "Testville", website: null };
 const NOTHING_PRINTED = { name: null, city: null, website: null };
-const LINK = "https://www.ledger-harbour.e2e-example.com/wine-list";
+// What the diner types is a QR code's short link; where it led is the
+// restaurant's own site (the fetch route reports the host after redirects)
+const QR_LINK = "https://qrco.de/ledgerE2E";
 const LINK_HOST = "ledger-harbour.e2e-example.com";
 
 function catalogDb(): SupabaseClient {
@@ -248,27 +250,44 @@ test.describe("The List Ledger", () => {
     expect(count, "a name alone is never a restaurant").toBe(0);
   });
 
-  test("a linked list names its host; a pasted list writes nothing", async ({ page }) => {
+  test("a linked list names the host its link led to, never the QR code's; a pasted list writes nothing", async ({ page }) => {
     const { supabase, userId } = await testDb();
     await blockSomm(page);
-    await page.route("**/api/fetch-menu", (route) => route.fulfill({
-      json: { text: "REDS\nKanonkop Paul Sauer, Stellenbosch 2019    $120\nMullineux Syrah, Swartland 2020    $72\n", source: "html" },
-    }));
+    // The route, scripted as it answers: the page's text and the host it
+    // FINALLY came from — the restaurant's site first, then a page the
+    // shortener served itself
+    let answer = { text: "REDS\nKanonkop Paul Sauer, Stellenbosch 2019    $120\nMullineux Syrah, Swartland 2020    $72\n", source: "html", host: LINK_HOST };
+    await page.route("**/api/fetch-menu", (route) => route.fulfill({ json: answer }));
     const rec = new RecommendPage(page);
     await rec.goto();
     await expect(page.getByRole("heading", { name: "Match the wine list" })).toBeVisible({ timeout: 20_000 });
 
     const write = page.waitForResponse(isListWrite, { timeout: 30_000 });
-    await rec.fetchUrl(LINK);
+    await rec.fetchUrl(QR_LINK);
     const res = await write;
     const body = listBody(res.request());
     written.push(body.list_ref);
     expect(body).toMatchObject({ source_kind: "url", source_host: LINK_HOST });
+    expect(JSON.stringify(body), "the typed short link is never kept").not.toContain("qrco.de");
     const [obs] = await observation(body.list_ref);
     const list = obs.wine_lists as unknown as Record<string, unknown>;
     expect(list).toMatchObject({ source_kind: "url", source_host: LINK_HOST, wine_count: 2 });
     const { data: restaurant } = await catalogDb().from("restaurants").select("website_host").eq("id", list.restaurant_id as string).single();
     expect(restaurant!.website_host).toBe(LINK_HOST);
+    await expect(rec.resultsHeading).toBeVisible({ timeout: 30_000 });
+
+    // A link that never left the shortener: its list is kept, and names no one
+    await rec.reset();
+    answer = { text: "REDS\nMeerlust Rubicon, Stellenbosch 2018    $95\nLedger Test Text Red    $44\n", source: "html", host: "qrco.de" };
+    const write2 = page.waitForResponse(isListWrite, { timeout: 30_000 });
+    await rec.fetchUrl(QR_LINK);
+    const body2 = listBody((await write2).request());
+    written.push(body2.list_ref);
+    expect(body2.list_ref).not.toBe(body.list_ref);
+    const [obs2] = await observation(body2.list_ref);
+    expect(obs2.wine_lists as unknown as Record<string, unknown>).toMatchObject({ source_host: "qrco.de", restaurant_id: null });
+    const { count: qrRestaurants } = await catalogDb().from("restaurants").select("id", { count: "exact", head: true }).eq("website_host", "qrco.de");
+    expect(qrRestaurants, "a shortener is never a restaurant").toBe(0);
     await expect(rec.resultsHeading).toBeVisible({ timeout: 30_000 });
 
     // A new sitting, pasted: nothing is sent, and menu_analyzed says so

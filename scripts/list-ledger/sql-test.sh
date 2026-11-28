@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# sql-test.sh — migration 015's record_list_observation() and admin views on
+# sql-test.sh — migrations 015–016's record_list_observation() and admin views on
 # a throwaway local Postgres 17 (the drill-test pattern): a cluster in a temp
-# folder, the stand-in Supabase roles and auth schema, migrations 001–015,
+# folder, the stand-in Supabase roles and auth schema, migrations 001–016,
 # then sql-test.sql. Touches nothing outside the temp folder.
 #
 #   scripts/list-ledger/sql-test.sh

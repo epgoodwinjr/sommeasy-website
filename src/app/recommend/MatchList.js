@@ -845,7 +845,9 @@ export default function MatchList({ isMobile = false }) {
       }
 
       await finishReading(token, entries, "url", () => {
-        listMetaRef.current = { ...listMetaRef.current, kind: listMetaRef.current.kind || "url", host: normalizeHost(trimmed) };
+        // the host the route finally fetched from (after a QR code or short
+        // link's redirects) — never the address typed
+        listMetaRef.current = { ...listMetaRef.current, kind: listMetaRef.current.kind || "url", host: normalizeHost(data.host) };
         setWineListText(text);
         setExtractedFrom("url");
       });
