@@ -32,9 +32,9 @@ def font(size):
     return ImageFont.load_default()
 
 
-def render(key, spec, out_dir, title=None):
+def render(key, spec, out_dir, title=None, header=None):
     width, margin, row = 1500, 110, 58
-    rows = sum(len(s["wines"]) + 2 for s in spec["sections"]) + 4
+    rows = sum(len(s["wines"]) + 2 for s in spec["sections"]) + 4 + (len(header) + 1 if header else 0)
     img = Image.new("RGB", (width, margin * 2 + rows * row), "#fbf8f1")
     d = ImageDraw.Draw(img)
     title_font, head, body = font(46), font(30), font(27)
@@ -42,6 +42,14 @@ def render(key, spec, out_dir, title=None):
     glass_x, bottle_x = width - margin - 190, width - margin - 40
 
     y = margin
+    # A restaurant's own header over the list (scripts/list-ledger/names.mjs):
+    # [(text, size), ...], centered, before the title
+    for text, size in header or []:
+        f = font(size)
+        d.text(((width - d.textlength(text, font=f)) / 2, y), text, fill="#3a3a3a", font=f)
+        y += row
+    if header:
+        y += row // 2
     heading = title or spec["title"]
     w = d.textlength(heading, font=title_font)
     d.text(((width - w) / 2, y), heading, fill="#1b1b1b", font=title_font)

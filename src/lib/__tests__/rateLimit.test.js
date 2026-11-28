@@ -96,6 +96,22 @@ async function main() {
     });
   }
 
+  // A route may allow more than MAX_REQUESTS (/api/lists, Nov 27, 2026);
+  // junk for a limit is the default, never "no limit"
+  await test("a route's own limit: request max+1 is refused; junk limits fall back to MAX_REQUESTS", () => {
+    const env = { NODE_ENV: "production", E2E_DISABLE_RATE_LIMIT: undefined };
+    const refusalAt = (max, count) => withEnv(env, () => {
+      const route = `rate-limit-max-${++bucketSeq}`;
+      for (let i = 1; i <= count; i++) if (!checkRateLimit(route, "203.0.113.8", max).allowed) return i;
+      return 0;
+    });
+    assert(refusalAt(60, 70) === 61, `60 → refused at ${refusalAt(60, 70)}`);
+    assert(refusalAt(3, 10) === 4, "3 → refused at 4");
+    for (const junk of [0, -1, 2.5, NaN, "60", null]) {
+      assert(refusalAt(junk, 3 * MAX_REQUESTS) === OVER, `${JSON.stringify(junk)} → the default limit`);
+    }
+  });
+
   // ─── The one price table, with the prompt cache (Nov 15, 2026) ───
   // Since the Somm's brief is cached the API reports a call's input in three
   // parts, and only the part after the breakpoint is `input_tokens`. Every

@@ -532,6 +532,82 @@ exact spelling (uppercase or an underscore is ignored by design), or when
 `card` accounts appear but `ref` is missing on Google signups made the same
 day (the first signed-in load stopped writing it).
 
+### 11h. The List Ledger (the catalog of wine lists, Nov 2026)
+
+Every photographed, uploaded or linked list a signed-in diner reads is kept,
+de-identified, in four service-role-only tables (migration 015):
+`restaurants`, `wine_lists` (one row per list version), `wine_list_items`,
+`wine_list_observations` (one per sitting, keyed by the `list_ref` its
+`menu_analyzed` carries). Rules and tests: `src/lib/listLedger.js`,
+`src/lib/listCatalog.js`, `src/app/api/lists/route.js`,
+`src/lib/__tests__/listLedger.test.js`, `listsRoute.test.js`,
+`scripts/list-ledger/sql-test.sh`, `e2e/list-ledger.spec.ts`. Read only
+`origin = 'live'` — e2e, dev and previews write `test` to the same tables.
+Dates are days, never times (`observed_on`, `first_seen`, `last_seen`).
+
+Lists and restaurants added this week, and the share of lists with a
+restaurant:
+
+```sql
+SELECT
+  count(*)                                                        AS lists_added,
+  count(*) FILTER (WHERE restaurant_id IS NOT NULL)               AS with_restaurant,
+  round(100.0 * count(*) FILTER (WHERE restaurant_id IS NOT NULL)
+        / greatest(count(*), 1))                                  AS pct_with_restaurant,
+  sum(wine_count)                                                 AS wines,
+  (SELECT count(*) FROM restaurants
+    WHERE created_at > now() - interval '7 days'
+      AND id IN (SELECT restaurant_id FROM wine_lists WHERE origin = 'live')) AS restaurants_added
+FROM wine_lists
+WHERE origin = 'live' AND first_seen > current_date - 7;
+```
+
+How often a name was read off the page — and how often that was enough to
+name the restaurant (a name alone never is; a city or a website must be
+printed too, or the list must come from a restaurant's own link):
+
+```sql
+SELECT
+  source_kind,
+  count(*)                                                       AS lists,
+  count(*) FILTER (WHERE read_name IS NOT NULL)                  AS name_read,
+  count(*) FILTER (WHERE read_city IS NOT NULL)                  AS city_read,
+  count(*) FILTER (WHERE read_website IS NOT NULL)               AS website_read,
+  count(*) FILTER (WHERE read_name IS NOT NULL AND restaurant_id IS NULL) AS name_only,
+  count(*) FILTER (WHERE source_host IS NOT NULL)                AS linked_with_host
+FROM wine_lists
+WHERE origin = 'live' AND first_seen > current_date - 7
+GROUP BY source_kind;
+```
+
+Lists against analyses (what share of kept-eligible sittings reached the
+catalog — a sitting whose write failed has a `list_ref` on its
+`menu_analyzed` and no observation):
+
+```sql
+SELECT
+  count(DISTINCT e.payload->>'list_ref')                               AS sittings_with_ref,
+  count(DISTINCT o.list_ref)                                           AS observed
+FROM wine_events e
+LEFT JOIN wine_list_observations o ON o.list_ref::text = e.payload->>'list_ref'
+WHERE e.event_type = 'menu_analyzed'
+  AND e.payload->>'list_ref' IS NOT NULL
+  AND e.occurred_at > now() - interval '7 days';
+```
+
+The admin views: `SELECT * FROM list_catalog_by_restaurant;` (lists, times
+seen, wines and last seen per restaurant; the row with no restaurant is
+every list we couldn't name) and `SELECT * FROM list_catalog_repeat_bottles;`
+(a bottle seen on two or more lists, with its bottle-price range). Logs:
+`[lists] write ok: N wines, list new|existing, observation new|moved|kept,
+restaurant true|false, live|test` and `[lists] write failed: <code>`.
+**Escalate when** live analyses of photographed or linked lists carry a
+`list_ref` but `observed` stays well below `sittings_with_ref` (the write is
+failing — grep `[lists] write failed`), or when `pct_with_restaurant` is
+zero for a week of lists that obviously print a name and city (the prompt
+stopped filling `metadata.restaurant`; re-measure with
+`scripts/list-ledger/render-headers.py`).
+
 ### 12. The roster (founder CRM)
 
 `SELECT * FROM user_roster;` — one row per user: signup date, title +

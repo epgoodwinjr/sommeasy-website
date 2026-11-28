@@ -250,6 +250,16 @@ async function main() {
     assert(!("sample" in p), "a scan that matched keeps no sample");
   });
 
+  await test("menuAnalyzedPayload: list_ref — the sitting's catalog key, a full UUID or null, always a key", () => {
+    const ref = "6F1C2B9E-3D4A-4B5C-9D6E-7F8A9B0C1D2E";
+    assert(menuAnalyzedPayload({ entries: [], listRef: ref }).list_ref === ref.toLowerCase(), "kept, lowercased");
+    for (const junk of [undefined, null, "", "ab12cd34", "not-a-uuid", 42, {}]) {
+      const p = menuAnalyzedPayload({ entries: [], listRef: junk });
+      assert("list_ref" in p && p.list_ref === null, `${JSON.stringify(junk)} → null`);
+    }
+    assert(menuAnalyzedPayload({ entries: [], session: "ab12cd34" }).list_ref === null, "the session id is never a list ref");
+  });
+
   await test("menuAnalyzedPayload: terms are positive numbers or null; All wines is no color", () => {
     const terms = (t) => menuAnalyzedPayload({ entries: [], terms: t }).terms;
     assert(JSON.stringify(terms({ min: "40", max: "90", color: "white" })) === JSON.stringify({ min: 40, max: 90, color: "white" }), "digit strings");

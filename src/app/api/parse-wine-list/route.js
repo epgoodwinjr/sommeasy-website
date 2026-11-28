@@ -53,6 +53,7 @@ Important instructions:
 - If you cannot read a wine name clearly, include your best guess
 - Always extract the vintage year when visible, even if it appears in a separate column, in small print, or after the wine name
 - For the color field, use "sparkling" for any sparkling wine (Champagne, Cava, Prosecco, Crémant, Brut, Méthode Traditionnelle, Spumante, Sekt, MCC, etc.), even if it would otherwise be classified as white or rosé
+- metadata.restaurant: the restaurant's name, city and website ONLY as they are printed on the list itself — a header, a footer, a letterhead, the text of a logo. Fill each field only when you can read it there, exactly as printed; otherwise null. Never infer them from the wines, the language, the prices or the style of the list, and never guess a city from a region or a website from a name. A list with nothing printed about the restaurant has "restaurant": { "name": null, "city": null, "website": null }
 
 Respond ONLY with a JSON object in this exact format, no other text:
 {
@@ -75,7 +76,8 @@ Respond ONLY with a JSON object in this exact format, no other text:
     "total_wines": 45,
     "sections": ["Sparkling", "White Wine", "Red Wine"],
     "has_btg_section": true,
-    "image_quality": "good"
+    "image_quality": "good",
+    "restaurant": { "name": null, "city": null, "website": null }
   }
 }`;
 

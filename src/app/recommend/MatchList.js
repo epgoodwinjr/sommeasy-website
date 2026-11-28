@@ -48,6 +48,7 @@ import { buildSommPayload, buildAdventurePayload } from "@/lib/sommPicks";
 import { resolveAndAccumulate } from "@/lib/dnaEvolution";
 import { maybeRecomposeIdentity, shiftToastMessage } from "@/lib/identityRecompose";
 import { recordEvent, ratingEventPayload, pickChosenPayload, sommBypassedPayload, sommCurationPayload, menuAnalyzedPayload } from "@/lib/wineEvents";
+import { mintListRef, listRequestBody, sendList, hasRestaurant, normalizeHost, LIST_SOURCE_KINDS } from "@/lib/listLedger";
 import { evolutionToastMessages } from "@/components/WineRecList";
 import { splitVintage } from "@/lib/vintage";
 import { numeralCounter } from "@/lib/numerals";
@@ -303,6 +304,15 @@ export default function MatchList({ isMobile = false }) {
   const readTokenRef = useRef(0);
   const verdictSessionRef = useRef(null);
   if (!verdictSessionRef.current) verdictSessionRef.current = mintVerdictSession();
+  // The List Ledger: one catalog key per sitting, minted with the verdict
+  // session (the session id is 8 characters — too short for a catalog key)
+  const listRefRef = useRef(null);
+  if (!listRefRef.current) listRefRef.current = mintListRef();
+  // What the sitting's list is, for the catalog: its first page's kind, a
+  // shared link's host, the restaurant the first page that printed one read,
+  // and whether a page came through editable text — then nothing is kept
+  const listMetaRef = useRef(null);
+  if (!listMetaRef.current) listMetaRef.current = { kind: null, host: null, restaurant: null, edited: false };
   // Wishlist rows THIS sitting's choose created (proven absent before the
   // upsert). Provenance can't be read back off the columns, but a replacement
   // can only happen in the sitting that chose — so in-memory is complete.
@@ -416,6 +426,17 @@ export default function MatchList({ isMobile = false }) {
     setSommNotes({});
     setSommSummary("");
     setSommState("idle");
+    // The List Ledger: a photographed, uploaded or linked list is kept in
+    // the catalog — the whole list read so far, once per committed analysis,
+    // on the sitting's list_ref. Never awaited, never throws (sendList); a
+    // failure changes nothing here. Pasted or edited text is never kept
+    const meta = listMetaRef.current;
+    const listRef = !meta.edited && LIST_SOURCE_KINDS.includes(source) ? listRefRef.current : null;
+    if (listRef) {
+      sendList(listRequestBody({
+        listRef, sourceKind: meta.kind || source, sourceHost: meta.host, restaurant: meta.restaurant, entries: a.entries,
+      }));
+    }
     // menu_analyzed (The Long Memory) fires ONCE per analysis — from
     // askTheSomm when The Somm runs (so the outcome + duration ride along),
     // or right here when it never will (somm: null). It says what the list
@@ -425,6 +446,7 @@ export default function MatchList({ isMobile = false }) {
     const analysisMeta = {
       source: source || null, entries: a.entries, scored: a.scored.length, matchCount: a.matched.length,
       picksShown: a.curated.length, loneAdventure: a.adventure, terms: { min: a.minP, max: a.maxP, color: a.colorP },
+      listRef,
     };
     if (a.curated.length > 0) {
       askTheSomm({
@@ -663,6 +685,9 @@ export default function MatchList({ isMobile = false }) {
     // and it's the first page, so "Add another page" builds on it
     const fromScan = extractedFrom === "scan";
     await finishReading(token, entries, extractedFrom || "paste", () => {
+      // Text the diner could edit is pasted text: the sitting's list is no
+      // longer kept in the catalog
+      listMetaRef.current = { ...listMetaRef.current, edited: true };
       if (fromScan) {
         accumulatedEntriesRef.current = entries;
         setPageCount(1);
@@ -743,7 +768,15 @@ export default function MatchList({ isMobile = false }) {
 
         // Entries accumulate across pages — once the picks land
         const entries = [...accumulatedEntriesRef.current, ...newEntries];
-        await finishReading(token, entries, file.type === "application/pdf" ? "pdf" : "scan", () => {
+        const kind = file.type === "application/pdf" ? "pdf" : "scan";
+        await finishReading(token, entries, kind, () => {
+          // The first page that printed the restaurant's name, city or
+          // website wins (the prompt fills them only when printed)
+          const m = listMetaRef.current;
+          const printed = data.metadata?.restaurant;
+          listMetaRef.current = {
+            ...m, kind: m.kind || kind, restaurant: m.restaurant || (hasRestaurant(printed) ? printed : null),
+          };
           accumulatedEntriesRef.current = entries;
           setPageCount((n) => n + 1);
           setWineListText(data.rawText || "");
@@ -812,6 +845,7 @@ export default function MatchList({ isMobile = false }) {
       }
 
       await finishReading(token, entries, "url", () => {
+        listMetaRef.current = { ...listMetaRef.current, kind: listMetaRef.current.kind || "url", host: normalizeHost(trimmed) };
         setWineListText(text);
         setExtractedFrom("url");
       });
@@ -1038,6 +1072,9 @@ export default function MatchList({ isMobile = false }) {
     setChanging(false);
     setBypassState(null);
     verdictSessionRef.current = mintVerdictSession();
+    // …and a new list for the catalog
+    listRefRef.current = mintListRef();
+    listMetaRef.current = { kind: null, host: null, restaurant: null, edited: false };
     chooseCreatedRef.current = new Set();
   };
 
